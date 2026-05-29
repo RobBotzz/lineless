@@ -1,0 +1,159 @@
+# Lineless — Backend Project Context
+
+This file is the briefing for anyone (human or AI tooling such as Claude Code)
+working on the Lineless backend. It summarizes the architecture decisions made
+so far, the data model, the conventions, and the explicit course constraints.
+Read this before suggesting changes.
+
+## What Lineless is
+
+A pay-per-use digital event queuing and ordering platform for small-scale event
+organizers (student councils, clubs, pop-up vendors). Event organizers configure
+events, stands, and products; attendees order and pay (digital or cash) from their
+phones; operators fulfill orders from a stand dashboard. The source-of-truth specs
+are the data model and the two assignment / customer-journey documents kept in
+`docs/`.
+
+## Tech stack
+
+- **Runtime:** Node.js + Express
+- **Language:** TypeScript, `strict: true` (non-negotiable)
+- **Database:** MongoDB (this is a course requirement — see Constraints below)
+- **ODM:** Mongoose (provides the schema, enum, required-field, and default
+  enforcement that MongoDB itself does not. Note: Prisma is NOT used — it is weak
+  on MongoDB, and Mongoose is the better fit here.)
+- **Realtime:** Server-Sent Events (SSE), NOT WebSockets. All the `/stream`
+  endpoints in the docs are explicitly unidirectional server→client. MongoDB
+  Change Streams pair naturally with SSE here.
+- **Dev runner:** nodemon + ts-node (see Scripts)
+- **Auth libraries:** bcrypt (password hashing), jsonwebtoken (JWT), cookie-parser
+
+## Explicit course constraints (do not "fix" these)
+
+1. **MongoDB is mandatory.** The data model is relational in shape, but we must
+   use MongoDB. We adapt by modeling for access patterns (embed vs. reference)
+   rather than copying the class diagram 1:1 into ~18 collections. Additional
+   database variants can be added but the app core must be managed by MongoDB.
+2. **No `.env` file.** Secrets live in a committed, typed config file
+   (`src/config/config.ts`) so the project clones and runs with zero setup. This
+   is a deliberate didactic trade-off for a university project. Do NOT introduce
+   `.env` or `dotenv`. **Caveat:** never put real Stripe live keys or real
+   production/payment data in the committed config — only the local DB URI and a
+   demo JWT secret.
+
+## Enums
+
+Enums from the model: `ProductStatus` (LIVE/PAUSED/TERMINATED),
+`TabStatus` (PENDING_AUTHORIZATION/OPEN/CHECKOUT_PENDING/PAID/FAILED),
+`TabPaymentStatus` (PENDING/AUTHORIZED/CAPTURED/RELEASED/FAILED). Enforce via
+Mongoose enum.
+
+## Authentication — THREE separate identity types
+
+This is the single most important thing to get right. There is no single auth
+middleware; there are three, kept deliberately separate:
+
+1. **Account (organizer, e.g. Emely)** — real login with `email` + `passwordHash`.
+   Verify with bcrypt, issue a **JWT**, client sends it on subsequent requests.
+   Middleware: `middleware/authAccount.ts`.
+2. **User (attendee, e.g. Andi)** — NO login. `POST /users/session` creates a
+   record with a `userSessionId` and sets it as an **httpOnly cookie**.
+   Middleware reads the cookie each request. Simplest of the three.
+   Middleware: `middleware/authSession.ts`.
+3. **Stand (operator, e.g. Oli)** — per-stand `accessPasswordHash`. Operator
+   enters the stand password, compare with bcrypt, then issue a short-lived
+   token / cookie scoped to that stand. Middleware: `middleware/authStand.ts`.
+
+Auth policy: password hashing is ALWAYS via bcrypt (never hand-rolled). The
+logic around it (login route, token issuing, middleware, session cookie) is
+written ourselves — it's small and the three identity types don't fit any
+generic boilerplate.
+
+## Domain logic to be careful with
+
+- **OrderItem state machine.** Items have `startedAt`, `readyAt`, `fulfilledAt`,
+  `cancelledAt` — a timestamp-driven state machine, not a free-form field. The
+  operator "tap → preparing → ready → cleared" flow must be validated
+  server-side (no going backwards). Implement as an explicit transition
+  function, not arbitrary PATCH.
+- **Money is always an integer in cents.** Never float. (Model already does this:
+  `priceExclTax`, `amountCents`, `authorizedCentsAmount`, etc.)
+- **Stripe / Tab flow.** `POST /tabs` → Stripe session → authorize-then-capture.
+  `TabPayment.authorizedCentsAmount` vs `capturedCentsAmount` is the standard
+  authorize-on-order / capture-on-checkout pattern. Plan for Stripe **webhooks**;
+  `stripeEventId` exists for idempotency (dedupe duplicate webhook events).
+- **Multi-document transactions.** Flows that touch Order + Tab + TabPayment
+  together need atomicity via `session.withTransaction(...)`. Requires MongoDB
+  running as a replica set (even single-node) locally — common setup gotcha.
+  Where we embed (Order + items), a single-document update is already atomic.
+
+## Project structure (feature/domain-based, not layer-based)
+
+```
+lineless-backend/
+├── src/
+│   ├── modules/            # one folder per domain: routes + validation + service
+│   │   ├── accounts/
+│   │   ├── users/
+│   │   ├── events/
+│   │   ├── stands/
+│   │   ├── products/
+│   │   ├── orders/
+│   │   ├── tabs/
+│   │   ├── payments/
+│   │   └── ratings/
+│   ├── middleware/
+│   │   ├── authAccount.ts  # JWT (organizer)
+│   │   ├── authSession.ts  # session cookie (attendee)
+│   │   └── authStand.ts    # stand password (operator)
+│   ├── lib/
+│   │   └── db.ts          # Mongoose connection
+│   ├── config/
+│   │   └── config.ts       # committed, typed config (NO .env)
+│   ├── app.ts              # Express app (middleware, route mounting)
+│   └── server.ts           # startup (DB connect, listen)
+├── docs/                   # data model JSON + assignment/journey PDFs for reference
+├── nodemon.json
+├── tsconfig.json
+└── package.json
+```
+
+Each module: Express Router → Zod (or equivalent) validation → service
+(business logic + Mongoose). Keep logic in services, not route handlers.
+
+## Conventions
+
+- Money: integer cents, never float.
+- IDs: UUIDs (as in the data model).
+- TypeScript `strict: true`.
+- Config is committed (see Constraints) — do not propose `.env`/`dotenv`.
+- Validate input at the route boundary before it reaches a service.
+
+## Scripts (package.json)
+
+```json
+"scripts": {
+  "dev": "nodemon",
+  "build": "tsc",
+  "start": "node dist/server.js"
+}
+```
+
+`nodemon.json`:
+
+```json
+{
+  "watch": ["src"],
+  "ext": "ts",
+  "exec": "ts-node src/server.ts"
+}
+```
+
+Note: ts-node transpiles without full type-checking, so the dev server may run
+even with a type error present. Full type-checking happens in the editor and on
+`npm run build` (`tsc`). This is expected.
+
+## tsconfig essentials
+
+`target: ES2022`, `module: CommonJS`, `rootDir: ./src`, `outDir: ./dist`,
+`strict: true`, `esModuleInterop: true`, `resolveJsonModule: true`.
