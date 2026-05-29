@@ -121,6 +121,14 @@ lineless-backend/
 Each module: Express Router → Zod (or equivalent) validation → service
 (business logic + Mongoose). Keep logic in services, not route handlers.
 
+## Containerization
+
+The application consists of this repository (backend) and a second repository (frontend).
+Each application must be dockerized (one Dockerfile each). In addition, this repository
+also contains the docker-compose.yml file, which orchestrates the backend, frontend,
+and database service. Although the compose file lies within this repository, ALWAYS
+assume that it lies one folder higher, so it will reference the frontend build as ./frontend.
+
 ## Conventions
 
 - Money: integer cents, never float.
@@ -128,6 +136,7 @@ Each module: Express Router → Zod (or equivalent) validation → service
 - TypeScript `strict: true`.
 - Config is committed (see Constraints) — do not propose `.env`/`dotenv`.
 - Validate input at the route boundary before it reaches a service.
+- Only use comments sparely and if you do, ONLY write in english.
 
 ## Scripts (package.json)
 
