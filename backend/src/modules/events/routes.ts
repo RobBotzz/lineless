@@ -18,7 +18,7 @@ function eventId(req: Request): string {
   return req.params["eventId"] as string;
 }
 
-function handleError(err: unknown, res: Response): Response {
+function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError) {
     return res.status(404).json({ error: err.message });
   }
