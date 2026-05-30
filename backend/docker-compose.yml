@@ -27,7 +27,6 @@ services:
     volumes:
       - mongo-data:/data/db
     healthcheck:
-      # Initiate the replica set on first start (idempotent); healthy once primary.
       test:
         [
           "CMD",

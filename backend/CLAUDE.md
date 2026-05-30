@@ -121,6 +121,26 @@ lineless-backend/
 Each module: Express Router → Zod (or equivalent) validation → service
 (business logic + Mongoose). Keep logic in services, not route handlers.
 
+### Layering: Router → Service → Mongoose (NO repository layer)
+
+The fixed layering is **Router → Service → Mongoose model**. There is deliberately
+**no separate repository/persistence layer** — a Mongoose model already *is* the
+data-access abstraction (validation, casting, defaults, query API), so wrapping it
+in a pass-through repository would be empty boilerplate.
+
+- **Router (controller):** thin. Lives in `*.routes.ts`. Reads `req`, calls the
+  service, maps the result/error onto an HTTP status + JSON. Keep the controller as
+  the route-handler callback unless a module grows many routes (only then split out
+  a `*.controller.ts`).
+- **Service:** all business logic + data access. Calls Mongoose models directly.
+  MUST NOT touch `req`/`res` — it throws typed domain errors (e.g. `EmailTakenError`)
+  and the router decides the status code.
+- **Mongoose model:** schema + collection. Reusable query logic goes on the schema
+  as a `static`/`method` or a small helper in the same module — NOT a repository class.
+
+Only introduce a repository abstraction if MongoDB is ever swapped behind an
+interface (it is course-mandated, so this won't happen).
+
 ## Containerization
 
 The application consists of this repository (backend) and a second repository (frontend).
