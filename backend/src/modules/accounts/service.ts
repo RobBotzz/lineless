@@ -87,7 +87,9 @@ export async function deleteAccount(accountId: string): Promise<void> {
   }
 }
 
-export async function getAccountInfo(accountId: string): Promise<PublicAccount> {
+export async function getAccountInfo(
+  accountId: string
+): Promise<PublicAccount> {
   const account = await Account.findOne({
     accountId,
     deletedAt: null,
@@ -103,10 +105,11 @@ export async function getAccountInfo(accountId: string): Promise<PublicAccount> 
 }
 
 export async function updateAccountInfo(
+  accountId: string,
   input: UpdateAccountInput
 ): Promise<UpdateAccountResult> {
   const account = await Account.findOne({
-    accountId: input.accountId,
+    accountId,
     deletedAt: null,
   });
   if (!account) {
@@ -140,7 +143,7 @@ export async function updateAccountInfo(
 
   await account.save();
 
-  const updatedAccount = await getAccountInfo(input.accountId);
+  const updatedAccount = await getAccountInfo(accountId);
   return {
     account: updatedAccount,
     ...(token ? { token } : {}),

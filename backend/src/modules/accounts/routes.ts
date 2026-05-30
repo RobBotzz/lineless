@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
+import { authAccount } from "../../middleware/authAccount";
 import {
   deleteAccount,
   getAccountInfo,
@@ -7,12 +8,7 @@ import {
   signup,
   updateAccountInfo,
 } from "./service";
-import {
-  accountIdSchema,
-  loginSchema,
-  signupSchema,
-  updateAccountSchema,
-} from "./types";
+import { loginSchema, signupSchema, updateAccountSchema } from "./types";
 import {
   AccountAlreadyExistsError,
   AccountInvalidCredentialsError,
@@ -21,18 +17,8 @@ import {
 
 const accountRouter = Router();
 
-type RequestWithUser = Request & {
-  user?: {
-    accountId?: string;
-  };
-};
-
 function tokenAccountId(req: Request): string | undefined {
-  return (req as RequestWithUser).user?.accountId;
-}
-
-function isForbidden(req: Request, accountId: string): boolean {
-  return tokenAccountId(req) !== accountId;
+  return req.user?.accountId;
 }
 
 function handleError(err: unknown, res: Response): Response {
@@ -49,6 +35,7 @@ function handleError(err: unknown, res: Response): Response {
   return res.status(500).json({ message: "Internal server error" });
 }
 
+// Public — no auth.
 accountRouter.post(
   "/signup",
   validateBody(signupSchema, async (_req, res, data) => {
@@ -61,6 +48,7 @@ accountRouter.post(
   })
 );
 
+// Public — no auth.
 accountRouter.post(
   "/login",
   validateBody(loginSchema, async (_req, res, data) => {
@@ -73,52 +61,46 @@ accountRouter.post(
   })
 );
 
-accountRouter.delete(
-  "/delete",
-  validateBody(accountIdSchema, async (req, res, data) => {
-    if (isForbidden(req, data.accountId)) {
-      res
-        .status(403)
-        .json({ message: "Forbidden: You can only delete your own account" });
-      return;
-    }
+// Protected — the account to act on comes from the verified token, never the body.
+accountRouter.delete("/delete", authAccount, async (req, res) => {
+  const accountId = tokenAccountId(req);
+  if (!accountId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+  try {
+    await deleteAccount(accountId);
+    res.status(200).json({ message: "Account deleted successfully" });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
 
-    try {
-      await deleteAccount(data.accountId);
-      res.status(200).json({ message: "Account deleted successfully" });
-    } catch (err) {
-      handleError(err, res);
-    }
-  })
-);
-
-accountRouter.get(
-  "/info",
-  validateBody(accountIdSchema, async (req, res, data) => {
-    if (isForbidden(req, data.accountId)) {
-      res.status(403).json({ message: "Forbidden: Access denied" });
-      return;
-    }
-
-    try {
-      const account = await getAccountInfo(data.accountId);
-      res.status(200).json({ account });
-    } catch (err) {
-      handleError(err, res);
-    }
-  })
-);
+accountRouter.get("/info", authAccount, async (req, res) => {
+  const accountId = tokenAccountId(req);
+  if (!accountId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+  try {
+    const account = await getAccountInfo(accountId);
+    res.status(200).json({ account });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
 
 accountRouter.put(
   "/update",
+  authAccount,
   validateBody(updateAccountSchema, async (req, res, data) => {
-    if (isForbidden(req, data.accountId)) {
-      res.status(403).json({ message: "Forbidden: Access denied" });
+    const accountId = tokenAccountId(req);
+    if (!accountId) {
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
-
     try {
-      const result = await updateAccountInfo(data);
+      const result = await updateAccountInfo(accountId, data);
       res.status(200).json({
         message: "Account updated successfully",
         account: result.account,
