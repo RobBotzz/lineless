@@ -71,3 +71,12 @@ export default defineConfig([
   },
 ])
 ```
+## Frontend Structure
+
+We use a clear separation between reusable UI elements and feature-specific logic:
+
+- `src/components/ui/` - Auto-generated shadcn components. **Do not modify these.**
+- `src/components/shared/` - Our custom UI wrappers (e.g., `PrimaryBtn`, `StatusBadge`).
+- `src/components/layout/` - Global structure elements (Navbar, main layout containers).
+- `src/features/` - Domain-specific components and logic (e.g., `/queue`, `/payment`).
+- `src/routes/` - Main page views matching our routing paths (Attendee, Operator, Organizer).
