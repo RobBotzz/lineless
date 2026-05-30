@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { config } from "../../config/config";
 import { handleAmountCapturableUpdated } from "./service";
 
-export const stripeWebhookRouter = Router();
+const stripeWebhookRouter = Router();
 const stripe = new Stripe(config.stripe.secretKey as string);
 
 stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
@@ -37,3 +37,5 @@ stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Webhook handler failed" });
   }
 });
+
+export default stripeWebhookRouter;

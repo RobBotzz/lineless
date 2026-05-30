@@ -23,16 +23,16 @@ export async function submitOrder(userId: string, input: CreateOrderInput) {
     throw new OrderValidationError("Tab is not OPEN or does not exist.");
   }
 
-  // Hardcoded for demonstration consistency.
+  // Hardcoded as product is not yet implemented
   let totalCents = 0;
   const processedItems = items.flatMap(item => {
-    const itemCents = 500; // e.g., €5.00 per item
+    const itemCents = 500; //hardcoded as product is not yet implemented
     totalCents += itemCents * item.quantity;
     return Array.from({ length: item.quantity }).map(() => ({
       productId: item.productId,
       customerComment: item.customerComment || null,
       priceExclTaxAtPurchase: itemCents,
-      taxRateAtPurchase: 0.19, // 19% standard
+      taxRateAtPurchase: 0.19, //hard coded as product is not yet implemented
       startedAt: null as Date | null
     }));
   });

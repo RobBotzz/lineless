@@ -5,7 +5,7 @@ import { OrderValidationError } from "./errors";
 // import { authAccount } from "../../middleware/auth";
 
 type RequestWithUser = Request & { user?: { accountId?: string } };
-export const ordersRouter = Router();
+const ordersRouter = Router();
 
 // ordersRouter.use(authAccount);
 
@@ -25,3 +25,5 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
+export default ordersRouter;

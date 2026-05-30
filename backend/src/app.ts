@@ -3,9 +3,9 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 
 import { eventsRouter } from "./modules/events/routes";
-import { stripeWebhookRouter } from "./modules/payments/routes";
-import { tabsRouter } from "./modules/tabs/routes";
-import { ordersRouter } from "./modules/orders/routes";
+import stripeWebhookRouter from "./modules/payments/routes";
+import tabsRouter from "./modules/tabs/routes";
+import ordersRouter from "./modules/orders/routes";
 
 const app = express();
 

@@ -9,7 +9,7 @@ import { TabNotFoundError, TabStateError } from "./errors";
 const stripe = new Stripe(config.stripe.secretKey as string);
 
 // Baseline hold in cents placed on every new tab (e.g. €10.00)
-const BASELINE_HOLD_CENTS = 1000;
+const BASELINE_HOLD_CENTS = 1000; // TODO replace with BaselineHoldAmount configured by the operator
 
 export async function createTab(userId: string) {
   const pi = await stripe.paymentIntents.create({

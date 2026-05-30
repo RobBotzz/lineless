@@ -3,7 +3,7 @@ import { createTab, checkoutTab } from "./service";
 import { TabNotFoundError, TabStateError } from "./errors";
 
 type RequestWithUser = Request & { user?: { accountId?: string } };
-export const tabsRouter = Router();
+const tabsRouter = Router();
 
 tabsRouter.post("/", async (req: Request, res: Response) => {
   try {
@@ -26,3 +26,5 @@ tabsRouter.post("/:tabId/checkout", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
+export default tabsRouter;
