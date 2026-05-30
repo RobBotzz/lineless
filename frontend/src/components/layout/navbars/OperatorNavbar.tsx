@@ -1,8 +1,8 @@
-import { Link } from "react-router";
+import { Link } from 'react-router';
 
-import logoPlaceholder from "../../../assets/LLlogo.png";
-import { buttonVariants } from "../../ui/button";
-import { Navbar } from "./Navbar";
+import logoPlaceholder from '../../../assets/LLlogo.png';
+import { buttonVariants } from '../../ui/button';
+import { Navbar } from './Navbar';
 
 type NavbarLink = { label: string; to: string };
 
@@ -14,16 +14,16 @@ type OperatorNavbarProps = {
 };
 
 const defaultCenter: NavbarLink[] = [
-  { label: "Home", to: "#" },
-  { label: "Impact", to: "#" },
-  { label: "Pricing", to: "#" },
+  { label: 'Home', to: '#' },
+  { label: 'Impact', to: '#' },
+  { label: 'Pricing', to: '#' },
 ];
 
-const defaultRight: NavbarLink = { label: "Sign up", to: "#" };
+const defaultRight: NavbarLink = { label: 'Sign up', to: '#' };
 
 export function OperatorNavbar({
   logoSrc,
-  title = "Lineless",
+  title = 'Lineless',
   centerLinks = defaultCenter,
   rightLink = defaultRight,
 }: OperatorNavbarProps) {
@@ -43,7 +43,7 @@ export function OperatorNavbar({
           {centerLinks.map((link) => (
             <Link
               key={link.label}
-              className={buttonVariants({ variant: "ghost", size: "sm" })}
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
               to={link.to}
             >
               {link.label}
@@ -52,7 +52,7 @@ export function OperatorNavbar({
         </div>
       }
       right={
-        <Link className={buttonVariants({ variant: "default", size: "sm" })} to={rightLink.to}>
+        <Link className={buttonVariants({ variant: 'default', size: 'sm' })} to={rightLink.to}>
           {rightLink.label}
         </Link>
       }

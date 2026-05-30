@@ -1,8 +1,8 @@
-import { Link } from "react-router";
+import { Link } from 'react-router';
 
-import logoPlaceholder from "../../../assets/LLlogo.png";
-import { buttonVariants } from "../../ui/button";
-import { Navbar } from "./Navbar";
+import logoPlaceholder from '../../../assets/LLlogo.png';
+import { buttonVariants } from '../../ui/button';
+import { Navbar } from './Navbar';
 
 type NavbarLink = {
   label: string;
@@ -18,7 +18,7 @@ type OrganizerNavbarProps = {
 
 export function OrganizerNavbar({
   logoSrc,
-  title = "Lineless",
+  title = 'Lineless',
   centerLinks,
   rightLink,
 }: OrganizerNavbarProps) {
@@ -38,7 +38,7 @@ export function OrganizerNavbar({
           {centerLinks.map((link) => (
             <Link
               key={link.label}
-              className={buttonVariants({ variant: "ghost", size: "sm" })}
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
               to={link.to}
             >
               {link.label}
@@ -47,10 +47,7 @@ export function OrganizerNavbar({
         </div>
       }
       right={
-        <Link
-          className={buttonVariants({ variant: "default", size: "sm" })}
-          to={rightLink.to}
-        >
+        <Link className={buttonVariants({ variant: 'default', size: 'sm' })} to={rightLink.to}>
           {rightLink.label}
         </Link>
       }
