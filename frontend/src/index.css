@@ -7,6 +7,8 @@
   --color-bg: #f5f5f7;
   --color-surface: #ffffff;
   --color-surface-muted: #eef0f6;
+  --color-surface-70: rgba(255, 255, 255, 0.7);
+  --color-surface-10: rgba(255, 255, 255, 0.1);
 
   /* Text & Borders */
   --color-text: #1f2937;
@@ -23,8 +25,8 @@
   --color-danger: #ef4444;
 
   /* Schatten-Farbe (transparentes Blau) */
-  --shadow-color: 2, 8, 135; 
-  
+  --shadow-color: 2, 8, 135;
+
   /* Optional: Komplette Schatten-Definition */
   --shadow-navbar: 0 10px 30px rgba(var(--shadow-color), 0.08);
 
@@ -37,6 +39,8 @@
   --color-background: var(--color-bg);
   --color-surface: var(--color-surface);
   --color-surface-muted: var(--color-surface-muted);
+  --color-surface-70: var(--color-surface-70);
+  --color-surface-10: var(--color-surface-10);
   --color-text: var(--color-text);
   --color-text-muted: var(--color-text-muted);
   --color-border: var(--color-border);
@@ -52,6 +56,7 @@ html {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
+  scroll-behavior: smooth;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
