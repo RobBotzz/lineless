@@ -8,14 +8,20 @@ const stripe = new Stripe(config.stripe.secretKey as string);
 
 stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
   const sig = req.headers["stripe-signature"];
+  const isDev = config.nodeEnv !== "production";
 
   let event: ReturnType<typeof stripe.webhooks.constructEvent>;
   try {
-    event = stripe.webhooks.constructEvent(
-      req.body as Buffer,
-      sig as string,
-      config.stripe.webhookSecret as string
-    );
+    if (isDev && (!sig || sig === "REPLACE_WITH_STRIPE_CLI_SIGNATURE")) {
+      // In dev, accept raw JSON directly without signature verification
+      event = req.body as ReturnType<typeof stripe.webhooks.constructEvent>;
+    } else {
+      event = stripe.webhooks.constructEvent(
+        req.body as Buffer,
+        sig as string,
+        config.stripe.webhookSecret as string
+      );
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return res.status(400).send(`Webhook Error: ${message}`);

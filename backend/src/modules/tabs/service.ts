@@ -8,8 +8,40 @@ import { TabNotFoundError, TabStateError } from "./errors";
 
 const stripe = new Stripe(config.stripe.secretKey as string);
 
+// Baseline hold in cents placed on every new tab (e.g. €10.00)
+const BASELINE_HOLD_CENTS = 1000;
+
 export async function createTab(userId: string) {
-  return Tab.create({ userId });
+  const pi = await stripe.paymentIntents.create({
+    amount: BASELINE_HOLD_CENTS,
+    currency: "eur",
+    capture_method: "manual",
+    metadata: { userId },
+  });
+
+  const session = await mongoose.startSession();
+  try {
+    let tabId: string | undefined;
+    await session.withTransaction(async () => {
+      const tabs = await Tab.create([{ userId }], { session });
+      const tab = tabs[0];
+      tabId = tab?._id as string;
+      await TabPayment.create(
+        [
+          {
+            tabId,
+            stripePaymentIntentId: pi.id,
+            tabPaymentStatus: "PENDING",
+            authorizedCentsAmount: BASELINE_HOLD_CENTS,
+          },
+        ],
+        { session }
+      );
+    });
+    return { tabId, stripePaymentIntentId: pi.id, clientSecret: pi.client_secret };
+  } finally {
+    await session.endSession();
+  }
 }
 
 export async function checkoutTab(tabId: string, userId: string) {

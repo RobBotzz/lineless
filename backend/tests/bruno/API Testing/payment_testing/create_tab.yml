@@ -1,0 +1,24 @@
+info:
+  name: 1. Create Tab
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:8000/tabs
+  body:
+    type: json
+    data: |-
+      {}
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Cookie
+      value: userSessionId=test-session-id
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

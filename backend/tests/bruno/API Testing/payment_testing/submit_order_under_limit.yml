@@ -1,0 +1,32 @@
+info:
+  name: 3. Submit Order (Under Limit)
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: http://localhost:8000/orders
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Cookie
+      value: userSessionId=test-session-id
+  body:
+    type: json
+    data: |-
+      {
+        "tabId": "12528cce-17ad-42d8-8775-f43ae25c72c4",
+        "items": [
+          {
+            "productId": "00000000-0000-0000-0000-000000000001",
+            "quantity": 1
+          }
+        ]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

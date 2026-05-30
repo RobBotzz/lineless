@@ -8,8 +8,8 @@ export const tabsRouter = Router();
 tabsRouter.post("/", async (req: Request, res: Response) => {
   try {
     const userId = (req as RequestWithUser).user?.accountId ?? "test-user-id";
-    const tab = await createTab(userId);
-    res.status(201).json(tab);
+    const result = await createTab(userId);
+    res.status(201).json(result);
   } catch (error) {
     res.status(500).json({ error: "Internal Server Error" });
   }

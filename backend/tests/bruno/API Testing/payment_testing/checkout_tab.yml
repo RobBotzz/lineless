@@ -1,0 +1,23 @@
+info:
+  name: 6. Checkout and Settle Tab
+  type: http
+  seq: 6
+
+# Expected: 200 - all AUTHORIZED PaymentIntents captured, Tab status PAID, Orders marked paidAt
+# Replace tabId with the tab created in step 1.
+
+http:
+  method: POST
+  url: http://localhost:8000/tabs/12528cce-17ad-42d8-8775-f43ae25c72c4/checkout
+  body:
+    type: none
+  headers:
+    - name: Cookie
+      value: userSessionId=test-session-id
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

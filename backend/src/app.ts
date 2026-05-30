@@ -11,9 +11,17 @@ const app = express();
 
 app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 
+// Raw body needed for Stripe signature verification in production.
+// In dev, falls back to express.json() so Bruno can send plain JSON.
 app.use(
   "/webhooks/stripe",
-  express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    if (process.env["NODE_ENV"] === "production") {
+      express.raw({ type: "application/json" })(req, res, next);
+    } else {
+      express.json()(req, res, next);
+    }
+  },
   stripeWebhookRouter
 );
 
