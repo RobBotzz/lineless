@@ -1,20 +1,31 @@
-//account mongoose model
-import mongoose from 'mongoose';
-const { Schema } = mongoose;
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
+import { model, Schema } from "mongoose";
 
 /*
 email, passwordHash, firstName, lastName, 
 iban, ibanHolderName, deletedAt
 are not set to required because of soft deletion
 */
-const accountSchema = new Schema(
-    {
+export interface AccountDoc {
+  accountId: string;
+  email?: string;
+  passwordHash?: string;
+  firstName?: string;
+  lastName?: string;
+  iban: string | null;
+  ibanHolderName: string | null;
+  deletedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const accountSchema = new Schema<AccountDoc>(
+  {
     accountId: {
       type: String,
       required: true,
       unique: true,
-      default: uuidv4 //generates a unique UUID for each account automatically
+      default: () => uuidv4(),
     },
     email: {
       type: String,
@@ -42,13 +53,11 @@ const accountSchema = new Schema(
       type: Date,
       required: false,
       default: null
-    }
+    },
   },
   {
-    timestamps: true //includes createdAt and updatedAt
+    timestamps: true,
   }
 );
 
-const Account = mongoose.model('Account', accountSchema);
-
-export default Account;
+export const Account = model<AccountDoc>("Account", accountSchema);
