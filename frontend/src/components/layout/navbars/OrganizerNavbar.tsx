@@ -13,6 +13,7 @@ type OrganizerNavbarProps = {
   title?: string;
   centerLinks: [NavbarLink, NavbarLink, NavbarLink];
   rightLink: NavbarLink;
+  activeCenterLinkTo?: string;
 };
 
 export function OrganizerNavbar({
@@ -20,6 +21,7 @@ export function OrganizerNavbar({
   title = 'Lineless',
   centerLinks,
   rightLink,
+  activeCenterLinkTo,
 }: OrganizerNavbarProps) {
   return (
     <header className="sticky top-2 z-50 mx-auto w-[95%] rounded-xl border border-border/70 bg-surface/95 [box-shadow:var(--shadow-navbar)] backdrop-blur supports-[backdrop-filter]:bg-surface/90">
@@ -35,15 +37,27 @@ export function OrganizerNavbar({
         </div>
         <div className="justify-self-center flex items-center">
           <div className="flex items-center gap-2">
-            {centerLinks.map((link) => (
-              <Link
-                key={link.label}
-                className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} text-xs`}
-                to={link.to}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {centerLinks.map((link) => {
+              const isActive = activeCenterLinkTo === link.to;
+
+              return (
+                <Link
+                  key={link.label}
+                  className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} text-xs`}
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: 'var(--color-accent)',
+                          color: 'var(--color-surface)',
+                        }
+                      : undefined
+                  }
+                  to={link.to}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
         </div>
         <div className="justify-self-end flex items-center">
