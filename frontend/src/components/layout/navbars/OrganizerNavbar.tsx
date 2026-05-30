@@ -36,19 +36,19 @@ export function OrganizerNavbar({
           </Link>
         </div>
         <div className="justify-self-center flex items-center">
-          <div className="flex items-center gap-2">
+          <div className="inline-flex items-center gap-1 rounded-md bg-background p-1">
             {centerLinks.map((link) => {
               const isActive = activeCenterLinkTo === link.to;
 
               return (
                 <Link
                   key={link.label}
-                  className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} text-xs`}
+                  className={`${buttonVariants({ variant: 'transparent', size: 'sm' })} text-xs`}
                   style={
                     isActive
                       ? {
-                          backgroundColor: 'var(--color-accent)',
-                          color: 'var(--color-surface)',
+                          backgroundColor: 'var(--color-surface)',
+                          color: 'var(--color-text)',
                         }
                       : undefined
                   }
