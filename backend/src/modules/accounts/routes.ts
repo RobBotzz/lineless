@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import { Router, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import { authAccount } from "../../middleware/authAccount";
 import {
@@ -16,10 +16,6 @@ import {
 } from "./errors";
 
 const accountRouter = Router();
-
-function tokenAccountId(req: Request): string | undefined {
-  return req.user?.accountId;
-}
 
 function handleError(err: unknown, res: Response): Response {
   if (err instanceof AccountAlreadyExistsError) {
@@ -61,29 +57,20 @@ accountRouter.post(
   })
 );
 
-// Protected — the account to act on comes from the verified token, never the body.
-accountRouter.delete("/delete", authAccount, async (req, res) => {
-  const accountId = tokenAccountId(req);
-  if (!accountId) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
+accountRouter.use(authAccount);
+
+accountRouter.delete("/delete", async (req, res) => {
   try {
-    await deleteAccount(accountId);
+    await deleteAccount(req.user!.accountId);
     res.status(200).json({ message: "Account deleted successfully" });
   } catch (err) {
     handleError(err, res);
   }
 });
 
-accountRouter.get("/info", authAccount, async (req, res) => {
-  const accountId = tokenAccountId(req);
-  if (!accountId) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
+accountRouter.get("/info", async (req, res) => {
   try {
-    const account = await getAccountInfo(accountId);
+    const account = await getAccountInfo(req.user!.accountId);
     res.status(200).json({ account });
   } catch (err) {
     handleError(err, res);
@@ -92,15 +79,9 @@ accountRouter.get("/info", authAccount, async (req, res) => {
 
 accountRouter.put(
   "/update",
-  authAccount,
   validateBody(updateAccountSchema, async (req, res, data) => {
-    const accountId = tokenAccountId(req);
-    if (!accountId) {
-      res.status(401).json({ message: "Unauthorized" });
-      return;
-    }
     try {
-      const result = await updateAccountInfo(accountId, data);
+      const result = await updateAccountInfo(req.user!.accountId, data);
       res.status(200).json({
         message: "Account updated successfully",
         account: result.account,
