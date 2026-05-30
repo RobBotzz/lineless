@@ -1,4 +1,4 @@
-import { Event, EVENT_STATUS, type EventDoc } from "./model";
+import { Event, type EventDoc } from "./model";
 import { EventNotFoundError, EventStateError } from "./errors";
 import type { CreateEventInput, UpdateEventInput } from "./types";
 
@@ -45,13 +45,13 @@ export async function updateEvent(
 
 export async function startEvent(eventId: string): Promise<EventDoc> {
   const event = await findActiveEvent(eventId);
-  if (event.status === EVENT_STATUS.ACTIVE) {
+  if (event.status === "ACTIVE") {
     throw new EventStateError("Event is already active");
   }
-  if (event.status === EVENT_STATUS.STOPPED) {
+  if (event.status === "STOPPED") {
     throw new EventStateError("A stopped event cannot be restarted");
   }
-  event.status = EVENT_STATUS.ACTIVE;
+  event.status = "ACTIVE";
   event.startedAt = new Date();
   await event.save();
   return event;
@@ -59,10 +59,10 @@ export async function startEvent(eventId: string): Promise<EventDoc> {
 
 export async function stopEvent(eventId: string): Promise<EventDoc> {
   const event = await findActiveEvent(eventId);
-  if (event.status !== EVENT_STATUS.ACTIVE) {
+  if (event.status !== "ACTIVE") {
     throw new EventStateError("Only an active event can be stopped");
   }
-  event.status = EVENT_STATUS.STOPPED;
+  event.status = "STOPPED";
   event.stoppedAt = new Date();
   await event.save();
   return event;
