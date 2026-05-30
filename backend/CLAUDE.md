@@ -124,7 +124,7 @@ Each module: Express Router → Zod (or equivalent) validation → service
 ### Layering: Router → Service → Mongoose (NO repository layer)
 
 The fixed layering is **Router → Service → Mongoose model**. There is deliberately
-**no separate repository/persistence layer** — a Mongoose model already *is* the
+**no separate repository/persistence layer** — a Mongoose model already _is_ the
 data-access abstraction (validation, casting, defaults, query API), so wrapping it
 in a pass-through repository would be empty boilerplate.
 
@@ -164,7 +164,11 @@ assume that it lies one folder higher, so it will reference the frontend build a
 "scripts": {
   "dev": "nodemon",
   "build": "tsc",
-  "start": "node dist/server.js"
+  "start": "node dist/server.js",
+  "typecheck": "tsc --noEmit",
+  "lint": "eslint src",
+  "format": "prettier --write .",
+  "prepare": "husky"
 }
 ```
 
@@ -181,6 +185,31 @@ assume that it lies one folder higher, so it will reference the frontend build a
 Note: ts-node transpiles without full type-checking, so the dev server may run
 even with a type error present. Full type-checking happens in the editor and on
 `npm run build` (`tsc`). This is expected.
+
+## Code quality & pre-commit hook
+
+Quality is enforced automatically at commit time via a **Husky** pre-commit hook
+(`.husky/pre-commit`). It runs, and aborts the commit on any failure:
+
+1. **lint-staged** — on staged files only (fast): `eslint --fix` then
+   `prettier --write` for `*.ts`; `prettier --write` for `*.{json,md,yml,yaml}`.
+2. **`tsc --noEmit`** — full-project type check (types are cross-file, so this is
+   not limited to staged files).
+
+The hook is shared via git: the `"prepare": "husky"` script installs it on every
+`npm install`, so no manual setup is needed — just run `npm install` after cloning.
+
+Tooling and config:
+
+- **Prettier** (`.prettierrc.json`) — formatting. Run manually with `npm run format`.
+- **ESLint** (`eslint.config.mjs`) — flat config, type-checked rules
+  (`typescript-eslint` `recommendedTypeChecked`) scoped to `src/**/*.ts`;
+  `eslint-config-prettier` disables formatting-related rules. Run with `npm run lint`.
+  The `@typescript-eslint/no-unsafe-*` rules are downgraded to **warnings** because
+  the Express/JWT/cookie boundary is typed `any` — they nudge, but don't block.
+
+Do NOT bypass the hook (`git commit --no-verify`) for normal work — fix the
+reported issues instead.
 
 ## tsconfig essentials
 
