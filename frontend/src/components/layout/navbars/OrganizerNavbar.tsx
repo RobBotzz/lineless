@@ -14,6 +14,7 @@ type OrganizerNavbarProps = {
   centerLinks: [NavbarLink, NavbarLink, NavbarLink];
   rightLink: NavbarLink;
   activeCenterLinkTo?: string;
+  onCenterLinkClick?: (to: string) => void;
 };
 
 export function OrganizerNavbar({
@@ -22,6 +23,7 @@ export function OrganizerNavbar({
   centerLinks,
   rightLink,
   activeCenterLinkTo,
+  onCenterLinkClick,
 }: OrganizerNavbarProps) {
   return (
     <header className="sticky top-2 z-50 mx-auto w-[95%] rounded-xl border border-border/70 bg-surface/95 [box-shadow:var(--shadow-navbar)] backdrop-blur supports-[backdrop-filter]:bg-surface/90">
@@ -39,9 +41,15 @@ export function OrganizerNavbar({
           <div className="inline-flex items-center gap-1 rounded-md bg-background p-1">
             {centerLinks.map((link) => {
               const isActive = activeCenterLinkTo === link.to;
+              const handleClick = (e: React.MouseEvent) => {
+                if (onCenterLinkClick) {
+                  e.preventDefault();
+                  onCenterLinkClick(link.to);
+                }
+              };
 
               return (
-                <Link
+                <a
                   key={link.label}
                   className={`${buttonVariants({ variant: 'transparent', size: 'sm' })} text-xs`}
                   style={
@@ -52,10 +60,11 @@ export function OrganizerNavbar({
                         }
                       : undefined
                   }
-                  to={link.to}
+                  href={link.to}
+                  onClick={handleClick}
                 >
                   {link.label}
-                </Link>
+                </a>
               );
             })}
           </div>

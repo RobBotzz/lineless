@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import logoPlaceholder from '../assets/LLlogo.png';
 import { OrganizerNavbar } from '../components/layout';
 import { Button, buttonVariants } from '../components/ui/button';
+import OperatorFooter from '../components/layout/OperatorFooter';
 
 const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
 
@@ -49,11 +50,17 @@ export default function Home() {
           { label: 'Pricing', to: '#pricing' },
         ]}
         activeCenterLinkTo={`#${activeSection}`}
-        rightLink={{ label: 'Sign In', to: '/' }} // richtiger Link noch hinzufügen.
+        onCenterLinkClick={(to) => {
+          const id = to.replace('#', '') as SectionId;
+          setActiveSection(id);
+          const el = document.getElementById(id);
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }}
+        rightLink={{ label: 'Sign In', to: '/' }} // TO-DO: richtiger Link noch hinzufügen.
       />
 
-      <main className="mx-auto max-w-7xl px-6 py-20">
-        <section id="home">
+      <main className="mx-auto max-w-7xl px-6 pt-8 pb-20">
+        <section id="home" className="scroll-mt-20">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             {/* Left column: text */}
             <div>
@@ -82,14 +89,12 @@ export default function Home() {
 
             {/* Right column: placeholder preview */}
             <div className="relative">
-              <div className="rounded-2xl bg-surface p-2 shadow-2xl">
-                <div className="aspect-video bg-accent-soft rounded-xl" />
-              </div>
+              <div className="h-64 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] md:h-80 [box-shadow:var(--shadow-navbar)]" />
             </div>
           </div>
         </section>
 
-        <section className="py-20" id="impact">
+        <section className="py-20 scroll-mt-20" id="impact">
           <div className="flex flex-col gap-10 md:flex-row md:items-center">
             <div className="w-full md:w-1/2">
               <div className="h-64 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] md:h-80" />
@@ -108,7 +113,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="pb-20" id="pricing">
+        <section className="pb-20 scroll-mt-20" id="pricing">
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 sm:p-12">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-[var(--color-accent)]">
               Pricing
@@ -119,50 +124,7 @@ export default function Home() {
           </div>
         </section>
 
-        <footer className="border-t border-[var(--color-border)] pt-10">
-          <div className="grid grid-cols-1 gap-8 pb-8 sm:grid-cols-2 md:grid-cols-3">
-            <div>
-              <p className="text-lg font-bold text-[var(--color-accent)]">lineless</p>
-              <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-                Smarter guest flow for better event experiences.
-              </p>
-            </div>
-
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text)]">
-                Sitemap
-              </p>
-              <div className="mt-3 flex flex-col gap-2 text-sm">
-                <a className="hover:underline" href="#home">
-                  Home
-                </a>
-                <a className="hover:underline" href="#impact">
-                  Impact
-                </a>
-                <a className="hover:underline" href="#pricing">
-                  Pricing
-                </a>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text)]">
-                Legal
-              </p>
-              <div className="mt-3 flex flex-col gap-2 text-sm">
-                <a className="hover:underline" href="#">
-                  Impressum
-                </a>
-                <a className="hover:underline" href="#">
-                  Privacy Policy
-                </a>
-                <a className="hover:underline" href="#">
-                  Terms of Service
-                </a>
-              </div>
-            </div>
-          </div>
-        </footer>
+        <OperatorFooter />
       </main>
     </div>
   );
