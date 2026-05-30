@@ -28,6 +28,9 @@
     "noFallthroughCasesInSwitch": true,
     "noPropertyAccessFromIndexSignature": true
   },
+  "ts-node": {
+    "files": true
+  },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

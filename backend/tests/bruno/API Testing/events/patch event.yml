@@ -1,0 +1,32 @@
+info:
+  name: patch event
+  type: http
+  seq: 1
+
+http:
+  method: PATCH
+  url: http://{{host}}:{{port}}/events/{{eventId}}
+  body:
+    type: json
+    data: |-
+      {
+          "name": "Winterfest",
+          "status": "ACTIVE",
+          "location": "Innenhof",
+          "plannedDate": "2026-05-30T12:22:02.202Z",
+          "ratingsEnabled": false,
+          "cashierEnabled": true,
+          "offlineOrdersEnabled": true,
+          "branding": {
+            "primaryColor": "#FF8800",
+            "secondaryColor": "#1E1E1E",
+            "logoUrl": "https://example.com/logo.png"
+          }
+        }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

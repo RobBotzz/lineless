@@ -1,0 +1,5 @@
+echo "Running lint-staged (ESLint + Prettier on staged files)..."
+npx lint-staged || exit 1
+
+echo "Running TypeScript check (tsc --noEmit)..."
+npm run typecheck || exit 1

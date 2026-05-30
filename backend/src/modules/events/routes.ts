@@ -12,13 +12,13 @@ import {
 import { EventNotFoundError, EventStateError } from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
 
-export const eventsRouter = Router();
+const eventsRouter = Router();
 
 function eventId(req: Request): string {
   return req.params["eventId"] as string;
 }
 
-function handleError(err: unknown, res: Response): Response {
+function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError) {
     return res.status(404).json({ error: err.message });
   }
@@ -98,3 +98,5 @@ eventsRouter.delete("/:eventId", async (req: Request, res: Response) => {
     handleError(err, res);
   }
 });
+
+export default eventsRouter;

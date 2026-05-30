@@ -13,10 +13,10 @@ interface Config {
   bcryptRounds: number;
 
   /** Add Stripe type definitions */
-    stripe: {
-      secretKey: string;
-      webhookSecret: string;
-    };
+  stripe: {
+    secretKey: string;
+    webhookSecret: string;
+  };
 }
 
 export const config: Config = {
@@ -26,13 +26,15 @@ export const config: Config = {
     process.env["MONGO_URI"] ??
     "mongodb://localhost:27017/lineless?directConnection=true",
   jwt: {
-    secret: "dev-demo-secret-not-for-production",
-    expiresIn: "7d",
+    secret: "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
+    expiresIn: "30d",
   },
   sessionCookieName: "userSessionId",
   bcryptRounds: 10,
   stripe: {
-    secretKey: "sk_test_REPLACE_WITH_YOUR_STRIPE_TEST_SECRET_KEY",
-    webhookSecret: "whsec_REPLACE_WITH_YOUR_STRIPE_WEBHOOK_SECRET",
-  }
+    secretKey:
+      "sk_test_REPLACE_WITH_YOUR_STRIPE_TEST_SECRET_KEY",
+    webhookSecret:
+      "whsec_REPLACE_WITH_YOUR_STRIPE_WEBHOOK_SECRET",
+  },
 };

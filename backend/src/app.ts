@@ -2,10 +2,11 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
-import { eventsRouter } from "./modules/events/routes";
 import stripeWebhookRouter from "./modules/payments/routes";
 import tabsRouter from "./modules/tabs/routes";
 import ordersRouter from "./modules/orders/routes";
+import accountRouter from "./modules/accounts/routes";
+import eventsRouter from "./modules/events/routes";
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+app.use("/api/account", accountRouter);
 app.use("/events", eventsRouter);
 app.use("/tabs", tabsRouter);
 app.use("/orders", ordersRouter);
