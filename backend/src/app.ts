@@ -1,4 +1,5 @@
 import express from "express";
+import { eventsRouter } from "./modules/events/routes";
 
 const app = express();
 
@@ -9,9 +10,6 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// TODO: Modul-Routen registrieren
-// app.use("/accounts", accountsRouter);
-// app.use("/users", usersRouter);
-// ...
+app.use("/events", eventsRouter);
 
 export { app };
