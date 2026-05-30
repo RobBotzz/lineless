@@ -8,22 +8,25 @@ import { OrderValidationError } from "./errors";
 import type { CreateOrderInput } from "./types";
 import crypto from "crypto";
 
-const stripe = new Stripe(config.stripe.secretKey as string);
+const stripe = new Stripe(config.stripe.secretKey);
 
+//TODO: Think about using natural word library
 function generateAuthCode(): string {
   return crypto.randomBytes(3).toString("hex").toUpperCase();
 }
 
 export async function submitOrder(userId: string, input: CreateOrderInput) {
   const { tabId, items } = input;
-  
+
+  //TODO: Wie werden Cashpayment orders behandelt?
   // Fast-fail check outside transaction
   const tab = await Tab.findById(tabId);
   if (!tab || tab.status !== "OPEN") {
     throw new OrderValidationError("Tab is not OPEN or does not exist.");
   }
 
-  // Hardcoded as product is not yet implemented
+  //TODO: NO HARDCODING
+  //Hardcoded as product is not yet implemented
   let totalCents = 0;
   const processedItems = items.flatMap(item => {
     const itemCents = 500; //hardcoded as product is not yet implemented
@@ -39,7 +42,7 @@ export async function submitOrder(userId: string, input: CreateOrderInput) {
 
   const payments = await TabPayment.find({ tabId, tabPaymentStatus: { $in: ["AUTHORIZED", "CAPTURED"] } });
   const authorizedCents = payments.reduce((sum, p) => sum + p.authorizedCentsAmount, 0);
-  
+
   const existingOrders = await Order.find({ tabId });
   const consumedCents = existingOrders.flatMap(o => o.items).reduce((sum, i) => sum + i.priceExclTaxAtPurchase, 0);
 
@@ -48,7 +51,7 @@ export async function submitOrder(userId: string, input: CreateOrderInput) {
 
   if (consumedCents + totalCents > authorizedCents) {
     const overage = (consumedCents + totalCents) - authorizedCents;
-    
+
     // Remote call outside transaction
     const pi = await stripe.paymentIntents.create({
       amount: overage,

@@ -2,12 +2,11 @@ import { Router, Request, Response } from "express";
 import { createTab, checkoutTab } from "./service";
 import { TabNotFoundError, TabStateError } from "./errors";
 
-type RequestWithUser = Request & { user?: { accountId?: string } };
 const tabsRouter = Router();
 
 tabsRouter.post("/", async (req: Request, res: Response) => {
   try {
-    const userId = (req as RequestWithUser).user?.accountId ?? "test-user-id";
+    const userId = req.user?.accountId ?? "test-user-id";
     const result = await createTab(userId);
     res.status(201).json(result);
   } catch (error) {
@@ -17,7 +16,7 @@ tabsRouter.post("/", async (req: Request, res: Response) => {
 
 tabsRouter.post("/:tabId/checkout", async (req: Request, res: Response) => {
   try {
-    const userId = (req as RequestWithUser).user?.accountId || "test-user-id";
+    const userId = req.user?.accountId || "test-user-id";
     const result = await checkoutTab(req.params["tabId"] as string, userId);
     return res.status(200).json(result);
   } catch (error) {

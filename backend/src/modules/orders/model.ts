@@ -1,6 +1,8 @@
 import { model, Schema } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 
+//TODO: Hier Interfaces mit aufnehmen
+
 const OrderItemSchema = new Schema({
   _id: { type: String, default: uuidv4 },
   productId: { type: String, required: true },
