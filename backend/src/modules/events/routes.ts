@@ -12,7 +12,7 @@ import {
 import { EventNotFoundError, EventStateError } from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
 
-export const eventsRouter = Router();
+const eventsRouter = Router();
 
 function eventId(req: Request): string {
   return req.params["eventId"] as string;
@@ -98,3 +98,5 @@ eventsRouter.delete("/:eventId", async (req: Request, res: Response) => {
     handleError(err, res);
   }
 });
+
+export default eventsRouter;
