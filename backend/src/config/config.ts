@@ -11,6 +11,12 @@ interface Config {
   sessionCookieName: string;
   /** bcrypt cost factor used for all password hashing. */
   bcryptRounds: number;
+
+  /** Add Stripe type definitions */
+    stripe: {
+      secretKey: string;
+      webhookSecret: string;
+    };
 }
 
 export const config: Config = {
@@ -25,4 +31,8 @@ export const config: Config = {
   },
   sessionCookieName: "userSessionId",
   bcryptRounds: 10,
+  stripe: {
+    secretKey: "sk_test_REPLACE_WITH_YOUR_STRIPE_TEST_SECRET_KEY",
+    webhookSecret: "whsec_REPLACE_WITH_YOUR_STRIPE_WEBHOOK_SECRET",
+  }
 };

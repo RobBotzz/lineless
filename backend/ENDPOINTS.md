@@ -83,9 +83,11 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Payment
 
-| Method | URL     | Description                                           |
-| ------ | ------- | ----------------------------------------------------- |
-| POST   | `/tabs` | Open tab / start digital payment (redirect to Stripe) |
+| Method | URL                        | Description                                               |
+| ------ | -------------------------- | --------------------------------------------------------- |
+| POST   | `/tabs`                    | Open tab / start digital payment                          |
+| POST   | `/tabs/{tabId}/checkout`   | Capture all authorized payments and mark tab as paid      |
+| POST   | `/webhooks/stripe`         | Stripe webhook receiver (signature-verified, idempotent)  |
 
 ---
 
