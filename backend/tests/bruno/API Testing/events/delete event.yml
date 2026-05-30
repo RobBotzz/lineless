@@ -1,0 +1,15 @@
+info:
+  name: delete event
+  type: http
+  seq: 1
+
+http:
+  method: DELETE
+  url: http://{{host}}:{{port}}/events/ea2659b9-db5b-4c1f-bdfe-d8a5b3818896
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

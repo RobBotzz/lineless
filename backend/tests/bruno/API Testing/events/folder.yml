@@ -1,0 +1,9 @@
+info:
+  name: events
+  type: folder
+  seq: 1
+
+request:
+  variables:
+    - name: eventId
+      value: 2adc2528-5db0-4b49-9e11-24130e019915
