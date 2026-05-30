@@ -7,8 +7,11 @@ export async function createEvent(input: CreateEventInput): Promise<EventDoc> {
     accountId: input.accountId,
     name: input.name,
     location: input.location,
-    startsAt: input.startsAt,
+    plannedDate: input.plannedDate,
     ratingsEnabled: input.ratingsEnabled,
+    cashierEnabled: input.cashierEnabled,
+    offlineOrdersEnabled: input.offlineOrdersEnabled,
+    branding: input.branding,
   });
 }
 
@@ -35,9 +38,26 @@ export async function updateEvent(
   const event = await findActiveEvent(eventId);
   if (patch.name !== undefined) event.name = patch.name;
   if (patch.location !== undefined) event.location = patch.location;
-  if (patch.startsAt !== undefined) event.startsAt = patch.startsAt;
+  if (patch.plannedDate !== undefined) event.plannedDate = patch.plannedDate;
   if (patch.ratingsEnabled !== undefined) {
     event.ratingsEnabled = patch.ratingsEnabled;
+  }
+  if (patch.cashierEnabled !== undefined) {
+    event.cashierEnabled = patch.cashierEnabled;
+  }
+  if (patch.offlineOrdersEnabled !== undefined) {
+    event.offlineOrdersEnabled = patch.offlineOrdersEnabled;
+  }
+  if (patch.branding) {
+    if (patch.branding.primaryColor !== undefined) {
+      event.branding.primaryColor = patch.branding.primaryColor;
+    }
+    if (patch.branding.secondaryColor !== undefined) {
+      event.branding.secondaryColor = patch.branding.secondaryColor;
+    }
+    if (patch.branding.logoUrl !== undefined) {
+      event.branding.logoUrl = patch.branding.logoUrl;
+    }
   }
   await event.save();
   return event;
