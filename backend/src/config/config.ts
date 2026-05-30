@@ -16,7 +16,9 @@ interface Config {
 export const config: Config = {
   nodeEnv: "development",
   port: process.env["PORT"] ? Number(process.env["PORT"]) : 8000,
-  mongoUri: process.env["MONGO_URI"] ?? "mongodb://localhost:27017/lineless",
+  mongoUri:
+    process.env["MONGO_URI"] ??
+    "mongodb://localhost:27017/lineless?directConnection=true",
   jwt: {
     secret: "dev-demo-secret-not-for-production",
     expiresIn: "7d",
