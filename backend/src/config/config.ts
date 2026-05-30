@@ -18,8 +18,8 @@ export const config: Config = {
   port: process.env["PORT"] ? Number(process.env["PORT"]) : 8000,
   mongoUri: process.env["MONGO_URI"] ?? "mongodb://localhost:27017/lineless",
   jwt: {
-    secret: "dev-demo-secret-not-for-production",
-    expiresIn: "7d",
+    secret: "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
+    expiresIn: "30d",
   },
   sessionCookieName: "userSessionId",
   bcryptRounds: 10,

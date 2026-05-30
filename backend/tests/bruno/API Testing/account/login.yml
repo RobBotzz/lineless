@@ -1,5 +1,5 @@
 info:
-  name: signup
+  name: login
   type: http
   seq: 1
 
