@@ -1,61 +1,19 @@
-import { Link } from 'react-router';
-
-import logoPlaceholder from '../../../assets/LLlogo.png';
-import { buttonVariants } from '../../ui/button';
-import { Navbar } from './Navbar';
-
-type NavbarLink = { label: string; to: string };
+import type { ReactNode } from 'react';
 
 type OperatorNavbarProps = {
-  logoSrc?: string;
-  title?: string;
-  centerLinks?: NavbarLink[];
-  rightLink?: NavbarLink;
+  left?: ReactNode;
+  center?: ReactNode;
+  right?: ReactNode;
 };
 
-const defaultCenter: NavbarLink[] = [
-  { label: 'Home', to: '#' },
-  { label: 'Impact', to: '#' },
-  { label: 'Pricing', to: '#' },
-];
-
-const defaultRight: NavbarLink = { label: 'Sign up', to: '#' };
-
-export function OperatorNavbar({
-  logoSrc,
-  title = 'Lineless',
-  centerLinks = defaultCenter,
-  rightLink = defaultRight,
-}: OperatorNavbarProps) {
+export function OperatorNavbar({ left = null, center = null, right = null }: OperatorNavbarProps) {
   return (
-    <Navbar
-      left={
-        <Link className="inline-flex items-center gap-3" to="/">
-          <img
-            alt={`${title} Logo`}
-            className="h-10 w-10 rounded-xl object-contain"
-            src={logoSrc ?? logoPlaceholder}
-          />
-        </Link>
-      }
-      center={
-        <div className="flex items-center gap-2">
-          {centerLinks.map((link) => (
-            <Link
-              key={link.label}
-              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-              to={link.to}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
-      }
-      right={
-        <Link className={buttonVariants({ variant: 'default', size: 'sm' })} to={rightLink.to}>
-          {rightLink.label}
-        </Link>
-      }
-    />
+    <header className="sticky top-2 z-50 mx-auto w-[95%] rounded-xl border border-border/70 bg-surface/95 [box-shadow:var(--shadow-navbar)] backdrop-blur supports-[backdrop-filter]:bg-surface/90">
+      <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-1.5 sm:px-6 lg:px-8">
+        <div className="justify-self-start">{left}</div>
+        <div className="justify-self-center">{center}</div>
+        <div className="justify-self-end">{right}</div>
+      </div>
+    </header>
   );
 }

@@ -2,7 +2,6 @@ import { Link } from 'react-router';
 
 import logoPlaceholder from '../../../assets/LLlogo.png';
 import { buttonVariants } from '../../ui/button';
-import { Navbar } from './Navbar';
 
 type NavbarLink = {
   label: string;
@@ -23,34 +22,36 @@ export function OrganizerNavbar({
   rightLink,
 }: OrganizerNavbarProps) {
   return (
-    <Navbar
-      left={
-        <Link className="inline-flex items-center gap-3" to="/">
-          <img
-            alt={`${title} Logo`}
-            className="h-10 w-10 rounded-xl object-contain shadow-sm"
-            src={logoSrc ?? logoPlaceholder}
-          />
-        </Link>
-      }
-      center={
-        <div className="flex items-center gap-2">
-          {centerLinks.map((link) => (
-            <Link
-              key={link.label}
-              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-              to={link.to}
-            >
-              {link.label}
-            </Link>
-          ))}
+    <header className="sticky top-2 z-50 mx-auto w-[95%] rounded-xl border border-border/70 bg-surface/95 [box-shadow:var(--shadow-navbar)] backdrop-blur supports-[backdrop-filter]:bg-surface/90">
+      <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-1.5 sm:px-6 lg:px-8">
+        <div className="justify-self-start">
+          <Link className="inline-flex items-center gap-3" to="/">
+            <img
+              alt={`${title} Logo`}
+              className="h-9 w-9 rounded-xl object-contain shadow-sm"
+              src={logoSrc ?? logoPlaceholder}
+            />
+          </Link>
         </div>
-      }
-      right={
-        <Link className={buttonVariants({ variant: 'default', size: 'sm' })} to={rightLink.to}>
-          {rightLink.label}
-        </Link>
-      }
-    />
+        <div className="justify-self-center">
+          <div className="flex items-center gap-2">
+            {centerLinks.map((link) => (
+              <Link
+                key={link.label}
+                className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                to={link.to}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div className="justify-self-end">
+          <Link className={buttonVariants({ variant: 'default', size: 'sm' })} to={rightLink.to}>
+            {rightLink.label}
+          </Link>
+        </div>
+      </div>
+    </header>
   );
 }
