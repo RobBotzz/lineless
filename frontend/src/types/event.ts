@@ -14,7 +14,6 @@ export interface Event {
   _id: string;
   accountId: string;
   name: string;
-  locationId: string | null;
   plannedDate?: string;
   status: EventStatus;
   ratingsEnabled: boolean;
@@ -31,7 +30,6 @@ export interface Event {
 // Partial patch accepted by PATCH /events/:id (mirrors updateEventSchema).
 export interface UpdateEventInput {
   name?: string;
-  locationId?: string | null;
   plannedDate?: string;
   ratingsEnabled?: boolean;
   cashierEnabled?: boolean;
