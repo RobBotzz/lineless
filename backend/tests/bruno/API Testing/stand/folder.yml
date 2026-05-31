@@ -1,11 +1,17 @@
 info:
   name: stand
   type: folder
-  seq: 1
+  seq: 2
 
 request:
+  auth:
+    mode: bearer
+    bearer:
+      token: "{{token}}"
   variables:
+    - name: token
+      value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMmE0MDY0MS0wOGRiLTQ2OWMtYWU2Mi1lYWQ1NDRlOTBkNWMiLCJlbWFpbCI6InRlc3R1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzgwMjI5MzcwLCJleHAiOjE3ODI4MjEzNzB9.8vIGt_RpAuNpi_iSAt2VqDrRPLRJHXNC-opWnhvyZVI
     - name: eventId
-      value: 08beb64e-847e-4cbc-b32f-3644025e3afa
+      value: c225cfa0-1e3f-4592-95e7-18e7a4b597ff
     - name: standId
-      value: 6263be31-9e01-491e-8cca-85f9f834980d
+      value: 943d692b-c136-40f7-b59e-ff4f81eb9118

@@ -6,6 +6,10 @@ info:
 http:
   method: POST
   url: http://{{host}}:{{port}}/events/{{eventId}}/stands
+  headers:
+    - name: Authorization
+      value: Bearer {{token}}
+      enabled: true
   body:
     type: json
     data: |-
@@ -14,7 +18,7 @@ http:
         "accessPassword": "secret123",
         "location": "North Gate"
       }
-  auth: inherit
+  auth: none
 
 settings:
   encodeUrl: true

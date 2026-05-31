@@ -6,7 +6,11 @@ info:
 http:
   method: GET
   url: http://{{host}}:{{port}}/stands/{{standId}}
-  auth: inherit
+  headers:
+    - name: Authorization
+      value: Bearer {{token}}
+      enabled: true
+  auth: none
 
 settings:
   encodeUrl: true

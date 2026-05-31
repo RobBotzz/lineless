@@ -10,12 +10,14 @@ import {
 import { StandNotFoundError } from "./errors";
 import { createStandSchema, updateStandSchema } from "./types";
 import { authAccount } from "../../middleware/authAccount";
-//TODO: only use eventStandsRouter
+
 // Mounted at /stands — handles /:standId routes
 export const standsRouter = Router();
+standsRouter.use(authAccount);
 
 // Mounted at /events/:eventId/stands — mergeParams gives us req.params.eventId
 export const eventStandsRouter = Router({ mergeParams: true });
+eventStandsRouter.use(authAccount);
 
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof StandNotFoundError)
@@ -23,9 +25,6 @@ function handleError(err: unknown, res: Response): unknown {
   console.error("Stands error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
-
-//TODO: Add accountAuth middleware
-eventStandsRouter.use(authAccount);
 // POST /events/:eventId/stands
 eventStandsRouter.post(
   "/",

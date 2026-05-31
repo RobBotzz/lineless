@@ -6,6 +6,10 @@ info:
 http:
   method: PATCH
   url: http://{{host}}:{{port}}/stands/{{standId}}
+  headers:
+    - name: Authorization
+      value: Bearer {{token}}
+      enabled: true
   body:
     type: json
     data: |-
@@ -13,7 +17,7 @@ http:
         "standName": "Beer & Wine Stand",
         "location": "South Gate"
       }
-  auth: inherit
+  auth: none
 
 settings:
   encodeUrl: true
