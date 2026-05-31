@@ -5,7 +5,7 @@ info:
 
 http:
   method: PATCH
-  url: http://{{host}}:{{port}}/events/{{eventId}}
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}
   body:
     type: json
     data: |-
