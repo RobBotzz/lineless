@@ -6,6 +6,8 @@ export const paths = {
   auth: '/auth',
   organizer: {
     root: '/organizer',
+    payment: '/organizer/payment',
+    settings: '/organizer/settings',
     event: (eventId: string) => `/organizer/events/${eventId}`,
   },
   attendee: {
