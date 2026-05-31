@@ -8,6 +8,8 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/componen
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import type { Event, UpdateEventInput } from '@/types/event';
+import { CustomerLinkPanel } from './CustomerLinkPanel';
+import { OperatorLinkPanel } from './OperatorLinkPanel';
 import type { EventActionResult } from './data';
 
 // Rendered as the route's errorElement when the loader throws.
@@ -56,6 +58,8 @@ export default function EventConfiguration() {
   const event = useLoaderData() as Event;
   const fetcher = useFetcher<EventActionResult>();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
+  const [showOperatorLink, setShowOperatorLink] = useState(false);
+  const [showCustomerLink, setShowCustomerLink] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
@@ -129,12 +133,44 @@ export default function EventConfiguration() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Button className="w-full" size="lg" variant="default">
-            Operator Dashboard Link
-          </Button>
-          <Button className="w-full" size="lg" variant="default">
-            Customer View QR / Link
-          </Button>
+          {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
+          <div>
+            <Button
+              aria-expanded={showOperatorLink}
+              className={['w-full', showOperatorLink ? 'rounded-b-none' : ''].join(' ')}
+              onClick={() => setShowOperatorLink((open) => !open)}
+              size="lg"
+              variant="default"
+            >
+              <span>Operator Dashboard Link</span>
+              <ChevronDownIcon
+                className={[
+                  'ml-auto transition-transform',
+                  showOperatorLink ? 'rotate-180' : '',
+                ].join(' ')}
+              />
+            </Button>
+            {showOperatorLink && <OperatorLinkPanel />}
+          </div>
+          {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
+          <div>
+            <Button
+              aria-expanded={showCustomerLink}
+              className={['w-full', showCustomerLink ? 'rounded-b-none' : ''].join(' ')}
+              onClick={() => setShowCustomerLink((open) => !open)}
+              size="lg"
+              variant="default"
+            >
+              <span>Customer View QR / Link</span>
+              <ChevronDownIcon
+                className={[
+                  'ml-auto transition-transform',
+                  showCustomerLink ? 'rotate-180' : '',
+                ].join(' ')}
+              />
+            </Button>
+            {showCustomerLink && <CustomerLinkPanel eventId={event._id} />}
+          </div>
           <Button className="w-full" disabled size="lg" variant="secondary">
             Analytics Dashboard
           </Button>
@@ -311,6 +347,23 @@ function LocationPicker() {
         )}
       </div>
     </div>
+  );
+}
+
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={['h-4 w-4', className].filter(Boolean).join(' ')}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
   );
 }
 
