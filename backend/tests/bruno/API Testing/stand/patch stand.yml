@@ -5,11 +5,7 @@ info:
 
 http:
   method: PATCH
-  url: http://{{host}}:{{port}}/events/{{eventId}}/stands/{{standId}}
-  headers:
-    - name: Authorization
-      value: Bearer {{token}}
-      enabled: true
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/stands/{{standId}}
   body:
     type: json
     data: |-
@@ -19,7 +15,7 @@ http:
         "xCoordinate": 15.0,
         "yCoordinate": 25.0
       }
-  auth: none
+  auth: inherit
 
 settings:
   encodeUrl: true

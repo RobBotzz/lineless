@@ -17,14 +17,16 @@ config:
 request:
   auth:
     type: bearer
-    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMmE0MDY0MS0wOGRiLTQ2OWMtYWU2Mi1lYWQ1NDRlOTBkNWMiLCJlbWFpbCI6InRlc3R1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzgwMjQzNTE0LCJleHAiOjE3ODI4MzU1MTR9.uMURn_nTJKGg1Unngotktwh1pg4lWi6lzemOvq4hmB8
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMmE0MDY0MS0wOGRiLTQ2OWMtYWU2Mi1lYWQ1NDRlOTBkNWMiLCJlbWFpbCI6InRlc3R1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzgwMjQ4OTQzLCJleHAiOjE3ODI4NDA5NDN9.XbV0rcklPN3UDZHl9nkWAG3t44fJasr4VntNZz5bvYo
   variables:
     - name: host
       value: localhost
     - name: port
       value: "8000"
+    - name: token
+      value: ""
     - name: eventId
-      value: 40d35ec5-b6d7-4bf0-8b1c-0b8f21295b3e
+      value: ""
 bundled: false
 extensions:
   bruno:

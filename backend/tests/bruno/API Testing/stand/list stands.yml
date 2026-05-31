@@ -5,12 +5,8 @@ info:
 
 http:
   method: GET
-  url: http://{{host}}:{{port}}/events/{{eventId}}/stands
-  headers:
-    - name: Authorization
-      value: Bearer {{token}}
-      enabled: true
-  auth: none
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/stands
+  auth: inherit
 
 settings:
   encodeUrl: true

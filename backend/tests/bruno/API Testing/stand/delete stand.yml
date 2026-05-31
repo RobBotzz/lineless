@@ -5,12 +5,8 @@ info:
 
 http:
   method: DELETE
-  url: http://{{host}}:{{port}}/events/{{eventId}}/stands/{{standId}}
-  headers:
-    - name: Authorization
-      value: Bearer {{token}}
-      enabled: true
-  auth: none
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/stands/{{standId}}
+  auth: inherit
 
 settings:
   encodeUrl: true

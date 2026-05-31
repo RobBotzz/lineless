@@ -16,6 +16,6 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/account", accountRouter);
 app.use("/api/events", eventsRouter);
-app.use("/events/:eventId/stands", eventStandsRouter);
+app.use("/api/events/:eventId/stands", eventStandsRouter);
 
 export { app };

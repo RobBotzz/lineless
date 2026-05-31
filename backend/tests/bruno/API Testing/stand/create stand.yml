@@ -5,11 +5,7 @@ info:
 
 http:
   method: POST
-  url: http://{{host}}:{{port}}/events/{{eventId}}/stands
-  headers:
-    - name: Authorization
-      value: Bearer {{token}}
-      enabled: true
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/stands
   body:
     type: json
     data: |-
@@ -20,7 +16,7 @@ http:
         "xCoordinate": 10.5,
         "yCoordinate": 20.3
       }
-  auth: none
+  auth: inherit
 
 settings:
   encodeUrl: true
