@@ -1,5 +1,13 @@
-import { Navbar } from "./Navbar";
+import type { ReactNode } from 'react';
 
-export function AttendeeNavbar() {
-  return <Navbar left={null} center={null} right={null} />;
+import { BaseNavbar } from './BaseNavbar';
+
+type AttendeeNavbarProps = {
+  left?: ReactNode;
+  center?: ReactNode;
+  right?: ReactNode;
+};
+
+export function AttendeeNavbar({ left, center, right }: AttendeeNavbarProps) {
+  return <BaseNavbar left={left} center={center} right={right} />;
 }
