@@ -13,7 +13,7 @@ const baseClasses =
   'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50';
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: 'bg-accent text-[var(--color-surface)] shadow-sm hover:bg-accent/90',
+  default: 'bg-accent text-[var(--color-button-text)] shadow-sm hover:bg-accent/90',
   secondary: 'bg-surface-muted text-text hover:bg-surface-muted/80',
   outline: 'border border-border bg-surface text-text hover:bg-surface-muted',
   ghost: 'bg-transparent text-text hover:bg-surface-muted',

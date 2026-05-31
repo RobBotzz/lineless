@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import logoPlaceholder from '../assets/LLlogo.png';
 import { OrganizerNavbar } from '../components/layout';
 import { Button, buttonVariants } from '../components/ui/button';
 import OperatorFooter from '../components/layout/OperatorFooter';
@@ -43,7 +42,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <OrganizerNavbar
-        logoSrc={logoPlaceholder}
         centerLinks={[
           { label: 'Home', to: '#home' },
           { label: 'Impact', to: '#impact' },
@@ -59,22 +57,22 @@ export default function Home() {
         rightLink={{ label: 'Sign In', to: '/' }} // TO-DO: richtiger Link noch hinzufügen.
       />
 
-      <main className="mx-auto max-w-7xl px-6 pt-8 pb-20">
-        <section id="home" className="scroll-mt-20">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            {/* Left column: text */}
+      <main className="mx-auto max-w-7xl px-6 pb-24">
+        {/* Hero */}
+        <section id="home" className="scroll-mt-20 pt-20 md:pt-28">
+          <div className="grid items-center gap-12 md:grid-cols-2">
             <div>
-              <div className="inline-flex items-center rounded-full border border-border px-3 py-1 my-2 text-sm font-semibold text-accent bg-accent-soft">
+              <div className="inline-flex items-center rounded-full border border-border bg-accent-soft px-3 py-1 text-xs font-semibold tracking-wide text-accent">
                 Built for festivals, venues and high-flow service teams
               </div>
 
-              <h1 className="mt-4 text-5xl font-bold tracking-tight text-accent">
+              <h1 className="mt-5 text-5xl font-extrabold leading-[1.1] tracking-tight text-text md:text-6xl">
                 Run every event line from one QR code.
               </h1>
 
-              <p className="mt-6 text-lg text-text">
+              <p className="mt-5 max-w-lg text-lg leading-relaxed text-text-muted">
                 lineless connects guest ordering, cashier payments, operator queues, pickup screens
-                and live analytics in one brandede event workflow.
+                and live analytics in one branded event workflow.
               </p>
 
               <div className="mt-8 flex items-center gap-4">
@@ -87,24 +85,24 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Right column: placeholder preview */}
             <div className="relative">
-              <div className="h-64 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] md:h-80 [box-shadow:var(--shadow-navbar)]" />
+              <div className="h-64 w-full rounded-2xl border border-border bg-surface [box-shadow:var(--shadow-navbar)] md:h-80" />
             </div>
           </div>
         </section>
 
-        <section className="py-20 scroll-mt-20" id="impact">
+        {/* Impact */}
+        <section className="scroll-mt-20 py-24" id="impact">
           <div className="flex flex-col gap-10 md:flex-row md:items-center">
             <div className="w-full md:w-1/2">
-              <div className="h-64 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] md:h-80" />
+              <div className="h-64 w-full rounded-2xl border border-border bg-surface-muted md:h-80" />
             </div>
 
             <div className="w-full md:w-1/2">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-[var(--color-accent)]">
+              <h2 className="text-3xl font-bold leading-tight tracking-tight text-accent sm:text-4xl">
                 Less crowd pressure. More time on site.
               </h2>
-              <p className="mt-5 text-base leading-7 sm:text-lg text-[var(--color-text-muted)]">
+              <p className="mt-4 max-w-prose text-lg leading-relaxed text-text-muted">
                 With smoother customer flow and clearer demand visibility, your team can focus on
                 service quality instead of constant queue management. Guests spend less time waiting
                 and more time enjoying what your event offers.
@@ -113,12 +111,13 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="pb-20 scroll-mt-20" id="pricing">
-          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 sm:p-12">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-[var(--color-accent)]">
+        {/* Pricing */}
+        <section className="scroll-mt-20 pb-20" id="pricing">
+          <div className="rounded-2xl border border-border bg-surface p-8 sm:p-12">
+            <h2 className="text-3xl font-bold leading-tight tracking-tight text-accent sm:text-4xl">
               Pricing
             </h2>
-            <p className="mt-4 text-base sm:text-lg text-[var(--color-text-muted)]">
+            <p className="mt-4 max-w-prose text-base leading-relaxed text-text-muted sm:text-lg">
               Pricing section placeholder.
             </p>
           </div>
