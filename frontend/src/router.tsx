@@ -3,7 +3,7 @@ import { createBrowserRouter, createRoutesFromElements, Route } from 'react-rout
 import Home from './routes/Home';
 import NotFound from './routes/NotFound';
 
-import OrganizerAuth from './routes/organizer/auth/OrganizerAuth';
+import OrganizerAuth from './routes/auth/OrganizerAuth';
 import OrganizerLayout from './routes/organizer/OrganizerLayout';
 import OrganizerDashboard, { DashboardError } from './routes/organizer/dashboard/Dashboard';
 import { dashboardLoader, dashboardAction } from './routes/organizer/dashboard/data';
