@@ -10,6 +10,8 @@ type NavButton = { label: string; onClick: () => void };
 type OrganizerNavbarProps = {
   logoSrc?: string;
   title?: string;
+  className?: string;
+  widthClassName?: string;
   centerLinks?: NavLink[];
   rightLink?: NavLink | NavButton;
   activeCenterLinkTo?: string;
@@ -19,6 +21,8 @@ type OrganizerNavbarProps = {
 export function OrganizerNavbar({
   logoSrc,
   title = 'lineless',
+  className,
+  widthClassName,
   centerLinks = [],
   rightLink,
   activeCenterLinkTo,
@@ -88,5 +92,13 @@ export function OrganizerNavbar({
     )
   ) : null;
 
-  return <BaseNavbar left={left} center={center} right={right} />;
+  return (
+    <BaseNavbar
+      className={className}
+      left={left}
+      center={center}
+      right={right}
+      widthClassName={widthClassName}
+    />
+  );
 }

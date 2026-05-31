@@ -64,6 +64,7 @@ export default function Home() {
               ? { label: 'Sign Out', onClick: logout }
               : { label: 'Sign In', to: paths.auth }
         }
+        widthClassName="w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)]"
       />
 
       <main className="mx-auto max-w-7xl px-6 pb-24">

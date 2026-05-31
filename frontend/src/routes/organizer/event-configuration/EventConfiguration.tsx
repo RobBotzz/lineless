@@ -18,7 +18,7 @@ export function EventConfigurationError() {
       ? error.message
       : 'This event could not be loaded. Check whether the backend is running and try again.';
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-5 text-sm text-text">
         {message}
       </div>
@@ -91,7 +91,7 @@ export default function EventConfiguration() {
   const canStop = event.status === 'ACTIVE';
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="space-y-6">
       {/* Header — title + lifecycle actions */}
       <Card>
         <CardHeader>
