@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-
+import { useState } from 'react';
+import { Button } from '../../../components/ui/button';
 import { AuthModeSwitch, AuthTabs, PasswordField, type AuthTab } from '../../../features/auth';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -28,7 +28,7 @@ export default function OrganizerAuth() {
       ? 'Use at least 8 characters with one letter and one number.'
       : '';
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: { preventDefault: () => void }) {
     event.preventDefault();
     setSubmitted(true);
   }
@@ -43,6 +43,7 @@ export default function OrganizerAuth() {
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8 text-text sm:px-6">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
+          //TODO: Replace with logo
           <p className="text-5xl font-black text-accent sm:text-6xl">Lineless</p>
           <p className="mt-3 text-xs font-semibold uppercase text-text-muted">Organizer access</p>
         </div>
@@ -113,12 +114,9 @@ export default function OrganizerAuth() {
               value={password}
             />
 
-            <button
-              type="submit"
-              className="h-11 w-full rounded-lg bg-accent px-4 text-sm font-semibold text-white transition hover:opacity-95"
-            >
+            <Button type="submit" size="lg" className="w-full rounded-lg">
               {isSignup ? 'Create account' : 'Login'}
-            </button>
+            </Button>
           </form>
 
           <AuthModeSwitch isSignup={isSignup} onChange={switchTab} />

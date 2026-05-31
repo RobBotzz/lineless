@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from '../../components/ui/button';
 
 interface PasswordFieldProps {
   error: string;
@@ -25,9 +26,14 @@ export function PasswordField({
       <span className="flex items-center justify-between gap-3 text-sm font-semibold text-text">
         Password
         {!isSignup ? (
-          <button type="button" className="text-sm font-semibold text-accent hover:underline">
+          <Button
+            type="button"
+            variant="transparent"
+            size="sm"
+            className="h-auto px-0 text-sm font-semibold text-accent hover:bg-transparent hover:underline"
+          >
             Forgot password?
-          </button>
+          </Button>
         ) : null}
       </span>
       <div className="relative mt-2">
@@ -45,14 +51,15 @@ export function PasswordField({
           aria-invalid={hasError}
           aria-describedby={hasError ? 'password-error' : isSignup ? 'password-help' : undefined}
         />
-        <button
+        <Button
           type="button"
           onClick={() => setShowPassword((current) => !current)}
-          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-muted transition hover:text-accent"
+          variant="transparent"
+          className="absolute inset-y-0 right-0 h-auto w-11 rounded-lg px-0 text-text-muted hover:bg-transparent hover:text-accent"
           aria-label={showPassword ? 'Hide password' : 'Show password'}
         >
           {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-        </button>
+        </Button>
       </div>
       {isSignup ? (
         <div
