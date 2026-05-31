@@ -14,7 +14,8 @@ import {
   eventConfigurationAction,
 } from './routes/organizer/event-configuration/data';
 import OrganizerPayment from './routes/organizer/Payment';
-import OrganizerSettings from './routes/organizer/Settings';
+import OrganizerSettings, { SettingsError } from './routes/organizer/Settings';
+import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
 
 import AttendeeLayout from './routes/attendee/AttendeeLayout';
 import AttendeeProductSelection from './routes/attendee/ProductSelection';
@@ -34,7 +35,13 @@ export const router = createBrowserRouter(
       <Route path="organizer" element={<OrganizerLayout />}>
         <Route index element={<OrganizerDashboard />} />
         <Route path="payment" element={<OrganizerPayment />} />
-        <Route path="settings" element={<OrganizerSettings />} />
+        <Route
+          path="settings"
+          element={<OrganizerSettings />}
+          loader={settingsLoader}
+          action={settingsAction}
+          errorElement={<SettingsError />}
+        />
         <Route
           path="events/:eventId"
           element={<OrganizerEventConfiguration />}
