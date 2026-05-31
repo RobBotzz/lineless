@@ -12,9 +12,13 @@ import { EventNotFoundError } from "../events/errors";
 import { createStandSchema, updateStandSchema } from "./types";
 import { authAccount } from "../../middleware/authAccount";
 
-// All stand routes are scoped under /events/:eventId/stands
-export const eventStandsRouter = Router({ mergeParams: true });
-eventStandsRouter.use(authAccount);
+function eventId(req: Request): string {
+  return req.params["eventId"] as string;
+}
+
+function standId(req: Request): string {
+  return req.params["standId"] as string;
+}
 
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof StandNotFoundError)
@@ -25,16 +29,18 @@ function handleError(err: unknown, res: Response): unknown {
   return res.status(500).json({ error: "Internal server error" });
 }
 
+// =============================================================================
+// Event-scoped stand routes — mounted at /events/:eventId/stands
+// =============================================================================
+export const eventStandsRouter = Router({ mergeParams: true });
+eventStandsRouter.use(authAccount);
+
 // POST /events/:eventId/stands
 eventStandsRouter.post(
   "/",
   validateBody(createStandSchema, async (req, res, data) => {
     try {
-      const stand = await createStand(
-        req.params["eventId"] as string,
-        req.user!.accountId,
-        data
-      );
+      const stand = await createStand(eventId(req), req.user!.accountId, data);
       res.status(201).json(stand);
     } catch (err) {
       handleError(err, res);
@@ -45,26 +51,37 @@ eventStandsRouter.post(
 // GET /events/:eventId/stands
 eventStandsRouter.get("/", async (req: Request, res: Response) => {
   try {
-    const stands = await listStands(
-      req.params["eventId"] as string,
-      req.user!.accountId
-    );
+    const stands = await listStands(eventId(req), req.user!.accountId);
     res.status(200).json(stands);
   } catch (err) {
     handleError(err, res);
   }
 });
 
-// PATCH /events/:eventId/stands/:standId
-eventStandsRouter.patch(
+// =============================================================================
+// Stand-id routes — mounted at /stands/:standId (no eventId in the URL)
+// =============================================================================
+export const standsRouter = Router();
+
+// GET /stands/:standId
+// TODO: Implement Middleware and check that ensures that only operators with link & password can access this endpoint
+standsRouter.get("/:standId", async (req: Request, res: Response) => {
+  try {
+    const stand = await getStand(standId(req));
+    res.status(200).json(stand);
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+standsRouter.use(authAccount);
+
+// PATCH /stands/:standId
+standsRouter.patch(
   "/:standId",
   validateBody(updateStandSchema, async (req, res, data) => {
     try {
-      const stand = await updateStand(
-        req.params["standId"] as string,
-        req.user!.accountId,
-        data
-      );
+      const stand = await updateStand(standId(req), req.user!.accountId, data);
       res.status(200).json(stand);
     } catch (err) {
       handleError(err, res);
@@ -72,21 +89,10 @@ eventStandsRouter.patch(
   })
 );
 
-// GET /events/:eventId/stands/:standId
-// TODO: Implement Middleware and check that ensures that only operators with link & password can access this endpoint
-eventStandsRouter.get("/:standId", async (req: Request, res: Response) => {
+// DELETE /stands/:standId
+standsRouter.delete("/:standId", async (req: Request, res: Response) => {
   try {
-    const stand = await getStand(req.params["standId"] as string);
-    res.status(200).json(stand);
-  } catch (err) {
-    handleError(err, res);
-  }
-});
-
-// DELETE /events/:eventId/stands/:standId
-eventStandsRouter.delete("/:standId", async (req: Request, res: Response) => {
-  try {
-    await softDeleteStand(req.params["standId"] as string, req.user!.accountId);
+    await softDeleteStand(standId(req), req.user!.accountId);
     res.status(204).send();
   } catch (err) {
     handleError(err, res);

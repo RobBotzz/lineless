@@ -2,7 +2,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import accountRouter from "./modules/accounts/routes";
 import eventsRouter from "./modules/events/routes";
-import { eventStandsRouter } from "./modules/stands/routes";
+import { eventStandsRouter, standsRouter } from "./modules/stands/routes";
 
 const app = express();
 
@@ -17,5 +17,6 @@ app.get("/health", (_req, res) => {
 app.use("/api/account", accountRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/events/:eventId/stands", eventStandsRouter);
+app.use("/api/stands", standsRouter);
 
 export { app };
