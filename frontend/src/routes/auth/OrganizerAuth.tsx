@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { Button } from '../../../components/ui/button';
-import { AlertDialog } from '../../../components/feedback';
-import { useAuth } from '../../../auth/AuthContext';
-import { ApiError } from '../../../api/client';
-import { paths } from '../../../paths';
+import { Button } from '../../components/ui/button';
+import { AlertDialog } from '../../components/feedback';
+import { useAuth } from '../../auth/AuthContext';
+import { ApiError } from '../../api/client';
+import { paths } from '../../paths';
 import {
   AuthTabs,
   AuthTextField,
@@ -12,7 +12,7 @@ import {
   getEmailError,
   getPasswordError,
   type AuthTab,
-} from '../../../features/auth';
+} from '../../features/auth';
 
 type AuthField = 'email' | 'password';
 type SubmitEvent = { preventDefault: () => void };
