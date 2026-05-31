@@ -17,7 +17,7 @@ export function SettingsError() {
       : 'Your account settings could not be loaded. Check whether the backend is running and try again.';
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-5 text-sm text-text">
         {message}
       </div>
@@ -97,7 +97,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 pb-10">
+    <div className="space-y-8 pb-10">
       <section>
         <h1 className="text-3xl font-bold text-text">Settings</h1>
         <p className="mt-2 text-sm text-text-muted">Manage your account and preferences</p>
