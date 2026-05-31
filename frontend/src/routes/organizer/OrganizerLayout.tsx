@@ -8,10 +8,10 @@ export default function OrganizerLayout() {
 
   return (
     <RequireAuth>
-      <div>
+      <div className="min-h-screen bg-background">
         <OrganizerNavbar rightLink={{ label: 'Sign Out', onClick: () => logout('/') }} />
-        <header>Lineless — Organizer</header>
-        <main>
+
+        <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
           <Outlet />
         </main>
       </div>

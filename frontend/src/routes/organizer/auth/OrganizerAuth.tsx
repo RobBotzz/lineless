@@ -91,7 +91,12 @@ export default function OrganizerAuth() {
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8 text-text sm:px-6">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <p className="text-5xl font-black text-accent sm:text-6xl">Lineless</p>
+          <div aria-label="lineless" className="font-logo text-5xl text-accent sm:text-6xl">
+            <span className="underline decoration-current decoration-2 underline-offset-4">
+              line
+            </span>
+            less
+          </div>
           <p className="mt-3 text-xs font-semibold uppercase text-text-muted">Organizer access</p>
         </div>
 

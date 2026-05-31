@@ -6,7 +6,13 @@ import NotFound from './routes/NotFound';
 import OrganizerAuth from './routes/organizer/auth/OrganizerAuth';
 import OrganizerLayout from './routes/organizer/OrganizerLayout';
 import OrganizerDashboard from './routes/organizer/Dashboard';
-import OrganizerEventConfig from './routes/organizer/EventConfig';
+import OrganizerEventConfiguration, {
+  EventConfigurationError,
+} from './routes/organizer/event-configuration/EventConfiguration';
+import {
+  eventConfigurationLoader,
+  eventConfigurationAction,
+} from './routes/organizer/event-configuration/data';
 import OrganizerPayment from './routes/organizer/Payment';
 import OrganizerSettings from './routes/organizer/Settings';
 
@@ -29,7 +35,13 @@ export const router = createBrowserRouter(
         <Route index element={<OrganizerDashboard />} />
         <Route path="payment" element={<OrganizerPayment />} />
         <Route path="settings" element={<OrganizerSettings />} />
-        <Route path="events/:eventId" element={<OrganizerEventConfig />} />
+        <Route
+          path="events/:eventId"
+          element={<OrganizerEventConfiguration />}
+          loader={eventConfigurationLoader}
+          action={eventConfigurationAction}
+          errorElement={<EventConfigurationError />}
+        />
       </Route>
 
       <Route path="event/:eventId" element={<AttendeeLayout />}>
