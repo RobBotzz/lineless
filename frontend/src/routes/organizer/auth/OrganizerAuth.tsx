@@ -1,49 +1,61 @@
 import { useState } from 'react';
 import { Button } from '../../../components/ui/button';
-import { AuthModeSwitch, AuthTabs, PasswordField, type AuthTab } from '../../../features/auth';
+import {
+  AuthModeSwitch,
+  AuthTabs,
+  AuthTextField,
+  PasswordField,
+  getEmailError,
+  getPasswordError,
+  type AuthTab,
+} from '../../../features/auth';
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const signupPasswordPattern = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+type AuthField = 'email' | 'password';
+type SubmitEvent = { preventDefault: () => void };
+
+const initialTouched: Record<AuthField, boolean> = {
+  email: false,
+  password: false,
+};
 
 export default function OrganizerAuth() {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [touched, setTouched] = useState({
-    email: false,
-    password: false,
-  });
+  const [touched, setTouched] = useState(initialTouched);
   const [submitted, setSubmitted] = useState(false);
-  const isSignup = activeTab === 'signup';
-  const shouldShowEmailError = touched.email || submitted;
-  const shouldShowPasswordError = touched.password || submitted;
-  const emailError = !email.trim()
-    ? 'Email is required.'
-    : !emailPattern.test(email)
-      ? 'Enter a valid email address.'
-      : '';
-  const passwordError = !password
-    ? 'Password is required.'
-    : isSignup && !signupPasswordPattern.test(password)
-      ? 'Use at least 8 characters with one letter and one number.'
-      : '';
 
-  function handleSubmit(event: { preventDefault: () => void }) {
+  const isSignup = activeTab === 'signup';
+  const emailError = getEmailError(email);
+  const passwordError = getPasswordError(password, activeTab);
+  const showEmailError = touched.email || submitted;
+  const showPasswordError = touched.password || submitted;
+
+  function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
     setSubmitted(true);
+
+    if (emailError || passwordError) return;
+
+    // TODO: Send login/signup payload to the organizer auth backend here.
   }
 
   function switchTab(tab: AuthTab) {
     setActiveTab(tab);
-    setTouched({ email: false, password: false });
+    setTouched(initialTouched);
     setSubmitted(false);
+  }
+
+  function markTouched(field: AuthField) {
+    setTouched((current) => ({ ...current, [field]: true }));
   }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8 text-text sm:px-6">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          //TODO: Replace with logo
           <p className="text-5xl font-black text-accent sm:text-6xl">Lineless</p>
           <p className="mt-3 text-xs font-semibold uppercase text-text-muted">Organizer access</p>
         </div>
@@ -65,52 +77,42 @@ export default function OrganizerAuth() {
           <form className="space-y-4" noValidate onSubmit={handleSubmit}>
             {isSignup ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-sm font-semibold text-text">First name</span>
-                  <input
-                    className="mt-2 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text outline-none transition placeholder:text-text-muted focus:border-accent focus:ring-4 focus:ring-accent-soft"
-                    placeholder="Emely"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-semibold text-text">Last name</span>
-                  <input
-                    className="mt-2 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text outline-none transition placeholder:text-text-muted focus:border-accent focus:ring-4 focus:ring-accent-soft"
-                    placeholder="Meyer"
-                  />
-                </label>
+                <AuthTextField
+                  autoComplete="given-name"
+                  label="First name"
+                  onChange={setFirstName}
+                  placeholder="Emely"
+                  value={firstName}
+                />
+                <AuthTextField
+                  autoComplete="family-name"
+                  label="Last name"
+                  onChange={setLastName}
+                  placeholder="Meyer"
+                  value={lastName}
+                />
               </div>
             ) : null}
 
-            <label className="block">
-              <span className="text-sm font-semibold text-text">Email</span>
-              <input
-                className={`mt-2 h-11 w-full rounded-lg border bg-surface px-3 text-sm text-text outline-none transition placeholder:text-text-muted focus:ring-4 ${
-                  shouldShowEmailError && emailError
-                    ? 'border-danger focus:border-danger focus:ring-danger/10'
-                    : 'border-border focus:border-accent focus:ring-accent-soft'
-                }`}
-                value={email}
-                onBlur={() => setTouched((current) => ({ ...current, email: true }))}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="organizer@lineless.app"
-                type="email"
-                aria-invalid={shouldShowEmailError && Boolean(emailError)}
-                aria-describedby={shouldShowEmailError && emailError ? 'email-error' : undefined}
-              />
-              {shouldShowEmailError && emailError ? (
-                <span id="email-error" className="mt-2 block text-xs font-medium text-danger">
-                  {emailError}
-                </span>
-              ) : null}
-            </label>
+            <AuthTextField
+              autoComplete="email"
+              error={emailError}
+              id="email"
+              label="Email"
+              onBlur={() => markTouched('email')}
+              onChange={setEmail}
+              placeholder="organizer@lineless.app"
+              showError={showEmailError}
+              type="email"
+              value={email}
+            />
 
             <PasswordField
               error={passwordError}
               isSignup={isSignup}
-              onBlur={() => setTouched((current) => ({ ...current, password: true }))}
+              onBlur={() => markTouched('password')}
               onChange={setPassword}
-              showError={shouldShowPasswordError}
+              showError={showPasswordError}
               value={password}
             />
 
