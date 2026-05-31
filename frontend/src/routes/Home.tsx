@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
-import { OrganizerNavbar } from '../components/layout/navbars';
+import { LandingPageNavbar } from '../components/layout/navbars';
 import { Button, buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
 import { paths } from '../paths';
@@ -44,7 +44,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <OrganizerNavbar
+      <LandingPageNavbar
         centerLinks={[
           { label: 'Home', to: '#home' },
           { label: 'Impact', to: '#impact' },
