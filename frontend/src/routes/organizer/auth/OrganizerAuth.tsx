@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { Button } from '../../../components/ui/button';
+import { AlertDialog } from '../../../components/feedback';
 import { useAuth } from '../../../auth/AuthContext';
 import { ApiError } from '../../../api/client';
 import { paths } from '../../../paths';
@@ -56,16 +57,20 @@ export default function OrganizerAuth() {
 
     setSubmitting(true);
     try {
+      const normalizedEmail = email.trim();
       if (isSignup) {
-        await signup({ email, password, firstName, lastName });
+        await signup({
+          email: normalizedEmail,
+          password,
+          ...optionalName('firstName', firstName),
+          ...optionalName('lastName', lastName),
+        });
       } else {
-        await login({ email, password });
+        await login({ email: normalizedEmail, password });
       }
       navigate(from, { replace: true });
     } catch (err) {
-      setServerError(
-        err instanceof ApiError ? err.message : 'Something went wrong. Please try again.',
-      );
+      setServerError(getAuthErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -156,14 +161,37 @@ export default function OrganizerAuth() {
                   : 'Login'}
             </Button>
 
-            {serverError ? (
-              <p role="alert" className="text-sm font-medium text-danger">
-                {serverError}
-              </p>
-            ) : null}
+            <AlertDialog
+              message={serverError}
+              title="Authentication failed"
+              onAcknowledge={() => setServerError(null)}
+            />
           </form>
         </section>
       </div>
     </main>
   );
+}
+
+function optionalName(key: 'firstName' | 'lastName', value: string) {
+  const trimmed = value.trim();
+  return trimmed ? { [key]: trimmed } : {};
+}
+
+function getAuthErrorMessage(err: unknown): string {
+  if (!(err instanceof ApiError)) {
+    return 'Something went wrong. Please try again.';
+  }
+
+  if (err.status === 400) {
+    return 'Please check your details and try again.';
+  }
+  if (err.status === 401) {
+    return 'Invalid email or password.';
+  }
+  if (err.status === 409) {
+    return 'An account with this email already exists.';
+  }
+
+  return err.message || 'Something went wrong. Please try again.';
 }

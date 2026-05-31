@@ -4,8 +4,9 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const signupPasswordPattern = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
 
 export function getEmailError(email: string): string {
-  if (!email.trim()) return 'Email is required.';
-  if (!emailPattern.test(email)) return 'Enter a valid email address.';
+  const trimmedEmail = email.trim();
+  if (!trimmedEmail) return 'Email is required.';
+  if (!emailPattern.test(trimmedEmail)) return 'Enter a valid email address.';
   return '';
 }
 
