@@ -1,0 +1,23 @@
+info:
+  name: set location
+  type: http
+  seq: 1
+
+http:
+  method: PUT
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/location
+  body:
+    type: json
+    data: |-
+      {
+        "locationName": "Hauptgebäude Raum 101",
+        "xCoordinate": 48.1374,
+        "yCoordinate": 11.5755
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

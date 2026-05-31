@@ -3,10 +3,10 @@ import { model, Schema } from "mongoose";
 
 export interface LocationDoc {
   _id: string;
+  eventId: string;
   locationName: string | null;
   xCoordinate: number | null;
   yCoordinate: number | null;
-  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -14,10 +14,10 @@ export interface LocationDoc {
 const locationSchema = new Schema<LocationDoc>(
   {
     _id: { type: String, default: () => uuidv4() },
+    eventId: { type: String, required: true, unique: true, index: true },
     locationName: { type: String, default: null, trim: true },
     xCoordinate: { type: Number, default: null },
     yCoordinate: { type: Number, default: null },
-    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

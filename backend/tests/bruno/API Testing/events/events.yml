@@ -5,15 +5,13 @@ info:
 
 http:
   method: POST
-  url: http://{{host}}:{{port}}/events
+  url: http://{{host}}:{{port}}/api/events
   body:
     type: json
     data: |-
       {
-          "accountId": "acc-123",
-          "name": "Sommerfest",
-          "location": "Innenhof",
-          "plannedDate": "2026-05-30T12:22:02.202Z",
+        "name": "Sommerfest",
+        "plannedDate": "2026-05-30T12:22:02.202Z",
           "ratingsEnabled": false,
           "cashierEnabled": true,
           "offlineOrdersEnabled": true,

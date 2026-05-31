@@ -1,69 +1,56 @@
 import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import { authAccount } from "../../middleware/authAccount";
-import {
-  createLocation,
-  listLocations,
-  getLocation,
-  updateLocation,
-  softDeleteLocation,
-} from "./service";
-import { LocationNotFoundError } from "./errors";
-import { createLocationSchema, updateLocationSchema } from "./types";
+import { authAccountOrSession } from "../../middleware/authAccountOrSession";
+import { getLocationByEvent, setLocation } from "./service";
+import { EventNotOwnedError } from "./errors";
+import { EventNotFoundError } from "../events/errors";
+import { setLocationSchema } from "./types";
 
-const locationsRouter = Router();
+const locationRouter = Router({ mergeParams: true });
 
-function locationId(req: Request): string {
-  return req.params["locationId"] as string;
+function eventId(req: Request): string {
+  return req.params["eventId"] as string;
 }
 
 function handleError(err: unknown, res: Response): unknown {
-  if (err instanceof LocationNotFoundError) {
+  if (err instanceof EventNotFoundError) {
     return res.status(404).json({ error: err.message });
+  }
+  if (err instanceof EventNotOwnedError) {
+    return res.status(403).json({ error: err.message });
   }
   console.error("Locations error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
 
-// Public — no auth required to read locations.
-locationsRouter.get("/", async (_req: Request, res: Response) => {
-  try {
-    const locations = await listLocations();
-    res.status(200).json(locations);
-  } catch (err) {
-    handleError(err, res);
-  }
-});
-
-locationsRouter.get("/:locationId", async (req: Request, res: Response) => {
-  try {
-    const location = await getLocation(locationId(req));
-    res.status(200).json(location);
-  } catch (err) {
-    handleError(err, res);
-  }
-});
-
-// All routes below require an authenticated organizer.
-locationsRouter.use(authAccount);
-
-locationsRouter.post(
+locationRouter.get(
   "/",
-  validateBody(createLocationSchema, async (_req, res, data) => {
+  authAccountOrSession,
+  async (req: Request, res: Response) => {
     try {
-      const location = await createLocation(data);
-      res.status(201).json(location);
+      const location = await getLocationByEvent(eventId(req));
+      if (location === null) {
+        res.status(204).send();
+        return;
+      }
+      res.status(200).json(location);
     } catch (err) {
       handleError(err, res);
     }
-  })
+  }
 );
 
-locationsRouter.patch(
-  "/:locationId",
-  validateBody(updateLocationSchema, async (req, res, data) => {
+locationRouter.put(
+  "/",
+  authAccount,
+  validateBody(setLocationSchema, async (req, res, data) => {
     try {
-      const location = await updateLocation(locationId(req), data);
+      const location = await setLocation(
+        eventId(req),
+        req.user!.accountId,
+        data
+      );
       res.status(200).json(location);
     } catch (err) {
       handleError(err, res);
@@ -71,13 +58,4 @@ locationsRouter.patch(
   })
 );
 
-locationsRouter.delete("/:locationId", async (req: Request, res: Response) => {
-  try {
-    await softDeleteLocation(locationId(req));
-    res.status(204).send();
-  } catch (err) {
-    handleError(err, res);
-  }
-});
-
-export default locationsRouter;
+export default locationRouter;

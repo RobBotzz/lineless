@@ -13,7 +13,6 @@ export interface EventDoc {
   _id: string;
   accountId: string;
   name: string;
-  locationId: string | null;
   plannedDate?: Date;
   status: EventStatus;
   ratingsEnabled: boolean;
@@ -41,7 +40,6 @@ const eventSchema = new Schema<EventDoc>(
     _id: { type: String, default: () => uuidv4() },
     accountId: { type: String, required: true, index: true },
     name: { type: String, required: true, trim: true },
-    locationId: { type: String, default: null },
     plannedDate: { type: Date },
     status: {
       type: String,
