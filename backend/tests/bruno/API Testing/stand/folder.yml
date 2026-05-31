@@ -1,13 +1,13 @@
 info:
   name: stand
   type: folder
-  seq: 2
+  seq: 1
 
 request:
-  auth:
-    mode: inherit
   variables:
     - name: eventId
       value: 53bed77f-9cdc-48a1-9df8-f968a1f782de
+      disabled: true
     - name: standId
       value: 3188c9f7-a04b-41c9-b2b9-0173fd1837b8
+      disabled: true

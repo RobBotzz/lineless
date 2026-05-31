@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: http://{{host}}:{{port}}/api/events/{{eventId}}/stands/{{standId}}
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}
   auth: inherit
 
 settings:
