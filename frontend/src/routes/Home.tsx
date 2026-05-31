@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { OrganizerNavbar } from '../components/layout/navbars';
 import { Button, buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
+import { paths } from '../paths';
 
 const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
 
@@ -61,7 +62,7 @@ export default function Home() {
             ? undefined
             : isAuthenticated
               ? { label: 'Sign Out', onClick: logout }
-              : { label: 'Sign In', to: '/auth' }
+              : { label: 'Sign In', to: paths.auth }
         }
       />
 

@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 
 import { buttonVariants } from '../../ui/button';
+import { paths } from '../../../paths';
 import { BaseNavbar } from './BaseNavbar';
 
 type NavLink = { label: string; to: string };
@@ -24,7 +25,7 @@ export function OrganizerNavbar({
   onCenterLinkClick,
 }: OrganizerNavbarProps) {
   const left = (
-    <Link className="inline-flex items-center" to="/">
+    <Link className="inline-flex items-center" to={paths.home}>
       {logoSrc ? (
         <img alt={title} className="h-10 w-10 object-contain" src={logoSrc} />
       ) : title === 'lineless' ? (
