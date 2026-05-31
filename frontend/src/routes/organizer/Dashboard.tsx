@@ -37,7 +37,7 @@ function formatDate(date?: string) {
   }).format(parsedDate);
 }
 
-export default function OrganizerDashboard() {
+export default function Dashboard() {
   const [events, setEvents] = useState<OrganizerEvent[]>([]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
 

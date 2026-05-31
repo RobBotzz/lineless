@@ -1,7 +1,7 @@
 import { Button } from '../../components/ui/button';
 import { TextField } from '../../components/ui/text-field';
 
-export default function OrganizerSettings() {
+export default function Settings() {
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <section>
