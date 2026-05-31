@@ -5,7 +5,7 @@ info:
 
 http:
   method: DELETE
-  url: http://{{host}}:{{port}}/events/ea2659b9-db5b-4c1f-bdfe-d8a5b3818896
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}
   auth: inherit
 
 settings:
