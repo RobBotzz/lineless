@@ -1,5 +1,9 @@
 import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import { Button } from '../../../components/ui/button';
+import { useAuth } from '../../../auth/AuthContext';
+import { ApiError } from '../../../api/client';
+import { paths } from '../../../paths';
 import {
   AuthModeSwitch,
   AuthTabs,
@@ -19,6 +23,15 @@ const initialTouched: Record<AuthField, boolean> = {
 };
 
 export default function OrganizerAuth() {
+  const { login, signup } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Where to send the organizer after success (set by RequireAuth).
+  const from =
+    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ??
+    paths.organizer.root;
+
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -26,6 +39,8 @@ export default function OrganizerAuth() {
   const [password, setPassword] = useState('');
   const [touched, setTouched] = useState(initialTouched);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const isSignup = activeTab === 'signup';
   const emailError = getEmailError(email);
@@ -33,19 +48,35 @@ export default function OrganizerAuth() {
   const showEmailError = touched.email || submitted;
   const showPasswordError = touched.password || submitted;
 
-  function handleSubmit(event: SubmitEvent) {
+  async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
     setSubmitted(true);
+    setServerError(null);
 
     if (emailError || passwordError) return;
 
-    // TODO: Send login/signup payload to the organizer auth backend here.
+    setSubmitting(true);
+    try {
+      if (isSignup) {
+        await signup({ email, password, firstName, lastName });
+      } else {
+        await login({ email, password });
+      }
+      navigate(from, { replace: true });
+    } catch (err) {
+      setServerError(
+        err instanceof ApiError ? err.message : 'Something went wrong. Please try again.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function switchTab(tab: AuthTab) {
     setActiveTab(tab);
     setTouched(initialTouched);
     setSubmitted(false);
+    setServerError(null);
   }
 
   function markTouched(field: AuthField) {
@@ -116,9 +147,21 @@ export default function OrganizerAuth() {
               value={password}
             />
 
-            <Button type="submit" size="lg" className="w-full rounded-lg">
-              {isSignup ? 'Create account' : 'Login'}
+            <Button type="submit" size="lg" className="w-full rounded-lg" disabled={submitting}>
+              {submitting
+                ? isSignup
+                  ? 'Creating account…'
+                  : 'Logging in…'
+                : isSignup
+                  ? 'Create account'
+                  : 'Login'}
             </Button>
+
+            {serverError ? (
+              <p role="alert" className="text-sm font-medium text-danger">
+                {serverError}
+              </p>
+            ) : null}
           </form>
 
           <AuthModeSwitch isSignup={isSignup} onChange={switchTab} />

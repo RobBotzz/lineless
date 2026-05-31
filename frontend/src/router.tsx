@@ -3,10 +3,10 @@ import { createBrowserRouter, createRoutesFromElements, Route } from 'react-rout
 import Home from './routes/Home';
 import NotFound from './routes/NotFound';
 
-import OrganizerLayout from "./routes/organizer/OrganizerLayout";
-import OrganizerDashboard from "./routes/organizer/Dashboard";
-import EventConfig from "./routes/organizer/EventConfig";
-import OrganizerAuth from "./routes/organizer/auth/OrganizerAuth";
+import OrganizerAuth from './routes/organizer/auth/OrganizerAuth';
+import OrganizerLayout from './routes/organizer/OrganizerLayout';
+import OrganizerDashboard from './routes/organizer/Dashboard';
+import EventConfig from './routes/organizer/EventConfig';
 
 import AttendeeLayout from './routes/attendee/AttendeeLayout';
 import ProductSelection from './routes/attendee/ProductSelection';
@@ -19,7 +19,8 @@ export const router = createBrowserRouter(
     <Route path="/">
       <Route index element={<Home />} />
 
-      <Route path="organizer/auth" element={<OrganizerAuth />} />
+      {/* Auth sits outside the guarded layout to avoid a redirect loop. */}
+      <Route path="auth" element={<OrganizerAuth />} />
 
       <Route path="organizer" element={<OrganizerLayout />}>
         <Route index element={<OrganizerDashboard />} />

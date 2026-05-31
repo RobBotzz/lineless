@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import logoPlaceholder from '../assets/LLlogo.png';
-import { OrganizerNavbar } from '../components/layout';
 import { Button, buttonVariants } from '../components/ui/button';
 
 const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
@@ -41,17 +39,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <OrganizerNavbar
-        logoSrc={logoPlaceholder}
-        centerLinks={[
-          { label: 'Home', to: '#home' },
-          { label: 'Impact', to: '#impact' },
-          { label: 'Pricing', to: '#pricing' },
-        ]}
-        activeCenterLinkTo={`#${activeSection}`}
-        rightLink={{ label: 'Sign In', to: '/' }} // richtiger Link noch hinzufügen.
-      />
-
       <main className="mx-auto max-w-7xl px-6 py-20">
         <section id="home">
           <div className="grid md:grid-cols-2 gap-12 items-center">
