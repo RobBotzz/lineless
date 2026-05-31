@@ -7,7 +7,7 @@ import { BaseNavbar } from './BaseNavbar';
 type NavLink = { label: string; to: string };
 type NavButton = { label: string; onClick: () => void };
 
-type OrganizerNavbarProps = {
+type LandingPageNavbarProps = {
   logoSrc?: string;
   title?: string;
   className?: string;
@@ -15,9 +15,10 @@ type OrganizerNavbarProps = {
   centerLinks?: NavLink[];
   rightLink?: NavLink | NavButton;
   activeCenterLinkTo?: string;
+  onCenterLinkClick?: (to: string) => void;
 };
 
-export function OrganizerNavbar({
+export function LandingPageNavbar({
   logoSrc,
   title = 'lineless',
   className,
@@ -25,7 +26,8 @@ export function OrganizerNavbar({
   centerLinks = [],
   rightLink,
   activeCenterLinkTo,
-}: OrganizerNavbarProps) {
+  onCenterLinkClick,
+}: LandingPageNavbarProps) {
   const left = (
     <Link className="inline-flex items-center" to={paths.home}>
       {logoSrc ? (
@@ -46,9 +48,15 @@ export function OrganizerNavbar({
       <div className="inline-flex items-center gap-1 rounded-md bg-background p-1">
         {centerLinks.map((link) => {
           const isActive = activeCenterLinkTo === link.to;
+          const handleClick = (e: React.MouseEvent) => {
+            if (onCenterLinkClick) {
+              e.preventDefault();
+              onCenterLinkClick(link.to);
+            }
+          };
 
           return (
-            <Link
+            <a
               key={link.label}
               className={`${buttonVariants({ variant: 'transparent', size: 'sm' })} text-xs`}
               style={
@@ -56,10 +64,11 @@ export function OrganizerNavbar({
                   ? { backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }
                   : undefined
               }
-              to={link.to}
+              href={link.to}
+              onClick={handleClick}
             >
               {link.label}
-            </Link>
+            </a>
           );
         })}
       </div>

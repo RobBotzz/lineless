@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
-import { OrganizerNavbar } from '../components/layout/navbars';
+import { LandingPageNavbar } from '../components/layout/navbars';
 import { Button, buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
 import { paths } from '../paths';
@@ -44,7 +44,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <OrganizerNavbar
+      <LandingPageNavbar
         centerLinks={[
           { label: 'Home', to: '#home' },
           { label: 'Impact', to: '#impact' },
@@ -64,6 +64,7 @@ export default function Home() {
               ? { label: 'Sign Out', onClick: logout }
               : { label: 'Sign In', to: paths.auth }
         }
+        widthClassName="w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)]"
       />
 
       <main className="mx-auto max-w-7xl px-6 pb-24">
