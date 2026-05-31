@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
+import { useAuth } from '../auth/AuthContext';
 import { OrganizerNavbar } from '../components/layout/navbars';
 import { Button, buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
@@ -9,6 +10,7 @@ const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export default function Home() {
+  const { isAuthenticated, status, logout } = useAuth();
   const [activeSection, setActiveSection] = useState<SectionId>('home');
 
   useEffect(() => {
@@ -54,7 +56,13 @@ export default function Home() {
           const el = document.getElementById(id);
           if (el) el.scrollIntoView({ behavior: 'smooth' });
         }}
-        rightLink={{ label: 'Sign In', to: '/' }} // TODO: richtiger Link noch hinzufügen.
+        rightLink={
+          status === 'loading'
+            ? undefined
+            : isAuthenticated
+              ? { label: 'Sign Out', onClick: logout }
+              : { label: 'Sign In', to: '/auth' }
+        }
       />
 
       <main className="mx-auto max-w-7xl px-6 pb-24">

@@ -3,16 +3,14 @@ import { Link } from 'react-router';
 import { buttonVariants } from '../../ui/button';
 import { BaseNavbar } from './BaseNavbar';
 
-type NavbarLink = {
-  label: string;
-  to: string;
-};
+type NavLink = { label: string; to: string };
+type NavButton = { label: string; onClick: () => void };
 
 type OrganizerNavbarProps = {
   logoSrc?: string;
   title?: string;
-  centerLinks?: NavbarLink[];
-  rightLink?: NavbarLink;
+  centerLinks?: NavLink[];
+  rightLink?: NavLink | NavButton;
   activeCenterLinkTo?: string;
   onCenterLinkClick?: (to: string) => void;
 };
@@ -72,12 +70,21 @@ export function OrganizerNavbar({
     ) : null;
 
   const right = rightLink ? (
-    <Link
-      className={`${buttonVariants({ variant: 'default', size: 'sm' })} text-xs`}
-      to={rightLink.to}
-    >
-      {rightLink.label}
-    </Link>
+    'onClick' in rightLink ? (
+      <button
+        className={`${buttonVariants({ variant: 'default', size: 'sm' })} text-xs`}
+        onClick={rightLink.onClick}
+      >
+        {rightLink.label}
+      </button>
+    ) : (
+      <Link
+        className={`${buttonVariants({ variant: 'default', size: 'sm' })} text-xs`}
+        to={rightLink.to}
+      >
+        {rightLink.label}
+      </Link>
+    )
   ) : null;
 
   return <BaseNavbar left={left} center={center} right={right} />;
