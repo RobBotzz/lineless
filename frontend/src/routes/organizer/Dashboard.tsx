@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
 type OrganizerEvent = {
   _id: string;
   name: string;
@@ -75,85 +77,84 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold text-text">Dashboard</h1>
       </section>
 
-      <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-text">{eventCountText}</h2>
-            <p className="text-sm text-text-muted">Open an event to continue configuration.</p>
-          </div>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{eventCountText}</CardTitle>
+          <CardDescription>Open an event to continue configuration.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadState === 'loading' && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  className="h-44 animate-pulse rounded-lg border border-border bg-surface-muted"
+                  key={index}
+                />
+              ))}
+            </div>
+          )}
 
-        {loadState === 'loading' && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div
-                className="h-44 animate-pulse rounded-lg border border-border bg-surface-muted"
-                key={index}
-              />
-            ))}
-          </div>
-        )}
+          {loadState === 'error' && (
+            <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-5 text-sm text-text">
+              Events could not be loaded. Check whether the backend is running and try again.
+            </div>
+          )}
 
-        {loadState === 'error' && (
-          <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-5 text-sm text-text">
-            Events could not be loaded. Check whether the backend is running and try again.
-          </div>
-        )}
+          {loadState === 'ready' && events.length === 0 && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <CreateEventTile />
+            </div>
+          )}
 
-        {loadState === 'ready' && events.length === 0 && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <CreateEventTile />
-          </div>
-        )}
+          {loadState === 'ready' && events.length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {events.map((event) => (
+                <Link
+                  className="group flex min-h-44 flex-col justify-between rounded-lg border border-border bg-surface p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md"
+                  key={event._id}
+                  to={`/organizer/events/${event._id}`}
+                >
+                  <div>
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <h3 className="line-clamp-2 text-lg font-semibold text-text group-hover:text-accent">
+                        {event.name}
+                      </h3>
+                      <span
+                        className={[
+                          'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
+                          statusClasses[event.status],
+                        ].join(' ')}
+                      >
+                        {statusLabels[event.status]}
+                      </span>
+                    </div>
 
-        {loadState === 'ready' && events.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
-              <Link
-                className="group flex min-h-44 flex-col justify-between rounded-lg border border-border bg-surface p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md"
-                key={event._id}
-                to={`/organizer/events/${event._id}`}
-              >
-                <div>
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <h3 className="line-clamp-2 text-lg font-semibold text-text group-hover:text-accent">
-                      {event.name}
-                    </h3>
-                    <span
-                      className={[
-                        'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                        statusClasses[event.status],
-                      ].join(' ')}
-                    >
-                      {statusLabels[event.status]}
-                    </span>
+                    <dl className="space-y-3 text-sm">
+                      <div>
+                        <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                          Date
+                        </dt>
+                        <dd className="mt-1 text-text">{formatDate(event.plannedDate)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                          Location
+                        </dt>
+                        <dd className="mt-1 text-text">{event.location || 'No location set'}</dd>
+                      </div>
+                    </dl>
                   </div>
 
-                  <dl className="space-y-3 text-sm">
-                    <div>
-                      <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
-                        Date
-                      </dt>
-                      <dd className="mt-1 text-text">{formatDate(event.plannedDate)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
-                        Location
-                      </dt>
-                      <dd className="mt-1 text-text">{event.location || 'No location set'}</dd>
-                    </div>
-                  </dl>
-                </div>
-
-                <div className="mt-5 border-t border-border pt-4 text-sm font-medium text-accent">
-                  Open configuration
-                </div>
-              </Link>
-            ))}
-            <CreateEventTile />
-          </div>
-        )}
-      </section>
+                  <div className="mt-5 border-t border-border pt-4 text-sm font-medium text-accent">
+                    Open configuration
+                  </div>
+                </Link>
+              ))}
+              <CreateEventTile />
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
