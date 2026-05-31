@@ -105,7 +105,15 @@ export default function Settings() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">Account</CardTitle>
+          <CardTitle className="flex min-w-0 items-center justify-between gap-3 text-xl">
+            <span>Account</span>
+            <span
+              className="min-w-0 truncate rounded-md bg-surface-muted px-2 py-1 text-right text-sm font-normal text-text-muted"
+              title={account.email ?? 'No email available'}
+            >
+              {account.email ?? 'No email available'}
+            </span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -127,11 +135,6 @@ export default function Settings() {
                 type="text"
                 value={accountForm.lastName}
               />
-            </div>
-
-            <div>
-              <p className="mb-2 text-sm font-medium text-text">Email</p>
-              <p className="text-sm text-text-muted">{account.email ?? 'No email available'}</p>
             </div>
           </div>
 
