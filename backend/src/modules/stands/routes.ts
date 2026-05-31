@@ -55,16 +55,6 @@ eventStandsRouter.get("/", async (req: Request, res: Response) => {
   }
 });
 
-// GET /events/:eventId/stands/:standId
-eventStandsRouter.get("/:standId", async (req: Request, res: Response) => {
-  try {
-    const stand = await getStand(req.params["standId"] as string);
-    res.status(200).json(stand);
-  } catch (err) {
-    handleError(err, res);
-  }
-});
-
 // PATCH /events/:eventId/stands/:standId
 eventStandsRouter.patch(
   "/:standId",
@@ -81,6 +71,17 @@ eventStandsRouter.patch(
     }
   })
 );
+
+// GET /events/:eventId/stands/:standId
+// TODO: Implement Middleware and check that ensures that only operators with link & password can access this endpoint
+eventStandsRouter.get("/:standId", async (req: Request, res: Response) => {
+  try {
+    const stand = await getStand(req.params["standId"] as string);
+    res.status(200).json(stand);
+  } catch (err) {
+    handleError(err, res);
+  }
+});
 
 // DELETE /events/:eventId/stands/:standId
 eventStandsRouter.delete("/:standId", async (req: Request, res: Response) => {
