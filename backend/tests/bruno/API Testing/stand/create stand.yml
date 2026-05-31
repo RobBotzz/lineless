@@ -1,0 +1,23 @@
+info:
+  name: create stand
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://{{host}}:{{port}}/events/{{eventId}}/stands
+  body:
+    type: json
+    data: |-
+      {
+        "standName": "Beer Stand",
+        "accessPassword": "secret123",
+        "location": "North Gate"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

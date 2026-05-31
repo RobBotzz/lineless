@@ -1,0 +1,22 @@
+info:
+  name: patch stand
+  type: http
+  seq: 4
+
+http:
+  method: PATCH
+  url: http://{{host}}:{{port}}/stands/{{standId}}
+  body:
+    type: json
+    data: |-
+      {
+        "standName": "Beer & Wine Stand",
+        "location": "South Gate"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

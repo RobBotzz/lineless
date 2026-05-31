@@ -1,0 +1,11 @@
+info:
+  name: stand
+  type: folder
+  seq: 1
+
+request:
+  variables:
+    - name: eventId
+      value: 08beb64e-847e-4cbc-b32f-3644025e3afa
+    - name: standId
+      value: 6263be31-9e01-491e-8cca-85f9f834980d
