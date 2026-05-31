@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 
 import logoPlaceholder from '../../../assets/LLlogo.png';
+import { paths } from '../../../paths';
 import { buttonVariants } from '../../ui/button';
 import { Navbar } from './Navbar';
 
@@ -30,7 +31,7 @@ export function OperatorNavbar({
   return (
     <Navbar
       left={
-        <Link className="inline-flex items-center gap-3" to="/">
+        <Link className="inline-flex items-center gap-3" to={paths.home}>
           <img
             alt={`${title} Logo`}
             className="h-10 w-10 rounded-xl object-contain"
