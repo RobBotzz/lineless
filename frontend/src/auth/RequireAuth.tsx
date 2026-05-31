@@ -6,7 +6,7 @@ import { paths } from '../paths';
 // Gate for organizer routes. Renders children only when authenticated;
 // otherwise redirects to the login page, remembering where the user wanted to go.
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { status } = useAuth();
+  const { status, logoutRedirect } = useAuth();
   const location = useLocation();
 
   if (status === 'loading') {
@@ -15,6 +15,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }
 
   if (status === 'unauthenticated') {
+    if (logoutRedirect) return <Navigate to={logoutRedirect} replace />;
     return <Navigate to={paths.auth} replace state={{ from: location }} />;
   }
 

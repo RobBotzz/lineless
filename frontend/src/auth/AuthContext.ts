@@ -9,7 +9,8 @@ export interface AuthContextValue {
   isAuthenticated: boolean;
   login: (input: LoginInput) => Promise<void>;
   signup: (input: SignupInput) => Promise<void>;
-  logout: () => void;
+  logout: (redirectTo?: string) => void;
+  logoutRedirect: string | null;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

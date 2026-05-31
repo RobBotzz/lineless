@@ -14,8 +14,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getToken() ? 'loading' : 'unauthenticated',
   );
   const [account, setAccount] = useState<Account | null>(null);
+  // Where RequireAuth should send the user after this logout (null = default).
+  const [logoutRedirect, setLogoutRedirect] = useState<string | null>(null);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((redirectTo?: string) => {
+    setLogoutRedirect(redirectTo ?? null);
     clearToken();
     setAccount(null);
     setStatus('unauthenticated');
@@ -69,8 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       signup,
       logout,
+      logoutRedirect,
     }),
-    [status, account, login, signup, logout],
+    [status, account, login, signup, logout, logoutRedirect],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
