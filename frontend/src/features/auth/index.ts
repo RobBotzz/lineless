@@ -1,4 +1,3 @@
-export { AuthModeSwitch } from './AuthModeSwitch';
 export { AuthTabs } from './AuthTabs';
 export { AuthTextField } from './AuthTextField';
 export { PasswordField } from './PasswordField';

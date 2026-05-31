@@ -5,7 +5,6 @@ import { useAuth } from '../../../auth/AuthContext';
 import { ApiError } from '../../../api/client';
 import { paths } from '../../../paths';
 import {
-  AuthModeSwitch,
   AuthTabs,
   AuthTextField,
   PasswordField,
@@ -163,8 +162,6 @@ export default function OrganizerAuth() {
               </p>
             ) : null}
           </form>
-
-          <AuthModeSwitch isSignup={isSignup} onChange={switchTab} />
         </section>
       </div>
     </main>
