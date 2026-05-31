@@ -21,3 +21,10 @@ export interface SignupInput {
   firstName?: string;
   lastName?: string;
 }
+
+export interface UpdateAccountInput {
+  firstName?: string;
+  lastName?: string;
+  iban?: string | null;
+  ibanHolderName?: string | null;
+}

@@ -6,6 +6,7 @@ interface AlertDialogProps {
   onAcknowledge: () => void;
   title?: string;
   acknowledgeLabel?: string;
+  variant?: 'danger' | 'success';
 }
 
 export function AlertDialog({
@@ -13,6 +14,7 @@ export function AlertDialog({
   onAcknowledge,
   title = 'Something went wrong',
   acknowledgeLabel = 'Acknowledge',
+  variant = 'danger',
 }: AlertDialogProps) {
   useEffect(() => {
     if (!message) return;
@@ -41,8 +43,12 @@ export function AlertDialog({
         className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 text-center shadow-[0_24px_80px_rgba(31,41,55,0.2)]"
         role="alertdialog"
       >
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-danger/10 text-danger">
-          <WarningTriangleIcon />
+        <div
+          className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${
+            variant === 'success' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+          }`}
+        >
+          {variant === 'success' ? <CheckIcon /> : <WarningTriangleIcon />}
         </div>
 
         <h2 id="alert-dialog-title" className="mt-5 text-xl font-semibold text-text">
@@ -57,6 +63,23 @@ export function AlertDialog({
         </Button>
       </section>
     </div>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-8 w-8"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
   );
 }
 
