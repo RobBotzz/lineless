@@ -6,7 +6,7 @@ export async function createEvent(input: CreateEventInput): Promise<EventDoc> {
   return Event.create({
     accountId: input.accountId,
     name: input.name,
-    location: input.location,
+    locationId: input.locationId,
     plannedDate: input.plannedDate,
     ratingsEnabled: input.ratingsEnabled,
     cashierEnabled: input.cashierEnabled,
@@ -37,7 +37,7 @@ export async function updateEvent(
 ): Promise<EventDoc> {
   const event = await findActiveEvent(eventId);
   if (patch.name !== undefined) event.name = patch.name;
-  if (patch.location !== undefined) event.location = patch.location;
+  if (patch.locationId !== undefined) event.locationId = patch.locationId;
   if (patch.plannedDate !== undefined) event.plannedDate = patch.plannedDate;
   if (patch.ratingsEnabled !== undefined) {
     event.ratingsEnabled = patch.ratingsEnabled;

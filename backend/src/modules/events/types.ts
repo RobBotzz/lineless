@@ -23,7 +23,7 @@ const brandingUpdateSchema = z.object({
 export const createEventSchema = z.object({
   accountId: z.string().min(1),
   name: z.string().min(1),
-  location: z.string().optional(),
+  locationId: z.string().nullable().default(null),
   plannedDate: z.coerce.date().optional(),
   ratingsEnabled: z.boolean().default(false),
   cashierEnabled: z.boolean().default(true),
@@ -33,7 +33,7 @@ export const createEventSchema = z.object({
 
 export const updateEventSchema = z.object({
   name: z.string().min(1).optional(),
-  location: z.string().optional(),
+  locationId: z.string().nullable().optional(),
   plannedDate: z.coerce.date().optional(),
   ratingsEnabled: z.boolean().optional(),
   cashierEnabled: z.boolean().optional(),
