@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { OrganizerNavbar } from '../components/layout';
 import { Button, buttonVariants } from '../components/ui/button';
-import OperatorFooter from '../components/layout/OperatorFooter';
+import OrganizerFooter from '../components/layout/OperatorFooter';
 
 const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
 
@@ -54,7 +54,7 @@ export default function Home() {
           const el = document.getElementById(id);
           if (el) el.scrollIntoView({ behavior: 'smooth' });
         }}
-        rightLink={{ label: 'Sign In', to: '/' }} // TO-DO: richtiger Link noch hinzufügen.
+        rightLink={{ label: 'Sign In', to: '/' }} // TODO: richtiger Link noch hinzufügen.
       />
 
       <main className="mx-auto max-w-7xl px-6 pb-24">
@@ -123,7 +123,7 @@ export default function Home() {
           </div>
         </section>
 
-        <OperatorFooter />
+        <OrganizerFooter />
       </main>
     </div>
   );
