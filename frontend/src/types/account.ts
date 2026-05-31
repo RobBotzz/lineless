@@ -23,8 +23,6 @@ export interface SignupInput {
 }
 
 export interface UpdateAccountInput {
-  email?: string;
-  password?: string;
   firstName?: string;
   lastName?: string;
   iban?: string | null;

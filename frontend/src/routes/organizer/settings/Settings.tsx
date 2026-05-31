@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import type { Account } from '@/types/account';
-import type { SettingsActionBody, SettingsActionResult, SettingsLoaderData } from './settings/data';
+import type { SettingsActionBody, SettingsActionResult, SettingsLoaderData } from './data';
 
 export function SettingsError() {
   const error = useRouteError();
@@ -28,7 +28,6 @@ export function SettingsError() {
 type AccountForm = {
   firstName: string;
   lastName: string;
-  email: string;
 };
 
 type PasswordForm = {
@@ -41,7 +40,6 @@ function toForm(account: Account): AccountForm {
   return {
     firstName: account.firstName ?? '',
     lastName: account.lastName ?? '',
-    email: account.email ?? '',
   };
 }
 
@@ -61,6 +59,11 @@ export default function Settings() {
 
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
+  const successMessage =
+    fetcher.data?.ok && fetcher.data.intent === 'change-password' ? fetcher.data.message : null;
+  const [dismissedSuccess, setDismissedSuccess] = useState<string | null>(null);
+  const visibleSuccess =
+    successMessage && successMessage !== dismissedSuccess ? successMessage : null;
   const busy = fetcher.state !== 'idle';
 
   function updateAccountField<K extends keyof AccountForm>(key: K, value: AccountForm[K]) {
@@ -73,6 +76,7 @@ export default function Settings() {
 
   function submit(payload: SettingsActionBody) {
     setDismissedError(null);
+    setDismissedSuccess(null);
     void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
       method: 'post',
       encType: 'application/json',
@@ -86,7 +90,6 @@ export default function Settings() {
   function handlePasswordSave() {
     submit({
       intent: 'change-password',
-      email: account.email,
       currentPassword: passwordForm.currentPassword,
       newPassword: passwordForm.newPassword,
       confirmPassword: passwordForm.confirmPassword,
@@ -126,14 +129,10 @@ export default function Settings() {
               />
             </div>
 
-            <TextField
-              id="organizer-email"
-              label="Email"
-              onChange={(e) => updateAccountField('email', e.target.value)}
-              placeholder="Email"
-              type="email"
-              value={accountForm.email}
-            />
+            <div>
+              <p className="mb-2 text-sm font-medium text-text">Email</p>
+              <p className="text-sm text-text-muted">{account.email ?? 'No email available'}</p>
+            </div>
           </div>
 
           <div className="mt-6 flex justify-end">
@@ -191,6 +190,13 @@ export default function Settings() {
         message={visibleError}
         onAcknowledge={() => setDismissedError(actionError)}
         title="Something went wrong"
+      />
+      <AlertDialog
+        acknowledgeLabel="OK"
+        message={visibleSuccess}
+        onAcknowledge={() => setDismissedSuccess(successMessage)}
+        title="Password changed"
+        variant="success"
       />
     </div>
   );

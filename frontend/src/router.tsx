@@ -14,7 +14,7 @@ import {
   eventConfigurationAction,
 } from './routes/organizer/event-configuration/data';
 import OrganizerPayment from './routes/organizer/Payment';
-import OrganizerSettings, { SettingsError } from './routes/organizer/Settings';
+import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Settings';
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
 
 import AttendeeLayout from './routes/attendee/AttendeeLayout';

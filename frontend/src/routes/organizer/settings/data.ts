@@ -8,19 +8,27 @@ export type SettingsLoaderData = {
   account: Account;
 };
 
-export type SettingsActionResult = { ok: true } | { ok: false; error: string };
+export type SettingsActionResult =
+  | { ok: true; intent: 'save-account' }
+  | { ok: true; intent: 'change-password'; message: string }
+  | { ok: false; error: string };
+
+type AccountSettingsPatch = Pick<UpdateAccountInput, 'firstName' | 'lastName'>;
 
 type AccountUpdateResponse = {
   message: string;
   account: Account;
+};
+
+type PasswordUpdateResponse = {
+  message: string;
   token?: string;
 };
 
 export type SettingsActionBody =
-  | { intent: 'save-account'; patch?: UpdateAccountInput }
+  | { intent: 'save-account'; patch?: AccountSettingsPatch }
   | {
       intent: 'change-password';
-      email?: string;
       currentPassword?: string;
       newPassword?: string;
       confirmPassword?: string;
@@ -40,34 +48,35 @@ export async function settingsAction({
   try {
     switch (body.intent) {
       case 'save-account': {
-        const response = await apiFetch<AccountUpdateResponse>('/account/update', {
-          method: 'PUT',
+        await apiFetch<AccountUpdateResponse>('/account/update', {
+          method: 'PATCH',
           body: JSON.stringify(body.patch ?? {}),
         });
-        if (response.token) setToken(response.token);
-        break;
+        return { ok: true, intent: 'save-account' };
       }
       case 'change-password': {
-        if (!body.email || !body.currentPassword || !body.newPassword || !body.confirmPassword) {
+        if (!body.currentPassword || !body.newPassword || !body.confirmPassword) {
           return { ok: false, error: 'Please fill out all password fields.' };
         }
         if (body.newPassword !== body.confirmPassword) {
           return { ok: false, error: 'New password and confirmation do not match.' };
         }
 
-        await apiFetch('/account/login', {
-          method: 'POST',
-          body: JSON.stringify({ email: body.email, password: body.currentPassword }),
-          auth: false,
+        const response = await apiFetch<PasswordUpdateResponse>('/account/password', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            currentPassword: body.currentPassword,
+            newPassword: body.newPassword,
+          }),
         });
-        await apiFetch('/account/update', {
-          method: 'PUT',
-          body: JSON.stringify({ password: body.newPassword } satisfies UpdateAccountInput),
-        });
-        break;
+        if (response.token) setToken(response.token);
+        return {
+          ok: true,
+          intent: 'change-password',
+          message: 'Password changed successfully.',
+        };
       }
     }
-    return { ok: true };
   } catch (err) {
     const message =
       err instanceof ApiError ? err.message : 'Something went wrong. Please try again.';
