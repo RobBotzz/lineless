@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { Link, NavLink } from 'react-router';
 
 import logoPlaceholder from '../../../assets/LLlogo.png';
 import { buttonVariants } from '../../ui/button';
@@ -12,15 +12,21 @@ type NavbarLink = {
 type OrganizerNavbarProps = {
   logoSrc?: string;
   title?: string;
-  centerLinks: [NavbarLink, NavbarLink, NavbarLink];
-  rightLink: NavbarLink;
+  centerLinks?: NavbarLink[];
+  rightLink?: NavbarLink;
 };
+
+const defaultCenterLinks: NavbarLink[] = [
+  { label: 'Dashboard', to: '/organizer' },
+  { label: 'Payment', to: '/organizer/payment' },
+  { label: 'Settings', to: '/organizer/settings' },
+];
 
 export function OrganizerNavbar({
   logoSrc,
   title = 'Lineless',
-  centerLinks,
-  rightLink,
+  centerLinks = defaultCenterLinks,
+  rightLink = { label: 'Logout', to: '/' },
 }: OrganizerNavbarProps) {
   return (
     <Navbar
@@ -34,15 +40,23 @@ export function OrganizerNavbar({
         </Link>
       }
       center={
-        <div className="flex items-center gap-2">
+        <div className="hidden items-center gap-1 rounded-lg bg-surface-muted p-1 md:flex">
           {centerLinks.map((link) => (
-            <Link
+            <NavLink
               key={link.label}
-              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+              className={({ isActive }) =>
+                [
+                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-surface text-accent shadow-sm'
+                    : 'text-text-muted hover:bg-surface hover:text-text',
+                ].join(' ')
+              }
+              end={link.to === '/organizer'}
               to={link.to}
             >
               {link.label}
-            </Link>
+            </NavLink>
           ))}
         </div>
       }

@@ -6,6 +6,8 @@ import NotFound from './routes/NotFound';
 import OrganizerLayout from './routes/organizer/OrganizerLayout';
 import OrganizerDashboard from './routes/organizer/Dashboard';
 import EventConfig from './routes/organizer/EventConfig';
+import OrganizerPayment from './routes/organizer/Payment';
+import OrganizerSettings from './routes/organizer/Settings';
 
 import AttendeeLayout from './routes/attendee/AttendeeLayout';
 import ProductSelection from './routes/attendee/ProductSelection';
@@ -20,6 +22,8 @@ export const router = createBrowserRouter(
 
       <Route path="organizer" element={<OrganizerLayout />}>
         <Route index element={<OrganizerDashboard />} />
+        <Route path="payment" element={<OrganizerPayment />} />
+        <Route path="settings" element={<OrganizerSettings />} />
         <Route path="events/:eventId" element={<EventConfig />} />
       </Route>
 
