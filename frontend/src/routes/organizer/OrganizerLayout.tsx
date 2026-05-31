@@ -1,14 +1,18 @@
 import { Outlet } from 'react-router';
+import { RequireAuth } from '../../auth/RequireAuth';
 
 import { OrganizerNavbar } from '../../components/layout';
 
 export default function OrganizerLayout() {
   return (
-    <div className="min-h-screen bg-background">
-      <OrganizerNavbar />
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <Outlet />
-      </main>
-    </div>
+    <RequireAuth>
+      <div>
+        <OrganizerNavbar />
+        <header>Lineless — Organizer</header>
+        <main>
+          <Outlet />
+        </main>
+      </div>
+    </RequireAuth>
   );
 }

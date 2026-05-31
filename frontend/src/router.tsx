@@ -4,6 +4,7 @@ import Home from './routes/Home';
 import NotFound from './routes/NotFound';
 
 import OrganizerLayout from './routes/organizer/OrganizerLayout';
+import OrganizerLogin from './routes/organizer/Login';
 import OrganizerDashboard from './routes/organizer/Dashboard';
 import OrganizerEventConfig from './routes/organizer/EventConfig';
 import OrganizerPayment from './routes/organizer/Payment';
@@ -21,6 +22,8 @@ export const router = createBrowserRouter(
     <Route path="/">
       <Route index element={<Home />} />
 
+      {/* Login sits outside the guarded layout to avoid a redirect loop. */}
+      <Route path="login" element={<OrganizerLogin />} />
       <Route path="organizer" element={<OrganizerLayout />}>
         <Route index element={<OrganizerDashboard />} />
         <Route path="payment" element={<OrganizerPayment />} />
