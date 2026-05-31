@@ -18,7 +18,7 @@ const standSchema = new Schema<StandDoc>(
     eventId: { type: String, required: true, index: true },
     standName: { type: String, required: true, trim: true },
     accessPasswordHash: { type: String, default: null },
-    location: { type: String },
+    location: { type: String }, //TODO: Update when location is defined
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
