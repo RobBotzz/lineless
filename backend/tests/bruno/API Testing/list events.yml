@@ -1,6 +1,7 @@
 info:
   name: list events
   type: http
+  seq: 1
 
 http:
   method: GET
