@@ -10,8 +10,8 @@ request:
       token: "{{token}}"
   variables:
     - name: token
-      value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMmE0MDY0MS0wOGRiLTQ2OWMtYWU2Mi1lYWQ1NDRlOTBkNWMiLCJlbWFpbCI6InRlc3R1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzgwMjI5MzcwLCJleHAiOjE3ODI4MjEzNzB9.8vIGt_RpAuNpi_iSAt2VqDrRPLRJHXNC-opWnhvyZVI
+      value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMmE0MDY0MS0wOGRiLTQ2OWMtYWU2Mi1lYWQ1NDRlOTBkNWMiLCJlbWFpbCI6InRlc3R1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzgwMjMxMTI1LCJleHAiOjE3ODI4MjMxMjV9.U6YzSJmUUJLyRgoHGJ3ijWNBUFAYrsBHwZ5Jx_32QhI
     - name: eventId
-      value: c225cfa0-1e3f-4592-95e7-18e7a4b597ff
+      value: 5bffc8cb-4057-44f7-aa63-0c0253968d2e
     - name: standId
-      value: 943d692b-c136-40f7-b59e-ff4f81eb9118
+      value: 3188c9f7-a04b-41c9-b2b9-0173fd1837b8

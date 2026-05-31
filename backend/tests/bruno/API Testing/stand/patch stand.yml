@@ -5,7 +5,7 @@ info:
 
 http:
   method: PATCH
-  url: http://{{host}}:{{port}}/stands/{{standId}}
+  url: http://{{host}}:{{port}}/events/{{eventId}}/stands/{{standId}}
   headers:
     - name: Authorization
       value: Bearer {{token}}

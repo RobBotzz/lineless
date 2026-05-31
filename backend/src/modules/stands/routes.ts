@@ -11,11 +11,7 @@ import { StandNotFoundError } from "./errors";
 import { createStandSchema, updateStandSchema } from "./types";
 import { authAccount } from "../../middleware/authAccount";
 
-// Mounted at /stands — handles /:standId routes
-export const standsRouter = Router();
-standsRouter.use(authAccount);
-
-// Mounted at /events/:eventId/stands — mergeParams gives us req.params.eventId
+// All stand routes are scoped under /events/:eventId/stands
 export const eventStandsRouter = Router({ mergeParams: true });
 eventStandsRouter.use(authAccount);
 
@@ -25,6 +21,7 @@ function handleError(err: unknown, res: Response): unknown {
   console.error("Stands error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
+
 // POST /events/:eventId/stands
 eventStandsRouter.post(
   "/",
@@ -48,8 +45,8 @@ eventStandsRouter.get("/", async (req: Request, res: Response) => {
   }
 });
 
-// GET /stands/:standId
-standsRouter.get("/:standId", async (req: Request, res: Response) => {
+// GET /events/:eventId/stands/:standId
+eventStandsRouter.get("/:standId", async (req: Request, res: Response) => {
   try {
     const stand = await getStand(req.params["standId"] as string);
     res.status(200).json(stand);
@@ -58,8 +55,8 @@ standsRouter.get("/:standId", async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /stands/:standId
-standsRouter.patch(
+// PATCH /events/:eventId/stands/:standId
+eventStandsRouter.patch(
   "/:standId",
   validateBody(updateStandSchema, async (req, res, data) => {
     try {
@@ -71,8 +68,8 @@ standsRouter.patch(
   })
 );
 
-// DELETE /stands/:standId
-standsRouter.delete("/:standId", async (req: Request, res: Response) => {
+// DELETE /events/:eventId/stands/:standId
+eventStandsRouter.delete("/:standId", async (req: Request, res: Response) => {
   try {
     await softDeleteStand(req.params["standId"] as string);
     res.status(204).send();
