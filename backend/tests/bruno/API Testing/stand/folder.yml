@@ -5,13 +5,9 @@ info:
 
 request:
   auth:
-    mode: bearer
-    bearer:
-      token: "{{token}}"
+    mode: inherit
   variables:
-    - name: token
-      value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMmE0MDY0MS0wOGRiLTQ2OWMtYWU2Mi1lYWQ1NDRlOTBkNWMiLCJlbWFpbCI6InRlc3R1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzgwMjMxMTI1LCJleHAiOjE3ODI4MjMxMjV9.U6YzSJmUUJLyRgoHGJ3ijWNBUFAYrsBHwZ5Jx_32QhI
     - name: eventId
-      value: 5bffc8cb-4057-44f7-aa63-0c0253968d2e
+      value: 53bed77f-9cdc-48a1-9df8-f968a1f782de
     - name: standId
       value: 3188c9f7-a04b-41c9-b2b9-0173fd1837b8

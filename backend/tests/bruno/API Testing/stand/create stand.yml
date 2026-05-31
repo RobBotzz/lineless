@@ -16,7 +16,9 @@ http:
       {
         "standName": "Beer Stand",
         "accessPassword": "secret123",
-        "location": "North Gate"
+        "locationName": "North Gate",
+        "xCoordinate": 10.5,
+        "yCoordinate": 20.3
       }
   auth: none
 

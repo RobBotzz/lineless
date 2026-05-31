@@ -15,7 +15,9 @@ http:
     data: |-
       {
         "standName": "Beer & Wine Stand",
-        "location": "South Gate"
+        "locationName": "South Gate",
+        "xCoordinate": 15.0,
+        "yCoordinate": 25.0
       }
   auth: none
 

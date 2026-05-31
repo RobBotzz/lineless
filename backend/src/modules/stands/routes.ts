@@ -8,6 +8,7 @@ import {
   softDeleteStand,
 } from "./service";
 import { StandNotFoundError } from "./errors";
+import { EventNotFoundError } from "../events/errors";
 import { createStandSchema, updateStandSchema } from "./types";
 import { authAccount } from "../../middleware/authAccount";
 
@@ -18,6 +19,8 @@ eventStandsRouter.use(authAccount);
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
+  if (err instanceof EventNotFoundError)
+    return res.status(404).json({ error: err.message });
   console.error("Stands error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -27,7 +30,11 @@ eventStandsRouter.post(
   "/",
   validateBody(createStandSchema, async (req, res, data) => {
     try {
-      const stand = await createStand(req.params["eventId"] as string, data);
+      const stand = await createStand(
+        req.params["eventId"] as string,
+        req.user!.accountId,
+        data
+      );
       res.status(201).json(stand);
     } catch (err) {
       handleError(err, res);
@@ -38,7 +45,10 @@ eventStandsRouter.post(
 // GET /events/:eventId/stands
 eventStandsRouter.get("/", async (req: Request, res: Response) => {
   try {
-    const stands = await listStands(req.params["eventId"] as string);
+    const stands = await listStands(
+      req.params["eventId"] as string,
+      req.user!.accountId
+    );
     res.status(200).json(stands);
   } catch (err) {
     handleError(err, res);
@@ -60,7 +70,11 @@ eventStandsRouter.patch(
   "/:standId",
   validateBody(updateStandSchema, async (req, res, data) => {
     try {
-      const stand = await updateStand(req.params["standId"] as string, data);
+      const stand = await updateStand(
+        req.params["standId"] as string,
+        req.user!.accountId,
+        data
+      );
       res.status(200).json(stand);
     } catch (err) {
       handleError(err, res);
@@ -71,7 +85,7 @@ eventStandsRouter.patch(
 // DELETE /events/:eventId/stands/:standId
 eventStandsRouter.delete("/:standId", async (req: Request, res: Response) => {
   try {
-    await softDeleteStand(req.params["standId"] as string);
+    await softDeleteStand(req.params["standId"] as string, req.user!.accountId);
     res.status(204).send();
   } catch (err) {
     handleError(err, res);

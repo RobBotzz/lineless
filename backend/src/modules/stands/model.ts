@@ -6,7 +6,9 @@ export interface StandDoc {
   eventId: string;
   standName: string;
   accessPasswordHash: string | null;
-  location?: string;
+  locationName: string | null;
+  xCoordinate: number | null;
+  yCoordinate: number | null;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -18,7 +20,9 @@ const standSchema = new Schema<StandDoc>(
     eventId: { type: String, required: true, index: true },
     standName: { type: String, required: true, trim: true },
     accessPasswordHash: { type: String, default: null },
-    location: { type: String }, //TODO: Update when location is defined
+    locationName: { type: String, default: null },
+    xCoordinate: { type: Number, default: null },
+    yCoordinate: { type: Number, default: null },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
