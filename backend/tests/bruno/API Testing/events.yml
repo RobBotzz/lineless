@@ -5,7 +5,7 @@ info:
 
 http:
   method: POST
-  url: http://localhost:8000/events
+  url: http://{{host}}:{{port}}/api/events
   body:
     type: json
     data: |-

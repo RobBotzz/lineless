@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: http://{{address}}:{{port}}/events
+  url: http://{{address}}:{{port}}/api/events
   auth: inherit
 
 runtime:
