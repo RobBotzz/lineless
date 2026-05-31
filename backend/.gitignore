@@ -1,4 +1,5 @@
 node_modules/
 dist/
 *.log
-docs/
+# Only the repo-root docs/ (assignment PDFs, data model) — NOT src/docs/.
+/docs/
