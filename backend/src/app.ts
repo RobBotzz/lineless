@@ -1,6 +1,7 @@
 import express from "express";
 import accountRouter from "./modules/accounts/routes";
 import eventsRouter from "./modules/events/routes";
+import { standsRouter, eventStandsRouter } from "./modules/stands/routes";
 
 const app = express();
 
@@ -13,5 +14,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/account", accountRouter);
 app.use("/events", eventsRouter);
+app.use("/events/:eventId/stands", eventStandsRouter);
+app.use("/stands", standsRouter);
 
 export { app };
