@@ -1,5 +1,5 @@
 info:
-  name: login
+  name: signup
   type: http
   seq: 1
 
@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "email": "amelie@example.com",
+        "email": "testuser@example.com",
         "password": "SecurePassword123",
         "firstName": "Max",
         "lastName": "Mustermann"

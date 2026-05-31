@@ -1,0 +1,23 @@
+info:
+  name: clear location
+  type: http
+  seq: 6
+
+http:
+  method: PUT
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/location
+  body:
+    type: json
+    data: |-
+      {
+        "locationName": null,
+        "xCoordinate": null,
+        "yCoordinate": null
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
