@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { OrganizerNavbar } from '../components/layout';
+import { OrganizerNavbar } from '../components/layout/navbars';
 import { Button, buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
 

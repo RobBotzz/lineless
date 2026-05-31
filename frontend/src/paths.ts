@@ -3,7 +3,7 @@
 // is for consumers (Navigate, Link, useNavigate) that need absolute URLs.
 export const paths = {
   home: '/',
-  login: '/login',
+  auth: '/auth',
   organizer: {
     root: '/organizer',
     event: (eventId: string) => `/organizer/events/${eventId}`,

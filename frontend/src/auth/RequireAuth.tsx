@@ -15,7 +15,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }
 
   if (status === 'unauthenticated') {
-    return <Navigate to={paths.login} replace state={{ from: location }} />;
+    return <Navigate to={paths.auth} replace state={{ from: location }} />;
   }
 
   return children;
