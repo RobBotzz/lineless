@@ -3,24 +3,25 @@ info:
   type: http
   seq: 5
 
+# Simulates the Stripe webhook confirming the overage hold.
+# Moves the overage TabPayment PENDING -> AUTHORIZED, the Tab back to OPEN, and
+# releases the previously gated OrderItems (startedAt set).
+
 http:
   method: POST
-  url: http://localhost:8000/webhooks/stripe
-  headers:
-    - name: Content-Type
-      value: application/json
+  url: http://{{host}}:{{port}}/webhooks/stripe
   body:
     type: json
     data: |-
       {
-        "id": "evt_test_simulated_001",
+        "id": "evt_overage_{{overagePI}}",
         "type": "payment_intent.amount_capturable_updated",
         "data": {
           "object": {
-            "id": "pi_3TcpaCIzZPlH0JKO1GjWEFCI",
-            "amount_capturable": 2000,
+            "id": "{{overagePI}}",
+            "amount_capturable": 7000,
             "metadata": {
-              "tabId": "12528cce-17ad-42d8-8775-f43ae25c72c4"
+              "tabId": "{{tabId}}"
             }
           }
         }

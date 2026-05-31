@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 
 import stripeWebhookRouter from "./modules/payments/routes";
+import cashPaymentsRouter from "./modules/payments/cashPayments.routes";
 import tabsRouter from "./modules/tabs/routes";
 import ordersRouter from "./modules/orders/routes";
 import accountRouter from "./modules/accounts/routes";
@@ -38,5 +39,6 @@ app.use("/api/account", accountRouter);
 app.use("/events", eventsRouter);
 app.use("/tabs", tabsRouter);
 app.use("/orders", ordersRouter);
+app.use("/cash-payments", cashPaymentsRouter);
 
 export { app };

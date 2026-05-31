@@ -3,36 +3,29 @@ info:
   type: http
   seq: 2
 
-# Simulates the Stripe webhook that fires when the baseline hold is confirmed.
-# This moves the baseline TabPayment from PENDING -> AUTHORIZED so orders can proceed.
-#
-# Replace stripePaymentIntentId and tabId with the values from the create_tab response.
-# stripe-signature must come from the Stripe CLI:
-#   stripe listen --forward-to localhost:8000/webhooks/stripe
+# Simulates the Stripe webhook confirming the baseline hold.
+# Moves the baseline TabPayment PENDING -> AUTHORIZED and the Tab back to OPEN.
+# In dev the signature check is skipped, so no stripe-signature header is needed.
 
 http:
   method: POST
-  url: http://localhost:8000/webhooks/stripe
+  url: http://{{host}}:{{port}}/webhooks/stripe
   body:
     type: json
     data: |-
       {
-        "id": "evt_baseline_auth_001",
+        "id": "evt_baseline_{{tabId}}",
         "type": "payment_intent.amount_capturable_updated",
         "data": {
           "object": {
-            "id": "pi_3TcpSCIzZPlH0JKO2mWjFe8Q",
+            "id": "{{baselinePI}}",
             "amount_capturable": 1000,
             "metadata": {
-              "tabId": "12528cce-17ad-42d8-8775-f43ae25c72c4"
+              "tabId": "{{tabId}}"
             }
           }
         }
       }
-  headers:
-    - name: Content-Type
-      value: application/json
-    # stripe-signature not required in dev mode — signature verification is skipped
   auth: inherit
 
 settings:

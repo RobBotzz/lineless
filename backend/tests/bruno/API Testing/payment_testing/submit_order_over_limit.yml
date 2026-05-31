@@ -1,30 +1,39 @@
 info:
-  name: 4. Submit Order (Over Limit - Expects 402)
+  name: 4. Submit Order (Over Limit)
   type: http
   seq: 4
 
+# Expects 402. The order exceeds the authorized amount, so a new Stripe hold is
+# created for the overage and the items stay gated (startedAt = null).
+# Captures the overage PaymentIntent id from the returned client_secret
+# (format: pi_xxx_secret_yyy -> pi_xxx).
+
 http:
   method: POST
-  url: http://localhost:8000/orders
+  url: http://{{host}}:{{port}}/orders
   headers:
-    - name: Content-Type
-      value: application/json
-    - name: Cookie
-      value: userSessionId=test-session-id
+    - name: Authorization
+      value: Bearer {{authToken}}
   body:
     type: json
     data: |-
       {
-        "tabId": "12528cce-17ad-42d8-8775-f43ae25c72c4",
+        "tabId": "{{tabId}}",
         "items": [
           {
-            "productId": "00000000-0000-0000-0000-000000000001",
+            "productId": "{{productId}}",
             "quantity": 20,
-            "customerComment": "Extra please"
+            "customerComment": "Large round for the table"
           }
         ]
       }
   auth: inherit
+
+scripts:
+  postResponse: |-
+    if (res.body && res.body.clientSecret) {
+      bru.setVar("overagePI", res.body.clientSecret.split("_secret_")[0]);
+    }
 
 settings:
   encodeUrl: true

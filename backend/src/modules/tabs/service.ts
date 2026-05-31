@@ -6,7 +6,7 @@ import { TabPayment } from "../payments/model";
 import { Order } from "../orders/model";
 import { TabNotFoundError, TabStateError } from "./errors";
 
-const stripe = new Stripe(config.stripe.secretKey as string);
+const stripe = new Stripe(config.stripe.secretKey);
 
 // Baseline hold in cents placed on every new tab (e.g. €10.00)
 const BASELINE_HOLD_CENTS = 1000; // TODO replace with BaselineHoldAmount configured by the operator
@@ -38,7 +38,11 @@ export async function createTab(userId: string) {
         { session }
       );
     });
-    return { tabId, stripePaymentIntentId: pi.id, clientSecret: pi.client_secret };
+    return {
+      tabId,
+      stripePaymentIntentId: pi.id,
+      clientSecret: pi.client_secret,
+    };
   } finally {
     await session.endSession();
   }
@@ -57,17 +61,17 @@ export async function checkoutTab(tabId: string, userId: string) {
       tab.status = "CHECKOUT_PENDING";
       await tab.save({ session });
 
-      paymentsToCapture = await TabPayment.find({ 
-        tabId, 
-        tabPaymentStatus: "AUTHORIZED" 
+      paymentsToCapture = await TabPayment.find({
+        tabId,
+        tabPaymentStatus: "AUTHORIZED",
       }).session(session);
     });
 
     // Capture outside of transaction
     let totalCaptured = 0;
     for (const payment of paymentsToCapture) {
-      await stripe.paymentIntents.capture(payment.stripePaymentIntentId as string);
-      totalCaptured += payment.authorizedCentsAmount as number;
+      await stripe.paymentIntents.capture(payment.stripePaymentIntentId);
+      totalCaptured += payment.authorizedCentsAmount;
 
       await TabPayment.updateOne(
         { _id: payment._id },

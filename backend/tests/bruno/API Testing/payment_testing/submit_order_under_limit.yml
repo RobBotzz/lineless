@@ -3,22 +3,24 @@ info:
   type: http
   seq: 3
 
+# Expects 201. The order value stays within the authorized baseline hold,
+# so the items are released immediately (startedAt set).
+# POST /orders requires a JWT (authAccount middleware).
+
 http:
   method: POST
-  url: http://localhost:8000/orders
+  url: http://{{host}}:{{port}}/orders
   headers:
-    - name: Content-Type
-      value: application/json
-    - name: Cookie
-      value: userSessionId=test-session-id
+    - name: Authorization
+      value: Bearer {{authToken}}
   body:
     type: json
     data: |-
       {
-        "tabId": "12528cce-17ad-42d8-8775-f43ae25c72c4",
+        "tabId": "{{tabId}}",
         "items": [
           {
-            "productId": "00000000-0000-0000-0000-000000000001",
+            "productId": "{{productId}}",
             "quantity": 1
           }
         ]

@@ -3,17 +3,17 @@ info:
   type: http
   seq: 6
 
-# Expected: 200 - all AUTHORIZED PaymentIntents captured, Tab status PAID, Orders marked paidAt
-# Replace tabId with the tab created in step 1.
+# Expects 200. Captures every AUTHORIZED hold via Stripe, sets the Tab to PAID
+# and stamps paidAt on all its orders.
+# Note: the captures hit the real Stripe API, so they only succeed if the
+# PaymentIntents were confirmed through real Stripe (e.g. the Stripe CLI), not
+# the simulated dev webhooks above.
 
 http:
   method: POST
-  url: http://localhost:8000/tabs/12528cce-17ad-42d8-8775-f43ae25c72c4/checkout
+  url: http://{{host}}:{{port}}/tabs/{{tabId}}/checkout
   body:
     type: none
-  headers:
-    - name: Cookie
-      value: userSessionId=test-session-id
   auth: inherit
 
 settings:

@@ -4,7 +4,7 @@ import { config } from "../../config/config";
 import { handleAmountCapturableUpdated } from "./service";
 
 const stripeWebhookRouter = Router();
-const stripe = new Stripe(config.stripe.secretKey as string);
+const stripe = new Stripe(config.stripe.secretKey);
 
 stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
   const sig = req.headers["stripe-signature"];
@@ -19,7 +19,7 @@ stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
       event = stripe.webhooks.constructEvent(
         req.body as Buffer,
         sig as string,
-        config.stripe.webhookSecret as string
+        config.stripe.webhookSecret
       );
     }
   } catch (err) {
@@ -33,7 +33,7 @@ stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
       await handleAmountCapturableUpdated(paymentIntent.id, event.id);
     }
     return res.status(200).json({ received: true });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: "Webhook handler failed" });
   }
 });
