@@ -2,16 +2,23 @@ import { Router, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import { authAccount } from "../../middleware/authAccount";
 import {
+  changePassword,
   deleteAccount,
   getAccountInfo,
   login,
   signup,
   updateAccountInfo,
 } from "./service";
-import { loginSchema, signupSchema, updateAccountSchema } from "./types";
+import {
+  changePasswordSchema,
+  loginSchema,
+  signupSchema,
+  updateAccountSchema,
+} from "./types";
 import {
   AccountAlreadyExistsError,
   AccountInvalidCredentialsError,
+  AccountInvalidPasswordError,
   AccountNotFoundError,
 } from "./errors";
 
@@ -23,6 +30,9 @@ function handleError(err: unknown, res: Response): Response {
   }
   if (err instanceof AccountInvalidCredentialsError) {
     return res.status(401).json({ message: err.message });
+  }
+  if (err instanceof AccountInvalidPasswordError) {
+    return res.status(400).json({ message: err.message });
   }
   if (err instanceof AccountNotFoundError) {
     return res.status(404).json({ message: err.message });
@@ -77,7 +87,7 @@ accountRouter.get("/info", async (req, res) => {
   }
 });
 
-accountRouter.put(
+accountRouter.patch(
   "/update",
   validateBody(updateAccountSchema, async (req, res, data) => {
     try {
@@ -85,8 +95,19 @@ accountRouter.put(
       res.status(200).json({
         message: "Account updated successfully",
         account: result.account,
-        ...(result.token ? { token: result.token } : {}),
       });
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+accountRouter.patch(
+  "/password",
+  validateBody(changePasswordSchema, async (req, res, data) => {
+    try {
+      const result = await changePassword(req.user!.accountId, data);
+      res.status(200).json(result);
     } catch (err) {
       handleError(err, res);
     }
