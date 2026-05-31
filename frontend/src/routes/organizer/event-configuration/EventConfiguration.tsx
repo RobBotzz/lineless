@@ -165,8 +165,8 @@ export default function EventConfiguration() {
               value={form.plannedDate}
             />
 
-            {/* Location is a separate backend resource (locationId) — placeholder for now. */}
-            <LocationPicker locationId={event.locationId} />
+            {/* Location isn't part of the event model yet — placeholder for now. */}
+            <LocationPicker />
 
             <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
               <label className="text-sm font-medium" htmlFor="ratings-enabled">
@@ -279,7 +279,7 @@ function ColorField({
   );
 }
 
-function LocationPicker({ locationId }: { locationId: string | null }) {
+function LocationPicker() {
   const [open, setOpen] = useState(false);
 
   return (
@@ -295,9 +295,7 @@ function LocationPicker({ locationId }: { locationId: string | null }) {
             <PinIcon />
             <span>
               <span className="block text-sm font-medium text-text">Set location</span>
-              <span className="block text-xs text-text-muted">
-                {locationId ?? 'No location selected'}
-              </span>
+              <span className="block text-xs text-text-muted">No location selected</span>
             </span>
           </span>
           <span className="text-sm font-medium text-accent">{open ? 'Collapse' : 'Expand'}</span>
