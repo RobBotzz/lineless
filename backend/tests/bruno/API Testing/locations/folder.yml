@@ -1,0 +1,11 @@
+info:
+  name: locations
+  type: folder
+  seq: 1
+
+request:
+  variables:
+    - name: eventId
+      value: 185b83a2-5f55-4859-9910-54677c61712e
+    - name: eventIdNoLocation
+      value: 6318065c-c87a-461d-be61-2448c89cfd1d
