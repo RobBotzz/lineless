@@ -23,6 +23,12 @@ http:
         }
   auth: inherit
 
+script:
+  res: |
+    if (res.status === 201 && res.body._id) {
+      bru.setVar("eventId", res.body._id);
+    }
+
 settings:
   encodeUrl: true
   timeout: 0
