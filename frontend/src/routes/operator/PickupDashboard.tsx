@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 
 import { BackButton } from '../../components/shared';
@@ -56,19 +56,49 @@ export default function PickupDashboard() {
   const [selectedStand, setSelectedStand] = useState<StandFilter>('all');
   const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(1);
+  const [canAutoScroll, setCanAutoScroll] = useState(false);
   const visibleStands = standPreviews.filter(
     (stand) => selectedStand === 'all' || stand.id === selectedStand,
   );
 
+  const getScrollingElement = useCallback(
+    () => document.scrollingElement ?? document.documentElement,
+    [],
+  );
+
+  const updateCanAutoScroll = useCallback(() => {
+    const scrollingElement = getScrollingElement();
+    const hasScrollableOverflow = scrollingElement.scrollHeight > scrollingElement.clientHeight + 1;
+
+    setCanAutoScroll(hasScrollableOverflow);
+
+    if (!hasScrollableOverflow) {
+      setIsAutoScrollEnabled(false);
+    }
+  }, [getScrollingElement]);
+
   useEffect(() => {
-    if (!isAutoScrollEnabled) {
+    const animationFrame = window.requestAnimationFrame(updateCanAutoScroll);
+
+    const resizeObserver = new ResizeObserver(updateCanAutoScroll);
+    resizeObserver.observe(document.body);
+
+    window.addEventListener('resize', updateCanAutoScroll);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateCanAutoScroll);
+    };
+  }, [selectedStand, updateCanAutoScroll, visibleStands.length]);
+
+  useEffect(() => {
+    if (!isAutoScrollEnabled || !canAutoScroll) {
       return undefined;
     }
 
     const topPauseMs = 1200;
     let pauseUntil = 0;
-
-    const getScrollingElement = () => document.scrollingElement ?? document.documentElement;
 
     const scrollToTop = () => {
       const scrollingElement = getScrollingElement();
@@ -90,6 +120,7 @@ export default function PickupDashboard() {
       const maxScrollTop = scrollingElement.scrollHeight - scrollingElement.clientHeight;
 
       if (maxScrollTop <= 0) {
+        updateCanAutoScroll();
         return;
       }
 
@@ -105,11 +136,17 @@ export default function PickupDashboard() {
     }, 35);
 
     return () => window.clearInterval(scrollInterval);
-  }, [autoScrollSpeed, isAutoScrollEnabled]);
+  }, [
+    autoScrollSpeed,
+    canAutoScroll,
+    getScrollingElement,
+    isAutoScrollEnabled,
+    updateCanAutoScroll,
+  ]);
 
   useEffect(() => {
     setNavbarActions({
-      right: (
+      right: canAutoScroll ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
           {isAutoScrollEnabled && (
             <div className="flex h-10 items-center overflow-hidden rounded-md border border-border bg-surface shadow-sm">
@@ -150,11 +187,11 @@ export default function PickupDashboard() {
             {isAutoScrollEnabled ? 'Stop auto scroll' : 'Start auto scroll'}
           </button>
         </div>
-      ),
+      ) : undefined,
     });
 
     return () => setNavbarActions({});
-  }, [autoScrollSpeed, eventId, isAutoScrollEnabled, setNavbarActions]);
+  }, [autoScrollSpeed, canAutoScroll, eventId, isAutoScrollEnabled, setNavbarActions]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
@@ -219,9 +256,9 @@ function StatusLane({ title, orders }: { title: string; orders: PickupOrderItem[
           {orders.length}
         </span>
       </div>
-      <div className="mt-4 min-h-44 rounded-md bg-surface p-3">
+      <div className="mt-4 flex min-h-72 rounded-md bg-surface p-3">
         {orders.length > 0 ? (
-          <ul className="flex flex-wrap gap-3">
+          <ul className="grid flex-1 grid-cols-3 content-start gap-3">
             {orders.map((order) => (
               <PickupOrderCard key={order.orderNumber} orderItem={order} />
             ))}
@@ -236,7 +273,7 @@ function StatusLane({ title, orders }: { title: string; orders: PickupOrderItem[
 
 function EmptyLaneState() {
   return (
-    <div className="flex min-h-44 items-center justify-center px-4 text-center text-sm font-medium text-text-muted">
+    <div className="flex flex-1 items-center justify-center px-4 text-center text-sm font-medium text-text-muted">
       No orders in this lane.
     </div>
   );
@@ -244,8 +281,10 @@ function EmptyLaneState() {
 
 function PickupOrderCard({ orderItem }: { orderItem: PickupOrderItem }) {
   return (
-    <li className="flex h-16 w-28 items-center justify-center rounded-md border border-border bg-background text-center shadow-sm">
-      <span className="text-lg font-bold tracking-tight text-text">{orderItem.orderNumber}</span>
+    <li className="flex h-16 min-w-0 items-center justify-center rounded-md border border-border bg-background px-2 text-center shadow-sm">
+      <span className="truncate text-2xl font-bold tracking-tight text-text">
+        {orderItem.orderNumber}
+      </span>
     </li>
   );
 }
