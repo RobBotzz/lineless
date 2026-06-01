@@ -1,0 +1,35 @@
+info:
+  name: patch event (attendee)
+  type: http
+  seq: 4
+
+http:
+  method: PATCH
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}
+  body:
+    type: json
+    data: |-
+      {
+        "location": {
+          "locationName": "Attendee should not set this",
+          "xCoordinate": 0,
+          "yCoordinate": 0
+        }
+      }
+  auth:
+    type: none
+  headers:
+    - name: Cookie
+      value: sessionId=test-session
+      enabled: true
+
+tests: |
+  test("attendee cannot set location", function () {
+    expect(res.status).to.equal(401);
+  });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

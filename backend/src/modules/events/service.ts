@@ -14,6 +14,7 @@ export async function createEvent(
     cashierEnabled: input.cashierEnabled,
     offlineOrdersEnabled: input.offlineOrdersEnabled,
     branding: input.branding,
+    location: input.location,
   });
 }
 
@@ -23,13 +24,10 @@ export async function listEvents(accountId: string): Promise<EventDoc[]> {
     .lean();
 }
 
-export async function getEvent(
-  eventId: string,
-  accountId: string
-): Promise<EventDoc> {
+// Readable by organizer and attendee — no ownership filter, mirrors getStand.
+export async function getEvent(eventId: string): Promise<EventDoc> {
   const event = await Event.findOne({
     _id: eventId,
-    accountId: accountId,
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
@@ -73,6 +71,11 @@ export async function updateEvent(
     if (patch.branding.logoUrl !== undefined) {
       event.branding.logoUrl = patch.branding.logoUrl;
     }
+  }
+  if (patch.location) {
+    event.location.locationName = patch.location.locationName;
+    event.location.xCoordinate = patch.location.xCoordinate;
+    event.location.yCoordinate = patch.location.yCoordinate;
   }
   await event.save();
   return event;

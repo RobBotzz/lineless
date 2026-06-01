@@ -26,9 +26,7 @@ export async function createStand(
     eventId,
     standName: input.standName,
     accessPasswordHash,
-    locationName: input.locationName ?? null,
-    xCoordinate: input.xCoordinate ?? null,
-    yCoordinate: input.yCoordinate ?? null,
+    location: input.location,
   });
   return strip(stand.toObject());
 }
@@ -59,12 +57,11 @@ export async function updateStand(
   if (!stand) throw new StandNotFoundError();
   await verifyEventOwnership(stand.eventId, accountId);
   if (patch.standName !== undefined) stand.standName = patch.standName;
-  if (patch.locationName !== undefined)
-    stand.locationName = patch.locationName ?? null;
-  if (patch.xCoordinate !== undefined)
-    stand.xCoordinate = patch.xCoordinate ?? null;
-  if (patch.yCoordinate !== undefined)
-    stand.yCoordinate = patch.yCoordinate ?? null;
+  if (patch.location) {
+    stand.location.locationName = patch.location.locationName;
+    stand.location.xCoordinate = patch.location.xCoordinate;
+    stand.location.yCoordinate = patch.location.yCoordinate;
+  }
   if (patch.accessPassword !== undefined) {
     stand.accessPasswordHash = patch.accessPassword
       ? await bcrypt.hash(patch.accessPassword, config.bcryptRounds)

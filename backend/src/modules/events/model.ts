@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { model, Schema } from "mongoose";
+import { locationSchema, type Location } from "../../shared/location";
 
 export type EventStatus = "DRAFT" | "ACTIVE" | "STOPPED";
 
@@ -19,6 +20,7 @@ export interface EventDoc {
   cashierEnabled: boolean;
   offlineOrdersEnabled: boolean;
   branding: EventBranding;
+  location: Location;
   startedAt?: Date;
   stoppedAt?: Date;
   deletedAt: Date | null;
@@ -50,6 +52,7 @@ const eventSchema = new Schema<EventDoc>(
     cashierEnabled: { type: Boolean, default: true },
     offlineOrdersEnabled: { type: Boolean, default: true },
     branding: { type: brandingSchema, default: () => ({}) },
+    location: { type: locationSchema, default: () => ({}) },
     startedAt: { type: Date },
     stoppedAt: { type: Date },
     deletedAt: { type: Date, default: null },

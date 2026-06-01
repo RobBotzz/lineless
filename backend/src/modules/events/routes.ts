@@ -12,7 +12,7 @@ import {
 import { EventNotFoundError, EventStateError } from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
 import { authAccount } from "../../middleware/authAccount";
-import locationRouter from "../locations/routes";
+import { authAccountOrSession } from "../../middleware/authAccountOrSession";
 
 const eventsRouter = Router();
 
@@ -31,7 +31,19 @@ function handleError(err: unknown, res: Response): unknown {
   return res.status(500).json({ error: "Internal server error" });
 }
 
-eventsRouter.use("/:eventId/location", locationRouter);
+// GET /events/:eventId — readable by organizer and attendee (session)
+eventsRouter.get(
+  "/:eventId",
+  authAccountOrSession,
+  async (req: Request, res: Response) => {
+    try {
+      const event = await getEvent(eventId(req));
+      res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
 
 eventsRouter.use(authAccount);
 
@@ -51,15 +63,6 @@ eventsRouter.get("/", async (req: Request, res: Response) => {
   try {
     const events = await listEvents(req.user!.accountId);
     res.status(200).json(events);
-  } catch (err) {
-    handleError(err, res);
-  }
-});
-
-eventsRouter.get("/:eventId", async (req: Request, res: Response) => {
-  try {
-    const event = await getEvent(eventId(req), req.user!.accountId);
-    res.status(200).json(event);
   } catch (err) {
     handleError(err, res);
   }
