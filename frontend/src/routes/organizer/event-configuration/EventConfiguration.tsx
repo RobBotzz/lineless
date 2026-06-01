@@ -8,9 +8,11 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/componen
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import type { Event, UpdateEventInput } from '@/types/event';
+import type { Stand } from '@/types/stand';
 import { CustomerLinkPanel } from './CustomerLinkPanel';
 import { OperatorLinkPanel } from './OperatorLinkPanel';
-import type { EventActionResult } from './data';
+import { StandDialog } from './StandDialog';
+import type { EventActionResult, EventConfigurationLoaderData } from './data';
 
 // Rendered as the route's errorElement when the loader throws.
 export function EventConfigurationError() {
@@ -55,13 +57,16 @@ function toForm(event: Event): EventForm {
 }
 
 export default function EventConfiguration() {
-  const event = useLoaderData() as Event;
+  const { event, stands } = useLoaderData() as EventConfigurationLoaderData;
   const fetcher = useFetcher<EventActionResult>();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
   const [showCustomerLink, setShowCustomerLink] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
+
+  const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
+  const [editingStand, setEditingStand] = useState<Stand | null>(null);
 
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
@@ -72,11 +77,17 @@ export default function EventConfiguration() {
 
   const busy = fetcher.state !== 'idle';
 
-  function submit(payload: { intent: string; patch?: UpdateEventInput }) {
+  function submit(payload: { intent: string; patch?: UpdateEventInput; standId?: string }) {
     void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
       method: 'post',
       encType: 'application/json',
     });
+  }
+
+  function handleDeleteStand(standId: string) {
+    if (confirm('Are you sure you want to delete this stand?')) {
+      submit({ intent: 'deleteStand', standId });
+    }
   }
 
   function handleSave() {
@@ -249,26 +260,78 @@ export default function EventConfiguration() {
         </CardContent>
       </Card>
 
-      {/* Stands & Products — placeholder until the backend endpoints exist */}
+      {/* Stands & Products */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Stands &amp; Products</CardTitle>
           <CardAction>
-            <Button disabled size="sm">
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingStand(null);
+                setIsStandDialogOpen(true);
+              }}
+            >
               + Add Stand
             </Button>
           </CardAction>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border-2 border-dashed bg-background px-4 py-10 text-center">
-            <p className="text-sm font-medium">Stands &amp; products coming soon</p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              This section will list configurable stands and their products once the backend
-              endpoints are available.
-            </p>
-          </div>
+          {stands.length === 0 ? (
+            <div className="rounded-lg border-2 border-dashed border-border bg-background px-4 py-10 text-center">
+              <p className="text-sm font-medium">No stands configured yet</p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Add stands to this event to allow operators to fulfill orders.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {stands.map((stand) => (
+                <div
+                  key={stand._id}
+                  className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3"
+                >
+                  <div>
+                    <h3 className="font-medium text-text">{stand.standName}</h3>
+                    {stand.locationName && (
+                      <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
+                        <SmallPinIcon /> {stand.locationName}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setEditingStand(stand);
+                        setIsStandDialogOpen(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
+                      onClick={() => handleDeleteStand(stand._id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <StandDialog
+        key={`${editingStand?._id ?? 'new'}-${String(isStandDialogOpen)}`}
+        stand={editingStand}
+        isOpen={isStandDialogOpen}
+        onClose={() => setIsStandDialogOpen(false)}
+      />
 
       <AlertDialog
         message={visibleError}
@@ -390,6 +453,24 @@ function PinIcon() {
     <svg
       aria-hidden="true"
       className="h-5 w-5 text-accent"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+
+function SmallPinIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4 text-text-muted"
       fill="none"
       stroke="currentColor"
       strokeLinecap="round"
