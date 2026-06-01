@@ -154,7 +154,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
           value={query}
         />
         {(results.length > 0 || searching) && (
-          <ul className="absolute z-[1000] mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-surface shadow-md">
+          <ul className="absolute z-[1002] mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-surface shadow-md">
             {searching && results.length === 0 && (
               <li className="px-3 py-2 text-sm text-text-muted">Searching…</li>
             )}
@@ -257,7 +257,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
           onClick={clear}
           size="sm"
           type="button"
-          variant="ghost"
+          variant="outline"
         >
           Clear
         </Button>
