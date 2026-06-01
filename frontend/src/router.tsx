@@ -22,8 +22,8 @@ import AttendeeLayout from './routes/attendee/AttendeeLayout';
 import AttendeeProductSelection from './routes/attendee/ProductSelection';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
-import OperatorDashboard from './routes/operator/Dashboard';
 import OperatorPickupDashboard from './routes/operator/PickupDashboard';
+import OperatorStandDashboard from './routes/operator/Queue';
 import OperatorStandSelection from './routes/operator/StandSelection';
 
 export const router = createBrowserRouter(
@@ -65,9 +65,9 @@ export const router = createBrowserRouter(
 
       <Route path="operator" element={<OperatorLayout />}>
         <Route index element={<OperatorStandSelection />} />
-        <Route path="dashboard" element={<OperatorDashboard />} />
-        <Route path="events/:eventId/stands" element={<OperatorStandSelection />} />
-        <Route path="events/:eventId/pickup" element={<OperatorPickupDashboard />} />
+        <Route path=":eventId" element={<OperatorStandSelection />} />
+        <Route path=":eventId/pickup" element={<OperatorPickupDashboard />} />
+        <Route path=":eventId/:standId" element={<OperatorStandDashboard />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />
