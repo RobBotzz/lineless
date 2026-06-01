@@ -353,13 +353,13 @@ function EventLocationField({
           <span className="flex items-center gap-2">
             <PinIcon />
             <span>
-              <span className="block text-sm font-medium text-text">
-                {hasCoordinates(value) ? 'Location set' : 'Set location'}
-              </span>
+              <span className="block text-sm font-medium text-text">Location</span>
               <span className="block max-w-xs truncate text-xs text-text-muted">{summary}</span>
             </span>
           </span>
-          <span className="text-sm font-medium text-accent">{open ? 'Collapse' : 'Expand'}</span>
+          <ChevronDownIcon
+            className={['transition-transform', open ? 'rotate-180' : ''].join(' ')}
+          />
         </button>
 
         {open && (

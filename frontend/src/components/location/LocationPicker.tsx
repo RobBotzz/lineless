@@ -116,7 +116,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
   }
 
   function selectResult(result: GeocodeResult) {
-    onChange(fromLatLng(result.lat, result.lng, result.displayName));
+    onChange(fromLatLng(result.lat, result.lng, result.name));
     setQuery('');
     setResults([]);
   }
@@ -178,7 +178,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
         <MapContainer
           center={position ?? DEFAULT_CENTER}
           className="h-64 w-full"
-          scrollWheelZoom
+          scrollWheelZoom={false}
           zoom={position ? POINT_ZOOM : DEFAULT_ZOOM}
         >
           <TileLayer
@@ -212,8 +212,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
           onBlur={commitManual}
           onChange={(e) => setLatText(e.target.value)}
           placeholder="48.20861"
-          step="any"
-          type="number"
+          type="text"
           value={latText}
         />
         <TextField
@@ -223,8 +222,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
           onBlur={commitManual}
           onChange={(e) => setLngText(e.target.value)}
           placeholder="16.37342"
-          step="any"
-          type="number"
+          type="text"
           value={lngText}
         />
       </div>

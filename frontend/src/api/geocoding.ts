@@ -6,8 +6,10 @@
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
 
 export interface GeocodeResult {
-  // Display label for the place (used as Location.locationName).
+  // Full address shown in the search dropdown for disambiguation.
   displayName: string;
+  // First 3 comma-segments — short enough for the event card, still readable.
+  name: string;
   lat: number;
   lng: number;
 }
@@ -43,6 +45,7 @@ export async function searchAddress(query: string, signal?: AbortSignal): Promis
     const data = (await res.json()) as NominatimSearchEntry[];
     return data.map((entry) => ({
       displayName: entry.display_name,
+      name: entry.display_name.split(',').slice(0, 3).join(',').trim(),
       lat: Number(entry.lat),
       lng: Number(entry.lon),
     }));
@@ -71,7 +74,8 @@ export async function reverseGeocode(
     });
     if (!res.ok) return null;
     const data = (await res.json()) as NominatimReverseEntry;
-    return data.display_name ?? null;
+    if (!data.display_name) return null;
+    return data.display_name.split(',').slice(0, 3).join(',').trim();
   } catch {
     return null;
   }
