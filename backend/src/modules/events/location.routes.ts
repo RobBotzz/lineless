@@ -2,12 +2,11 @@ import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import { authAccount } from "../../middleware/authAccount";
 import { authAccountOrSession } from "../../middleware/authAccountOrSession";
-import { getLocationByEvent, setLocation } from "./service";
-import { EventNotOwnedError } from "./errors";
-import { EventNotFoundError } from "../events/errors";
+import { getEventLocation, setEventLocation } from "./service";
+import { EventNotFoundError } from "./errors";
 import { setLocationSchema } from "./types";
 
-const locationRouter = Router({ mergeParams: true });
+const eventLocationRouter = Router({ mergeParams: true });
 
 function eventId(req: Request): string {
   return req.params["eventId"] as string;
@@ -17,23 +16,16 @@ function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError) {
     return res.status(404).json({ error: err.message });
   }
-  if (err instanceof EventNotOwnedError) {
-    return res.status(403).json({ error: err.message });
-  }
-  console.error("Locations error:", err);
+  console.error("Location error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
 
-locationRouter.get(
+eventLocationRouter.get(
   "/",
   authAccountOrSession,
   async (req: Request, res: Response) => {
     try {
-      const location = await getLocationByEvent(eventId(req));
-      if (location === null) {
-        res.status(204).send();
-        return;
-      }
+      const location = await getEventLocation(eventId(req));
       res.status(200).json(location);
     } catch (err) {
       handleError(err, res);
@@ -41,12 +33,12 @@ locationRouter.get(
   }
 );
 
-locationRouter.put(
+eventLocationRouter.put(
   "/",
   authAccount,
   validateBody(setLocationSchema, async (req, res, data) => {
     try {
-      const location = await setLocation(
+      const location = await setEventLocation(
         eventId(req),
         req.user!.accountId,
         data
@@ -58,4 +50,4 @@ locationRouter.put(
   })
 );
 
-export default locationRouter;
+export default eventLocationRouter;

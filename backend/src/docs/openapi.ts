@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Router } from "express";
 import accountRouter from "../modules/accounts/routes";
 import eventsRouter from "../modules/events/routes";
-import locationRouter from "../modules/locations/routes";
+import eventLocationRouter from "../modules/events/location.routes";
 import { authAccount } from "../middleware/authAccount";
 import { authSession } from "../middleware/authSession";
 import { authAccountOrSession } from "../middleware/authAccountOrSession";
@@ -22,7 +22,7 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
   { base: "/api/events", router: eventsRouter, tag: "Events" },
   {
     base: "/api/events/:eventId/location",
-    router: locationRouter,
+    router: eventLocationRouter,
     tag: "Locations",
   },
 ];

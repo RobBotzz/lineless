@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { locationInputSchema } from "../../shared/location";
 
 // Accepts #RGB and #RRGGBB (case-insensitive).
 const hexColor = z
@@ -38,5 +39,8 @@ export const updateEventSchema = z.object({
   branding: brandingUpdateSchema.optional(),
 });
 
+export const setLocationSchema = locationInputSchema;
+
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
+export type SetLocationInput = z.infer<typeof setLocationSchema>;

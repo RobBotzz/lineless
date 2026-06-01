@@ -12,9 +12,11 @@ http:
       {
         "standName": "Beer Stand",
         "accessPassword": "secret123",
-        "locationName": "North Gate",
-        "xCoordinate": 10.5,
-        "yCoordinate": 20.3
+        "location": {
+          "locationName": "North Gate",
+          "xCoordinate": 10.5,
+          "yCoordinate": 20.3
+        }
       }
   auth: inherit
 
