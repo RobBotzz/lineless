@@ -24,9 +24,9 @@ request:
     - name: port
       value: "8000"
     - name: eventId
-      value: 106bb552-c315-4663-a1ed-a764d8939df7
+      value: 079b834d-e39e-4f53-b170-aff1cd1047bf
     - name: standId
-      value: 69e2aad4-dd46-45b0-b80c-a52d8f406a42
+      value: 0623dd8e-2ea8-46a4-9a66-5dbf24572c9e
 bundled: false
 extensions:
   bruno:
