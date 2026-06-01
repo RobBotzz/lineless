@@ -1,11 +1,11 @@
 info:
-  name: get location (attendee)
+  name: get stand (attendee)
   type: http
-  seq: 3
+  seq: 8
 
 http:
   method: GET
-  url: http://{{host}}:{{port}}/api/events/{{eventId}}/location
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}
   auth:
     type: none
   headers:

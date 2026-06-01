@@ -1,11 +1,6 @@
 import { Event, type EventDoc } from "./model";
 import { EventNotFoundError, EventStateError } from "./errors";
-import type {
-  CreateEventInput,
-  UpdateEventInput,
-  SetLocationInput,
-} from "./types";
-import type { Location } from "../../shared/location";
+import type { CreateEventInput, UpdateEventInput } from "./types";
 
 export async function createEvent(
   accountId: string,
@@ -19,6 +14,7 @@ export async function createEvent(
     cashierEnabled: input.cashierEnabled,
     offlineOrdersEnabled: input.offlineOrdersEnabled,
     branding: input.branding,
+    location: input.location,
   });
 }
 
@@ -79,6 +75,11 @@ export async function updateEvent(
       event.branding.logoUrl = patch.branding.logoUrl;
     }
   }
+  if (patch.location) {
+    event.location.locationName = patch.location.locationName;
+    event.location.xCoordinate = patch.location.xCoordinate;
+    event.location.yCoordinate = patch.location.yCoordinate;
+  }
   await event.save();
   return event;
 }
@@ -121,23 +122,4 @@ export async function softDeleteEvent(
   const event = await findActiveEvent(eventId, accountId);
   event.deletedAt = new Date();
   await event.save();
-}
-
-export async function getEventLocation(eventId: string): Promise<Location> {
-  const event = await Event.findOne({ _id: eventId, deletedAt: null });
-  if (!event) throw new EventNotFoundError();
-  return event.location;
-}
-
-export async function setEventLocation(
-  eventId: string,
-  accountId: string,
-  input: SetLocationInput
-): Promise<Location> {
-  const event = await findActiveEvent(eventId, accountId);
-  event.location.locationName = input.locationName;
-  event.location.xCoordinate = input.xCoordinate;
-  event.location.yCoordinate = input.yCoordinate;
-  await event.save();
-  return event.location;
 }

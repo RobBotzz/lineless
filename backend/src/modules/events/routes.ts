@@ -12,7 +12,6 @@ import {
 import { EventNotFoundError, EventStateError } from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
 import { authAccount } from "../../middleware/authAccount";
-import eventLocationRouter from "./location.routes";
 
 const eventsRouter = Router();
 
@@ -30,8 +29,6 @@ function handleError(err: unknown, res: Response): unknown {
   console.error("Events error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
-
-eventsRouter.use("/:eventId/location", eventLocationRouter);
 
 eventsRouter.use(authAccount);
 

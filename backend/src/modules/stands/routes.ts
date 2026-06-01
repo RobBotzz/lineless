@@ -11,6 +11,7 @@ import { StandNotFoundError } from "./errors";
 import { EventNotFoundError } from "../events/errors";
 import { createStandSchema, updateStandSchema } from "./types";
 import { authAccount } from "../../middleware/authAccount";
+import { authAccountOrSession } from "../../middleware/authAccountOrSession";
 
 function eventId(req: Request): string {
   return req.params["eventId"] as string;
@@ -63,16 +64,19 @@ eventStandsRouter.get("/", async (req: Request, res: Response) => {
 // =============================================================================
 export const standsRouter = Router();
 
-// GET /stands/:standId
-// TODO: Implement Middleware and check that ensures that only operators with link & password can access this endpoint
-standsRouter.get("/:standId", async (req: Request, res: Response) => {
-  try {
-    const stand = await getStand(standId(req));
-    res.status(200).json(stand);
-  } catch (err) {
-    handleError(err, res);
+// GET /stands/:standId — readable by organizer and attendee (session)
+standsRouter.get(
+  "/:standId",
+  authAccountOrSession,
+  async (req: Request, res: Response) => {
+    try {
+      const stand = await getStand(standId(req));
+      res.status(200).json(stand);
+    } catch (err) {
+      handleError(err, res);
+    }
   }
-});
+);
 
 standsRouter.use(authAccount);
 

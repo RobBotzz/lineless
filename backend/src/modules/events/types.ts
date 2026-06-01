@@ -28,6 +28,7 @@ export const createEventSchema = z.object({
   cashierEnabled: z.boolean().default(true),
   offlineOrdersEnabled: z.boolean().default(true),
   branding: brandingCreateSchema.prefault({}),
+  location: locationInputSchema.optional(),
 });
 
 export const updateEventSchema = z.object({
@@ -37,10 +38,8 @@ export const updateEventSchema = z.object({
   cashierEnabled: z.boolean().optional(),
   offlineOrdersEnabled: z.boolean().optional(),
   branding: brandingUpdateSchema.optional(),
+  location: locationInputSchema.optional(),
 });
-
-export const setLocationSchema = locationInputSchema;
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
-export type SetLocationInput = z.infer<typeof setLocationSchema>;
