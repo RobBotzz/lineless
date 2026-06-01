@@ -7,6 +7,10 @@ declare global {
       user?: {
         accountId: string;
       };
+      stand?: {
+        standId: string;
+        eventId: string;
+      };
     }
   }
 }
