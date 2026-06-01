@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
@@ -8,9 +8,15 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/componen
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import type { Event, UpdateEventInput } from '@/types/event';
+import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
 import { CustomerLinkPanel } from './CustomerLinkPanel';
 import { OperatorLinkPanel } from './OperatorLinkPanel';
 import type { EventActionResult } from './data';
+
+// Lazy-loaded so Leaflet only ships when the location section is expanded.
+const LocationPicker = lazy(() =>
+  import('@/components/location/LocationPicker').then((m) => ({ default: m.LocationPicker })),
+);
 
 // Rendered as the route's errorElement when the loader throws.
 export function EventConfigurationError() {
@@ -34,6 +40,7 @@ type EventForm = {
   ratingsEnabled: boolean;
   primaryColor: string;
   secondaryColor: string;
+  location: Location;
 };
 
 // Backend returns ISO timestamps; <input type="date"> needs YYYY-MM-DD.
@@ -51,6 +58,7 @@ function toForm(event: Event): EventForm {
     ratingsEnabled: event.ratingsEnabled,
     primaryColor: event.branding.primaryColor,
     secondaryColor: event.branding.secondaryColor,
+    location: event.location ?? emptyLocation,
   };
 }
 
@@ -86,6 +94,7 @@ export default function EventConfiguration() {
       plannedDate: form.plannedDate || undefined,
       ratingsEnabled: form.ratingsEnabled,
       branding: { primaryColor: form.primaryColor, secondaryColor: form.secondaryColor },
+      location: form.location,
     };
     submit({ intent: 'save', patch });
   }
@@ -201,8 +210,10 @@ export default function EventConfiguration() {
               value={form.plannedDate}
             />
 
-            {/* Location isn't part of the event model yet — placeholder for now. */}
-            <LocationPicker />
+            <EventLocationField
+              onChange={(location) => updateField('location', location)}
+              value={form.location}
+            />
 
             <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
               <label className="text-sm font-medium" htmlFor="ratings-enabled">
@@ -315,8 +326,20 @@ function ColorField({
   );
 }
 
-function LocationPicker() {
+function EventLocationField({
+  value,
+  onChange,
+}: {
+  value: Location;
+  onChange: (next: Location) => void;
+}) {
   const [open, setOpen] = useState(false);
+
+  const summary = value.locationName
+    ? value.locationName
+    : hasCoordinates(value)
+      ? `${value.yCoordinate}, ${value.xCoordinate}`
+      : 'No location selected';
 
   return (
     <div>
@@ -330,19 +353,26 @@ function LocationPicker() {
           <span className="flex items-center gap-2">
             <PinIcon />
             <span>
-              <span className="block text-sm font-medium text-text">Set location</span>
-              <span className="block text-xs text-text-muted">No location selected</span>
+              <span className="block text-sm font-medium text-text">
+                {hasCoordinates(value) ? 'Location set' : 'Set location'}
+              </span>
+              <span className="block max-w-xs truncate text-xs text-text-muted">{summary}</span>
             </span>
           </span>
           <span className="text-sm font-medium text-accent">{open ? 'Collapse' : 'Expand'}</span>
         </button>
 
         {open && (
-          <div className="space-y-3 border-t border-border p-4">
-            {/* Map / address search integration is a placeholder for now. */}
-            <div className="flex h-40 items-center justify-center rounded-lg border border-border bg-surface-muted text-sm text-text-muted">
-              Map picker coming soon
-            </div>
+          <div className="border-t border-border p-4">
+            <Suspense
+              fallback={
+                <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-surface-muted text-sm text-text-muted">
+                  Loading map…
+                </div>
+              }
+            >
+              <LocationPicker onChange={onChange} value={value} />
+            </Suspense>
           </div>
         )}
       </div>

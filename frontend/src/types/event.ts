@@ -1,6 +1,8 @@
 // Mirrors the backend event module (src/modules/events/model.ts).
 // Note: `Event` shadows the DOM's global Event type within importing modules —
 // fine here since these modules don't reference the DOM Event.
+import type { Location } from './location';
+
 export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED';
 
 export interface EventBranding {
@@ -20,6 +22,7 @@ export interface Event {
   cashierEnabled: boolean;
   offlineOrdersEnabled: boolean;
   branding: EventBranding;
+  location: Location;
   startedAt?: string;
   stoppedAt?: string;
   deletedAt: string | null;
@@ -35,4 +38,7 @@ export interface UpdateEventInput {
   cashierEnabled?: boolean;
   offlineOrdersEnabled?: boolean;
   branding?: Partial<EventBranding>;
+  // Replace semantics: the backend overwrites the whole location object, so
+  // always send all three fields (see src/shared/location.ts locationInputSchema).
+  location?: Location;
 }
