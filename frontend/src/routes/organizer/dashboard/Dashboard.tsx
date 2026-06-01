@@ -6,6 +6,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { AlertDialog } from '@/components/feedback';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Event } from '@/types/event';
+import { hasCoordinates, type Location } from '@/types/location';
 import type { DashboardActionResult } from './data';
 
 function formatDate(date?: string) {
@@ -17,6 +18,13 @@ function formatDate(date?: string) {
     month: 'long',
     year: 'numeric',
   }).format(parsed);
+}
+
+// Prefer the display name, fall back to coordinates, then the empty state.
+function formatLocation(location: Location) {
+  if (location.locationName) return location.locationName;
+  if (hasCoordinates(location)) return `${location.yCoordinate}, ${location.xCoordinate}`;
+  return 'No location set';
 }
 
 // Rendered as the route's errorElement when the loader throws.
@@ -68,10 +76,9 @@ function EventCard({ event }: { event: Event }) {
             <CalendarIcon />
             {formatDate(event.plannedDate)}
           </p>
-          {/* Location isn't part of the event model — placeholder for now. */}
           <p className="text-text-muted flex items-center gap-2 text-sm">
             <PinIcon />
-            No location set
+            <span className="min-w-0 truncate">{formatLocation(event.location)}</span>
           </p>
         </CardContent>
 
