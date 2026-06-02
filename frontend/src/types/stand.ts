@@ -1,13 +1,10 @@
+import type { Location } from './location';
+
 export interface Stand {
   _id: string;
   eventId: string;
-  accountId: string;
   standName: string;
-  accessPassword?: string;
-  locationName?: string;
-  xCoordinate?: number;
-  yCoordinate?: number;
-  queueStatus: 'ACTIVE' | 'PAUSED';
+  location: Location;
   createdAt: string;
   updatedAt: string;
 }
@@ -15,15 +12,11 @@ export interface Stand {
 export interface CreateStandInput {
   standName: string;
   accessPassword?: string;
-  locationName?: string | null;
-  xCoordinate?: number | null;
-  yCoordinate?: number | null;
+  location?: Location;
 }
 
 export interface UpdateStandInput {
-  standName: string;
+  standName?: string;
   accessPassword?: string | null;
-  locationName?: string | null;
-  xCoordinate?: number | null;
-  yCoordinate?: number | null;
+  location?: Location;
 }

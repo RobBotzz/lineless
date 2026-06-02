@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFetcher } from 'react-router';
 import { Button } from '@/components/ui/button';
+import { PasswordTextField } from '@/components/ui/password-text-field';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
-import type { Stand, UpdateStandInput } from '@/types/stand';
+import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
 import type { EventActionResult } from './data';
 
 interface StandDialogProps {
@@ -15,12 +16,12 @@ interface StandDialogProps {
 export function StandDialog({ stand, isOpen, onClose }: StandDialogProps) {
   const fetcher = useFetcher<EventActionResult>();
 
-  const [standName, setStandName] = useState(stand?.standName || '');
-  const [accessPassword, setAccessPassword] = useState(stand?.accessPassword || '');
+  const [standName, setStandName] = useState(stand?.standName ?? '');
+  const [accessPassword, setAccessPassword] = useState('');
   const [changePassword, setChangePassword] = useState(false);
-  const [locationName, setLocationName] = useState(stand?.locationName || '');
-  const [xCoordinate, setXCoordinate] = useState(stand?.xCoordinate?.toString() || '');
-  const [yCoordinate, setYCoordinate] = useState(stand?.yCoordinate?.toString() || '');
+  const [locationName, setLocationName] = useState(stand?.location.locationName ?? '');
+  const [xCoordinate, setXCoordinate] = useState(stand?.location.xCoordinate?.toString() ?? '');
+  const [yCoordinate, setYCoordinate] = useState(stand?.location.yCoordinate?.toString() ?? '');
 
   // Close on Escape
   useEffect(() => {
@@ -60,40 +61,34 @@ export function StandDialog({ stand, isOpen, onClose }: StandDialogProps) {
     e.preventDefault();
     if (isHandlingSubmitRef.current || !standName.trim()) return;
 
-    const patch: UpdateStandInput = {
-      standName: standName.trim(),
+    const location = {
       locationName: locationName.trim() || null,
       xCoordinate: xCoordinate ? parseFloat(xCoordinate) : null,
       yCoordinate: yCoordinate ? parseFloat(yCoordinate) : null,
     };
 
-    if (changePassword) {
-      const trimmedPassword = accessPassword.trim();
-      if (trimmedPassword) {
-        patch.accessPassword = trimmedPassword;
-      } else if (isEdit) {
-        // Explicitly clear password when editing if toggle is on but input is empty
-        patch.accessPassword = null;
-      } else {
-        // On create, if toggle is on but empty, require it
-        return;
-      }
-    }
-
-    isHandlingSubmitRef.current = true;
-
     if (isEdit) {
-      const payload = { intent: 'updateStand', standId: stand._id, patch };
-      fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
-        method: 'post',
-        encType: 'application/json',
-      });
+      const patch: UpdateStandInput = { standName: standName.trim(), location };
+      if (changePassword) {
+        const trimmed = accessPassword.trim();
+        patch.accessPassword = trimmed || null;
+      }
+      isHandlingSubmitRef.current = true;
+      fetcher.submit(
+        { intent: 'updateStand', standId: stand._id, patch } as unknown as Parameters<
+          typeof fetcher.submit
+        >[0],
+        { method: 'post', encType: 'application/json' },
+      );
     } else {
-      const payload = { intent: 'createStand', patch };
-      fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
-        method: 'post',
-        encType: 'application/json',
-      });
+      if (changePassword && !accessPassword.trim()) return;
+      const patch: CreateStandInput = { standName: standName.trim(), location };
+      if (changePassword) patch.accessPassword = accessPassword.trim();
+      isHandlingSubmitRef.current = true;
+      fetcher.submit(
+        { intent: 'createStand', patch } as unknown as Parameters<typeof fetcher.submit>[0],
+        { method: 'post', encType: 'application/json' },
+      );
     }
   }
 
@@ -139,13 +134,12 @@ export function StandDialog({ stand, isOpen, onClose }: StandDialogProps) {
           </div>
 
           {changePassword && (
-            <TextField
+            <PasswordTextField
               id="access-password"
               label="Access Password"
               value={accessPassword}
               onChange={(e) => setAccessPassword(e.target.value)}
               placeholder={isEdit ? 'Leave empty to remove password' : 'For operator login'}
-              type="password"
               required={!isEdit}
             />
           )}
