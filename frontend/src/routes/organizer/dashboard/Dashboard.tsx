@@ -21,7 +21,8 @@ function formatDate(date?: string) {
 }
 
 // Prefer the display name, fall back to coordinates, then the empty state.
-function formatLocation(location: Location) {
+function formatLocation(location: Location | null | undefined) {
+  if (!location) return 'No location set';
   if (location.locationName) return location.locationName;
   if (hasCoordinates(location)) return `${location.yCoordinate}, ${location.xCoordinate}`;
   return 'No location set';

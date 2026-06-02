@@ -340,6 +340,7 @@ export default function EventConfiguration() {
       <StandDialog
         key={`${editingStand?._id ?? 'new'}-${String(isStandDialogOpen)}`}
         stand={editingStand}
+        eventLocation={event.location ?? emptyLocation}
         isOpen={isStandDialogOpen}
         onClose={() => setIsStandDialogOpen(false)}
       />
