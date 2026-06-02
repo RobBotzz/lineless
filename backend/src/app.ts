@@ -4,6 +4,7 @@ import swaggerUi from "swagger-ui-express";
 import accountRouter from "./modules/accounts/routes";
 import eventsRouter from "./modules/events/routes";
 import { eventStandsRouter, standsRouter } from "./modules/stands/routes";
+import { standProductsRouter, productsRouter } from "./modules/products/routes";
 import { openapiSpec } from "./docs/openapi";
 
 const app = express();
@@ -22,6 +23,8 @@ app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiSpec));
 app.use("/api/account", accountRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/events/:eventId/stands", eventStandsRouter);
+app.use("/api/stands/:standId/products", standProductsRouter);
 app.use("/api/stands", standsRouter);
+app.use("/api/products", productsRouter);
 
 export { app };

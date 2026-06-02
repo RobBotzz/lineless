@@ -1,0 +1,25 @@
+info:
+  name: patch product
+  type: http
+  seq: 4
+
+http:
+  method: PATCH
+  url: http://{{host}}:{{port}}/api/products/{{productId}}
+  body:
+    type: json
+    data: |-
+      {
+        "productName": "Cola Zero",
+        "productDescription": "Sugar-free",
+        "priceExclTax": 300,
+        "taxRate": 0.19,
+        "productStock": 80
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
