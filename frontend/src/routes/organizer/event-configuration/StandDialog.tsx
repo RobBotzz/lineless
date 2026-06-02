@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useFetcher } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { PasswordTextField } from '@/components/ui/password-text-field';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
-import { emptyLocation } from '@/types/location';
-import type { Location } from '@/types/location';
+import { hasCoordinates, toLatLng, type Location } from '@/types/location';
 import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
 import type { EventActionResult } from './data';
+
+const LocationPicker = lazy(() =>
+  import('@/components/location/LocationPicker').then((m) => ({ default: m.LocationPicker })),
+);
 
 interface StandDialogProps {
   stand: Stand | null; // null = create mode
@@ -16,18 +19,21 @@ interface StandDialogProps {
   onClose: () => void;
 }
 
-export function StandDialog({ stand, isOpen, onClose }: StandDialogProps) {
+export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDialogProps) {
   const fetcher = useFetcher<EventActionResult>();
 
   const [standName, setStandName] = useState(stand?.standName ?? '');
   const [accessPassword, setAccessPassword] = useState('');
   const [changePassword, setChangePassword] = useState(false);
-  const [locationName, setLocationName] = useState(stand?.location.locationName ?? '');
+  const [location, setLocation] = useState<Location>(
+    () => stand?.location ?? { locationName: null, xCoordinate: null, yCoordinate: null },
+  );
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -58,11 +64,6 @@ export function StandDialog({ stand, isOpen, onClose }: StandDialogProps) {
     e.preventDefault();
     if (isHandlingSubmitRef.current || !standName.trim()) return;
 
-    const location: Location = {
-      ...emptyLocation,
-      locationName: locationName.trim() || null,
-    };
-
     if (isEdit) {
       const patch: UpdateStandInput = { standName: standName.trim(), location };
       if (changePassword) patch.accessPassword = accessPassword.trim() || null;
@@ -84,6 +85,10 @@ export function StandDialog({ stand, isOpen, onClose }: StandDialogProps) {
       );
     }
   }
+
+  const coordSummary = hasCoordinates(location)
+    ? `${location.yCoordinate.toFixed(5)}, ${location.xCoordinate.toFixed(5)}`
+    : null;
 
   return (
     // z-[1100] sits above the navbar (z-[1001])
@@ -113,13 +118,56 @@ export function StandDialog({ stand, isOpen, onClose }: StandDialogProps) {
               required
             />
 
-            <TextField
-              id="location-name"
-              label="Location (Optional)"
-              value={locationName}
-              onChange={(e) => setLocationName(e.target.value)}
-              placeholder="e.g. Near main entrance"
-            />
+            {/* Location — name field always visible; map expands on demand */}
+            {showMap ? (
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="text-sm font-medium text-text">Location (Optional)</p>
+                  <button
+                    type="button"
+                    className="text-xs text-accent hover:underline"
+                    onClick={() => setShowMap(false)}
+                  >
+                    Hide map
+                  </button>
+                </div>
+                <Suspense
+                  fallback={
+                    <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-surface-muted text-sm text-text-muted">
+                      Loading map…
+                    </div>
+                  }
+                >
+                  <LocationPicker
+                    value={location}
+                    onChange={setLocation}
+                    defaultCenter={toLatLng(eventLocation) ?? undefined}
+                  />
+                </Suspense>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <TextField
+                  id="location-name"
+                  label="Location (Optional)"
+                  value={location.locationName ?? ''}
+                  onChange={(e) =>
+                    setLocation((prev) => ({ ...prev, locationName: e.target.value || null }))
+                  }
+                  placeholder="e.g. Near main entrance"
+                />
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 text-xs text-accent hover:underline"
+                  onClick={() => setShowMap(true)}
+                >
+                  <PinIcon />
+                  {coordSummary
+                    ? `Coordinates set: ${coordSummary} — change on map`
+                    : 'Pick coordinates on map'}
+                </button>
+              </div>
+            )}
 
             <div className="flex items-center justify-between rounded-lg border bg-surface-muted px-4 py-3">
               <label className="text-sm font-medium" htmlFor="change-password">
@@ -156,5 +204,23 @@ export function StandDialog({ stand, isOpen, onClose }: StandDialogProps) {
         </section>
       </div>
     </div>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
   );
 }
