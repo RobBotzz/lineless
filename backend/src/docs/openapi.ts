@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Router } from "express";
 import accountRouter from "../modules/accounts/routes";
 import eventsRouter from "../modules/events/routes";
+import { eventStandsRouter, standsRouter } from "../modules/stands/routes";
 import {
   standProductsRouter,
   productsRouter,
@@ -23,6 +24,12 @@ import { authStand } from "../middleware/authStand";
 const MOUNTS: { base: string; router: Router; tag: string }[] = [
   { base: "/api/account", router: accountRouter, tag: "Accounts" },
   { base: "/api/events", router: eventsRouter, tag: "Events" },
+  {
+    base: "/api/events/:eventId/stands",
+    router: eventStandsRouter,
+    tag: "Stands",
+  },
+  { base: "/api/stands", router: standsRouter, tag: "Stands" },
   {
     base: "/api/stands/:standId/products",
     router: standProductsRouter,
