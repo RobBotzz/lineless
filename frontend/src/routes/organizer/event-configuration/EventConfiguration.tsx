@@ -296,38 +296,47 @@ export default function EventConfiguration() {
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {stands.map((stand) => (
-                <div
-                  key={stand._id}
-                  className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3"
-                >
-                  <div>
-                    <h3 className="font-medium text-text">{stand.standName}</h3>
-                    {stand.location.locationName && (
-                      <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
-                        <SmallPinIcon /> {stand.location.locationName}
-                      </p>
-                    )}
+                <div key={stand._id} className="rounded-lg border border-border bg-surface">
+                  {/* Stand header */}
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <h3 className="font-medium text-text">{stand.standName}</h3>
+                      {stand.location.locationName && (
+                        <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
+                          <SmallPinIcon /> {stand.location.locationName}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingStand(stand);
+                          setIsStandDialogOpen(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
+                        onClick={() => handleDeleteStand(stand._id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setEditingStand(stand);
-                        setIsStandDialogOpen(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
-                      onClick={() => handleDeleteStand(stand._id)}
-                    >
-                      Delete
+                  {/* Products section */}
+                  <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
+                    <span className="flex items-center gap-1.5 text-sm text-text-muted">
+                      <ProductsIcon />0 Products
+                    </span>
+                    <Button size="sm" variant="outline" disabled>
+                      + Add Product
                     </Button>
                   </div>
                 </div>
@@ -493,6 +502,25 @@ function PinIcon() {
     >
       <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
       <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+
+function ProductsIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+      <path d="M3 6h18" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
     </svg>
   );
 }
