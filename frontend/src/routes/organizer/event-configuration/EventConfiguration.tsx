@@ -75,6 +75,7 @@ export default function EventConfiguration() {
 
   const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
   const [editingStand, setEditingStand] = useState<Stand | null>(null);
+  const [pendingDeleteStandId, setPendingDeleteStandId] = useState<string | null>(null);
 
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
@@ -93,9 +94,12 @@ export default function EventConfiguration() {
   }
 
   function handleDeleteStand(standId: string) {
-    if (confirm('Are you sure you want to delete this stand?')) {
-      submit({ intent: 'deleteStand', standId });
-    }
+    setPendingDeleteStandId(standId);
+  }
+
+  function confirmDeleteStand() {
+    if (pendingDeleteStandId) submit({ intent: 'deleteStand', standId: pendingDeleteStandId });
+    setPendingDeleteStandId(null);
   }
 
   function handleSave() {
@@ -358,6 +362,17 @@ export default function EventConfiguration() {
         message={visibleError}
         onAcknowledge={() => setDismissedError(actionError)}
         title="Something went wrong"
+      />
+
+      <AlertDialog
+        acknowledgeLabel="Delete"
+        cancelLabel="Cancel"
+        message={
+          pendingDeleteStandId ? 'This stand will be permanently removed from the event.' : null
+        }
+        onAcknowledge={confirmDeleteStand}
+        onCancel={() => setPendingDeleteStandId(null)}
+        title="Delete stand?"
       />
     </div>
   );
