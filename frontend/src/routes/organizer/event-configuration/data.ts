@@ -2,11 +2,23 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 
 import { apiFetch, ApiError } from '@/api/client';
 import type { Event, UpdateEventInput } from '@/types/event';
+import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
 
 export type EventActionResult = { ok: true } | { ok: false; error: string };
 
-export async function eventConfigurationLoader({ params }: LoaderFunctionArgs) {
-  return apiFetch<Event>(`/events/${params.eventId}`);
+export type EventConfigurationLoaderData = {
+  event: Event;
+  stands: Stand[];
+};
+
+export async function eventConfigurationLoader({
+  params,
+}: LoaderFunctionArgs): Promise<EventConfigurationLoaderData> {
+  const [event, stands] = await Promise.all([
+    apiFetch<Event>(`/events/${params.eventId}`),
+    apiFetch<Stand[]>(`/events/${params.eventId}/stands`),
+  ]);
+  return { event, stands };
 }
 
 // Lifecycle + settings mutations. useFetcher revalidates the loader on success,
@@ -16,7 +28,12 @@ export async function eventConfigurationAction({
   params,
 }: ActionFunctionArgs): Promise<EventActionResult> {
   const eventId = params.eventId;
-  const body = (await request.json()) as { intent: string; patch?: UpdateEventInput };
+  const body = (await request.json()) as
+    | { intent: 'start' | 'stop' }
+    | { intent: 'save'; patch: UpdateEventInput }
+    | { intent: 'createStand'; patch: CreateStandInput }
+    | { intent: 'updateStand'; standId: string; patch: UpdateStandInput }
+    | { intent: 'deleteStand'; standId: string };
 
   try {
     switch (body.intent) {
@@ -30,6 +47,23 @@ export async function eventConfigurationAction({
         await apiFetch(`/events/${eventId}`, {
           method: 'PATCH',
           body: JSON.stringify(body.patch ?? {}),
+        });
+        break;
+      case 'createStand':
+        await apiFetch(`/events/${eventId}/stands`, {
+          method: 'POST',
+          body: JSON.stringify(body.patch),
+        });
+        break;
+      case 'updateStand':
+        await apiFetch(`/stands/${body.standId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(body.patch),
+        });
+        break;
+      case 'deleteStand':
+        await apiFetch(`/stands/${body.standId}`, {
+          method: 'DELETE',
         });
         break;
     }

@@ -36,6 +36,7 @@ const markerIcon = L.divIcon({
 interface LocationPickerProps {
   value: Location;
   onChange: (next: Location) => void;
+  defaultCenter?: [number, number];
 }
 
 // Re-centers the map whenever the selected coordinates change (search, manual, clear).
@@ -58,7 +59,7 @@ function ClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }
   return null;
 }
 
-export function LocationPicker({ value, onChange }: LocationPickerProps) {
+export function LocationPicker({ value, onChange, defaultCenter }: LocationPickerProps) {
   const position = toLatLng(value);
 
   const [query, setQuery] = useState('');
@@ -176,7 +177,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
       {/* Interactive map */}
       <div className="overflow-hidden rounded-lg border border-border">
         <MapContainer
-          center={position ?? DEFAULT_CENTER}
+          center={position ?? defaultCenter ?? DEFAULT_CENTER}
           className="h-64 w-full"
           scrollWheelZoom={false}
           zoom={position ? POINT_ZOOM : DEFAULT_ZOOM}

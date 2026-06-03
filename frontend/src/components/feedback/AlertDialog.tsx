@@ -7,6 +7,8 @@ interface AlertDialogProps {
   title?: string;
   acknowledgeLabel?: string;
   variant?: 'danger' | 'success';
+  onCancel?: () => void;
+  cancelLabel?: string;
 }
 
 export function AlertDialog({
@@ -15,19 +17,22 @@ export function AlertDialog({
   title = 'Something went wrong',
   acknowledgeLabel = 'Acknowledge',
   variant = 'danger',
+  onCancel,
+  cancelLabel = 'Cancel',
 }: AlertDialogProps) {
   useEffect(() => {
     if (!message) return;
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        onAcknowledge();
+        if (onCancel) onCancel();
+        else onAcknowledge();
       }
     }
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [message, onAcknowledge]);
+  }, [message, onAcknowledge, onCancel]);
 
   if (!message) return null;
 
@@ -58,9 +63,20 @@ export function AlertDialog({
           {message}
         </p>
 
-        <Button className="mt-6 w-full rounded-lg" size="lg" onClick={onAcknowledge}>
-          {acknowledgeLabel}
-        </Button>
+        {onCancel ? (
+          <div className="mt-6 flex gap-3">
+            <Button className="flex-1" onClick={onCancel} size="lg" variant="secondary">
+              {cancelLabel}
+            </Button>
+            <Button className="flex-1" onClick={onAcknowledge} size="lg">
+              {acknowledgeLabel}
+            </Button>
+          </div>
+        ) : (
+          <Button className="mt-6 w-full rounded-lg" size="lg" onClick={onAcknowledge}>
+            {acknowledgeLabel}
+          </Button>
+        )}
       </section>
     </div>
   );
