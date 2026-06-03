@@ -9,6 +9,7 @@ export interface ProductDoc {
   productName: string;
   productDescription: string | null;
   priceExclTax: number;
+  // Tax rate as integer basis points (1/10000) — e.g. 1900 for 19%.
   taxRate: number;
   productImageUrl: string | null;
   instantProduct: boolean;
@@ -26,7 +27,7 @@ const productSchema = new Schema<ProductDoc>(
     productName: { type: String, required: true, trim: true },
     productDescription: { type: String, default: null, trim: true },
     priceExclTax: { type: Number, required: true, min: 0 },
-    taxRate: { type: Number, required: true, min: 0 },
+    taxRate: { type: Number, required: true, min: 0, max: 10000 },
     productImageUrl: { type: String, default: null },
     instantProduct: { type: Boolean, default: false },
     productStock: { type: Number, default: 0, min: 0 },

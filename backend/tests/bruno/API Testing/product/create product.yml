@@ -13,7 +13,7 @@ http:
         "productName": "Cola",
         "productDescription": "Refreshing soft drink",
         "priceExclTax": 250,
-        "taxRate": 0.19,
+        "taxRate": 1900,
         "productImageUrl": "https://example.com/cola.png",
         "instantProduct": false,
         "productStock": 100

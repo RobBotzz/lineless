@@ -13,7 +13,7 @@ http:
         "productName": "Cola Zero",
         "productDescription": "Sugar-free",
         "priceExclTax": 300,
-        "taxRate": 0.19,
+        "taxRate": 1900,
         "productStock": 80
       }
   auth: inherit

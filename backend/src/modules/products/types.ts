@@ -3,8 +3,10 @@ import { z } from "zod";
 // Money is always an integer in cents — never float.
 const cents = z.number().int().min(0);
 
-// Tax rate as a fraction between 0 and 1 (e.g. 0.19 for 19%).
-const taxRate = z.number().min(0).max(1);
+// Tax rate as integer basis points (1/10000) — e.g. 1900 for 19%.
+// Kept as an integer so tax can be computed in integer cents without
+// floating-point error.
+const taxRate = z.number().int().min(0).max(10000);
 
 // Stock is a non-negative integer count of units.
 const stock = z.number().int().min(0);
