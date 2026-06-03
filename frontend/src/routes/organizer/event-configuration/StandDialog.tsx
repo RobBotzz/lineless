@@ -28,7 +28,7 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
   const [location, setLocation] = useState<Location>(
     () => stand?.location ?? { locationName: null, xCoordinate: null, yCoordinate: null },
   );
-  const [showMap, setShowMap] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -86,9 +86,11 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
     }
   }
 
-  const coordSummary = hasCoordinates(location)
-    ? `${location.yCoordinate.toFixed(5)}, ${location.xCoordinate.toFixed(5)}`
-    : null;
+  const locationSummary = location.locationName
+    ? location.locationName
+    : hasCoordinates(location)
+      ? `${location.yCoordinate}, ${location.xCoordinate}`
+      : 'No location selected';
 
   return (
     // z-[1100] sits above the navbar (z-[1001])
@@ -118,56 +120,48 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
               required
             />
 
-            {/* Location — name field always visible; map expands on demand */}
-            {showMap ? (
-              <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <p className="text-sm font-medium text-text">Location (Optional)</p>
-                  <button
-                    type="button"
-                    className="text-xs text-accent hover:underline"
-                    onClick={() => setShowMap(false)}
-                  >
-                    Hide map
-                  </button>
-                </div>
-                <Suspense
-                  fallback={
-                    <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-surface-muted text-sm text-text-muted">
-                      Loading map…
-                    </div>
-                  }
-                >
-                  <LocationPicker
-                    value={location}
-                    onChange={setLocation}
-                    defaultCenter={toLatLng(eventLocation) ?? undefined}
-                  />
-                </Suspense>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <TextField
-                  id="location-name"
-                  label="Location (Optional)"
-                  value={location.locationName ?? ''}
-                  onChange={(e) =>
-                    setLocation((prev) => ({ ...prev, locationName: e.target.value || null }))
-                  }
-                  placeholder="e.g. Near main entrance"
-                />
+            {/* Location — collapsible, matches the EventLocationField pattern */}
+            <div>
+              <p className="mb-2 block text-sm font-medium text-text">Location (Optional)</p>
+              <div className="rounded-lg border border-border bg-surface">
                 <button
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                  onClick={() => setLocationOpen((prev) => !prev)}
                   type="button"
-                  className="flex items-center gap-1.5 text-xs text-accent hover:underline"
-                  onClick={() => setShowMap(true)}
                 >
-                  <PinIcon />
-                  {coordSummary
-                    ? `Coordinates set: ${coordSummary} — change on map`
-                    : 'Pick coordinates on map'}
+                  <span className="flex items-center gap-2">
+                    <PinIcon />
+                    <span>
+                      <span className="block text-sm font-medium text-text">Location</span>
+                      <span className="block max-w-xs truncate text-xs text-text-muted">
+                        {locationSummary}
+                      </span>
+                    </span>
+                  </span>
+                  <ChevronDownIcon
+                    className={['transition-transform', locationOpen ? 'rotate-180' : ''].join(' ')}
+                  />
                 </button>
+
+                {locationOpen && (
+                  <div className="border-t border-border p-4">
+                    <Suspense
+                      fallback={
+                        <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-surface-muted text-sm text-text-muted">
+                          Loading map…
+                        </div>
+                      }
+                    >
+                      <LocationPicker
+                        value={location}
+                        onChange={setLocation}
+                        defaultCenter={toLatLng(eventLocation) ?? undefined}
+                      />
+                    </Suspense>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
             <div className="flex items-center justify-between rounded-lg border bg-surface-muted px-4 py-3">
               <label className="text-sm font-medium" htmlFor="change-password">
@@ -207,11 +201,28 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
   );
 }
 
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={['h-4 w-4', className].filter(Boolean).join(' ')}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 function PinIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="h-3.5 w-3.5"
+      className="h-5 w-5 text-accent"
       fill="none"
       stroke="currentColor"
       strokeLinecap="round"
