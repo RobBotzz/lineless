@@ -43,7 +43,7 @@ export function DashboardError() {
 }
 
 export default function Dashboard() {
-  const events = useLoaderData() as Event[];
+  const { events, standCounts } = useLoaderData() as import('./data').DashboardLoaderData;
   const { account } = useAuth();
   const firstName = account?.firstName?.trim();
 
@@ -56,7 +56,7 @@ export default function Dashboard() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {events.map((event) => (
-          <EventCard event={event} key={event._id} />
+          <EventCard event={event} key={event._id} standCount={standCounts[event._id] ?? 0} />
         ))}
         <CreateEventTile />
       </div>
@@ -64,7 +64,7 @@ export default function Dashboard() {
   );
 }
 
-function EventCard({ event }: { event: Event }) {
+function EventCard({ event, standCount }: { event: Event; standCount: number }) {
   return (
     <Link className="group" to={`/organizer/events/${event._id}`}>
       <Card className="h-full gap-4 transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
@@ -83,9 +83,10 @@ function EventCard({ event }: { event: Event }) {
           </p>
         </CardContent>
 
-        {/* TODO: Stand/product counts come from a future endpoint — placeholders for now. */}
         <CardFooter className="text-text-muted w-full justify-between border-t text-sm">
-          <span>— Stands</span>
+          <span>
+            {standCount} {standCount === 1 ? 'Stand' : 'Stands'}
+          </span>
           <span>— Products</span>
         </CardFooter>
       </Card>
