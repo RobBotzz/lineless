@@ -12,6 +12,13 @@ export class AccountInvalidCredentialsError extends Error {
   }
 }
 
+export class AccountInvalidPasswordError extends Error {
+  constructor() {
+    super("Invalid current password");
+    this.name = "AccountInvalidPasswordError";
+  }
+}
+
 export class AccountNotFoundError extends Error {
   constructor() {
     super("Account not found");

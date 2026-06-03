@@ -2,10 +2,16 @@ import { Account, type AccountDoc } from "./model";
 import {
   AccountAlreadyExistsError,
   AccountInvalidCredentialsError,
+  AccountInvalidPasswordError,
   AccountNotFoundError,
 } from "./errors";
 import { comparePassword, generateToken, hashPassword } from "./helper";
-import type { LoginInput, SignupInput, UpdateAccountInput } from "./types";
+import type {
+  ChangePasswordInput,
+  LoginInput,
+  SignupInput,
+  UpdateAccountInput,
+} from "./types";
 
 export interface AuthResult {
   message: string;
@@ -14,7 +20,11 @@ export interface AuthResult {
 
 export interface UpdateAccountResult {
   account: PublicAccount;
-  token?: string;
+}
+
+export interface ChangePasswordResult {
+  message: string;
+  token: string;
 }
 
 export type PublicAccount = Omit<AccountDoc, "passwordHash">;
@@ -123,29 +133,42 @@ export async function updateAccountInfo(
     account.ibanHolderName = input.ibanHolderName;
   }
 
-  let token: string | undefined;
-  if (input.email !== undefined && input.email !== account.email) {
-    const emailExists = await Account.findOne({
-      email: input.email,
-      deletedAt: null,
-    }).lean();
-    if (emailExists) {
-      throw new AccountAlreadyExistsError();
-    }
-
-    account.email = input.email;
-    token = generateToken(account.accountId, account.email);
-  }
-
-  if (input.password !== undefined) {
-    account.passwordHash = await hashPassword(input.password);
-  }
-
   await account.save();
 
   const updatedAccount = await getAccountInfo(accountId);
   return {
     account: updatedAccount,
-    ...(token ? { token } : {}),
+  };
+}
+
+export async function changePassword(
+  accountId: string,
+  input: ChangePasswordInput
+): Promise<ChangePasswordResult> {
+  const account = await Account.findOne({
+    accountId,
+    deletedAt: null,
+  });
+  if (!account) {
+    throw new AccountNotFoundError();
+  }
+  if (!account.passwordHash) {
+    throw new AccountInvalidPasswordError();
+  }
+
+  const isCurrentPasswordValid = await comparePassword(
+    input.currentPassword,
+    account.passwordHash
+  );
+  if (!isCurrentPasswordValid) {
+    throw new AccountInvalidPasswordError();
+  }
+
+  account.passwordHash = await hashPassword(input.newPassword);
+  await account.save();
+
+  return {
+    message: "Password updated successfully",
+    token: generateToken(account.accountId, account.email),
   };
 }

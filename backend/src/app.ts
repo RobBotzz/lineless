@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import swaggerUi from "swagger-ui-express";
 
 import stripeWebhookRouter from "./modules/payments/routes";
 import cashPaymentsRouter from "./modules/payments/cashPayments.routes";
@@ -8,6 +9,9 @@ import tabsRouter from "./modules/tabs/routes";
 import ordersRouter from "./modules/orders/routes";
 import accountRouter from "./modules/accounts/routes";
 import eventsRouter from "./modules/events/routes";
+import { eventStandsRouter, standsRouter } from "./modules/stands/routes";
+import { standProductsRouter, productsRouter } from "./modules/products/routes";
+import { openapiSpec } from "./docs/openapi";
 
 const app = express();
 
@@ -35,10 +39,17 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// Swagger-UI
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiSpec));
+
 app.use("/api/account", accountRouter);
-app.use("/events", eventsRouter);
-app.use("/tabs", tabsRouter);
-app.use("/orders", ordersRouter);
-app.use("/cash-payments", cashPaymentsRouter);
+app.use("/api/events", eventsRouter);
+app.use("/api/events/:eventId/stands", eventStandsRouter);
+app.use("/api/stands/:standId/products", standProductsRouter);
+app.use("/api/stands", standsRouter);
+app.use("/api/products", productsRouter);
+app.use("/api/tabs", tabsRouter);
+app.use("/api/orders", ordersRouter);
+app.use("/api/cash-payments", cashPaymentsRouter);
 
 export { app };

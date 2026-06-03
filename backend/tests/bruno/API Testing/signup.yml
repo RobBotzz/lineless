@@ -1,11 +1,11 @@
 info:
-  name: login
+  name: signup
   type: http
   seq: 1
 
 http:
   method: POST
-  url: http://localhost:8000/api/account/signup
+  url: http://{{host}}:{{port}}/api/account/signup
   body:
     type: json
     data: |-

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { locationInputSchema } from "../../shared/location";
 
 // Accepts #RGB and #RRGGBB (case-insensitive).
 const hexColor = z
@@ -21,24 +22,23 @@ const brandingUpdateSchema = z.object({
 });
 
 export const createEventSchema = z.object({
-  accountId: z.string().min(1),
   name: z.string().min(1),
-  location: z.string().optional(),
   plannedDate: z.coerce.date().optional(),
   ratingsEnabled: z.boolean().default(false),
   cashierEnabled: z.boolean().default(true),
   offlineOrdersEnabled: z.boolean().default(true),
   branding: brandingCreateSchema.prefault({}),
+  location: locationInputSchema.optional(),
 });
 
 export const updateEventSchema = z.object({
   name: z.string().min(1).optional(),
-  location: z.string().optional(),
   plannedDate: z.coerce.date().optional(),
   ratingsEnabled: z.boolean().optional(),
   cashierEnabled: z.boolean().optional(),
   offlineOrdersEnabled: z.boolean().optional(),
   branding: brandingUpdateSchema.optional(),
+  location: locationInputSchema.optional(),
 });
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
