@@ -3,9 +3,14 @@ import type { Router } from "express";
 import accountRouter from "../modules/accounts/routes";
 import eventsRouter from "../modules/events/routes";
 import { authAccount } from "../middleware/authAccount";
-import { authSession } from "../middleware/authSession";
-import { authAccountOrSession } from "../middleware/authAccountOrSession";
-import { authStand } from "../middleware/authStand";
+import { authAttendee } from "../middleware/authAttendee";
+import {
+  authAccountOrAttendee,
+  authAccountOrOperator,
+  authAccountOrOperatorOrAttendee,
+  authOperatorOrAttendee,
+} from "../middleware/auth/combinations";
+import { authOperator } from "../middleware/authOperator";
 
 // =============================================================================
 // The OpenAPI document is GENERATED, not hand-written. We walk each mounted
@@ -25,9 +30,15 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
 type SecurityRequirement = Record<string, string[]>;
 const AUTH = new Map<unknown, SecurityRequirement[]>([
   [authAccount, [{ bearerAuth: [] }]],
-  [authSession, [{ sessionCookie: [] }]],
-  [authAccountOrSession, [{ bearerAuth: [] }, { sessionCookie: [] }]],
-  [authStand, [{ standAuth: [] }]],
+  [authAttendee, [{ sessionCookie: [] }]],
+  [authAccountOrOperator, [{ bearerAuth: [] }, { standAuth: [] }]],
+  [authAccountOrAttendee, [{ bearerAuth: [] }, { sessionCookie: [] }]],
+  [authOperatorOrAttendee, [{ standAuth: [] }, { sessionCookie: [] }]],
+  [
+    authAccountOrOperatorOrAttendee,
+    [{ bearerAuth: [] }, { standAuth: [] }, { sessionCookie: [] }],
+  ],
+  [authOperator, [{ standAuth: [] }]],
 ]);
 
 // --- minimal shape of the Express router internals we read ---

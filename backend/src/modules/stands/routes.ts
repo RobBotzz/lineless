@@ -11,7 +11,7 @@ import { StandNotFoundError } from "./errors";
 import { EventNotFoundError } from "../events/errors";
 import { createStandSchema, updateStandSchema } from "./types";
 import { authAccount } from "../../middleware/authAccount";
-import { authAccountOrSession } from "../../middleware/authAccountOrSession";
+import { authAccountOrAttendee } from "../../middleware/auth/combinations";
 
 function eventId(req: Request): string {
   return req.params["eventId"] as string;
@@ -67,7 +67,7 @@ export const standsRouter = Router();
 // GET /stands/:standId — readable by organizer and attendee (session)
 standsRouter.get(
   "/:standId",
-  authAccountOrSession,
+  authAccountOrAttendee,
   async (req: Request, res: Response) => {
     try {
       const stand = await getStand(standId(req));

@@ -12,7 +12,7 @@ import {
 import { EventNotFoundError, EventStateError } from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
 import { authAccount } from "../../middleware/authAccount";
-import { authAccountOrSession } from "../../middleware/authAccountOrSession";
+import { authAccountOrAttendee } from "../../middleware/auth/combinations";
 
 const eventsRouter = Router();
 
@@ -34,7 +34,7 @@ function handleError(err: unknown, res: Response): unknown {
 // GET /events/:eventId — readable by organizer and attendee (session)
 eventsRouter.get(
   "/:eventId",
-  authAccountOrSession,
+  authAccountOrAttendee,
   async (req: Request, res: Response) => {
     try {
       const event = await getEvent(eventId(req));
