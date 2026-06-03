@@ -1,0 +1,15 @@
+info:
+  name: pause product
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: http://{{host}}:{{port}}/api/products/{{productId}}/pause
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
