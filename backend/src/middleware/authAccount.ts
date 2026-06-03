@@ -6,12 +6,18 @@ import {
 } from "./auth/requestCredentials";
 
 interface AccountTokenPayload {
+  tokenType: "ACCOUNT";
   sub: string;
 }
 
 function parseAccountPayload(token: string): AccountTokenPayload {
   const payload = verifyJwtPayload(token);
-  return { sub: readRequiredStringClaim(payload, "sub") };
+  const tokenType = payload["tokenType"] as unknown;
+  if (tokenType !== "ACCOUNT") {
+    throw new Error("Invalid account token payload");
+  }
+
+  return { tokenType, sub: readRequiredStringClaim(payload, "sub") };
 }
 
 export function authenticateAccountToken(token: string): { accountId: string } {

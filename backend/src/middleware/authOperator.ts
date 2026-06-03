@@ -6,20 +6,20 @@ import {
 } from "./auth/requestCredentials";
 
 interface OperatorTokenPayload {
+  tokenType: "OPERATOR";
   standId: string;
-  role: "OPERATOR";
 }
 
 function parseOperatorPayload(token: string): OperatorTokenPayload {
   const payload = verifyJwtPayload(token);
+  const tokenType = payload["tokenType"] as unknown;
   const standId = readRequiredStringClaim(payload, "standId");
-  const role = payload["role"] as unknown;
 
-  if (role !== "OPERATOR") {
+  if (tokenType !== "OPERATOR") {
     throw new Error("Invalid operator token payload");
   }
 
-  return { standId, role };
+  return { tokenType, standId };
 }
 
 export function authenticateOperatorToken(token: string): { standId: string } {
