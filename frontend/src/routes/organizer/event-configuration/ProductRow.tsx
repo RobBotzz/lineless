@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DeleteIcon, EditIcon, ImageIcon } from '@/components/icons';
 import { formatMoney, priceInclTax, type Product } from '@/types/product';
 
 interface ProductRowProps {
@@ -34,7 +35,9 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
             />
           </button>
         ) : (
-          <PlaceholderImageIcon />
+          <div className="flex h-full w-full items-center justify-center text-text-muted">
+            <ImageIcon className="h-6 w-6" />
+          </div>
         )}
       </div>
 
@@ -123,64 +126,5 @@ function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClos
         src={src}
       />
     </div>
-  );
-}
-
-function PlaceholderImageIcon() {
-  return (
-    <div className="flex h-full w-full items-center justify-center text-text-muted">
-      <svg
-        aria-hidden="true"
-        className="h-6 w-6"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        viewBox="0 0 24 24"
-      >
-        <rect height="18" rx="2" ry="2" width="18" x="3" y="3" />
-        <circle cx="9" cy="9" r="2" />
-        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-      </svg>
-    </div>
-  );
-}
-
-function EditIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-    </svg>
-  );
-}
-
-function DeleteIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M3 6h18" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-    </svg>
   );
 }
