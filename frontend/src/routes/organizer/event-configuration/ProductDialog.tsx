@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useFetcher } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
-import { Toggle } from '@/components/ui/toggle';
 import {
   formatMoney,
   type CreateProductInput,
@@ -210,24 +209,48 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
             />
 
             {/* Fulfillment type — instant (served immediately) vs manufactured. */}
-            <div className="flex items-center justify-between rounded-lg border bg-surface-muted px-4 py-3">
-              <span>
-                <span className="block text-sm font-medium text-text">
-                  {instantProduct ? 'Instant' : 'Manufactured'}
-                </span>
-                <span className="block text-xs text-text-muted">
-                  {instantProduct
-                    ? 'Available immediately, no preparation'
-                    : 'Requires preparation before pickup'}
-                </span>
-              </span>
-              <Toggle
-                checked={instantProduct}
-                id="product-instant"
-                label="Instant product"
-                onChange={setInstantProduct}
-              />
-            </div>
+            <fieldset>
+              <legend className="mb-2 block text-sm font-medium text-text">Fulfillment type</legend>
+              <div className="space-y-2">
+                {[
+                  {
+                    value: true,
+                    title: 'Instant',
+                    description: 'Available immediately, no preparation',
+                  },
+                  {
+                    value: false,
+                    title: 'Manufactured',
+                    description: 'Requires preparation before pickup',
+                  },
+                ].map((option) => {
+                  const selected = instantProduct === option.value;
+                  return (
+                    <label
+                      key={option.title}
+                      className={[
+                        'flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition',
+                        selected
+                          ? 'border-accent bg-accent-soft'
+                          : 'border-border bg-surface hover:bg-surface-muted',
+                      ].join(' ')}
+                    >
+                      <input
+                        type="radio"
+                        name="product-fulfillment"
+                        className="h-4 w-4 shrink-0 accent-accent"
+                        checked={selected}
+                        onChange={() => setInstantProduct(option.value)}
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-text">{option.title}</span>
+                        <span className="block text-xs text-text-muted">{option.description}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
 
             <div>
               <label
