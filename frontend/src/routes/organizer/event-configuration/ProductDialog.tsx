@@ -41,7 +41,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
   const fetcher = useFetcher<EventActionResult>();
 
   const [productName, setProductName] = useState(product?.productName ?? '');
-  const [price, setPrice] = useState(product ? formatMoney(product.priceExclTax) : '');
+  const [price, setPrice] = useState(product ? formatMoney(product.priceIncludingTax) : '');
   const [taxRate, setTaxRate] = useState(product ? String(product.taxRate / 100) : '19');
   const [instantProduct, setInstantProduct] = useState(product?.instantProduct ?? false);
   const [stock, setStock] = useState(product ? String(product.productStock) : '0');
@@ -95,8 +95,8 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
       setValidationError('Product name is required');
       return;
     }
-    const priceExclTax = parseCents(price);
-    if (priceExclTax === null) {
+    const priceIncludingTax = parseCents(price);
+    if (priceIncludingTax === null) {
       setValidationError('Enter a valid price');
       return;
     }
@@ -120,7 +120,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
       const patch: UpdateProductInput = {
         productName: name,
         productDescription: description_,
-        priceExclTax,
+        priceIncludingTax,
         taxRate: taxRateBp,
         productImageUrl,
         instantProduct,
@@ -136,7 +136,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
       const patch: CreateProductInput = {
         productName: name,
         productDescription: description_,
-        priceExclTax,
+        priceIncludingTax,
         taxRate: taxRateBp,
         productImageUrl,
         instantProduct,
@@ -183,7 +183,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
             <div className="grid grid-cols-2 gap-4">
               <TextField
                 id="product-price"
-                label="Price excl. tax *"
+                label="Price incl. tax *"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="0.00"

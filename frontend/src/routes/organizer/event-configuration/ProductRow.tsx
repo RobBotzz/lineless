@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DeleteIcon, EditIcon, ImageIcon } from '@/components/icons';
-import { formatMoney, priceInclTax, type Product } from '@/types/product';
+import { formatMoney, priceExclTax, type Product } from '@/types/product';
 
 interface ProductRowProps {
   product: Product;
@@ -14,7 +14,7 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const showImage = !!product.productImageUrl && imageOk;
 
-  const inclTax = priceInclTax(product);
+  const exclTax = priceExclTax(product);
 
   return (
     <div className="flex items-center gap-3 border-t border-border px-4 py-3">
@@ -64,8 +64,10 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
 
       {/* Prices — incl. tax emphasized, excl. tax muted underneath */}
       <div className="shrink-0 text-right">
-        <p className="text-base font-semibold text-text">€{formatMoney(inclTax)}</p>
-        <p className="text-xs text-text-muted">€{formatMoney(product.priceExclTax)} excl. tax</p>
+        <p className="text-base font-semibold text-text">
+          €{formatMoney(product.priceIncludingTax)}
+        </p>
+        <p className="text-xs text-text-muted">€{formatMoney(exclTax)} excl. tax</p>
       </div>
 
       {/* Actions */}
