@@ -12,7 +12,7 @@ http:
       {
         "productName": "Cola Zero",
         "productDescription": "Sugar-free",
-        "priceExclTax": 300,
+        "priceIncludingTax": 300,
         "taxRate": 1900,
         "productStock": 80
       }

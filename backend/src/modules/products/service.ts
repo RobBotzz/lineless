@@ -13,7 +13,7 @@ export async function createProduct(
     standId,
     productName: input.productName,
     productDescription: input.productDescription,
-    priceExclTax: input.priceExclTax,
+    priceIncludingTax: input.priceIncludingTax,
     taxRate: input.taxRate,
     productImageUrl: input.productImageUrl,
     instantProduct: input.instantProduct,
@@ -53,8 +53,8 @@ export async function updateProduct(
   if (patch.productDescription !== undefined) {
     product.productDescription = patch.productDescription;
   }
-  if (patch.priceExclTax !== undefined)
-    product.priceExclTax = patch.priceExclTax;
+  if (patch.priceIncludingTax !== undefined)
+    product.priceIncludingTax = patch.priceIncludingTax;
   if (patch.taxRate !== undefined) product.taxRate = patch.taxRate;
   if (patch.productImageUrl !== undefined) {
     product.productImageUrl = patch.productImageUrl;
