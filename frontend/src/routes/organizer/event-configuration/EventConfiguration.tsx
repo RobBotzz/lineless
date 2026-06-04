@@ -9,10 +9,13 @@ import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import type { Event, UpdateEventInput } from '@/types/event';
 import type { Stand } from '@/types/stand';
+import type { Product } from '@/types/product';
 import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
 import { CustomerLinkPanel } from './CustomerLinkPanel';
 import { OperatorLinkPanel } from './OperatorLinkPanel';
 import { StandDialog } from './StandDialog';
+import { ProductDialog } from './ProductDialog';
+import { ProductRow } from './ProductRow';
 import type { EventActionResult, EventConfigurationLoaderData } from './data';
 
 // Lazy-loaded so Leaflet only ships when the location section is expanded.
@@ -65,7 +68,7 @@ function toForm(event: Event): EventForm {
 }
 
 export default function EventConfiguration() {
-  const { event, stands } = useLoaderData() as EventConfigurationLoaderData;
+  const { event, stands, productsByStand } = useLoaderData() as EventConfigurationLoaderData;
   const fetcher = useFetcher<EventActionResult>();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
@@ -77,6 +80,13 @@ export default function EventConfiguration() {
   const [editingStand, setEditingStand] = useState<Stand | null>(null);
   const [pendingDeleteStandId, setPendingDeleteStandId] = useState<string | null>(null);
 
+  // Product dialog: track which stand we're adding to / which product we're editing.
+  const [productDialog, setProductDialog] = useState<{
+    standId: string;
+    product: Product | null;
+  } | null>(null);
+  const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
+
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
 
@@ -86,7 +96,12 @@ export default function EventConfiguration() {
 
   const busy = fetcher.state !== 'idle';
 
-  function submit(payload: { intent: string; patch?: UpdateEventInput; standId?: string }) {
+  function submit(payload: {
+    intent: string;
+    patch?: UpdateEventInput;
+    standId?: string;
+    productId?: string;
+  }) {
     void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
       method: 'post',
       encType: 'application/json',
@@ -100,6 +115,12 @@ export default function EventConfiguration() {
   function confirmDeleteStand() {
     if (pendingDeleteStandId) submit({ intent: 'deleteStand', standId: pendingDeleteStandId });
     setPendingDeleteStandId(null);
+  }
+
+  function confirmDeleteProduct() {
+    if (pendingDeleteProduct)
+      submit({ intent: 'deleteProduct', productId: pendingDeleteProduct._id });
+    setPendingDeleteProduct(null);
   }
 
   function handleSave() {
@@ -334,12 +355,27 @@ export default function EventConfiguration() {
                       </Button>
                     </div>
                   </div>
-                  {/* Products section */}
+                  {/* Products list */}
+                  {(productsByStand[stand._id] ?? []).map((product) => (
+                    <ProductRow
+                      key={product._id}
+                      product={product}
+                      onEdit={() => setProductDialog({ standId: stand._id, product })}
+                      onDelete={() => setPendingDeleteProduct(product)}
+                    />
+                  ))}
+
+                  {/* Products footer */}
                   <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
                     <span className="flex items-center gap-1.5 text-sm text-text-muted">
-                      <ProductsIcon />0 Products
+                      <ProductsIcon />
+                      {(productsByStand[stand._id] ?? []).length} Products
                     </span>
-                    <Button size="sm" variant="outline" disabled>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setProductDialog({ standId: stand._id, product: null })}
+                    >
                       + Add Product
                     </Button>
                   </div>
@@ -358,6 +394,16 @@ export default function EventConfiguration() {
         onClose={() => setIsStandDialogOpen(false)}
       />
 
+      {productDialog && (
+        <ProductDialog
+          key={`${productDialog.product?._id ?? 'new'}-${productDialog.standId}`}
+          product={productDialog.product}
+          standId={productDialog.standId}
+          isOpen={true}
+          onClose={() => setProductDialog(null)}
+        />
+      )}
+
       <AlertDialog
         message={visibleError}
         onAcknowledge={() => setDismissedError(actionError)}
@@ -373,6 +419,19 @@ export default function EventConfiguration() {
         onAcknowledge={confirmDeleteStand}
         onCancel={() => setPendingDeleteStandId(null)}
         title="Delete stand?"
+      />
+
+      <AlertDialog
+        acknowledgeLabel="Delete"
+        cancelLabel="Cancel"
+        message={
+          pendingDeleteProduct
+            ? `“${pendingDeleteProduct.productName}” will be permanently removed.`
+            : null
+        }
+        onAcknowledge={confirmDeleteProduct}
+        onCancel={() => setPendingDeleteProduct(null)}
+        title="Delete product?"
       />
     </div>
   );
