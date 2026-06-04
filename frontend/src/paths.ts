@@ -12,6 +12,8 @@ export const paths = {
   },
   attendee: {
     event: (eventId: string) => `/event/${eventId}`,
+    cart: (eventId: string) => `/event/${eventId}/cart`,
+    orders: (eventId: string) => `/event/${eventId}/orders`,
   },
   operator: {
     index: '/operator',
