@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { PasswordTextField } from '@/components/ui/password-text-field';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
+import { ChevronDownIcon, PinIcon } from '@/components/icons';
 import { hasCoordinates, toLatLng, type Location } from '@/types/location';
 import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
 import type { EventActionResult } from './data';
@@ -130,7 +131,7 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
                   type="button"
                 >
                   <span className="flex items-center gap-2">
-                    <PinIcon />
+                    <PinIcon className="h-5 w-5 text-accent" />
                     <span>
                       <span className="block text-sm font-medium text-text">Location</span>
                       <span className="block max-w-xs truncate text-xs text-text-muted">
@@ -198,40 +199,5 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
         </section>
       </div>
     </div>
-  );
-}
-
-function ChevronDownIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={['h-4 w-4', className].filter(Boolean).join(' ')}
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-function PinIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5 text-accent"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
   );
 }
