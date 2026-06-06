@@ -1,0 +1,19 @@
+meta {
+  name: list events
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+settings {
+  encodeUrl: true
+}

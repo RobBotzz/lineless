@@ -1,0 +1,30 @@
+meta {
+  name: patch stand
+  type: http
+  seq: 4
+}
+
+patch {
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {
+    "standName": "Beer & Wine Stand",
+    "location": {
+      "locationName": "South Gate",
+      "xCoordinate": 15.0,
+      "yCoordinate": 25.0
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+}

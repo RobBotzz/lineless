@@ -1,0 +1,25 @@
+meta {
+  name: attendee auth invalid
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: 00000000-0000-4000-8000-000000000000
+}
+
+tests {
+  test("invalid attendee session is rejected", function () {
+    expect(res.status).to.equal(401);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

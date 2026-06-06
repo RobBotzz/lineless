@@ -1,0 +1,31 @@
+meta {
+  name: create stand
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/stands
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {
+    "standName": "Beer Stand",
+    "accessPassword": "secret123",
+    "location": {
+      "locationName": "North Gate",
+      "xCoordinate": 10.5,
+      "yCoordinate": 20.3
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,0 +1,19 @@
+meta {
+  name: get stand (attendee)
+  type: http
+  seq: 8
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{attendeeSessionId}}
+}
+
+settings {
+  encodeUrl: true
+}

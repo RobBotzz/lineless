@@ -1,0 +1,21 @@
+meta {
+  name: organizer auth missing
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events
+  body: none
+  auth: none
+}
+
+tests {
+  test("missing organizer token is rejected", function () {
+    expect(res.status).to.equal(401);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

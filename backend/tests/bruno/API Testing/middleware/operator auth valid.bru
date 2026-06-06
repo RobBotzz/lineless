@@ -1,0 +1,25 @@
+meta {
+  name: operator auth valid
+  type: http
+  seq: 9
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{operatorToken}}
+}
+
+tests {
+  test("valid operator token is accepted", function () {
+    expect(res.status).to.equal(200);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

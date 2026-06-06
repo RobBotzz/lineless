@@ -1,0 +1,31 @@
+meta {
+  name: create product
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}/products
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {
+    "productName": "Cola",
+    "productDescription": "Refreshing soft drink",
+    "priceIncludingTax": 250,
+    "taxRate": 1900,
+    "productImageUrl": "https://example.com/cola.png",
+    "instantProduct": false,
+    "productStock": 100
+  }
+}
+
+settings {
+  encodeUrl: true
+}

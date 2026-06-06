@@ -1,0 +1,25 @@
+meta {
+  name: organizer auth invalid
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer invalid-organizer-token
+}
+
+tests {
+  test("invalid organizer token is rejected", function () {
+    expect(res.status).to.equal(401);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

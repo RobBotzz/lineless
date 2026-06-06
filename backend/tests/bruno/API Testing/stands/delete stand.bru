@@ -1,0 +1,19 @@
+meta {
+  name: delete stand
+  type: http
+  seq: 5
+}
+
+delete {
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+settings {
+  encodeUrl: true
+}
