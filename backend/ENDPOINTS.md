@@ -98,9 +98,9 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 
 ### Authentication
 
-| Method | URL               | Description               |
-| ------ | ----------------- | ------------------------- |
-| POST   | `/operator/login` | Login with stand password |
+| Method | URL             | Description               |
+| ------ | --------------- | ------------------------- |
+| POST   | `/stands/login` | Login with stand password |
 
 ### Stand selection & dashboards
 

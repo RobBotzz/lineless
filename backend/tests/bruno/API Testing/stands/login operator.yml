@@ -1,0 +1,21 @@
+info:
+  name: login operator
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: http://{{host}}:{{port}}/api/stands/login
+  body:
+    type: json
+    data: |-
+      {
+        "standId": "{{standId}}",
+        "accessPassword": "secret123"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

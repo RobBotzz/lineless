@@ -209,6 +209,10 @@ export const openapiSpec = {
     { name: "Accounts", description: "Organizer authentication and profile" },
     { name: "Sessions", description: "Attendee session lifecycle" },
     { name: "Events", description: "Event lifecycle (organizer only)" },
+    {
+      name: "Stands",
+      description: "Stand management and operator authentication",
+    },
     { name: "Products", description: "Products offered at a stand" },
   ],
   components: {

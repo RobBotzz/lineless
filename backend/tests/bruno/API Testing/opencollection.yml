@@ -17,22 +17,22 @@ config:
 request:
   auth:
     type: bearer
-    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiNjQzYjA1NC1jYzNiLTQyYjctYTFhNy1iNTk0ODM2MTc3NGMiLCJlbWFpbCI6InRvcmJlbkB0ZXN0LmRlIiwiaWF0IjoxNzgwNDMzNTY5LCJleHAiOjE3ODMwMjU1Njl9.LkOtiwsSbIlWP1oY5DfsWJ3DB2M9NZ22tUOl-Ch3DBU
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlblR5cGUiOiJPUkdBTklaRVIiLCJzdWIiOiJiNjQzYjA1NC1jYzNiLTQyYjctYTFhNy1iNTk0ODM2MTc3NGMiLCJpYXQiOjE3ODA3ODMwMjIsImV4cCI6MTc4MzM3NTAyMn0.GVidyGrjDjN3SUN5C2Hz8cRBw8bw7bC5jNUGbKKYtYY
   variables:
     - name: host
       value: localhost
     - name: port
       value: "8000"
     - name: organizerToken
-      value: ""
+      value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlblR5cGUiOiJPUkdBTklaRVIiLCJzdWIiOiJiNjQzYjA1NC1jYzNiLTQyYjctYTFhNy1iNTk0ODM2MTc3NGMiLCJpYXQiOjE3ODA3ODMwMjIsImV4cCI6MTc4MzM3NTAyMn0.GVidyGrjDjN3SUN5C2Hz8cRBw8bw7bC5jNUGbKKYtYY
     - name: operatorToken
       value: ""
     - name: attendeeSessionId
       value: ""
     - name: eventId
-      value: 0f0ceb02-bf02-48af-92c8-a8b367966f5b
+      value: 024d56a1-b2d9-47be-b5c2-3f11ca9df988
     - name: standId
-      value: f632d717-1c70-43b1-86c8-2469cb8af33d
+      value: " 9a26b737-91eb-42ad-b3e7-68c8ad3da33b"
     - name: productId
       value: fedc290f-fcd9-4fd9-9631-6c3838488928
 bundled: false
