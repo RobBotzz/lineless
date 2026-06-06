@@ -26,19 +26,19 @@ const accountRouter = Router();
 
 function handleError(err: unknown, res: Response): Response {
   if (err instanceof AccountAlreadyExistsError) {
-    return res.status(409).json({ message: err.message });
+    return res.status(409).json({ error: err.message });
   }
   if (err instanceof AccountInvalidCredentialsError) {
-    return res.status(401).json({ message: err.message });
+    return res.status(401).json({ error: err.message });
   }
   if (err instanceof AccountInvalidPasswordError) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({ error: err.message });
   }
   if (err instanceof AccountNotFoundError) {
-    return res.status(404).json({ message: err.message });
+    return res.status(404).json({ error: err.message });
   }
   console.error("Accounts error:", err);
-  return res.status(500).json({ message: "Internal server error" });
+  return res.status(500).json({ error: "Internal server error" });
 }
 
 // Public — no auth.
