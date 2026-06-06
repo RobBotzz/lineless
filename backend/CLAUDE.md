@@ -78,7 +78,7 @@ generic boilerplate.
   server-side (no going backwards). Implement as an explicit transition
   function, not arbitrary PATCH.
 - **Money is always an integer in cents.** Never float. (Model already does this:
-  `priceExclTax`, `amountCents`, `authorizedCentsAmount`, etc.)
+  `priceIncludingTax`, `amountCents`, `authorizedCentsAmount`, etc.)
 - **Stripe / Tab flow.** `POST /tabs` → Stripe session → authorize-then-capture.
   `TabPayment.authorizedCentsAmount` vs `capturedCentsAmount` is the standard
   authorize-on-order / capture-on-checkout pattern. Plan for Stripe **webhooks**;

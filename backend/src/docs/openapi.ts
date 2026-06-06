@@ -2,9 +2,13 @@ import { z } from "zod";
 import type { Router } from "express";
 import accountRouter from "../modules/accounts/routes";
 import eventsRouter from "../modules/events/routes";
+import { eventStandsRouter, standsRouter } from "../modules/stands/routes";
+import {
+  standProductsRouter,
+  productsRouter,
+} from "../modules/products/routes";
 import operatorRouter from "../modules/operators/routes";
 import sessionsRouter from "../modules/sessions/routes";
-import { eventStandsRouter, standsRouter } from "../modules/stands/routes";
 import { authOrganizer } from "../middleware/authOrganizer";
 import {
   authOrganizerOrAttendee,
@@ -31,6 +35,12 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
     tag: "Stands",
   },
   { base: "/api/stands", router: standsRouter, tag: "Stands" },
+  {
+    base: "/api/stands/:standId/products",
+    router: standProductsRouter,
+    tag: "Products",
+  },
+  { base: "/api/products", router: productsRouter, tag: "Products" },
 ];
 
 // Maps an auth middleware to the OpenAPI security requirement it enforces.
@@ -200,7 +210,7 @@ export const openapiSpec = {
     { name: "Sessions", description: "Attendee session lifecycle" },
     { name: "Operator", description: "Operator authentication" },
     { name: "Events", description: "Event lifecycle (organizer only)" },
-    { name: "Stands", description: "Stand lifecycle and lookup" },
+    { name: "Products", description: "Products offered at a stand" },
   ],
   components: {
     securitySchemes: {
