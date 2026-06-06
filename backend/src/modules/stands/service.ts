@@ -1,4 +1,3 @@
-import bcrypt from "bcrypt";
 import { Stand, type StandDoc } from "./model";
 import { OperatorInvalidCredentialsError, StandNotFoundError } from "./errors";
 import type {
@@ -6,13 +5,17 @@ import type {
   OperatorLoginInput,
   UpdateStandInput,
 } from "./types";
-import { config } from "../../config/config";
-import { generateOperatorToken } from "../../middleware/authOperator";
+import { signJwt } from "../../lib/jwt";
+import { comparePassword, hashPassword } from "../../lib/password";
 import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
 import { Event } from "../events/model";
 import { EventNotFoundError } from "../events/errors";
 
 type SafeStand = Omit<StandDoc, "accessPasswordHash">;
+
+function issueOperatorToken(standId: string): string {
+  return signJwt({ tokenType: "OPERATOR", standId });
+}
 
 function strip(stand: StandDoc): SafeStand {
   const safe: Partial<StandDoc> = { ...stand };
@@ -27,7 +30,7 @@ export async function createStand(
 ): Promise<SafeStand> {
   await verifyEventOwnership(eventId, accountId);
   const accessPasswordHash = input.accessPassword
-    ? await bcrypt.hash(input.accessPassword, config.bcryptRounds)
+    ? await hashPassword(input.accessPassword)
     : null;
   const stand = await Stand.create({
     eventId,
@@ -119,7 +122,7 @@ export async function updateStand(
   }
   if (patch.accessPassword !== undefined) {
     stand.accessPasswordHash = patch.accessPassword
-      ? await bcrypt.hash(patch.accessPassword, config.bcryptRounds)
+      ? await hashPassword(patch.accessPassword)
       : null;
   }
   await stand.save();
@@ -131,9 +134,6 @@ export interface OperatorLoginResult {
   standId: string;
 }
 
-// Authenticates an operator against a stand's accessPasswordHash and issues a
-// stand-scoped operator token. The operator identity has no own entity — it is
-// the Stand authenticated by password, so this lives in the stands module.
 export async function loginOperator(
   input: OperatorLoginInput
 ): Promise<OperatorLoginResult> {
@@ -154,7 +154,7 @@ export async function loginOperator(
     throw new OperatorInvalidCredentialsError();
   }
 
-  const validPassword = await bcrypt.compare(
+  const validPassword = await comparePassword(
     input.accessPassword,
     stand.accessPasswordHash
   );
@@ -163,7 +163,7 @@ export async function loginOperator(
   }
 
   return {
-    token: generateOperatorToken(stand._id),
+    token: issueOperatorToken(stand._id),
     standId: stand._id,
   };
 }

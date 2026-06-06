@@ -1,14 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
-import {
-  getBearerToken,
-  readRequiredStringClaim,
-  verifyJwtPayload,
-} from "./auth/requestCredentials";
+import { readRequiredStringClaim, verifyJwt } from "../lib/jwt";
+import { getBearerToken } from "./auth/requestCredentials";
 
 export function authenticateOrganizerToken(token: string): {
   accountId: string;
 } {
-  const payload = verifyJwtPayload(token);
+  const payload = verifyJwt(token);
   if (payload["tokenType"] !== "ORGANIZER") {
     throw new Error("Invalid organizer token payload");
   }
