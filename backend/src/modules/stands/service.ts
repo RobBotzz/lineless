@@ -1,9 +1,15 @@
 import bcrypt from "bcrypt";
 import { Stand, type StandDoc } from "./model";
-import { StandNotFoundError } from "./errors";
-import type { CreateStandInput, UpdateStandInput } from "./types";
+import { OperatorInvalidCredentialsError, StandNotFoundError } from "./errors";
+import type {
+  CreateStandInput,
+  OperatorLoginInput,
+  UpdateStandInput,
+} from "./types";
 import { config } from "../../config/config";
+import { generateOperatorToken } from "../../middleware/authOperator";
 import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
+import { Event } from "../events/model";
 import { EventNotFoundError } from "../events/errors";
 
 type SafeStand = Omit<StandDoc, "accessPasswordHash">;
@@ -118,6 +124,48 @@ export async function updateStand(
   }
   await stand.save();
   return strip(stand.toObject());
+}
+
+export interface OperatorLoginResult {
+  token: string;
+  standId: string;
+}
+
+// Authenticates an operator against a stand's accessPasswordHash and issues a
+// stand-scoped operator token. The operator identity has no own entity — it is
+// the Stand authenticated by password, so this lives in the stands module.
+export async function loginOperator(
+  input: OperatorLoginInput
+): Promise<OperatorLoginResult> {
+  const stand = await Stand.findOne({
+    _id: input.standId,
+    deletedAt: null,
+  }).lean();
+  if (!stand?.accessPasswordHash) {
+    throw new OperatorInvalidCredentialsError();
+  }
+
+  const event = await Event.findOne({
+    _id: stand.eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  }).lean();
+  if (!event) {
+    throw new OperatorInvalidCredentialsError();
+  }
+
+  const validPassword = await bcrypt.compare(
+    input.accessPassword,
+    stand.accessPasswordHash
+  );
+  if (!validPassword) {
+    throw new OperatorInvalidCredentialsError();
+  }
+
+  return {
+    token: generateOperatorToken(stand._id),
+    standId: stand._id,
+  };
 }
 
 export async function softDeleteStand(

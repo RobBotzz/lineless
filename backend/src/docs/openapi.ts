@@ -7,7 +7,6 @@ import {
   standProductsRouter,
   productsRouter,
 } from "../modules/products/routes";
-import operatorRouter from "../modules/operators/routes";
 import sessionsRouter from "../modules/sessions/routes";
 import { authOrganizer } from "../middleware/authOrganizer";
 import {
@@ -28,7 +27,6 @@ import {
 const MOUNTS: { base: string; router: Router; tag: string }[] = [
   { base: "/api/account", router: accountRouter, tag: "Accounts" },
   { base: "/api/sessions", router: sessionsRouter, tag: "Sessions" },
-  { base: "/api/operator", router: operatorRouter, tag: "Operator" },
   { base: "/api/events", router: eventsRouter, tag: "Events" },
   {
     base: "/api/events/:eventId/stands",

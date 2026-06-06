@@ -7,12 +7,17 @@ import {
   getStandForAttendee,
   getStandForOrganizer,
   getStandForOperator,
+  loginOperator,
   updateStand,
   softDeleteStand,
 } from "./service";
-import { StandNotFoundError } from "./errors";
+import { OperatorInvalidCredentialsError, StandNotFoundError } from "./errors";
 import { EventNotFoundError } from "../events/errors";
-import { createStandSchema, updateStandSchema } from "./types";
+import {
+  createStandSchema,
+  operatorLoginSchema,
+  updateStandSchema,
+} from "./types";
 import { authOrganizer } from "../../middleware/authOrganizer";
 import {
   authOrganizerOrAttendee,
@@ -32,6 +37,8 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
+  if (err instanceof OperatorInvalidCredentialsError)
+    return res.status(401).json({ error: err.message });
   console.error("Stands error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -96,6 +103,19 @@ standsRouter.get(
       handleError(err, res);
     }
   }
+);
+
+// POST /stands/login — operator authenticates against a stand (public).
+standsRouter.post(
+  "/login",
+  validateBody(operatorLoginSchema, async (_req, res, data) => {
+    try {
+      const result = await loginOperator(data);
+      res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
 );
 
 standsRouter.use(authOrganizer);
