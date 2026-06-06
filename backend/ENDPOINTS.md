@@ -32,11 +32,14 @@ Admin dashboard, event configuration, analytics, payout management.
 
 ### Products
 
-| Method | URL                          | Description                                  |
-| ------ | ---------------------------- | -------------------------------------------- |
-| POST   | `/stands/{standId}/products` | Create product                               |
-| PATCH  | `/products/{productId}`      | Update product                               |
-| DELETE | `/products/{productId}`      | Delete product (soft delete via `deletedAt`) |
+| Method | URL                               | Description                                  |
+| ------ | --------------------------------- | -------------------------------------------- |
+| POST   | `/stands/{standId}/products`      | Create product                               |
+| GET    | `/products/{productId}`           | Get single product                           |
+| PATCH  | `/products/{productId}`           | Update product                               |
+| DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`) |
+| POST   | `/products/{productId}/pause`     | Pause product                                |
+| POST   | `/products/{productId}/terminate` | Terminate product                            |
 
 ### Analytics
 
@@ -104,6 +107,8 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 | Method | URL                               | Description                                      |
 | ------ | --------------------------------- | ------------------------------------------------ |
 | GET    | `/stands/{standId}/orders/stream` | Order stream for operator/pickup dashboard (SSE) |
+| POST   | `/products/{productId}/pause`     | Pause product                                    |
+| POST   | `/products/{productId}/terminate` | Terminate product                                |
 
 ### Order item status transitions (operator dashboard)
 
@@ -128,7 +133,7 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 | ------ | -------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
 | GET    | `/stands/{standId}`              | Get single stand                                                 | Organizer, Operator, Customer |
 | GET    | `/events/{eventId}/stands`       | List stands of an event                                          | Organizer, Customer           |
-| GET    | `/stands/{standId}/products`     | List products of a stand (menu / catalog)                        | Customer, Operator            |
+| GET    | `/stands/{standId}/products`     | List products of a stand (menu / catalog)                        | Organizer, Operator, Customer |
 | POST   | `/orders`                        | Create order (customer app and cashier both use this)            | Customer, Operator            |
 | POST   | `/orders/{orderId}/cash-payment` | Cash payment (operator confirms, applies to customer orders too) | Operator                      |
 

@@ -12,6 +12,7 @@ import sessionsRouter from "../modules/sessions/routes";
 import { authOrganizer } from "../middleware/authOrganizer";
 import {
   authOrganizerOrAttendee,
+  authOrganizerOrOperator,
   authOrganizerOrOperatorOrAttendee,
 } from "../middleware/auth/combinations";
 
@@ -51,6 +52,7 @@ const AUTH = new Map<unknown, SecurityRequirement[]>([
     authOrganizerOrAttendee,
     [{ organizerAuth: [] }, { attendeeSessionAuth: [] }],
   ],
+  [authOrganizerOrOperator, [{ organizerAuth: [] }, { standAuth: [] }]],
   [
     authOrganizerOrOperatorOrAttendee,
     [{ organizerAuth: [] }, { standAuth: [] }, { attendeeSessionAuth: [] }],

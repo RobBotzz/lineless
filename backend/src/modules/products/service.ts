@@ -2,6 +2,50 @@ import { Product, type ProductDoc } from "./model";
 import { ProductNotFoundError } from "./errors";
 import type { CreateProductInput, UpdateProductInput } from "./types";
 import { verifyStandOwnership } from "../stands/ownership";
+import { Stand } from "../stands/model";
+import { StandNotFoundError } from "../stands/errors";
+import { verifyActiveEvent } from "../events/ownership";
+
+async function productsForStand(standId: string): Promise<ProductDoc[]> {
+  return Product.find({ standId, deletedAt: null })
+    .sort({ createdAt: 1 })
+    .lean();
+}
+
+async function getExistingProduct(productId: string): Promise<ProductDoc> {
+  const product = await Product.findOne({
+    _id: productId,
+    deletedAt: null,
+  }).lean();
+  if (!product) throw new ProductNotFoundError();
+  return product;
+}
+
+async function verifyStandAccessForOperator(
+  standId: string,
+  operatorStandId: string
+): Promise<void> {
+  if (standId !== operatorStandId) {
+    throw new StandNotFoundError();
+  }
+
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
+  if (!stand) throw new StandNotFoundError();
+  await verifyActiveEvent(stand.eventId);
+}
+
+async function verifyStandAccessForAttendee(
+  standId: string,
+  eventId: string
+): Promise<void> {
+  const stand = await Stand.findOne({
+    _id: standId,
+    eventId,
+    deletedAt: null,
+  }).lean();
+  if (!stand) throw new StandNotFoundError();
+  await verifyActiveEvent(eventId);
+}
 
 export async function createProduct(
   standId: string,
@@ -21,24 +65,52 @@ export async function createProduct(
   });
 }
 
-export async function listProducts(
+export async function listProductsForOrganizer(
   standId: string,
   accountId: string
 ): Promise<ProductDoc[]> {
   await verifyStandOwnership(standId, accountId);
-  return Product.find({ standId, deletedAt: null })
-    .sort({ createdAt: 1 })
-    .lean();
+  return productsForStand(standId);
 }
 
-// Readable by organizer and attendee — no ownership filter, mirrors getStand.
-export async function getProduct(productId: string): Promise<ProductDoc> {
-  const product = await Product.findOne({
-    _id: productId,
-    deletedAt: null,
-  }).lean();
-  if (!product) throw new ProductNotFoundError();
+export async function listProductsForOperator(
+  standId: string,
+  operatorStandId: string
+): Promise<ProductDoc[]> {
+  await verifyStandAccessForOperator(standId, operatorStandId);
+  return productsForStand(standId);
+}
+
+export async function listProductsForAttendee(
+  standId: string,
+  eventId: string
+): Promise<ProductDoc[]> {
+  await verifyStandAccessForAttendee(standId, eventId);
+  return productsForStand(standId);
+}
+
+export async function getProductForOrganizer(
+  productId: string,
+  accountId: string
+): Promise<ProductDoc> {
+  const product = await getExistingProduct(productId);
+  await verifyStandOwnership(product.standId, accountId);
   return product;
+}
+
+export async function verifyProductControlAccess(
+  productId: string,
+  auth:
+    | { type: "organizer"; accountId: string }
+    | { type: "operator"; standId: string }
+): Promise<void> {
+  const product = await getExistingProduct(productId);
+  if (auth.type === "organizer") {
+    await verifyStandOwnership(product.standId, auth.accountId);
+    return;
+  }
+
+  await verifyStandAccessForOperator(product.standId, auth.standId);
 }
 
 export async function updateProduct(
