@@ -23,6 +23,12 @@ request:
       value: localhost
     - name: port
       value: "8000"
+    - name: organizerToken
+      value: ""
+    - name: operatorToken
+      value: ""
+    - name: attendeeSessionId
+      value: ""
     - name: eventId
       value: 0f0ceb02-bf02-48af-92c8-a8b367966f5b
     - name: standId

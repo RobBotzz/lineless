@@ -3,7 +3,8 @@ import { validateBody } from "../../middleware/validate";
 import {
   createEvent,
   listEvents,
-  getEvent,
+  getEventForAttendee,
+  getEventForOrganizer,
   updateEvent,
   startEvent,
   stopEvent,
@@ -11,8 +12,8 @@ import {
 } from "./service";
 import { EventNotFoundError, EventStateError } from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
-import { authAccount } from "../../middleware/authAccount";
-import { authAccountOrSession } from "../../middleware/authAccountOrSession";
+import { authOrganizer } from "../../middleware/authOrganizer";
+import { authOrganizerOrAttendee } from "../../middleware/auth/combinations";
 
 const eventsRouter = Router();
 
@@ -34,10 +35,12 @@ function handleError(err: unknown, res: Response): unknown {
 // GET /events/:eventId — readable by organizer and attendee (session)
 eventsRouter.get(
   "/:eventId",
-  authAccountOrSession,
+  authOrganizerOrAttendee,
   async (req: Request, res: Response) => {
     try {
-      const event = await getEvent(eventId(req));
+      const event = req.organizer
+        ? await getEventForOrganizer(eventId(req), req.organizer.accountId)
+        : await getEventForAttendee(eventId(req), req.attendee!.eventId);
       res.status(200).json(event);
     } catch (err) {
       handleError(err, res);
@@ -45,13 +48,13 @@ eventsRouter.get(
   }
 );
 
-eventsRouter.use(authAccount);
+eventsRouter.use(authOrganizer);
 
 eventsRouter.post(
   "/",
   validateBody(createEventSchema, async (req, res, data) => {
     try {
-      const event = await createEvent(req.user!.accountId, data);
+      const event = await createEvent(req.organizer!.accountId, data);
       res.status(201).json(event);
     } catch (err) {
       handleError(err, res);
@@ -61,7 +64,7 @@ eventsRouter.post(
 
 eventsRouter.get("/", async (req: Request, res: Response) => {
   try {
-    const events = await listEvents(req.user!.accountId);
+    const events = await listEvents(req.organizer!.accountId);
     res.status(200).json(events);
   } catch (err) {
     handleError(err, res);
@@ -72,7 +75,11 @@ eventsRouter.patch(
   "/:eventId",
   validateBody(updateEventSchema, async (req, res, data) => {
     try {
-      const event = await updateEvent(eventId(req), req.user!.accountId, data);
+      const event = await updateEvent(
+        eventId(req),
+        req.organizer!.accountId,
+        data
+      );
       res.status(200).json(event);
     } catch (err) {
       handleError(err, res);
@@ -82,7 +89,7 @@ eventsRouter.patch(
 
 eventsRouter.post("/:eventId/start", async (req: Request, res: Response) => {
   try {
-    const event = await startEvent(eventId(req), req.user!.accountId);
+    const event = await startEvent(eventId(req), req.organizer!.accountId);
     res.status(200).json(event);
   } catch (err) {
     handleError(err, res);
@@ -91,7 +98,7 @@ eventsRouter.post("/:eventId/start", async (req: Request, res: Response) => {
 
 eventsRouter.post("/:eventId/stop", async (req: Request, res: Response) => {
   try {
-    const event = await stopEvent(eventId(req), req.user!.accountId);
+    const event = await stopEvent(eventId(req), req.organizer!.accountId);
     res.status(200).json(event);
   } catch (err) {
     handleError(err, res);
@@ -100,7 +107,7 @@ eventsRouter.post("/:eventId/stop", async (req: Request, res: Response) => {
 
 eventsRouter.delete("/:eventId", async (req: Request, res: Response) => {
   try {
-    await softDeleteEvent(eventId(req), req.user!.accountId);
+    await softDeleteEvent(eventId(req), req.organizer!.accountId);
     res.status(204).send();
   } catch (err) {
     handleError(err, res);

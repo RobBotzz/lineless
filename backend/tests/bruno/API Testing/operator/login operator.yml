@@ -1,17 +1,17 @@
 info:
-  name: login
+  name: login operator
   type: http
-  seq: 2
+  seq: 1
 
 http:
   method: POST
-  url: http://{{host}}:{{port}}/api/account/login
+  url: http://{{host}}:{{port}}/api/operator/login
   body:
     type: json
     data: |-
       {
-        "email": "torben@test.de",
-        "password": "1234567a"
+        "standId": "{{standId}}",
+        "accessPassword": "secret123"
       }
   auth:
     type: none
@@ -19,13 +19,14 @@ http:
 script:
   res: |
     if (res.status === 200 && res.body.token) {
-      bru.setVar("organizerToken", res.body.token);
+      bru.setVar("operatorToken", res.body.token);
     }
 
 tests: |
-  test("login returns organizer token", function () {
+  test("operator login returns stand-scoped token", function () {
     expect(res.status).to.equal(200);
     expect(res.body.token).to.be.a("string").and.not.empty;
+    expect(res.body.standId).to.equal(bru.getVar("standId"));
   });
 
 settings:

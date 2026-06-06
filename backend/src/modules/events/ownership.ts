@@ -18,3 +18,12 @@ export async function verifyEventOwnership(
   }).lean();
   if (!event) throw new EventNotFoundError();
 }
+
+export async function verifyActiveEvent(eventId: string): Promise<void> {
+  const event = await Event.findOne({
+    _id: eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+}

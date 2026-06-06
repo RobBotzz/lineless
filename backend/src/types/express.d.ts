@@ -1,15 +1,21 @@
 import "express";
 
-// Attached by the authAccount middleware after verifying the organizer JWT.
 declare global {
   namespace Express {
     interface Request {
-      user?: {
+      organizer?: {
         accountId: string;
+      };
+      operator?: {
+        standId: string;
+      };
+      attendee?: {
+        sessionId: string;
+        eventId: string;
       };
       stand?: {
         standId: string;
-        eventId: string;
+        eventId?: string;
       };
     }
   }

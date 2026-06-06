@@ -19,8 +19,8 @@ http:
   auth:
     type: none
   headers:
-    - name: Cookie
-      value: sessionId=test-session
+    - name: X-Attendee-Session-ID
+      value: "{{attendeeSessionId}}"
       enabled: true
 
 tests: |

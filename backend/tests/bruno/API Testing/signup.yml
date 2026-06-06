@@ -15,7 +15,24 @@ http:
         "firstName": "Max",
         "lastName": "Mustermann"
       }
-  auth: inherit
+  auth:
+    type: none
+
+script:
+  res: |
+    if (res.status === 201 && res.body.token) {
+      bru.setVar("organizerToken", res.body.token);
+    }
+
+tests: |
+  test("signup either creates organizer or reports existing account", function () {
+    expect([201, 409]).to.include(res.status);
+  });
+  if (res.status === 201) {
+    test("signup returns organizer token", function () {
+      expect(res.body.token).to.be.a("string").and.not.empty;
+    });
+  }
 
 settings:
   encodeUrl: true

@@ -1,7 +1,7 @@
 info:
-  name: get event (attendee)
+  name: attendee auth invalid
   type: http
-  seq: 2
+  seq: 5
 
 http:
   method: GET
@@ -10,15 +10,12 @@ http:
     type: none
   headers:
     - name: X-Attendee-Session-ID
-      value: "{{attendeeSessionId}}"
+      value: 00000000-0000-4000-8000-000000000000
       enabled: true
 
 tests: |
-  test("attendee can read event", function () {
-    expect(res.status).to.equal(200);
-  });
-  test("event exposes location", function () {
-    expect(res.body).to.have.property("location");
+  test("invalid attendee session is rejected", function () {
+    expect(res.status).to.equal(401);
   });
 
 settings:

@@ -7,10 +7,14 @@ import {
   standProductsRouter,
   productsRouter,
 } from "../modules/products/routes";
-import { authAccount } from "../middleware/authAccount";
-import { authSession } from "../middleware/authSession";
-import { authAccountOrSession } from "../middleware/authAccountOrSession";
-import { authStand } from "../middleware/authStand";
+import operatorRouter from "../modules/operators/routes";
+import sessionsRouter from "../modules/sessions/routes";
+import { authOrganizer } from "../middleware/authOrganizer";
+import {
+  authOrganizerOrAttendee,
+  authOrganizerOrOperator,
+  authOrganizerOrOperatorOrAttendee,
+} from "../middleware/auth/combinations";
 
 // =============================================================================
 // The OpenAPI document is GENERATED, not hand-written. We walk each mounted
@@ -23,6 +27,8 @@ import { authStand } from "../middleware/authStand";
 
 const MOUNTS: { base: string; router: Router; tag: string }[] = [
   { base: "/api/account", router: accountRouter, tag: "Accounts" },
+  { base: "/api/sessions", router: sessionsRouter, tag: "Sessions" },
+  { base: "/api/operator", router: operatorRouter, tag: "Operator" },
   { base: "/api/events", router: eventsRouter, tag: "Events" },
   {
     base: "/api/events/:eventId/stands",
@@ -41,10 +47,16 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
 // Maps an auth middleware to the OpenAPI security requirement it enforces.
 type SecurityRequirement = Record<string, string[]>;
 const AUTH = new Map<unknown, SecurityRequirement[]>([
-  [authAccount, [{ bearerAuth: [] }]],
-  [authSession, [{ sessionCookie: [] }]],
-  [authAccountOrSession, [{ bearerAuth: [] }, { sessionCookie: [] }]],
-  [authStand, [{ standAuth: [] }]],
+  [authOrganizer, [{ organizerAuth: [] }]],
+  [
+    authOrganizerOrAttendee,
+    [{ organizerAuth: [] }, { attendeeSessionAuth: [] }],
+  ],
+  [authOrganizerOrOperator, [{ organizerAuth: [] }, { standAuth: [] }]],
+  [
+    authOrganizerOrOperatorOrAttendee,
+    [{ organizerAuth: [] }, { standAuth: [] }, { attendeeSessionAuth: [] }],
+  ],
 ]);
 
 // --- minimal shape of the Express router internals we read ---
@@ -197,22 +209,24 @@ export const openapiSpec = {
   },
   tags: [
     { name: "Accounts", description: "Organizer authentication and profile" },
+    { name: "Sessions", description: "Attendee session lifecycle" },
+    { name: "Operator", description: "Operator authentication" },
     { name: "Events", description: "Event lifecycle (organizer only)" },
     { name: "Products", description: "Products offered at a stand" },
   ],
   components: {
     securitySchemes: {
-      bearerAuth: {
+      organizerAuth: {
         type: "http",
         scheme: "bearer",
         bearerFormat: "JWT",
         description: "Organizer JWT from POST /api/account/login or /signup",
       },
-      sessionCookie: {
+      attendeeSessionAuth: {
         type: "apiKey",
-        in: "cookie",
-        name: "userSessionId",
-        description: "Attendee session cookie",
+        in: "header",
+        name: "X-Attendee-Session-ID",
+        description: "Attendee session ID from POST /api/sessions/create",
       },
       standAuth: {
         type: "http",

@@ -30,29 +30,29 @@ const accountSchema = new Schema<AccountDoc>(
     email: {
       type: String,
       unique: true,
-      trim: true
+      trim: true,
     },
     passwordHash: {
-      type: String
+      type: String,
     },
     firstName: {
-      type: String
+      type: String,
     },
     lastName: {
-      type: String
+      type: String,
     },
     iban: {
       type: String,
-      default: null
+      default: null,
     },
     ibanHolderName: {
       type: String,
-      default: null
+      default: null,
     },
     deletedAt: {
       type: Date,
       required: false,
-      default: null
+      default: null,
     },
   },
   {
