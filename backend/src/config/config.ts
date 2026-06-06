@@ -4,11 +4,9 @@ interface Config {
   mongoUri: string;
   jwt: {
     secret: string;
-    /** Token lifetime for organizer (Account) JWTs. */
+    /** Token lifetime for organizer JWTs. */
     expiresIn: string;
   };
-  /** Name of the httpOnly cookie holding the attendee userSessionId. */
-  sessionCookieName: string;
   /** bcrypt cost factor used for all password hashing. */
   bcryptRounds: number;
 }
@@ -23,6 +21,5 @@ export const config: Config = {
     secret: "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
     expiresIn: "30d",
   },
-  sessionCookieName: "userSessionId",
   bcryptRounds: 10,
 };

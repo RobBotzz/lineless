@@ -68,9 +68,9 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Session
 
-| Method | URL              | Description                            |
-| ------ | ---------------- | -------------------------------------- |
-| POST   | `/users/session` | Create user session (stored as cookie) |
+| Method | URL                | Description                          |
+| ------ | ------------------ | ------------------------------------ |
+| POST   | `/sessions/create` | Create attendee session for an event |
 
 ### Orders
 
@@ -92,6 +92,12 @@ Mobile guest web app: browse, order, pay, track, rate.
 ## Operator
 
 Pickup dashboard, operator (kitchen) dashboard, cashier view.
+
+### Authentication
+
+| Method | URL               | Description               |
+| ------ | ----------------- | ------------------------- |
+| POST   | `/operator/login` | Login with stand password |
 
 ### Stand selection & dashboards
 
@@ -120,8 +126,8 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 
 | Method | URL                              | Description                                                      | Used by                       |
 | ------ | -------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
-| GET    | `/stands/{standId}`              | Get single stand                                                 | Organizer, Operator           |
-| GET    | `/events/{eventId}/stands`       | List stands of an event                                          | Organizer, Operator, Customer |
+| GET    | `/stands/{standId}`              | Get single stand                                                 | Organizer, Operator, Customer |
+| GET    | `/events/{eventId}/stands`       | List stands of an event                                          | Organizer, Customer           |
 | GET    | `/stands/{standId}/products`     | List products of a stand (menu / catalog)                        | Customer, Operator            |
 | POST   | `/orders`                        | Create order (customer app and cashier both use this)            | Customer, Operator            |
 | POST   | `/orders/{orderId}/cash-payment` | Cash payment (operator confirms, applies to customer orders too) | Operator                      |

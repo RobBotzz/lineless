@@ -1,22 +1,29 @@
 import type { Request, Response, NextFunction } from "express";
-import { config } from "../config/config";
-import { getCookie } from "./auth/requestCredentials";
+import { validateAttendeeSession } from "../modules/sessions/service";
 
-export function getAttendeeSessionId(req: Request): string | null {
-  return getCookie(req, config.sessionCookieName);
+const ATTENDEE_SESSION_HEADER = "X-Attendee-Session-ID";
+
+export async function authenticateAttendeeRequest(req: Request): Promise<{
+  sessionId: string;
+  eventId: string;
+}> {
+  const sessionId = req.get(ATTENDEE_SESSION_HEADER);
+  if (!sessionId) {
+    throw new Error("No attendee session found");
+  }
+
+  return validateAttendeeSession(sessionId);
 }
 
-export function authAttendee(
+export async function authAttendee(
   req: Request,
   res: Response,
   next: NextFunction
-): void {
-  const sessionId = getAttendeeSessionId(req);
-  if (!sessionId) {
-    res.status(401).json({ error: "No attendee session found" });
-    return;
+): Promise<void> {
+  try {
+    req.attendee = await authenticateAttendeeRequest(req);
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid or expired attendee session" });
   }
-
-  req.attendee = { sessionId };
-  next();
 }

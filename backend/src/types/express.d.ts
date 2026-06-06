@@ -3,7 +3,7 @@ import "express";
 declare global {
   namespace Express {
     interface Request {
-      account?: {
+      organizer?: {
         accountId: string;
       };
       operator?: {
@@ -11,9 +11,7 @@ declare global {
       };
       attendee?: {
         sessionId: string;
-      };
-      user?: {
-        accountId: string;
+        eventId: string;
       };
       stand?: {
         standId: string;

@@ -48,7 +48,7 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
 
   return {
     message: "Account created successfully",
-    token: generateToken(account.accountId, account.email),
+    token: generateToken(account.accountId),
   };
 }
 
@@ -71,7 +71,7 @@ export async function login(input: LoginInput): Promise<AuthResult> {
 
   return {
     message: "Login successful",
-    token: generateToken(account.accountId, account.email),
+    token: generateToken(account.accountId),
   };
 }
 
@@ -169,6 +169,6 @@ export async function changePassword(
 
   return {
     message: "Password updated successfully",
-    token: generateToken(account.accountId, account.email),
+    token: generateToken(account.accountId),
   };
 }

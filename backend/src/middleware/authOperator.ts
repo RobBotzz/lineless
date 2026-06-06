@@ -1,42 +1,31 @@
 import type { Request, Response, NextFunction } from "express";
+import jwt, { type SignOptions } from "jsonwebtoken";
+import { config } from "../config/config";
 import {
   getBearerToken,
   readRequiredStringClaim,
   verifyJwtPayload,
 } from "./auth/requestCredentials";
 
-interface OperatorTokenPayload {
-  tokenType: "OPERATOR";
-  standId: string;
-}
+const TOKEN_EXPIRATION = config.jwt.expiresIn as SignOptions["expiresIn"];
 
-function parseOperatorPayload(token: string): OperatorTokenPayload {
-  const payload = verifyJwtPayload(token);
-  const tokenType = payload["tokenType"] as unknown;
-  const standId = readRequiredStringClaim(payload, "standId");
-
-  if (tokenType !== "OPERATOR") {
-    throw new Error("Invalid operator token payload");
+export function generateOperatorToken(standId: string): string {
+  if (!standId) {
+    throw new Error("Cannot generate token: missing standId");
   }
 
-  return { tokenType, standId };
+  return jwt.sign({ tokenType: "OPERATOR", standId }, config.jwt.secret, {
+    expiresIn: TOKEN_EXPIRATION,
+  });
 }
 
 export function authenticateOperatorToken(token: string): { standId: string } {
-  const payload = parseOperatorPayload(token);
-  return { standId: payload.standId };
-}
+  const payload = verifyJwtPayload(token);
+  if (payload["tokenType"] !== "OPERATOR") {
+    throw new Error("Invalid operator token payload");
+  }
 
-export function operatorMatchesRouteStand(
-  req: Request,
-  operator: { standId: string }
-): boolean {
-  const routeStandId = req.params["standId"];
-  return (
-    typeof routeStandId !== "string" ||
-    routeStandId.length === 0 ||
-    routeStandId === operator.standId
-  );
+  return { standId: readRequiredStringClaim(payload, "standId") };
 }
 
 export function authOperator(
@@ -52,11 +41,6 @@ export function authOperator(
 
   try {
     const operator = authenticateOperatorToken(token);
-    if (!operatorMatchesRouteStand(req, operator)) {
-      res.status(403).json({ error: "Operator token does not match stand" });
-      return;
-    }
-
     req.operator = operator;
     next();
   } catch {

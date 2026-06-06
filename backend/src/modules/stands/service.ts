@@ -4,6 +4,7 @@ import { StandNotFoundError } from "./errors";
 import type { CreateStandInput, UpdateStandInput } from "./types";
 import { config } from "../../config/config";
 import { verifyEventOwnership } from "../events/ownership";
+import { EventNotFoundError } from "../events/errors";
 
 type SafeStand = Omit<StandDoc, "accessPasswordHash">;
 
@@ -42,10 +43,54 @@ export async function listStands(
   return stands.map(strip);
 }
 
-export async function getStand(standId: string): Promise<SafeStand> {
+export async function listStandsForAttendee(
+  eventId: string,
+  sessionEventId: string
+): Promise<SafeStand[]> {
+  if (eventId !== sessionEventId) {
+    throw new EventNotFoundError();
+  }
+
+  const stands = await Stand.find({ eventId, deletedAt: null })
+    .sort({ createdAt: 1 })
+    .lean();
+  return stands.map(strip);
+}
+
+async function getStand(standId: string): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
   return strip(stand.toObject());
+}
+
+export async function getStandForOrganizer(
+  standId: string,
+  accountId: string
+): Promise<SafeStand> {
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null });
+  if (!stand) throw new StandNotFoundError();
+  await verifyEventOwnership(stand.eventId, accountId);
+  return strip(stand.toObject());
+}
+
+export async function getStandForAttendee(
+  standId: string,
+  eventId: string
+): Promise<SafeStand> {
+  const stand = await Stand.findOne({ _id: standId, eventId, deletedAt: null });
+  if (!stand) throw new StandNotFoundError();
+  return strip(stand.toObject());
+}
+
+export async function getStandForOperator(
+  standId: string,
+  operatorStandId: string
+): Promise<SafeStand> {
+  if (standId !== operatorStandId) {
+    throw new StandNotFoundError();
+  }
+
+  return getStand(standId);
 }
 
 export async function updateStand(

@@ -1,0 +1,36 @@
+info:
+  name: create attendee session
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://{{host}}:{{port}}/api/sessions/create
+  body:
+    type: json
+    data: |-
+      {
+        "eventId": "{{eventId}}"
+      }
+  auth:
+    type: none
+
+script:
+  res: |
+    if (res.status === 201 && res.body.sessionId) {
+      bru.setVar("attendeeSessionId", res.body.sessionId);
+    }
+
+tests: |
+  test("creates attendee session", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.sessionId).to.be.a("string").and.not.empty;
+    expect(res.body.eventId).to.equal(bru.getVar("eventId"));
+    expect(res.body.expiresAt).to.be.a("string").and.not.empty;
+  });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

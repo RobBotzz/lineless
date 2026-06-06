@@ -24,14 +24,37 @@ export async function listEvents(accountId: string): Promise<EventDoc[]> {
     .lean();
 }
 
-// Readable by organizer and attendee — no ownership filter, mirrors getStand.
-export async function getEvent(eventId: string): Promise<EventDoc> {
+async function getEvent(eventId: string): Promise<EventDoc> {
   const event = await Event.findOne({
     _id: eventId,
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
   return event;
+}
+
+export async function getEventForOrganizer(
+  eventId: string,
+  accountId: string
+): Promise<EventDoc> {
+  const event = await Event.findOne({
+    _id: eventId,
+    accountId,
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+  return event;
+}
+
+export async function getEventForAttendee(
+  eventId: string,
+  sessionEventId: string
+): Promise<EventDoc> {
+  if (eventId !== sessionEventId) {
+    throw new EventNotFoundError();
+  }
+
+  return getEvent(eventId);
 }
 
 async function findActiveEvent(eventId: string, accountId: string) {

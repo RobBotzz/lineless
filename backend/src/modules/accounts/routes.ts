@@ -1,6 +1,6 @@
 import { Router, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
-import { authAccount } from "../../middleware/authAccount";
+import { authOrganizer } from "../../middleware/authOrganizer";
 import {
   changePassword,
   deleteAccount,
@@ -67,11 +67,11 @@ accountRouter.post(
   })
 );
 
-accountRouter.use(authAccount);
+accountRouter.use(authOrganizer);
 
 accountRouter.delete("/delete", async (req, res) => {
   try {
-    await deleteAccount(req.user!.accountId);
+    await deleteAccount(req.organizer!.accountId);
     res.status(200).json({ message: "Account deleted successfully" });
   } catch (err) {
     handleError(err, res);
@@ -80,7 +80,7 @@ accountRouter.delete("/delete", async (req, res) => {
 
 accountRouter.get("/info", async (req, res) => {
   try {
-    const account = await getAccountInfo(req.user!.accountId);
+    const account = await getAccountInfo(req.organizer!.accountId);
     res.status(200).json({ account });
   } catch (err) {
     handleError(err, res);
@@ -91,7 +91,7 @@ accountRouter.patch(
   "/update",
   validateBody(updateAccountSchema, async (req, res, data) => {
     try {
-      const result = await updateAccountInfo(req.user!.accountId, data);
+      const result = await updateAccountInfo(req.organizer!.accountId, data);
       res.status(200).json({
         message: "Account updated successfully",
         account: result.account,
@@ -106,7 +106,7 @@ accountRouter.patch(
   "/password",
   validateBody(changePasswordSchema, async (req, res, data) => {
     try {
-      const result = await changePassword(req.user!.accountId, data);
+      const result = await changePassword(req.organizer!.accountId, data);
       res.status(200).json(result);
     } catch (err) {
       handleError(err, res);

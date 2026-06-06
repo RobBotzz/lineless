@@ -6,20 +6,16 @@ const JWT_SECRET = config.jwt.secret;
 const TOKEN_EXPIRATION = config.jwt.expiresIn as SignOptions["expiresIn"];
 
 /**
- * Creates a JWT token for the given account ID and email.
+ * Creates a JWT token for the given account ID.
  */
-export const generateToken = (
-  accountId: string | undefined | null,
-  email: string | undefined | null
-): string => {
-  if (!accountId || !email) {
-    throw new Error("Cannot generate token: missing accountId or email");
+export const generateToken = (accountId: string | undefined | null): string => {
+  if (!accountId) {
+    throw new Error("Cannot generate token: missing accountId");
   }
 
   const payload = {
-    tokenType: "ACCOUNT",
+    tokenType: "ORGANIZER",
     sub: accountId, // "sub" ist der JWT-Standard für das Subjekt (die User-ID)
-    email: email,
   };
 
   return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRATION });

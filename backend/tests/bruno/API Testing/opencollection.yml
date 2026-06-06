@@ -17,12 +17,18 @@ config:
 request:
   auth:
     type: bearer
-    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmNGFkY2Q3OC0zNTNhLTQ3ODAtODMyMy03MjUzNWRmMDhjZmYiLCJlbWFpbCI6InJvYmluQHRlc3QuZGUiLCJpYXQiOjE3ODAyNDk3NTYsImV4cCI6MTc4Mjg0MTc1Nn0.9wXD285Q8eSkyDhKFCCrOxjiABaLySR8pfX4JnqKZks
+    token: "{{organizerToken}}"
   variables:
     - name: host
       value: localhost
     - name: port
       value: "8000"
+    - name: organizerToken
+      value: ""
+    - name: operatorToken
+      value: ""
+    - name: attendeeSessionId
+      value: ""
     - name: eventId
       value: 079b834d-e39e-4f53-b170-aff1cd1047bf
     - name: standId

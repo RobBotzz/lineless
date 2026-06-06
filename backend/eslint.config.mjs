@@ -17,7 +17,7 @@ export default tseslint.config(
       },
     },
     rules: {
-      // Express/JWT/cookies expose `any` at the boundary; erroring on every
+      // Express/JWT expose `any` at the boundary; erroring on every
       // such access is impractical. Keep them visible as warnings instead.
       "@typescript-eslint/no-unsafe-assignment": "warn",
       "@typescript-eslint/no-unsafe-member-access": "warn",

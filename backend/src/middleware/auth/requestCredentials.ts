@@ -30,8 +30,3 @@ export function readRequiredStringClaim(
 
   return value;
 }
-
-export function getCookie(req: Request, name: string): string | null {
-  const value = req.cookies?.[name] as string | undefined;
-  return value || null;
-}
