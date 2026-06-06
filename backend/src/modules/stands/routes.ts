@@ -18,11 +18,11 @@ import {
   operatorLoginSchema,
   updateStandSchema,
 } from "./types";
-import { authOrganizer } from "../../middleware/authOrganizer";
 import {
+  authOrganizer,
   authOrganizerOrAttendee,
   authOrganizerOrOperatorOrAttendee,
-} from "../../middleware/auth/combinations";
+} from "../../middleware/auth/guards";
 
 function eventId(req: Request): string {
   return req.params["eventId"] as string;
@@ -87,6 +87,19 @@ eventStandsRouter.get(
 // =============================================================================
 export const standsRouter = Router();
 
+// POST /stands/login — operator authenticates against a stand (public).
+standsRouter.post(
+  "/login",
+  validateBody(operatorLoginSchema, async (_req, res, data) => {
+    try {
+      const result = await loginOperator(data);
+      res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
 // GET /stands/:standId — readable by organizer, operator and attendee.
 standsRouter.get(
   "/:standId",
@@ -105,24 +118,10 @@ standsRouter.get(
   }
 );
 
-// POST /stands/login — operator authenticates against a stand (public).
-standsRouter.post(
-  "/login",
-  validateBody(operatorLoginSchema, async (_req, res, data) => {
-    try {
-      const result = await loginOperator(data);
-      res.status(200).json(result);
-    } catch (err) {
-      handleError(err, res);
-    }
-  })
-);
-
-standsRouter.use(authOrganizer);
-
 // PATCH /stands/:standId
 standsRouter.patch(
   "/:standId",
+  authOrganizer,
   validateBody(updateStandSchema, async (req, res, data) => {
     try {
       const stand = await updateStand(
@@ -138,11 +137,15 @@ standsRouter.patch(
 );
 
 // DELETE /stands/:standId
-standsRouter.delete("/:standId", async (req: Request, res: Response) => {
-  try {
-    await softDeleteStand(standId(req), req.organizer!.accountId);
-    res.status(204).send();
-  } catch (err) {
-    handleError(err, res);
+standsRouter.delete(
+  "/:standId",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      await softDeleteStand(standId(req), req.organizer!.accountId);
+      res.status(204).send();
+    } catch (err) {
+      handleError(err, res);
+    }
   }
-});
+);

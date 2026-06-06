@@ -12,8 +12,10 @@ import {
 } from "./service";
 import { EventNotFoundError, EventStateError } from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
-import { authOrganizer } from "../../middleware/authOrganizer";
-import { authOrganizerOrAttendee } from "../../middleware/auth/combinations";
+import {
+  authOrganizer,
+  authOrganizerOrAttendee,
+} from "../../middleware/auth/guards";
 
 const eventsRouter = Router();
 
@@ -48,10 +50,9 @@ eventsRouter.get(
   }
 );
 
-eventsRouter.use(authOrganizer);
-
 eventsRouter.post(
   "/",
+  authOrganizer,
   validateBody(createEventSchema, async (req, res, data) => {
     try {
       const event = await createEvent(req.organizer!.accountId, data);
@@ -62,7 +63,7 @@ eventsRouter.post(
   })
 );
 
-eventsRouter.get("/", async (req: Request, res: Response) => {
+eventsRouter.get("/", authOrganizer, async (req: Request, res: Response) => {
   try {
     const events = await listEvents(req.organizer!.accountId);
     res.status(200).json(events);
@@ -73,6 +74,7 @@ eventsRouter.get("/", async (req: Request, res: Response) => {
 
 eventsRouter.patch(
   "/:eventId",
+  authOrganizer,
   validateBody(updateEventSchema, async (req, res, data) => {
     try {
       const event = await updateEvent(
@@ -87,31 +89,43 @@ eventsRouter.patch(
   })
 );
 
-eventsRouter.post("/:eventId/start", async (req: Request, res: Response) => {
-  try {
-    const event = await startEvent(eventId(req), req.organizer!.accountId);
-    res.status(200).json(event);
-  } catch (err) {
-    handleError(err, res);
+eventsRouter.post(
+  "/:eventId/start",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const event = await startEvent(eventId(req), req.organizer!.accountId);
+      res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
   }
-});
+);
 
-eventsRouter.post("/:eventId/stop", async (req: Request, res: Response) => {
-  try {
-    const event = await stopEvent(eventId(req), req.organizer!.accountId);
-    res.status(200).json(event);
-  } catch (err) {
-    handleError(err, res);
+eventsRouter.post(
+  "/:eventId/stop",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const event = await stopEvent(eventId(req), req.organizer!.accountId);
+      res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
   }
-});
+);
 
-eventsRouter.delete("/:eventId", async (req: Request, res: Response) => {
-  try {
-    await softDeleteEvent(eventId(req), req.organizer!.accountId);
-    res.status(204).send();
-  } catch (err) {
-    handleError(err, res);
+eventsRouter.delete(
+  "/:eventId",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      await softDeleteEvent(eventId(req), req.organizer!.accountId);
+      res.status(204).send();
+    } catch (err) {
+      handleError(err, res);
+    }
   }
-});
+);
 
 export default eventsRouter;

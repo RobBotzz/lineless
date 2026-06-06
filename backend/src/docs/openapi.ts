@@ -8,12 +8,12 @@ import {
   productsRouter,
 } from "../modules/products/routes";
 import sessionsRouter from "../modules/sessions/routes";
-import { authOrganizer } from "../middleware/authOrganizer";
 import {
+  authOrganizer,
   authOrganizerOrAttendee,
   authOrganizerOrOperator,
   authOrganizerOrOperatorOrAttendee,
-} from "../middleware/auth/combinations";
+} from "../middleware/auth/guards";
 
 // =============================================================================
 // The OpenAPI document is GENERATED, not hand-written. We walk each mounted
@@ -208,7 +208,6 @@ export const openapiSpec = {
   tags: [
     { name: "Accounts", description: "Organizer authentication and profile" },
     { name: "Sessions", description: "Attendee session lifecycle" },
-    { name: "Operator", description: "Operator authentication" },
     { name: "Events", description: "Event lifecycle (organizer only)" },
     { name: "Products", description: "Products offered at a stand" },
   ],
