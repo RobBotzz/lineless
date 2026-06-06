@@ -11,7 +11,9 @@ export function getBearerToken(req: Request): string | null {
 }
 
 export function verifyJwtPayload(token: string): JwtPayload {
-  const payload = jwt.verify(token, config.jwt.secret);
+  const payload = jwt.verify(token, config.jwt.secret, {
+    algorithms: [config.jwt.algorithm],
+  });
   if (typeof payload !== "object" || payload === null) {
     throw new Error("Invalid token payload");
   }

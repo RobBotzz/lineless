@@ -52,6 +52,15 @@ export async function validateAttendeeSession(
     throw new AttendeeSessionInvalidError();
   }
 
+  const event = await Event.findOne({
+    _id: session.eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  }).lean();
+  if (!event) {
+    throw new AttendeeSessionInvalidError();
+  }
+
   return {
     sessionId: session._id,
     eventId: session.eventId,

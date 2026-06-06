@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import { generateOperatorToken } from "../../middleware/authOperator";
+import { Event } from "../events/model";
 import { Stand } from "../stands/model";
 import { OperatorInvalidCredentialsError } from "./errors";
 import type { OperatorLoginInput } from "./types";
@@ -17,6 +18,15 @@ export async function loginOperator(
     deletedAt: null,
   }).lean();
   if (!stand?.accessPasswordHash) {
+    throw new OperatorInvalidCredentialsError();
+  }
+
+  const event = await Event.findOne({
+    _id: stand.eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  }).lean();
+  if (!event) {
     throw new OperatorInvalidCredentialsError();
   }
 

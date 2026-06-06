@@ -1,9 +1,13 @@
+import type { Algorithm } from "jsonwebtoken";
+
 interface Config {
   nodeEnv: "development" | "production" | "test";
   port: number;
   mongoUri: string;
   jwt: {
     secret: string;
+    /** JWT signing and verification algorithm. */
+    algorithm: Algorithm;
     /** Token lifetime for organizer JWTs. */
     expiresIn: string;
   };
@@ -19,6 +23,7 @@ export const config: Config = {
     "mongodb://localhost:27017/lineless?directConnection=true",
   jwt: {
     secret: "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
+    algorithm: "HS256",
     expiresIn: "30d",
   },
   bcryptRounds: 10,

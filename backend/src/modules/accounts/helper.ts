@@ -4,6 +4,7 @@ import { config } from "../../config/config";
 
 const JWT_SECRET = config.jwt.secret;
 const TOKEN_EXPIRATION = config.jwt.expiresIn as SignOptions["expiresIn"];
+const JWT_ALGORITHM = config.jwt.algorithm;
 
 /**
  * Creates a JWT token for the given account ID.
@@ -18,7 +19,10 @@ export const generateToken = (accountId: string | undefined | null): string => {
     sub: accountId, // "sub" ist der JWT-Standard für das Subjekt (die User-ID)
   };
 
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRATION });
+  return jwt.sign(payload, JWT_SECRET, {
+    algorithm: JWT_ALGORITHM,
+    expiresIn: TOKEN_EXPIRATION,
+  });
 };
 
 /**

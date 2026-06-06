@@ -3,7 +3,7 @@ import { Stand, type StandDoc } from "./model";
 import { StandNotFoundError } from "./errors";
 import type { CreateStandInput, UpdateStandInput } from "./types";
 import { config } from "../../config/config";
-import { verifyEventOwnership } from "../events/ownership";
+import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
 import { EventNotFoundError } from "../events/errors";
 
 type SafeStand = Omit<StandDoc, "accessPasswordHash">;
@@ -51,6 +51,7 @@ export async function listStandsForAttendee(
     throw new EventNotFoundError();
   }
 
+  await verifyActiveEvent(eventId);
   const stands = await Stand.find({ eventId, deletedAt: null })
     .sort({ createdAt: 1 })
     .lean();
@@ -79,6 +80,7 @@ export async function getStandForAttendee(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, eventId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
+  await verifyActiveEvent(eventId);
   return strip(stand.toObject());
 }
 
@@ -90,7 +92,9 @@ export async function getStandForOperator(
     throw new StandNotFoundError();
   }
 
-  return getStand(standId);
+  const stand = await getStand(standId);
+  await verifyActiveEvent(stand.eventId);
+  return stand;
 }
 
 export async function updateStand(

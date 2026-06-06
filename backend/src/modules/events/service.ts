@@ -24,15 +24,6 @@ export async function listEvents(accountId: string): Promise<EventDoc[]> {
     .lean();
 }
 
-async function getEvent(eventId: string): Promise<EventDoc> {
-  const event = await Event.findOne({
-    _id: eventId,
-    deletedAt: null,
-  }).lean();
-  if (!event) throw new EventNotFoundError();
-  return event;
-}
-
 export async function getEventForOrganizer(
   eventId: string,
   accountId: string
@@ -54,7 +45,13 @@ export async function getEventForAttendee(
     throw new EventNotFoundError();
   }
 
-  return getEvent(eventId);
+  const event = await Event.findOne({
+    _id: eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+  return event;
 }
 
 async function findActiveEvent(eventId: string, accountId: string) {

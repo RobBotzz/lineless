@@ -8,6 +8,7 @@ import {
 } from "./auth/requestCredentials";
 
 const TOKEN_EXPIRATION = config.jwt.expiresIn as SignOptions["expiresIn"];
+const JWT_ALGORITHM = config.jwt.algorithm;
 
 export function generateOperatorToken(standId: string): string {
   if (!standId) {
@@ -15,6 +16,7 @@ export function generateOperatorToken(standId: string): string {
   }
 
   return jwt.sign({ tokenType: "OPERATOR", standId }, config.jwt.secret, {
+    algorithm: JWT_ALGORITHM,
     expiresIn: TOKEN_EXPIRATION,
   });
 }

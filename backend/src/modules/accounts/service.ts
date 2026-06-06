@@ -79,9 +79,11 @@ export async function deleteAccount(accountId: string): Promise<void> {
   const account = await Account.findOneAndUpdate(
     { accountId, deletedAt: null },
     {
-      $set: { deletedAt: new Date() },
+      $set: {
+        deletedAt: new Date(),
+        email: `deleted:${accountId}`,
+      },
       $unset: {
-        email: 1,
         passwordHash: 1,
         firstName: 1,
         lastName: 1,
