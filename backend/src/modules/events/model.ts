@@ -1,4 +1,3 @@
-import { randomBytes } from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import { model, Schema } from "mongoose";
 import { locationSchema, type Location } from "../../shared/location";
@@ -6,7 +5,7 @@ import { locationSchema, type Location } from "../../shared/location";
 export type EventStatus = "DRAFT" | "ACTIVE" | "STOPPED";
 
 export function generateOperatorAccessKey(): string {
-  return randomBytes(24).toString("base64url");
+  return uuidv4();
 }
 
 export interface EventBranding {
