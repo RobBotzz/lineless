@@ -4,6 +4,7 @@ import {
   createStand,
   listStands,
   listStandsForAttendee,
+  listStandsForEventLink,
   getStandForAttendee,
   getStandForOrganizer,
   getStandForOperator,
@@ -20,7 +21,7 @@ import {
 } from "./types";
 import {
   authOrganizer,
-  authOrganizerOrAttendee,
+  authOrganizerOrAttendeeOrEventLink,
   authOrganizerOrOperatorOrAttendee,
 } from "../../middleware/auth/guards";
 
@@ -66,15 +67,20 @@ eventStandsRouter.post(
   })
 );
 
-// GET /events/:eventId/stands
+// GET /events/:eventId/stands — readable by the organizer (own event), an
+// attendee (their session event), or an operator onboarding via the event link
+// key. Every stand carries `requiresPassword` so the operator UI can show a
+// password field or log in directly.
 eventStandsRouter.get(
   "/",
-  authOrganizerOrAttendee,
+  authOrganizerOrAttendeeOrEventLink,
   async (req: Request, res: Response) => {
     try {
       const stands = req.organizer
         ? await listStands(eventId(req), req.organizer.accountId)
-        : await listStandsForAttendee(eventId(req), req.attendee!.eventId);
+        : req.attendee
+          ? await listStandsForAttendee(eventId(req), req.attendee.eventId)
+          : await listStandsForEventLink(eventId(req));
       res.status(200).json(stands);
     } catch (err) {
       handleError(err, res);

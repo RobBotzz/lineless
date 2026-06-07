@@ -12,15 +12,16 @@ Admin dashboard, event configuration, analytics, payout management.
 
 ### Events
 
-| Method | URL                       | Description                                              |
-| ------ | ------------------------- | -------------------------------------------------------- |
-| POST   | `/events`                 | Create event                                             |
-| GET    | `/events`                 | Get all events (dashboard)                               |
-| GET    | `/events/{eventId}`       | Get single event (configuration page)                    |
-| PATCH  | `/events/{eventId}`       | Update event (name, date, location, ratings toggle, ...) |
-| POST   | `/events/{eventId}/start` | Start event (activate pay-per-use billing)               |
-| POST   | `/events/{eventId}/stop`  | Stop event                                               |
-| DELETE | `/events/{eventId}`       | Delete event (soft delete via `deletedAt`)               |
+| Method | URL                                      | Description                                              |
+| ------ | ---------------------------------------- | -------------------------------------------------------- |
+| POST   | `/events`                                | Create event                                             |
+| GET    | `/events`                                | Get all events (dashboard)                               |
+| GET    | `/events/{eventId}`                      | Get single event (configuration page)                    |
+| PATCH  | `/events/{eventId}`                      | Update event (name, date, location, ratings toggle, ...) |
+| POST   | `/events/{eventId}/start`                | Start event (activate pay-per-use billing)               |
+| POST   | `/events/{eventId}/stop`                 | Stop event                                               |
+| POST   | `/events/{eventId}/operator-link/rotate` | Rotate the operator link key (invalidate old links)      |
+| DELETE | `/events/{eventId}`                      | Delete event (soft delete via `deletedAt`)               |
 
 ### Stands
 
@@ -96,11 +97,12 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 Pickup dashboard, operator (kitchen) dashboard, cashier view.
 
-### Authentication
+### Authentication & onboarding
 
-| Method | URL             | Description               |
-| ------ | --------------- | ------------------------- |
-| POST   | `/stands/login` | Login with stand password |
+| Method | URL                        | Description                                                               |
+| ------ | -------------------------- | ------------------------------------------------------------------------- |
+| GET    | `/events/{eventId}/stands` | List event stands for the onboarding screen (gated by the event link key) |
+| POST   | `/stands/login`            | Log into a stand (link key always; plus password for protected stands)    |
 
 ### Stand selection & dashboards
 

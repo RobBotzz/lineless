@@ -6,8 +6,14 @@ const SIGN_OPTIONS: SignOptions = {
   expiresIn: config.jwt.expiresIn as SignOptions["expiresIn"],
 };
 
-export function signJwt(payload: Record<string, unknown>): string {
-  return jwt.sign(payload, config.jwt.secret, SIGN_OPTIONS);
+export function signJwt(
+  payload: Record<string, unknown>,
+  options?: { expiresIn?: SignOptions["expiresIn"] }
+): string {
+  return jwt.sign(payload, config.jwt.secret, {
+    ...SIGN_OPTIONS,
+    ...(options?.expiresIn ? { expiresIn: options.expiresIn } : {}),
+  });
 }
 
 export function verifyJwt(token: string): JwtPayload {

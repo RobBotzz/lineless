@@ -8,6 +8,7 @@ import {
   updateEvent,
   startEvent,
   stopEvent,
+  rotateOperatorAccessKey,
   softDeleteEvent,
 } from "./service";
 import { EventNotFoundError, EventStateError } from "./errors";
@@ -109,6 +110,22 @@ eventsRouter.post(
     try {
       const event = await stopEvent(eventId(req), req.organizer!.accountId);
       res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+eventsRouter.post(
+  "/:eventId/operator-link/rotate",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const result = await rotateOperatorAccessKey(
+        eventId(req),
+        req.organizer!.accountId
+      );
+      res.status(200).json(result);
     } catch (err) {
       handleError(err, res);
     }
