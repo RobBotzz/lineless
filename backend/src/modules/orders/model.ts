@@ -29,9 +29,12 @@ export interface CashRefundDoc {
 
 export interface OrderDoc {
   _id: string;
+  standId: string;
+  eventId: string;
   /** Null for cash orders — only set when paying via a Tab (Stripe). */
   tabId: string | null;
-  userId: string;
+  /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
+  sessionId: string | null;
   orderNumber: number;
   authCode: string;
   customerEmail: string | null;
@@ -73,8 +76,10 @@ const CashRefundSchema = new Schema<CashRefundDoc>(
 const OrderSchema = new Schema<OrderDoc>(
   {
     _id: { type: String, default: () => uuidv4() },
+    standId: { type: String, required: true, index: true },
+    eventId: { type: String, required: true, index: true },
     tabId: { type: String, default: null, index: true },
-    userId: { type: String, required: true, index: true },
+    sessionId: { type: String, default: null, index: true },
     orderNumber: { type: Number, required: true },
     authCode: { type: String, required: true },
     customerEmail: { type: String, default: null },

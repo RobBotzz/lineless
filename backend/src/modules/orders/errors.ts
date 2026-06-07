@@ -19,9 +19,30 @@ export class OrderAlreadyPaidError extends Error {
   }
 }
 
+export class StandNotFoundError extends Error {
+  constructor() {
+    super("Stand not found");
+    this.name = "StandNotFoundError";
+  }
+}
+
+export class EventNotActiveError extends Error {
+  constructor() {
+    super("Event is not active");
+    this.name = "EventNotActiveError";
+  }
+}
+
+export class OfflineOrdersDisabledError extends Error {
+  constructor() {
+    super("Cash orders are not enabled for this event");
+    this.name = "OfflineOrdersDisabledError";
+  }
+}
+
 export class CashierDisabledError extends Error {
   constructor() {
-    super("Cash payment is not enabled for this event");
+    super("Cashier mode is not enabled for this event");
     this.name = "CashierDisabledError";
   }
 }

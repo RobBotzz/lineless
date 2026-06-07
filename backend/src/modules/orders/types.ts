@@ -1,20 +1,20 @@
 import { z } from "zod";
 
 export const OrderItemInputSchema = z.object({
-  productId: z.string(),
+  productId: z.string().uuid(),
   quantity: z.number().int().positive(),
   customerComment: z.string().optional(),
 });
 
 export const CreateOrderSchema = z.object({
+  standId: z.string().uuid(),
   /** Present for Stripe (tab) orders; absent for cash orders. */
   tabId: z.string().uuid().optional(),
   items: z.array(OrderItemInputSchema).min(1),
 });
 
 export const ConfirmCashPaymentSchema = z.object({
-  /** The event this order belongs to — needed to check cashierEnabled. */
-  eventId: z.string().uuid(),
+  /** Intentionally empty — eventId is derived from the order's stored eventId. */
 });
 
 export const IssueCashRefundSchema = z.object({

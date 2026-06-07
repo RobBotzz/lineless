@@ -1,38 +1,53 @@
 import mongoose from "mongoose";
 import Stripe from "stripe";
+import crypto from "crypto";
 import { config } from "../../config/config";
 import { Order } from "./model";
 import { Tab } from "../tabs/model";
 import { TabPayment } from "../payments/model";
 import { Product } from "../products/model";
+import { Stand } from "../stands/model";
 import { Event } from "../events/model";
 import {
   CashierDisabledError,
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
+  EventNotActiveError,
+  OfflineOrdersDisabledError,
   OrderAlreadyPaidError,
   OrderNotFoundError,
+  StandNotFoundError,
   OrderValidationError,
 } from "./errors";
-import type {
-  ConfirmCashPaymentInput,
-  CreateOrderInput,
-  IssueCashRefundInput,
-} from "./types";
-import crypto from "crypto";
+import type { CreateOrderInput, IssueCashRefundInput } from "./types";
 
 const stripe = new Stripe(config.stripe.secretKey);
 
-//TODO: Think about using natural word library
 function generateAuthCode(): string {
   return crypto.randomBytes(3).toString("hex").toUpperCase();
 }
 
-export async function submitOrder(userId: string, input: CreateOrderInput) {
-  const { tabId, items } = input;
+export async function submitOrder(
+  /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
+  sessionId: string | null,
+  input: CreateOrderInput
+) {
+  const { standId, tabId, items } = input;
+
+  // Resolve the stand to get the eventId and verify it exists.
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null });
+  if (!stand) throw new StandNotFoundError();
+  const { eventId } = stand;
+
+  // Verify the event is running.
+  const event = await Event.findOne({ _id: eventId, deletedAt: null });
+  if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
+
+  // Cash orders require offlineOrdersEnabled when there is no tabId.
+  if (!tabId && !event.offlineOrdersEnabled)
+    throw new OfflineOrdersDisabledError();
 
   // Tab orders: verify the tab is OPEN before doing any further work.
-  // Cash orders (no tabId) skip the tab check entirely.
   if (tabId) {
     const tab = await Tab.findById(tabId);
     if (!tab || tab.status !== "OPEN") {
@@ -40,10 +55,11 @@ export async function submitOrder(userId: string, input: CreateOrderInput) {
     }
   }
 
-  // Look up real products so price and tax are snapshotted at purchase time.
+  // Fetch products and verify they are LIVE and belong to this stand.
   const productIds = items.map((item) => item.productId);
   const products = await Product.find({
     _id: { $in: productIds },
+    standId,
     deletedAt: null,
   });
   const productById = new Map(products.map((p) => [p._id, p]));
@@ -59,40 +75,50 @@ export async function submitOrder(userId: string, input: CreateOrderInput) {
     totalCents += product.priceIncludingTax * item.quantity;
     return Array.from({ length: item.quantity }).map(() => ({
       productId: item.productId,
-      customerComment: item.customerComment || null,
+      customerComment: item.customerComment ?? null,
       priceExclTaxAtPurchase: product.priceIncludingTax,
       taxRateAtPurchase: product.taxRate,
-      // TODO: instantProduct items should auto-fulfill and bypass the operator
-      // state machine (see CLAUDE.md); handle once the operator flow lands.
       startedAt: null as Date | null,
     }));
   });
 
-  // Cash order: persist immediately with items gated (startedAt = null) until
-  // the operator confirms cash via POST /orders/:orderId/cash-payment.
+  // orderNumber is the next sequential number scoped to this event.
+  const orderCount = await Order.countDocuments({ eventId });
+  const orderNumber = orderCount + 1;
+  const authCode = generateAuthCode();
+
+  // Cash order: persist immediately; items are gated (startedAt = null) until
+  // the operator confirms cash via POST /cash-payments/:cashPaymentId/... .
+  // For cashier (operator) orders, cashierEnabled must be on.
   if (!tabId) {
-    const session = await mongoose.startSession();
+    if (!event.cashierEnabled && sessionId === null) {
+      throw new CashierDisabledError();
+    }
+
+    const dbSession = await mongoose.startSession();
     let createdOrder;
-    await session.withTransaction(async () => {
+    await dbSession.withTransaction(async () => {
       const orders = await Order.create(
         [
           {
+            standId,
+            eventId,
             tabId: null,
-            userId,
-            orderNumber: 1,
-            authCode: generateAuthCode(),
+            sessionId,
+            orderNumber,
+            authCode,
             items: processedItems,
           },
         ],
-        { session }
+        { session: dbSession }
       );
       createdOrder = orders[0];
     });
-    await session.endSession();
-    return { status: 201, order: createdOrder };
+    await dbSession.endSession();
+    return { status: 201 as const, order: createdOrder };
   }
 
-  // Tab (Stripe) order: check authorization threshold.
+  // Tab (Stripe) order: check remaining authorization headroom.
   const payments = await TabPayment.find({
     tabId,
     tabPaymentStatus: { $in: ["AUTHORIZED", "CAPTURED"] },
@@ -107,9 +133,6 @@ export async function submitOrder(userId: string, input: CreateOrderInput) {
     .flatMap((o) => o.items)
     .reduce((sum, i) => sum + i.priceExclTaxAtPurchase, 0);
 
-  const orderNumber = existingOrders.length + 1;
-  const authCode = generateAuthCode();
-
   if (consumedCents + totalCents > authorizedCents) {
     const overage = consumedCents + totalCents - authorizedCents;
 
@@ -121,8 +144,8 @@ export async function submitOrder(userId: string, input: CreateOrderInput) {
       metadata: { tabId },
     });
 
-    const session = await mongoose.startSession();
-    await session.withTransaction(async () => {
+    const dbSession = await mongoose.startSession();
+    await dbSession.withTransaction(async () => {
       await TabPayment.create(
         [
           {
@@ -132,53 +155,71 @@ export async function submitOrder(userId: string, input: CreateOrderInput) {
             authorizedCentsAmount: overage,
           },
         ],
-        { session }
+        { session: dbSession }
       );
       await Tab.updateOne(
         { _id: tabId },
         { status: "PENDING_AUTHORIZATION" },
-        { session }
+        { session: dbSession }
       );
       await Order.create(
-        [{ tabId, userId, orderNumber, authCode, items: processedItems }],
-        { session }
+        [
+          {
+            standId,
+            eventId,
+            tabId,
+            sessionId,
+            orderNumber,
+            authCode,
+            items: processedItems,
+          },
+        ],
+        { session: dbSession }
       );
     });
-    await session.endSession();
+    await dbSession.endSession();
 
-    return { status: 402, clientSecret: pi.client_secret };
-  } else {
-    // Under limit: release items to the kitchen immediately.
-    processedItems.forEach((i) => (i.startedAt = new Date()));
-
-    const session = await mongoose.startSession();
-    let createdOrder;
-    await session.withTransaction(async () => {
-      const orders = await Order.create(
-        [{ tabId, userId, orderNumber, authCode, items: processedItems }],
-        { session }
-      );
-      createdOrder = orders[0];
-    });
-    await session.endSession();
-
-    return { status: 201, order: createdOrder };
+    return { status: 402 as const, clientSecret: pi.client_secret };
   }
+
+  // Under limit: release items to the kitchen immediately.
+  processedItems.forEach((i) => (i.startedAt = new Date()));
+
+  const dbSession = await mongoose.startSession();
+  let createdOrder;
+  await dbSession.withTransaction(async () => {
+    const orders = await Order.create(
+      [
+        {
+          standId,
+          eventId,
+          tabId,
+          sessionId,
+          orderNumber,
+          authCode,
+          items: processedItems,
+        },
+      ],
+      { session: dbSession }
+    );
+    createdOrder = orders[0];
+  });
+  await dbSession.endSession();
+
+  return { status: 201 as const, order: createdOrder };
 }
 
-export async function confirmCashPayment(
-  orderId: string,
-  input: ConfirmCashPaymentInput
-) {
+export async function confirmCashPayment(orderId: string) {
   const order = await Order.findById(orderId);
   if (!order) throw new OrderNotFoundError();
   if (order.paidAt) throw new OrderAlreadyPaidError();
 
-  // Enforce the cashierEnabled feature gate on the backend — not just the UI.
-  const event = await Event.findOne({ _id: input.eventId, deletedAt: null });
+  const event = await Event.findOne({
+    _id: order.eventId,
+    deletedAt: null,
+  });
   if (!event || !event.cashierEnabled) throw new CashierDisabledError();
 
-  // Single document update — no transaction needed (atomicity is guaranteed).
   const now = new Date();
   order.cashPayment = { _id: crypto.randomUUID(), createdAt: now };
   order.paidAt = now;
@@ -194,7 +235,6 @@ export async function issueCashRefund(
   cashPaymentId: string,
   input: IssueCashRefundInput
 ) {
-  // CashPayment is embedded in Order, so find by its nested _id.
   const order = await Order.findOne({ "cashPayment._id": cashPaymentId });
   if (!order?.cashPayment) throw new CashPaymentNotFoundError();
 
