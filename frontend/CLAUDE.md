@@ -240,6 +240,9 @@ think about the API contracts. Money is always integer cents (matches backend).
   comments; comment the "why", not the "what".
 - Routing definition centralized in `router.tsx`; `App.tsx` stays minimal.
 - Loaders for one-shot fetches; `useSSE` hook for live streams — do not conflate.
+- Backend calls from routes, loaders, actions, components, hooks, or auth code
+  should go through named functions in `src/api/...`; `apiFetch` is the
+  low-level HTTP/auth/error client used by those API modules.
 - routes/ split by persona (organizer / attendee / operator).
 - Styling decision is deferred; start with plain CSS, do not prematurely commit
   to Tailwind/MUI/Shadcn.
