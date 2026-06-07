@@ -116,8 +116,6 @@ raw localStorage access:
 - `setOperatorToken(token, standId)` updates only the operator entry.
 - `setAttendeeSession(session)` updates only the attendee entry.
 - `clearCredential(kind)` removes only that credential.
-- `clearAllCredentials()` is reserved for explicit full sign-out or local data
-  reset.
 
 The API client uses an explicit auth mode. `auth` is required on every
 `apiFetch` call, including public calls, so a protected endpoint can never
@@ -171,8 +169,7 @@ single role credential expired.
 
 Implementation order:
 
-1. Replace `src/auth/tokenStorage.ts` with a keychain module while keeping
-   backwards-compatible migration from `lineless.organizer.token`.
+1. Use `src/auth/keychain.ts` as the only frontend credential store.
 2. Change `apiFetch` to accept explicit `auth` modes and attach exactly one
    matching backend credential.
 3. Update organizer auth provider and settings password flow to read/write the

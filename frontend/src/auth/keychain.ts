@@ -22,7 +22,6 @@ export interface AuthKeychainSnapshot {
 }
 
 const KEYCHAIN_KEY = 'lineless.auth.keychain.v1';
-const LEGACY_ORGANIZER_TOKEN_KEY = 'lineless.organizer.token';
 
 type CredentialByKind = {
   organizer: OrganizerCredential;
@@ -83,23 +82,7 @@ function writeKeychain(snapshot: AuthKeychainSnapshot): void {
 }
 
 function readKeychain(): AuthKeychainSnapshot {
-  const snapshot = parseKeychain(localStorage.getItem(KEYCHAIN_KEY));
-  const legacyOrganizerToken = localStorage.getItem(LEGACY_ORGANIZER_TOKEN_KEY);
-
-  if (!snapshot.organizer && legacyOrganizerToken) {
-    snapshot.organizer = { token: legacyOrganizerToken };
-    writeKeychain(snapshot);
-  }
-
-  if (legacyOrganizerToken) {
-    localStorage.removeItem(LEGACY_ORGANIZER_TOKEN_KEY);
-  }
-
-  return snapshot;
-}
-
-export function getKeychainSnapshot(): AuthKeychainSnapshot {
-  return readKeychain();
+  return parseKeychain(localStorage.getItem(KEYCHAIN_KEY));
 }
 
 export function getCredential<K extends AuthKind>(kind: K): CredentialByKind[K] | null {
@@ -132,9 +115,4 @@ export function clearCredential(kind: AuthKind): void {
   const snapshot = readKeychain();
   delete snapshot[kind];
   writeKeychain(snapshot);
-}
-
-export function clearAllCredentials(): void {
-  localStorage.removeItem(KEYCHAIN_KEY);
-  localStorage.removeItem(LEGACY_ORGANIZER_TOKEN_KEY);
 }
