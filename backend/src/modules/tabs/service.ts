@@ -8,24 +8,27 @@ import { TabNotFoundError, TabStateError } from "./errors";
 
 const stripe = new Stripe(config.stripe.secretKey);
 
-// Baseline hold in cents placed on every new tab (e.g. €10.00)
-const BASELINE_HOLD_CENTS = 1000; // TODO replace with BaselineHoldAmount configured by the operator
+// Baseline hold in cents placed on every new tab (€10.00).
+// TODO: make this configurable per event.
+const BASELINE_HOLD_CENTS = 1000;
 
-export async function createTab(userId: string) {
+export async function createTab(sessionId: string, eventId: string) {
   const pi = await stripe.paymentIntents.create({
     amount: BASELINE_HOLD_CENTS,
     currency: "eur",
     capture_method: "manual",
-    metadata: { userId },
+    metadata: { sessionId, eventId },
   });
 
-  const session = await mongoose.startSession();
+  const dbSession = await mongoose.startSession();
   try {
     let tabId: string | undefined;
-    await session.withTransaction(async () => {
-      const tabs = await Tab.create([{ userId }], { session });
+    await dbSession.withTransaction(async () => {
+      const tabs = await Tab.create([{ sessionId, eventId }], {
+        session: dbSession,
+      });
       const tab = tabs[0];
-      tabId = tab?._id as string;
+      tabId = tab?._id;
       await TabPayment.create(
         [
           {
@@ -35,7 +38,7 @@ export async function createTab(userId: string) {
             authorizedCentsAmount: BASELINE_HOLD_CENTS,
           },
         ],
-        { session }
+        { session: dbSession }
       );
     });
     return {
@@ -44,35 +47,36 @@ export async function createTab(userId: string) {
       clientSecret: pi.client_secret,
     };
   } finally {
-    await session.endSession();
+    await dbSession.endSession();
   }
 }
 
-export async function checkoutTab(tabId: string, userId: string) {
-  const session = await mongoose.startSession();
+export async function checkoutTab(tabId: string, sessionId: string) {
+  const dbSession = await mongoose.startSession();
   let paymentsToCapture: Awaited<ReturnType<typeof TabPayment.find>> = [];
 
   try {
-    await session.withTransaction(async () => {
-      const tab = await Tab.findOne({ _id: tabId, userId }).session(session);
+    await dbSession.withTransaction(async () => {
+      const tab = await Tab.findOne({ _id: tabId, sessionId }).session(
+        dbSession
+      );
       if (!tab) throw new TabNotFoundError();
       if (tab.status !== "OPEN") throw new TabStateError();
 
       tab.status = "CHECKOUT_PENDING";
-      await tab.save({ session });
+      await tab.save({ session: dbSession });
 
       paymentsToCapture = await TabPayment.find({
         tabId,
         tabPaymentStatus: "AUTHORIZED",
-      }).session(session);
+      }).session(dbSession);
     });
 
-    // Capture outside of transaction
+    // Capture outside the transaction — Stripe calls cannot be rolled back.
     let totalCaptured = 0;
     for (const payment of paymentsToCapture) {
       await stripe.paymentIntents.capture(payment.stripePaymentIntentId);
       totalCaptured += payment.authorizedCentsAmount;
-
       await TabPayment.updateOne(
         { _id: payment._id },
         {
@@ -82,17 +86,21 @@ export async function checkoutTab(tabId: string, userId: string) {
       );
     }
 
-    await session.withTransaction(async () => {
-      await Tab.updateOne({ _id: tabId }, { status: "PAID" }, { session });
+    await dbSession.withTransaction(async () => {
+      await Tab.updateOne(
+        { _id: tabId },
+        { status: "PAID" },
+        { session: dbSession }
+      );
       await Order.updateMany(
         { tabId, paidAt: null },
         { $set: { paidAt: new Date() } },
-        { session }
+        { session: dbSession }
       );
     });
 
     return { capturedTotal: totalCaptured, status: "PAID" };
   } finally {
-    await session.endSession();
+    await dbSession.endSession();
   }
 }

@@ -1,23 +1,34 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { createTab, checkoutTab } from "./service";
 import { TabNotFoundError, TabStateError } from "./errors";
+import { authAttendee } from "../../middleware/auth/guards";
+import { validateBody } from "../../middleware/validate";
+import { z } from "zod";
+
+const CreateTabSchema = z.object({
+  eventId: z.string().uuid(),
+});
 
 const tabsRouter = Router();
 
-tabsRouter.post("/", async (req: Request, res: Response) => {
-  try {
-    const userId = req.organizer?.accountId ?? "test-user-id";
-    const result = await createTab(userId);
-    res.status(201).json(result);
-  } catch {
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
+tabsRouter.post(
+  "/",
+  authAttendee,
+  validateBody(CreateTabSchema, async (req, res, data) => {
+    try {
+      const sessionId = req.attendee!.sessionId;
+      const result = await createTab(sessionId, data.eventId);
+      return res.status(201).json(result);
+    } catch {
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
+  })
+);
 
-tabsRouter.post("/:tabId/checkout", async (req: Request, res: Response) => {
+tabsRouter.post("/:tabId/checkout", authAttendee, async (req, res) => {
   try {
-    const userId = req.organizer?.accountId || "test-user-id";
-    const result = await checkoutTab(req.params["tabId"] as string, userId);
+    const sessionId = req.attendee!.sessionId;
+    const result = await checkoutTab(req.params["tabId"] as string, sessionId);
     return res.status(200).json(result);
   } catch (error) {
     if (error instanceof TabNotFoundError)
