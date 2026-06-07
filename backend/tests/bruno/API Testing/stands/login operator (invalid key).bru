@@ -1,7 +1,7 @@
 meta {
-  name: login operator (invalid password)
+  name: login operator (invalid key)
   type: http
-  seq: 7
+  seq: 8
 }
 
 post {
@@ -13,13 +13,13 @@ post {
 body:json {
   {
     "standId": "{{standId}}",
-    "operatorAccessKey": "{{operatorAccessKey}}",
-    "accessPassword": "wrong-password"
+    "operatorAccessKey": "definitely-not-the-real-key",
+    "accessPassword": "secret123"
   }
 }
 
 tests {
-  test("valid link key but wrong password is rejected", function () {
+  test("a wrong event link key is rejected even with the correct password", function () {
     expect(res.status).to.equal(401);
   });
 }

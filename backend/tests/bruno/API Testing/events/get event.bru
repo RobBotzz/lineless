@@ -14,6 +14,19 @@ headers {
   Authorization: Bearer {{organizerToken}}
 }
 
+script:post-response {
+  if (res.status === 200 && res.body.operatorAccessKey) {
+    bru.setEnvVar("operatorAccessKey", res.body.operatorAccessKey);
+  }
+}
+
+tests {
+  test("organizer event response exposes the operator access key", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.operatorAccessKey).to.be.a("string").and.not.empty;
+  });
+}
+
 settings {
   encodeUrl: true
 }
