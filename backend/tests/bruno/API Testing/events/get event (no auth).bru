@@ -1,0 +1,21 @@
+meta {
+  name: get event (no auth)
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("missing auth is rejected", function () {
+    expect(res.status).to.equal(401);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

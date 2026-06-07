@@ -1,0 +1,25 @@
+meta {
+  name: attendee auth valid
+  type: http
+  seq: 6
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{attendeeSessionId}}
+}
+
+tests {
+  test("valid attendee session is accepted", function () {
+    expect(res.status).to.equal(200);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

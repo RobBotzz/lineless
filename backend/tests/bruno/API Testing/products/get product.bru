@@ -1,0 +1,19 @@
+meta {
+  name: get product
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/products/{{productId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+settings {
+  encodeUrl: true
+}

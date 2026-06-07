@@ -7,14 +7,13 @@ import {
   standProductsRouter,
   productsRouter,
 } from "../modules/products/routes";
-import operatorRouter from "../modules/operators/routes";
 import sessionsRouter from "../modules/sessions/routes";
-import { authOrganizer } from "../middleware/authOrganizer";
 import {
+  authOrganizer,
   authOrganizerOrAttendee,
   authOrganizerOrOperator,
   authOrganizerOrOperatorOrAttendee,
-} from "../middleware/auth/combinations";
+} from "../middleware/auth/guards";
 
 // =============================================================================
 // The OpenAPI document is GENERATED, not hand-written. We walk each mounted
@@ -28,7 +27,6 @@ import {
 const MOUNTS: { base: string; router: Router; tag: string }[] = [
   { base: "/api/account", router: accountRouter, tag: "Accounts" },
   { base: "/api/sessions", router: sessionsRouter, tag: "Sessions" },
-  { base: "/api/operator", router: operatorRouter, tag: "Operator" },
   { base: "/api/events", router: eventsRouter, tag: "Events" },
   {
     base: "/api/events/:eventId/stands",
@@ -210,8 +208,11 @@ export const openapiSpec = {
   tags: [
     { name: "Accounts", description: "Organizer authentication and profile" },
     { name: "Sessions", description: "Attendee session lifecycle" },
-    { name: "Operator", description: "Operator authentication" },
     { name: "Events", description: "Event lifecycle (organizer only)" },
+    {
+      name: "Stands",
+      description: "Stand management and operator authentication",
+    },
     { name: "Products", description: "Products offered at a stand" },
   ],
   components: {

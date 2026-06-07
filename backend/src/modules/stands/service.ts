@@ -1,12 +1,21 @@
-import bcrypt from "bcrypt";
 import { Stand, type StandDoc } from "./model";
-import { StandNotFoundError } from "./errors";
-import type { CreateStandInput, UpdateStandInput } from "./types";
-import { config } from "../../config/config";
+import { OperatorInvalidCredentialsError, StandNotFoundError } from "./errors";
+import type {
+  CreateStandInput,
+  OperatorLoginInput,
+  UpdateStandInput,
+} from "./types";
+import { signJwt } from "../../lib/jwt";
+import { comparePassword, hashPassword } from "../../lib/password";
 import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
+import { Event } from "../events/model";
 import { EventNotFoundError } from "../events/errors";
 
 type SafeStand = Omit<StandDoc, "accessPasswordHash">;
+
+function issueOperatorToken(standId: string): string {
+  return signJwt({ tokenType: "OPERATOR", standId });
+}
 
 function strip(stand: StandDoc): SafeStand {
   const safe: Partial<StandDoc> = { ...stand };
@@ -21,7 +30,7 @@ export async function createStand(
 ): Promise<SafeStand> {
   await verifyEventOwnership(eventId, accountId);
   const accessPasswordHash = input.accessPassword
-    ? await bcrypt.hash(input.accessPassword, config.bcryptRounds)
+    ? await hashPassword(input.accessPassword)
     : null;
   const stand = await Stand.create({
     eventId,
@@ -113,11 +122,50 @@ export async function updateStand(
   }
   if (patch.accessPassword !== undefined) {
     stand.accessPasswordHash = patch.accessPassword
-      ? await bcrypt.hash(patch.accessPassword, config.bcryptRounds)
+      ? await hashPassword(patch.accessPassword)
       : null;
   }
   await stand.save();
   return strip(stand.toObject());
+}
+
+export interface OperatorLoginResult {
+  token: string;
+  standId: string;
+}
+
+export async function loginOperator(
+  input: OperatorLoginInput
+): Promise<OperatorLoginResult> {
+  const stand = await Stand.findOne({
+    _id: input.standId,
+    deletedAt: null,
+  }).lean();
+  if (!stand?.accessPasswordHash) {
+    throw new OperatorInvalidCredentialsError();
+  }
+
+  const event = await Event.findOne({
+    _id: stand.eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  }).lean();
+  if (!event) {
+    throw new OperatorInvalidCredentialsError();
+  }
+
+  const validPassword = await comparePassword(
+    input.accessPassword,
+    stand.accessPasswordHash
+  );
+  if (!validPassword) {
+    throw new OperatorInvalidCredentialsError();
+  }
+
+  return {
+    token: issueOperatorToken(stand._id),
+    standId: stand._id,
+  };
 }
 
 export async function softDeleteStand(

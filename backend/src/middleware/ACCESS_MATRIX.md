@@ -9,7 +9,7 @@
 | Account  | `/api/account/update`                     | no     | yes       | no        | no            |
 | Account  | `/api/account/password`                   | no     | yes       | no        | no            |
 | Sessions | `POST /api/sessions/create`               | yes    | no        | no        | no            |
-| Operator | `POST /api/operator/login`                | yes    | no        | no        | no            |
+| Stands   | `POST /api/stands/login`                  | yes    | no        | no        | no            |
 | Events   | `POST /api/events`                        | no     | yes       | no        | no            |
 | Events   | `GET /api/events`                         | no     | yes       | no        | no            |
 | Events   | `GET /api/events/:eventId`                | no     | own event | no        | session event |

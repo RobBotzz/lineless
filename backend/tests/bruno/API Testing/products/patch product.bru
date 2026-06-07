@@ -1,0 +1,29 @@
+meta {
+  name: patch product
+  type: http
+  seq: 4
+}
+
+patch {
+  url: http://{{host}}:{{port}}/api/products/{{productId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {
+    "productName": "Cola Zero",
+    "productDescription": "Sugar-free",
+    "priceIncludingTax": 300,
+    "taxRate": 1900,
+    "productStock": 80
+  }
+}
+
+settings {
+  encodeUrl: true
+}

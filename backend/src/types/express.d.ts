@@ -13,10 +13,6 @@ declare global {
         sessionId: string;
         eventId: string;
       };
-      stand?: {
-        standId: string;
-        eventId?: string;
-      };
     }
   }
 }

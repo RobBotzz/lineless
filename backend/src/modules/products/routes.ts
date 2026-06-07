@@ -14,11 +14,11 @@ import { ProductNotFoundError } from "./errors";
 import { StandNotFoundError } from "../stands/errors";
 import { EventNotFoundError } from "../events/errors";
 import { createProductSchema, updateProductSchema } from "./types";
-import { authOrganizer } from "../../middleware/authOrganizer";
 import {
+  authOrganizer,
   authOrganizerOrOperator,
   authOrganizerOrOperatorOrAttendee,
-} from "../../middleware/auth/combinations";
+} from "../../middleware/auth/guards";
 
 function standId(req: Request): string {
   return req.params["standId"] as string;
@@ -148,11 +148,10 @@ productsRouter.post(
   }
 );
 
-productsRouter.use(authOrganizer);
-
 // PATCH /products/:productId
 productsRouter.patch(
   "/:productId",
+  authOrganizer,
   validateBody(updateProductSchema, async (req, res, data) => {
     try {
       const product = await updateProduct(
@@ -168,11 +167,15 @@ productsRouter.patch(
 );
 
 // DELETE /products/:productId
-productsRouter.delete("/:productId", async (req: Request, res: Response) => {
-  try {
-    await softDeleteProduct(productId(req), req.organizer!.accountId);
-    res.status(204).send();
-  } catch (err) {
-    handleError(err, res);
+productsRouter.delete(
+  "/:productId",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      await softDeleteProduct(productId(req), req.organizer!.accountId);
+      res.status(204).send();
+    } catch (err) {
+      handleError(err, res);
+    }
   }
-});
+);

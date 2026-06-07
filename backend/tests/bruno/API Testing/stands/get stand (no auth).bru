@@ -1,0 +1,15 @@
+meta {
+  name: get stand (no auth)
+  type: http
+  seq: 9
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+}

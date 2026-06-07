@@ -1,0 +1,19 @@
+meta {
+  name: terminate product
+  type: http
+  seq: 7
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/products/{{productId}}/terminate
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+settings {
+  encodeUrl: true
+}
