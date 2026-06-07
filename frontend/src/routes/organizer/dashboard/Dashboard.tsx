@@ -4,6 +4,7 @@ import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
 import { AlertDialog } from '@/components/feedback';
+import { CalendarIcon, PinIcon, ProductsIcon, StandIcon } from '@/components/icons';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Event } from '@/types/event';
 import { hasCoordinates, type Location } from '@/types/location';
@@ -43,7 +44,8 @@ export function DashboardError() {
 }
 
 export default function Dashboard() {
-  const { events, standCounts } = useLoaderData() as import('./data').DashboardLoaderData;
+  const { events, standCounts, productCounts } =
+    useLoaderData() as import('./data').DashboardLoaderData;
   const { account } = useAuth();
   const firstName = account?.firstName?.trim();
 
@@ -56,7 +58,12 @@ export default function Dashboard() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {events.map((event) => (
-          <EventCard event={event} key={event._id} standCount={standCounts[event._id] ?? 0} />
+          <EventCard
+            event={event}
+            key={event._id}
+            standCount={standCounts[event._id] ?? 0}
+            productCount={productCounts[event._id] ?? 0}
+          />
         ))}
         <CreateEventTile />
       </div>
@@ -64,7 +71,15 @@ export default function Dashboard() {
   );
 }
 
-function EventCard({ event, standCount }: { event: Event; standCount: number }) {
+function EventCard({
+  event,
+  standCount,
+  productCount,
+}: {
+  event: Event;
+  standCount: number;
+  productCount: number;
+}) {
   return (
     <Link className="group" to={`/organizer/events/${event._id}`}>
       <Card className="h-full gap-4 transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
@@ -74,20 +89,24 @@ function EventCard({ event, standCount }: { event: Event; standCount: number }) 
 
         <CardContent className="space-y-2">
           <p className="text-text-muted flex items-center gap-2 text-sm">
-            <CalendarIcon />
+            <CalendarIcon className="h-4 w-4 shrink-0" />
             {formatDate(event.plannedDate)}
           </p>
           <p className="text-text-muted flex items-center gap-2 text-sm">
-            <PinIcon />
+            <PinIcon className="h-4 w-4 shrink-0" />
             <span className="min-w-0 truncate">{formatLocation(event.location)}</span>
           </p>
         </CardContent>
 
         <CardFooter className="text-text-muted w-full justify-between border-t text-sm">
-          <span>
-            {standCount} {standCount === 1 ? 'Stand' : 'Stands'}
+          <span className="flex items-center gap-1.5">
+            <StandIcon className="h-4 w-4 shrink-0" /> {standCount}{' '}
+            {standCount === 1 ? 'Stand' : 'Stands'}
           </span>
-          <span>— Products</span>
+          <span className="flex items-center gap-1.5">
+            <ProductsIcon className="h-4 w-4 shrink-0" /> {productCount}{' '}
+            {productCount === 1 ? 'Product' : 'Products'}
+          </span>
         </CardFooter>
       </Card>
     </Link>
@@ -123,41 +142,5 @@ function CreateEventTile() {
         title="Couldn't create event"
       />
     </fetcher.Form>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4 shrink-0"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <rect height="18" rx="2" width="18" x="3" y="4" />
-      <path d="M3 10h18M8 2v4M16 2v4" />
-    </svg>
-  );
-}
-
-function PinIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4 shrink-0"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
   );
 }

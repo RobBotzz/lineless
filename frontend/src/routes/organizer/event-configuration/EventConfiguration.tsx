@@ -7,12 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
+import { ChevronDownIcon, LinkIcon, PinIcon, ProductsIcon, UploadIcon } from '@/components/icons';
 import type { Event, UpdateEventInput } from '@/types/event';
 import type { Stand } from '@/types/stand';
+import type { Product } from '@/types/product';
 import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
 import { CustomerLinkPanel } from './CustomerLinkPanel';
 import { OperatorLinkPanel } from './OperatorLinkPanel';
 import { StandDialog } from './StandDialog';
+import { ProductDialog } from './ProductDialog';
+import { ProductRow } from './ProductRow';
 import type { EventActionResult, EventConfigurationLoaderData } from './data';
 
 // Lazy-loaded so Leaflet only ships when the location section is expanded.
@@ -65,7 +69,7 @@ function toForm(event: Event): EventForm {
 }
 
 export default function EventConfiguration() {
-  const { event, stands } = useLoaderData() as EventConfigurationLoaderData;
+  const { event, stands, productsByStand } = useLoaderData() as EventConfigurationLoaderData;
   const fetcher = useFetcher<EventActionResult>();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
@@ -77,6 +81,13 @@ export default function EventConfiguration() {
   const [editingStand, setEditingStand] = useState<Stand | null>(null);
   const [pendingDeleteStandId, setPendingDeleteStandId] = useState<string | null>(null);
 
+  // Product dialog: track which stand we're adding to / which product we're editing.
+  const [productDialog, setProductDialog] = useState<{
+    standId: string;
+    product: Product | null;
+  } | null>(null);
+  const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
+
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
 
@@ -86,7 +97,12 @@ export default function EventConfiguration() {
 
   const busy = fetcher.state !== 'idle';
 
-  function submit(payload: { intent: string; patch?: UpdateEventInput; standId?: string }) {
+  function submit(payload: {
+    intent: string;
+    patch?: UpdateEventInput;
+    standId?: string;
+    productId?: string;
+  }) {
     void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
       method: 'post',
       encType: 'application/json',
@@ -100,6 +116,12 @@ export default function EventConfiguration() {
   function confirmDeleteStand() {
     if (pendingDeleteStandId) submit({ intent: 'deleteStand', standId: pendingDeleteStandId });
     setPendingDeleteStandId(null);
+  }
+
+  function confirmDeleteProduct() {
+    if (pendingDeleteProduct)
+      submit({ intent: 'deleteProduct', productId: pendingDeleteProduct._id });
+    setPendingDeleteProduct(null);
   }
 
   function handleSave() {
@@ -309,7 +331,8 @@ export default function EventConfiguration() {
                       <h3 className="font-medium text-text">{stand.standName}</h3>
                       {stand.location.locationName && (
                         <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
-                          <SmallPinIcon /> {stand.location.locationName}
+                          <PinIcon className="h-4 w-4 text-text-muted" />{' '}
+                          {stand.location.locationName}
                         </p>
                       )}
                     </div>
@@ -334,12 +357,27 @@ export default function EventConfiguration() {
                       </Button>
                     </div>
                   </div>
-                  {/* Products section */}
+                  {/* Products list */}
+                  {(productsByStand[stand._id] ?? []).map((product) => (
+                    <ProductRow
+                      key={product._id}
+                      product={product}
+                      onEdit={() => setProductDialog({ standId: stand._id, product })}
+                      onDelete={() => setPendingDeleteProduct(product)}
+                    />
+                  ))}
+
+                  {/* Products footer */}
                   <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
                     <span className="flex items-center gap-1.5 text-sm text-text-muted">
-                      <ProductsIcon />0 Products
+                      <ProductsIcon />
+                      {(productsByStand[stand._id] ?? []).length} Products
                     </span>
-                    <Button size="sm" variant="outline" disabled>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setProductDialog({ standId: stand._id, product: null })}
+                    >
                       + Add Product
                     </Button>
                   </div>
@@ -358,6 +396,16 @@ export default function EventConfiguration() {
         onClose={() => setIsStandDialogOpen(false)}
       />
 
+      {productDialog && (
+        <ProductDialog
+          key={`${productDialog.product?._id ?? 'new'}-${productDialog.standId}`}
+          product={productDialog.product}
+          standId={productDialog.standId}
+          isOpen={true}
+          onClose={() => setProductDialog(null)}
+        />
+      )}
+
       <AlertDialog
         message={visibleError}
         onAcknowledge={() => setDismissedError(actionError)}
@@ -373,6 +421,19 @@ export default function EventConfiguration() {
         onAcknowledge={confirmDeleteStand}
         onCancel={() => setPendingDeleteStandId(null)}
         title="Delete stand?"
+      />
+
+      <AlertDialog
+        acknowledgeLabel="Delete"
+        cancelLabel="Cancel"
+        message={
+          pendingDeleteProduct
+            ? `“${pendingDeleteProduct.productName}” will be permanently removed.`
+            : null
+        }
+        onAcknowledge={confirmDeleteProduct}
+        onCancel={() => setPendingDeleteProduct(null)}
+        title="Delete product?"
       />
     </div>
   );
@@ -439,7 +500,7 @@ function EventLocationField({
           type="button"
         >
           <span className="flex items-center gap-2">
-            <PinIcon />
+            <PinIcon className="h-5 w-5 text-accent" />
             <span>
               <span className="block text-sm font-medium text-text">Location</span>
               <span className="block max-w-xs truncate text-xs text-text-muted">{summary}</span>
@@ -465,114 +526,5 @@ function EventLocationField({
         )}
       </div>
     </div>
-  );
-}
-
-function ChevronDownIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={['h-4 w-4', className].filter(Boolean).join(' ')}
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-function LinkIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-      <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-    </svg>
-  );
-}
-
-function PinIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-5 w-5 text-accent"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
-
-function ProductsIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-      <path d="M3 6h18" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
-  );
-}
-
-function SmallPinIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4 text-text-muted"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
-
-function UploadIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <path d="M17 8l-5-5-5 5" />
-      <path d="M12 3v12" />
-    </svg>
   );
 }
