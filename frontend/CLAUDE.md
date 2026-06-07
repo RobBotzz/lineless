@@ -59,10 +59,131 @@ three backend auth worlds:
 
 1. **organizer** (Emely) — backend uses JWT login. Organizer pages sit behind a
    JWT-based guard.
-2. **attendee** (Andi) — backend uses an httpOnly session cookie created via
-   `POST /users/session`. No login screen.
+2. **attendee** (Andi) — backend uses a localStorage-backed attendee session ID
+   created via `POST /api/sessions/create` and sent as `X-Attendee-Session-ID`.
+   No login screen.
 3. **operator** (Oli) — backend uses a per-stand password. Operator enters the
    stand password to access a stand.
+
+## Auth keychain concept
+
+The backend intentionally has three different auth credentials, so the frontend
+must not treat "the token" as one global value. Use a small auth keychain as the
+single frontend source of truth for credentials and let every backend call
+declare which credential it needs.
+
+Backend auth facts to mirror:
+
+- **Organizer:** JWT returned by `POST /api/account/login`, `POST
+/api/account/signup`, and `PATCH /api/account/password`. It is sent as
+  `Authorization: Bearer <token>` and carries `tokenType: "ORGANIZER"` plus
+  `sub` as account id.
+- **Operator:** JWT returned by `POST /api/operator/login`. It is sent as
+  `Authorization: Bearer <token>` and carries `tokenType: "OPERATOR"` plus
+  `standId`. It is scoped to exactly one stand.
+- **Attendee:** session id returned by `POST /api/sessions/create`. It is sent
+  as `X-Attendee-Session-ID: <sessionId>` and is scoped to exactly one event.
+- **Public:** login, signup, attendee session creation, operator login, and
+  other explicitly public calls send no auth credential.
+
+Recommended keychain shape:
+
+```ts
+type AuthKey = 'public' | 'organizer' | 'operator' | 'attendee';
+
+interface AuthKeychainSnapshot {
+  organizer?: {
+    token: string;
+  };
+  operator?: {
+    token: string;
+    standId: string;
+  };
+  attendee?: {
+    sessionId: string;
+    eventId: string;
+    expiresAt: string;
+  };
+}
+```
+
+Store this under one versioned localStorage key, for example
+`lineless.auth.keychain.v1`. Keep separate helper methods instead of exposing
+raw localStorage access:
+
+- `getCredential(kind)` returns the selected credential or `null`.
+- `setOrganizerToken(token)` updates only the organizer entry.
+- `setOperatorToken(token, standId)` updates only the operator entry.
+- `setAttendeeSession(session)` updates only the attendee entry.
+- `clearCredential(kind)` removes only that credential.
+- `clearAllCredentials()` is reserved for explicit full sign-out or local data
+  reset.
+
+The API client uses an explicit auth mode. `auth` is required on every
+`apiFetch` call, including public calls, so a protected endpoint can never
+accidentally become unauthenticated because the caller omitted an option:
+
+```ts
+type ApiAuthMode = AuthKey;
+
+interface ApiFetchOptions extends RequestInit {
+  auth: ApiAuthMode;
+}
+```
+
+Rules for attaching headers:
+
+- `auth: 'public'`: attach no credential.
+- `auth: 'organizer'`: attach only the organizer bearer token.
+- `auth: 'operator'`: attach only the operator bearer token.
+- `auth: 'attendee'`: attach only `X-Attendee-Session-ID`.
+- Never attach more than one credential type to a single request.
+- Do not support arrays like `auth: ['organizer', 'attendee']`; the route or
+  API wrapper must choose one persona credential explicitly.
+- The current foundation stores one active credential per role. Multi-operator
+  or multi-event session switching is follow-up UI work, not part of the v1
+  keychain shape.
+
+Request modules should make the auth contract visible at the call site. Examples:
+
+```ts
+apiFetch('/account/info', { auth: 'organizer' });
+apiFetch(`/events/${eventId}`, { auth: 'attendee' });
+apiFetch(`/stands/${standId}`, { auth: 'operator' });
+apiFetch('/operator/login', { method: 'POST', auth: 'public', body });
+```
+
+For endpoints that support multiple backend roles, the route decides the
+credential:
+
+- Organizer pages use organizer auth even for shared catalog endpoints.
+- Attendee pages use attendee auth even when the same endpoint is organizer
+  readable.
+- Operator pages use operator auth for stand/product reads and product control
+  actions.
+
+401 handling must be credential-scoped. A failed organizer request should clear
+only the organizer credential and redirect to organizer login. A failed operator
+request should clear only the operator credential and return to stand login or
+selection. A failed attendee request should clear only the attendee session and
+create or request a new event session. Do not clear the whole keychain because a
+single role credential expired.
+
+Implementation order:
+
+1. Replace `src/auth/tokenStorage.ts` with a keychain module while keeping
+   backwards-compatible migration from `lineless.organizer.token`.
+2. Change `apiFetch` to accept explicit `auth` modes and attach exactly one
+   matching backend credential.
+3. Update organizer auth provider and settings password flow to read/write the
+   organizer entry.
+4. Add operator login/session helpers that write the operator entry after
+   `/operator/login`.
+5. Add attendee session helpers that create, cache, expire, and send
+   `X-Attendee-Session-ID`.
+6. Update every API call to declare the intended auth mode.
+7. Add focused tests or manual verification for header selection so organizer,
+   operator, attendee, and public calls cannot leak the wrong credential.
 
 ## Project structure
 

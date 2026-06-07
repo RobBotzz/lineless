@@ -1,13 +1,13 @@
-const TOKEN_KEY = 'lineless.organizer.token';
+import { clearCredential, getCredential, setOrganizerToken } from './keychain';
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return getCredential('organizer')?.token ?? null;
 }
 
 export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+  setOrganizerToken(token);
 }
 
 export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
+  clearCredential('organizer');
 }

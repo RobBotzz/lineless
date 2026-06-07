@@ -11,7 +11,7 @@ export function login(input: LoginInput): Promise<AuthResponse> {
   return apiFetch<AuthResponse>('/account/login', {
     method: 'POST',
     body: JSON.stringify(input),
-    auth: false,
+    auth: 'public',
   });
 }
 
@@ -19,10 +19,10 @@ export function signup(input: SignupInput): Promise<AuthResponse> {
   return apiFetch<AuthResponse>('/account/signup', {
     method: 'POST',
     body: JSON.stringify(input),
-    auth: false,
+    auth: 'public',
   });
 }
 
 export function getAccountInfo(): Promise<{ account: Account }> {
-  return apiFetch<{ account: Account }>('/account/info');
+  return apiFetch<{ account: Account }>('/account/info', { auth: 'organizer' });
 }

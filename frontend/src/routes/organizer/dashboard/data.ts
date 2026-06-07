@@ -14,10 +14,14 @@ export interface DashboardLoaderData {
 }
 
 export async function dashboardLoader(): Promise<DashboardLoaderData> {
-  const events = await apiFetch<Event[]>('/events');
+  const events = await apiFetch<Event[]>('/events', { auth: 'organizer' });
 
   const standArrays = await Promise.all(
-    events.map((e) => apiFetch<Stand[]>(`/events/${e._id}/stands`).catch(() => [] as Stand[])),
+    events.map((e) =>
+      apiFetch<Stand[]>(`/events/${e._id}/stands`, { auth: 'organizer' }).catch(
+        () => [] as Stand[],
+      ),
+    ),
   );
 
   const standCounts: Record<string, number> = {};
@@ -28,7 +32,7 @@ export async function dashboardLoader(): Promise<DashboardLoaderData> {
       standCounts[e._id] = stands.length;
       const perStand = await Promise.all(
         stands.map((s) =>
-          apiFetch<Product[]>(`/stands/${s._id}/products`)
+          apiFetch<Product[]>(`/stands/${s._id}/products`, { auth: 'organizer' })
             .then((products) => products.length)
             .catch(() => 0),
         ),
@@ -46,6 +50,7 @@ export async function dashboardAction() {
     const event = await apiFetch<Event>('/events', {
       method: 'POST',
       body: JSON.stringify({ name: 'New Event' }),
+      auth: 'organizer',
     });
     return redirect(`/organizer/events/${event._id}`);
   } catch (err) {

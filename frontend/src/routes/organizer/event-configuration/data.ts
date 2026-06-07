@@ -18,12 +18,14 @@ export async function eventConfigurationLoader({
   params,
 }: LoaderFunctionArgs): Promise<EventConfigurationLoaderData> {
   const [event, stands] = await Promise.all([
-    apiFetch<Event>(`/events/${params.eventId}`),
-    apiFetch<Stand[]>(`/events/${params.eventId}/stands`),
+    apiFetch<Event>(`/events/${params.eventId}`, { auth: 'organizer' }),
+    apiFetch<Stand[]>(`/events/${params.eventId}/stands`, { auth: 'organizer' }),
   ]);
   // Fetch each stand's products in parallel, then index by stand id.
   const productLists = await Promise.all(
-    stands.map((stand) => apiFetch<Product[]>(`/stands/${stand._id}/products`)),
+    stands.map((stand) =>
+      apiFetch<Product[]>(`/stands/${stand._id}/products`, { auth: 'organizer' }),
+    ),
   );
   const productsByStand: Record<string, Product[]> = {};
   stands.forEach((stand, i) => {
@@ -52,49 +54,56 @@ export async function eventConfigurationAction({
   try {
     switch (body.intent) {
       case 'start':
-        await apiFetch(`/events/${eventId}/start`, { method: 'POST' });
+        await apiFetch(`/events/${eventId}/start`, { method: 'POST', auth: 'organizer' });
         break;
       case 'stop':
-        await apiFetch(`/events/${eventId}/stop`, { method: 'POST' });
+        await apiFetch(`/events/${eventId}/stop`, { method: 'POST', auth: 'organizer' });
         break;
       case 'save':
         await apiFetch(`/events/${eventId}`, {
           method: 'PATCH',
           body: JSON.stringify(body.patch ?? {}),
+          auth: 'organizer',
         });
         break;
       case 'createStand':
         await apiFetch(`/events/${eventId}/stands`, {
           method: 'POST',
           body: JSON.stringify(body.patch),
+          auth: 'organizer',
         });
         break;
       case 'updateStand':
         await apiFetch(`/stands/${body.standId}`, {
           method: 'PATCH',
           body: JSON.stringify(body.patch),
+          auth: 'organizer',
         });
         break;
       case 'deleteStand':
         await apiFetch(`/stands/${body.standId}`, {
           method: 'DELETE',
+          auth: 'organizer',
         });
         break;
       case 'createProduct':
         await apiFetch(`/stands/${body.standId}/products`, {
           method: 'POST',
           body: JSON.stringify(body.patch),
+          auth: 'organizer',
         });
         break;
       case 'updateProduct':
         await apiFetch(`/products/${body.productId}`, {
           method: 'PATCH',
           body: JSON.stringify(body.patch),
+          auth: 'organizer',
         });
         break;
       case 'deleteProduct':
         await apiFetch(`/products/${body.productId}`, {
           method: 'DELETE',
+          auth: 'organizer',
         });
         break;
     }
