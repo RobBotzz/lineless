@@ -1,4 +1,5 @@
-import { getToken } from '../auth/tokenStorage';
+import { getCredential } from '../auth/keychain';
+import type { AuthKind } from '../auth/keychain';
 
 // All backend calls go through Vite's /api proxy (see vite.config.ts).
 const BASE_URL = '/api';
@@ -12,29 +13,27 @@ export class ApiError extends Error {
   }
 }
 
-// AuthProvider registers a handler so a 401 on an authed request can trigger
-// a global logout, regardless of which component fired the request.
-let onUnauthorized: (() => void) | null = null;
-export function setUnauthorizedHandler(handler: (() => void) | null): void {
+export type ApiAuthMode = 'public' | AuthKind;
+
+// AuthProvider registers a handler so a 401 on an authed request can clear only
+// the credential type that failed.
+let onUnauthorized: ((kind: AuthKind) => void) | null = null;
+export function setUnauthorizedHandler(handler: ((kind: AuthKind) => void) | null): void {
   onUnauthorized = handler;
 }
 
 interface ApiFetchOptions extends RequestInit {
-  // Attach the Bearer token? Disable for login/signup. Defaults to true.
-  auth?: boolean;
+  auth: ApiAuthMode;
 }
 
-export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
-  const { auth = true, headers, body, ...rest } = options;
+export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promise<T> {
+  const { auth, headers, body, ...rest } = options;
 
   const finalHeaders = new Headers(headers);
   if (body !== undefined && !finalHeaders.has('Content-Type')) {
     finalHeaders.set('Content-Type', 'application/json');
   }
-  if (auth) {
-    const token = getToken();
-    if (token) finalHeaders.set('Authorization', `Bearer ${token}`);
-  }
+  attachAuthHeader(finalHeaders, auth);
 
   const res = await fetch(`${BASE_URL}${path}`, {
     ...rest,
@@ -42,8 +41,8 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     headers: finalHeaders,
   });
 
-  if (res.status === 401 && auth) {
-    onUnauthorized?.();
+  if (res.status === 401 && auth !== 'public') {
+    onUnauthorized?.(auth);
   }
 
   if (!res.ok) {
@@ -53,6 +52,36 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+function attachAuthHeader(headers: Headers, auth: ApiAuthMode): void {
+  switch (auth) {
+    case 'public':
+      return;
+    case 'organizer': {
+      const credential = getCredential('organizer');
+      if (!credential) throwMissingCredential('organizer');
+      headers.set('Authorization', `Bearer ${credential.token}`);
+      return;
+    }
+    case 'operator': {
+      const credential = getCredential('operator');
+      if (!credential) throwMissingCredential('operator');
+      headers.set('Authorization', `Bearer ${credential.token}`);
+      return;
+    }
+    case 'attendee': {
+      const credential = getCredential('attendee');
+      if (!credential) throwMissingCredential('attendee');
+      headers.set('X-Attendee-Session-ID', credential.sessionId);
+      return;
+    }
+  }
+}
+
+function throwMissingCredential(kind: AuthKind): never {
+  onUnauthorized?.(kind);
+  throw new ApiError(401, `Missing ${kind} credential`);
 }
 
 // Backend errors come back as { message } or { error }; fall back to status text.

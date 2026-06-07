@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs } from 'react-router';
 
 import { apiFetch, ApiError } from '@/api/client';
-import { setToken } from '@/auth/tokenStorage';
+import { setOrganizerToken } from '@/auth/keychain';
 import type { Account, UpdateAccountInput } from '@/types/account';
 
 export type SettingsLoaderData = {
@@ -35,7 +35,7 @@ export type SettingsActionBody =
     };
 
 export async function settingsLoader(): Promise<SettingsLoaderData> {
-  return apiFetch<SettingsLoaderData>('/account/info');
+  return apiFetch<SettingsLoaderData>('/account/info', { auth: 'organizer' });
 }
 
 // Account settings mutations mirror event-configuration: useFetcher submits JSON,
@@ -51,6 +51,7 @@ export async function settingsAction({
         await apiFetch<AccountUpdateResponse>('/account/update', {
           method: 'PATCH',
           body: JSON.stringify(body.patch ?? {}),
+          auth: 'organizer',
         });
         return { ok: true, intent: 'save-account' };
       }
@@ -68,8 +69,9 @@ export async function settingsAction({
             currentPassword: body.currentPassword,
             newPassword: body.newPassword,
           }),
+          auth: 'organizer',
         });
-        if (response.token) setToken(response.token);
+        if (response.token) setOrganizerToken(response.token);
         return {
           ok: true,
           intent: 'change-password',
