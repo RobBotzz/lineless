@@ -9,6 +9,9 @@ declare global {
       operator?: {
         standId: string;
       };
+      operatorLink?: {
+        eventId: string;
+      };
       attendee?: {
         sessionId: string;
         eventId: string;

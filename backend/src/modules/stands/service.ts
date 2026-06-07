@@ -5,22 +5,39 @@ import type {
   OperatorLoginInput,
   UpdateStandInput,
 } from "./types";
+import type { SignOptions } from "jsonwebtoken";
 import { signJwt } from "../../lib/jwt";
 import { comparePassword, hashPassword } from "../../lib/password";
-import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
+import { config } from "../../config/config";
+import {
+  assertSessionOwnsEvent,
+  verifyActiveEvent,
+  verifyEventOwnership,
+} from "../events/ownership";
 import { Event } from "../events/model";
-import { EventNotFoundError } from "../events/errors";
 
-type SafeStand = Omit<StandDoc, "accessPasswordHash">;
+// The password hash never leaves the service. We replace it with a
+// `requiresPassword` boolean so every stand response carries the one fact a
+// client legitimately needs (render a password field or not) without exposing
+// the hash itself.
+type SafeStand = Omit<StandDoc, "accessPasswordHash"> & {
+  requiresPassword: boolean;
+};
 
 function issueOperatorToken(standId: string): string {
-  return signJwt({ tokenType: "OPERATOR", standId });
+  return signJwt(
+    { tokenType: "OPERATOR", standId },
+    { expiresIn: config.jwt.operatorExpiresIn as SignOptions["expiresIn"] }
+  );
 }
 
 function strip(stand: StandDoc): SafeStand {
   const safe: Partial<StandDoc> = { ...stand };
   delete safe.accessPasswordHash;
-  return safe as SafeStand;
+  return {
+    ...(safe as Omit<StandDoc, "accessPasswordHash">),
+    requiresPassword: stand.accessPasswordHash != null,
+  };
 }
 
 export async function createStand(
@@ -56,10 +73,7 @@ export async function listStandsForAttendee(
   eventId: string,
   sessionEventId: string
 ): Promise<SafeStand[]> {
-  if (eventId !== sessionEventId) {
-    throw new EventNotFoundError();
-  }
-
+  assertSessionOwnsEvent(eventId, sessionEventId);
   await verifyActiveEvent(eventId);
   const stands = await Stand.find({ eventId, deletedAt: null })
     .sort({ createdAt: 1 })
@@ -129,6 +143,15 @@ export async function updateStand(
   return strip(stand.toObject());
 }
 
+export async function listStandsForEventLink(
+  eventId: string
+): Promise<SafeStand[]> {
+  const stands = await Stand.find({ eventId, deletedAt: null })
+    .sort({ createdAt: 1 })
+    .lean();
+  return stands.map(strip);
+}
+
 export interface OperatorLoginResult {
   token: string;
   standId: string;
@@ -141,7 +164,7 @@ export async function loginOperator(
     _id: input.standId,
     deletedAt: null,
   }).lean();
-  if (!stand?.accessPasswordHash) {
+  if (!stand) {
     throw new OperatorInvalidCredentialsError();
   }
 
@@ -154,12 +177,19 @@ export async function loginOperator(
     throw new OperatorInvalidCredentialsError();
   }
 
-  const validPassword = await comparePassword(
-    input.accessPassword,
-    stand.accessPasswordHash
-  );
-  if (!validPassword) {
+  // The event link key is always required
+  if (input.operatorAccessKey !== event.operatorAccessKey) {
     throw new OperatorInvalidCredentialsError();
+  }
+
+  // Password-protected stands need the password on top of the link key.
+  if (stand.accessPasswordHash) {
+    if (
+      !input.accessPassword ||
+      !(await comparePassword(input.accessPassword, stand.accessPasswordHash))
+    ) {
+      throw new OperatorInvalidCredentialsError();
+    }
   }
 
   return {

@@ -11,6 +11,7 @@ import sessionsRouter from "../modules/sessions/routes";
 import {
   authOrganizer,
   authOrganizerOrAttendee,
+  authOrganizerOrAttendeeOrEventLink,
   authOrganizerOrOperator,
   authOrganizerOrOperatorOrAttendee,
 } from "../middleware/auth/guards";
@@ -46,6 +47,14 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
 type SecurityRequirement = Record<string, string[]>;
 const AUTH = new Map<unknown, SecurityRequirement[]>([
   [authOrganizer, [{ organizerAuth: [] }]],
+  [
+    authOrganizerOrAttendeeOrEventLink,
+    [
+      { organizerAuth: [] },
+      { attendeeSessionAuth: [] },
+      { operatorAccessKey: [] },
+    ],
+  ],
   [
     authOrganizerOrAttendee,
     [{ organizerAuth: [] }, { attendeeSessionAuth: [] }],
@@ -233,6 +242,13 @@ export const openapiSpec = {
         type: "http",
         scheme: "bearer",
         description: "Per-stand operator token",
+      },
+      operatorAccessKey: {
+        type: "apiKey",
+        in: "header",
+        name: "X-Operator-Access-Key",
+        description:
+          "Secret event link key for operator onboarding (stand discovery)",
       },
     },
   },

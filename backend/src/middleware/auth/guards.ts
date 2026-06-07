@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { authenticateOrganizerToken } from "./organizer";
 import { authenticateOperatorToken } from "./operator";
 import { authenticateAttendeeRequest } from "./attendee";
+import { authenticateOperatorAccessKeyRequest } from "./operatorAccessKey";
 import { getBearerToken } from "./requestCredentials";
 
 type AuthAttempt = (req: Request) => boolean | Promise<boolean>;
@@ -39,6 +40,15 @@ async function tryAttendee(req: Request): Promise<boolean> {
   }
 }
 
+async function tryOperatorAccessKey(req: Request): Promise<boolean> {
+  try {
+    req.operatorLink = await authenticateOperatorAccessKeyRequest(req);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function anyOf(...attempts: AuthAttempt[]) {
   return async (
     req: Request,
@@ -63,4 +73,9 @@ export const authOrganizerOrOperatorOrAttendee = anyOf(
   tryOrganizer,
   tryOperator,
   tryAttendee
+);
+export const authOrganizerOrAttendeeOrEventLink = anyOf(
+  tryOrganizer,
+  tryAttendee,
+  tryOperatorAccessKey
 );

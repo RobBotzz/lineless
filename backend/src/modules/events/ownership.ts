@@ -19,6 +19,15 @@ export async function verifyEventOwnership(
   if (!event) throw new EventNotFoundError();
 }
 
+export function assertSessionOwnsEvent(
+  urlEventId: string,
+  sessionEventId: string
+): void {
+  if (urlEventId !== sessionEventId) {
+    throw new EventNotFoundError();
+  }
+}
+
 export async function verifyActiveEvent(eventId: string): Promise<void> {
   const event = await Event.findOne({
     _id: eventId,
@@ -26,4 +35,18 @@ export async function verifyActiveEvent(eventId: string): Promise<void> {
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
+}
+
+export async function verifyOperatorAccessKey(
+  eventId: string,
+  key: string
+): Promise<void> {
+  const event = await Event.findOne({
+    _id: eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  }).lean();
+  if (!event || event.operatorAccessKey !== key) {
+    throw new EventNotFoundError();
+  }
 }

@@ -10,6 +10,8 @@ interface Config {
     algorithm: Algorithm;
     /** Token lifetime for organizer JWTs. */
     expiresIn: string;
+    /** Token lifetime for operator (stand) JWTs. */
+    operatorExpiresIn: string;
   };
   /** bcrypt cost factor used for all password hashing. */
   bcryptRounds: number;
@@ -25,6 +27,7 @@ export const config: Config = {
     secret: "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
     algorithm: "HS256",
     expiresIn: "30d",
+    operatorExpiresIn: "12h",
   },
   bcryptRounds: 10,
 };
