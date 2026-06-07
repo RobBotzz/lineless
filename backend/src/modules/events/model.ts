@@ -4,6 +4,10 @@ import { locationSchema, type Location } from "../../shared/location";
 
 export type EventStatus = "DRAFT" | "ACTIVE" | "STOPPED";
 
+export function generateOperatorAccessKey(): string {
+  return uuidv4();
+}
+
 export interface EventBranding {
   primaryColor: string;
   secondaryColor: string;
@@ -16,6 +20,7 @@ export interface EventDoc {
   name: string;
   plannedDate?: Date;
   status: EventStatus;
+  operatorAccessKey: string;
   ratingsEnabled: boolean;
   cashierEnabled: boolean;
   offlineOrdersEnabled: boolean;
@@ -47,6 +52,12 @@ const eventSchema = new Schema<EventDoc>(
       type: String,
       enum: ["DRAFT", "ACTIVE", "STOPPED"],
       default: "DRAFT",
+    },
+    operatorAccessKey: {
+      type: String,
+      required: true,
+      index: true,
+      default: generateOperatorAccessKey,
     },
     ratingsEnabled: { type: Boolean, default: false },
     cashierEnabled: { type: Boolean, default: true },

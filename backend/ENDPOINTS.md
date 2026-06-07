@@ -12,15 +12,16 @@ Admin dashboard, event configuration, analytics, payout management.
 
 ### Events
 
-| Method | URL                       | Description                                              |
-| ------ | ------------------------- | -------------------------------------------------------- |
-| POST   | `/events`                 | Create event                                             |
-| GET    | `/events`                 | Get all events (dashboard)                               |
-| GET    | `/events/{eventId}`       | Get single event (configuration page)                    |
-| PATCH  | `/events/{eventId}`       | Update event (name, date, location, ratings toggle, ...) |
-| POST   | `/events/{eventId}/start` | Start event (activate pay-per-use billing)               |
-| POST   | `/events/{eventId}/stop`  | Stop event                                               |
-| DELETE | `/events/{eventId}`       | Delete event (soft delete via `deletedAt`)               |
+| Method | URL                                      | Description                                              |
+| ------ | ---------------------------------------- | -------------------------------------------------------- |
+| POST   | `/events`                                | Create event                                             |
+| GET    | `/events`                                | Get all events (dashboard)                               |
+| GET    | `/events/{eventId}`                      | Get single event (configuration page)                    |
+| PATCH  | `/events/{eventId}`                      | Update event (name, date, location, ratings toggle, ...) |
+| POST   | `/events/{eventId}/start`                | Start event (activate pay-per-use billing)               |
+| POST   | `/events/{eventId}/stop`                 | Stop event                                               |
+| POST   | `/events/{eventId}/operator-link/rotate` | Rotate the operator link key (invalidate old links)      |
+| DELETE | `/events/{eventId}`                      | Delete event (soft delete via `deletedAt`)               |
 
 ### Stands
 
@@ -32,11 +33,14 @@ Admin dashboard, event configuration, analytics, payout management.
 
 ### Products
 
-| Method | URL                          | Description                                  |
-| ------ | ---------------------------- | -------------------------------------------- |
-| POST   | `/stands/{standId}/products` | Create product                               |
-| PATCH  | `/products/{productId}`      | Update product                               |
-| DELETE | `/products/{productId}`      | Delete product (soft delete via `deletedAt`) |
+| Method | URL                               | Description                                  |
+| ------ | --------------------------------- | -------------------------------------------- |
+| POST   | `/stands/{standId}/products`      | Create product                               |
+| GET    | `/products/{productId}`           | Get single product                           |
+| PATCH  | `/products/{productId}`           | Update product                               |
+| DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`) |
+| POST   | `/products/{productId}/pause`     | Pause product                                |
+| POST   | `/products/{productId}/terminate` | Terminate product                            |
 
 ### Analytics
 
@@ -68,9 +72,9 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Session
 
-| Method | URL              | Description                            |
-| ------ | ---------------- | -------------------------------------- |
-| POST   | `/users/session` | Create user session (stored as cookie) |
+| Method | URL                | Description                          |
+| ------ | ------------------ | ------------------------------------ |
+| POST   | `/sessions/create` | Create attendee session for an event |
 
 ### Orders
 
@@ -95,11 +99,20 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 Pickup dashboard, operator (kitchen) dashboard, cashier view.
 
+### Authentication & onboarding
+
+| Method | URL                        | Description                                                               |
+| ------ | -------------------------- | ------------------------------------------------------------------------- |
+| GET    | `/events/{eventId}/stands` | List event stands for the onboarding screen (gated by the event link key) |
+| POST   | `/stands/login`            | Log into a stand (link key always; plus password for protected stands)    |
+
 ### Stand selection & dashboards
 
 | Method | URL                               | Description                                      |
 | ------ | --------------------------------- | ------------------------------------------------ |
 | GET    | `/stands/{standId}/orders/stream` | Order stream for operator/pickup dashboard (SSE) |
+| POST   | `/products/{productId}/pause`     | Pause product                                    |
+| POST   | `/products/{productId}/terminate` | Terminate product                                |
 
 ### Order item status transitions (operator dashboard)
 
@@ -121,14 +134,14 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 
 ## Shared (used by multiple personas)
 
-| Method | URL                                     | Description                                           | Used by                       |
-| ------ | --------------------------------------- | ----------------------------------------------------- | ----------------------------- |
-| GET    | `/stands/{standId}`                     | Get single stand                                      | Organizer, Operator           |
-| GET    | `/events/{eventId}/stands`              | List stands of an event                               | Organizer, Operator, Customer |
-| GET    | `/stands/{standId}/products`            | List products of a stand (menu / catalog)             | Customer, Operator            |
-| POST   | `/orders`                               | Create order (customer app and cashier both use this) | Customer, Operator            |
-| POST   | `/orders/{orderId}/cash-payment`        | Operator confirms cash received                       | Operator                      |
-| POST   | `/cash-payments/{cashPaymentId}/refund` | Issue a partial or full cash refund                   | Operator                      |
+| Method | URL                                     | Description                                                      | Used by                       |
+| ------ | --------------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
+| GET    | `/stands/{standId}`                     | Get single stand                                                 | Organizer, Operator, Customer |
+| GET    | `/events/{eventId}/stands`              | List stands of an event                                          | Organizer, Customer           |
+| GET    | `/stands/{standId}/products`            | List products of a stand (menu / catalog)                        | Organizer, Operator, Customer |
+| POST   | `/orders`                               | Create order (customer app and cashier both use this)            | Customer, Operator            |
+| POST   | `/orders/{orderId}/cash-payment`        | Cash payment (operator confirms, applies to customer orders too) | Operator                      |
+| POST   | `/cash-payments/{cashPaymentId}/refund` | Issue a partial or full cash refund                              | Operator                      |
 
 > Note: `POST /orders` and `POST /orders/{orderId}/cash-payment` are listed under both
 > Customer/Operator sections for clarity but are the same endpoints.

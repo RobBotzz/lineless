@@ -1,0 +1,25 @@
+meta {
+  name: operator auth invalid
+  type: http
+  seq: 8
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer invalid-operator-token
+}
+
+tests {
+  test("invalid operator token is rejected", function () {
+    expect(res.status).to.equal(401);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

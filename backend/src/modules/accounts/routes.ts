@@ -1,6 +1,6 @@
 import { Router, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
-import { authAccount } from "../../middleware/authAccount";
+import { authOrganizer } from "../../middleware/auth/guards";
 import {
   changePassword,
   deleteAccount,
@@ -26,19 +26,19 @@ const accountRouter = Router();
 
 function handleError(err: unknown, res: Response): Response {
   if (err instanceof AccountAlreadyExistsError) {
-    return res.status(409).json({ message: err.message });
+    return res.status(409).json({ error: err.message });
   }
   if (err instanceof AccountInvalidCredentialsError) {
-    return res.status(401).json({ message: err.message });
+    return res.status(401).json({ error: err.message });
   }
   if (err instanceof AccountInvalidPasswordError) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({ error: err.message });
   }
   if (err instanceof AccountNotFoundError) {
-    return res.status(404).json({ message: err.message });
+    return res.status(404).json({ error: err.message });
   }
   console.error("Accounts error:", err);
-  return res.status(500).json({ message: "Internal server error" });
+  return res.status(500).json({ error: "Internal server error" });
 }
 
 // Public — no auth.
@@ -67,20 +67,18 @@ accountRouter.post(
   })
 );
 
-accountRouter.use(authAccount);
-
-accountRouter.delete("/delete", async (req, res) => {
+accountRouter.delete("/delete", authOrganizer, async (req, res) => {
   try {
-    await deleteAccount(req.user!.accountId);
+    await deleteAccount(req.organizer!.accountId);
     res.status(200).json({ message: "Account deleted successfully" });
   } catch (err) {
     handleError(err, res);
   }
 });
 
-accountRouter.get("/info", async (req, res) => {
+accountRouter.get("/info", authOrganizer, async (req, res) => {
   try {
-    const account = await getAccountInfo(req.user!.accountId);
+    const account = await getAccountInfo(req.organizer!.accountId);
     res.status(200).json({ account });
   } catch (err) {
     handleError(err, res);
@@ -89,9 +87,10 @@ accountRouter.get("/info", async (req, res) => {
 
 accountRouter.patch(
   "/update",
+  authOrganizer,
   validateBody(updateAccountSchema, async (req, res, data) => {
     try {
-      const result = await updateAccountInfo(req.user!.accountId, data);
+      const result = await updateAccountInfo(req.organizer!.accountId, data);
       res.status(200).json({
         message: "Account updated successfully",
         account: result.account,
@@ -104,9 +103,10 @@ accountRouter.patch(
 
 accountRouter.patch(
   "/password",
+  authOrganizer,
   validateBody(changePasswordSchema, async (req, res, data) => {
     try {
-      const result = await changePassword(req.user!.accountId, data);
+      const result = await changePassword(req.organizer!.accountId, data);
       res.status(200).json(result);
     } catch (err) {
       handleError(err, res);

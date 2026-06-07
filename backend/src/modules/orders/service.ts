@@ -56,11 +56,11 @@ export async function submitOrder(userId: string, input: CreateOrderInput) {
         `Product ${item.productId} is not available for ordering.`
       );
     }
-    totalCents += product.priceExclTax * item.quantity;
+    totalCents += product.priceIncludingTax * item.quantity;
     return Array.from({ length: item.quantity }).map(() => ({
       productId: item.productId,
       customerComment: item.customerComment || null,
-      priceExclTaxAtPurchase: product.priceExclTax,
+      priceExclTaxAtPurchase: product.priceIncludingTax,
       taxRateAtPurchase: product.taxRate,
       // TODO: instantProduct items should auto-fulfill and bypass the operator
       // state machine (see CLAUDE.md); handle once the operator flow lands.

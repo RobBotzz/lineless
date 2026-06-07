@@ -3,16 +3,20 @@ import { validateBody } from "../../middleware/validate";
 import {
   createEvent,
   listEvents,
-  getEvent,
+  getEventForAttendee,
+  getEventForOrganizer,
   updateEvent,
   startEvent,
   stopEvent,
+  rotateOperatorAccessKey,
   softDeleteEvent,
 } from "./service";
 import { EventNotFoundError, EventStateError } from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
-import { authAccount } from "../../middleware/authAccount";
-import { authAccountOrSession } from "../../middleware/authAccountOrSession";
+import {
+  authOrganizer,
+  authOrganizerOrAttendee,
+} from "../../middleware/auth/guards";
 
 const eventsRouter = Router();
 
@@ -34,10 +38,12 @@ function handleError(err: unknown, res: Response): unknown {
 // GET /events/:eventId — readable by organizer and attendee (session)
 eventsRouter.get(
   "/:eventId",
-  authAccountOrSession,
+  authOrganizerOrAttendee,
   async (req: Request, res: Response) => {
     try {
-      const event = await getEvent(eventId(req));
+      const event = req.organizer
+        ? await getEventForOrganizer(eventId(req), req.organizer.accountId)
+        : await getEventForAttendee(eventId(req), req.attendee!.eventId);
       res.status(200).json(event);
     } catch (err) {
       handleError(err, res);
@@ -45,13 +51,12 @@ eventsRouter.get(
   }
 );
 
-eventsRouter.use(authAccount);
-
 eventsRouter.post(
   "/",
+  authOrganizer,
   validateBody(createEventSchema, async (req, res, data) => {
     try {
-      const event = await createEvent(req.user!.accountId, data);
+      const event = await createEvent(req.organizer!.accountId, data);
       res.status(201).json(event);
     } catch (err) {
       handleError(err, res);
@@ -59,9 +64,9 @@ eventsRouter.post(
   })
 );
 
-eventsRouter.get("/", async (req: Request, res: Response) => {
+eventsRouter.get("/", authOrganizer, async (req: Request, res: Response) => {
   try {
-    const events = await listEvents(req.user!.accountId);
+    const events = await listEvents(req.organizer!.accountId);
     res.status(200).json(events);
   } catch (err) {
     handleError(err, res);
@@ -70,9 +75,14 @@ eventsRouter.get("/", async (req: Request, res: Response) => {
 
 eventsRouter.patch(
   "/:eventId",
+  authOrganizer,
   validateBody(updateEventSchema, async (req, res, data) => {
     try {
-      const event = await updateEvent(eventId(req), req.user!.accountId, data);
+      const event = await updateEvent(
+        eventId(req),
+        req.organizer!.accountId,
+        data
+      );
       res.status(200).json(event);
     } catch (err) {
       handleError(err, res);
@@ -80,31 +90,59 @@ eventsRouter.patch(
   })
 );
 
-eventsRouter.post("/:eventId/start", async (req: Request, res: Response) => {
-  try {
-    const event = await startEvent(eventId(req), req.user!.accountId);
-    res.status(200).json(event);
-  } catch (err) {
-    handleError(err, res);
+eventsRouter.post(
+  "/:eventId/start",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const event = await startEvent(eventId(req), req.organizer!.accountId);
+      res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
   }
-});
+);
 
-eventsRouter.post("/:eventId/stop", async (req: Request, res: Response) => {
-  try {
-    const event = await stopEvent(eventId(req), req.user!.accountId);
-    res.status(200).json(event);
-  } catch (err) {
-    handleError(err, res);
+eventsRouter.post(
+  "/:eventId/stop",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const event = await stopEvent(eventId(req), req.organizer!.accountId);
+      res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
   }
-});
+);
 
-eventsRouter.delete("/:eventId", async (req: Request, res: Response) => {
-  try {
-    await softDeleteEvent(eventId(req), req.user!.accountId);
-    res.status(204).send();
-  } catch (err) {
-    handleError(err, res);
+eventsRouter.post(
+  "/:eventId/operator-link/rotate",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const result = await rotateOperatorAccessKey(
+        eventId(req),
+        req.organizer!.accountId
+      );
+      res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
   }
-});
+);
+
+eventsRouter.delete(
+  "/:eventId",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      await softDeleteEvent(eventId(req), req.organizer!.accountId);
+      res.status(204).send();
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
 
 export default eventsRouter;

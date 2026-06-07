@@ -6,7 +6,7 @@ const tabsRouter = Router();
 
 tabsRouter.post("/", async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.accountId ?? "test-user-id";
+    const userId = req.organizer?.accountId ?? "test-user-id";
     const result = await createTab(userId);
     res.status(201).json(result);
   } catch {
@@ -16,7 +16,7 @@ tabsRouter.post("/", async (req: Request, res: Response) => {
 
 tabsRouter.post("/:tabId/checkout", async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.accountId || "test-user-id";
+    const userId = req.organizer?.accountId || "test-user-id";
     const result = await checkoutTab(req.params["tabId"] as string, userId);
     return res.status(200).json(result);
   } catch (error) {

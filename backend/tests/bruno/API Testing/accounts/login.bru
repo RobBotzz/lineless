@@ -1,0 +1,35 @@
+meta {
+  name: login
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/account/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "torben@test.de",
+    "password": "1234567a"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.token) {
+    bru.setEnvVar("organizerToken", res.body.token);
+  }
+}
+
+tests {
+  test("login returns organizer token", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.token).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

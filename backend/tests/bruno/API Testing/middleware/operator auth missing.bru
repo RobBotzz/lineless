@@ -1,0 +1,21 @@
+meta {
+  name: operator auth missing
+  type: http
+  seq: 7
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("missing operator token is rejected", function () {
+    expect(res.status).to.equal(401);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

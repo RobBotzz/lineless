@@ -6,19 +6,19 @@ import {
   OrderNotFoundError,
   OrderValidationError,
 } from "./errors";
-import { authAccount } from "../../middleware/authAccount";
+import { authOrganizer } from "../../middleware/auth/guards";
 import { validateBody } from "../../middleware/validate";
 import { ConfirmCashPaymentSchema, CreateOrderSchema } from "./types";
 
 const ordersRouter = Router();
 
-ordersRouter.use(authAccount);
+ordersRouter.use(authOrganizer);
 
 ordersRouter.post(
   "/",
   validateBody(CreateOrderSchema, async (req, res, data) => {
     try {
-      const userId = req.user!.accountId;
+      const userId = req.organizer!.accountId;
       const result = await submitOrder(userId, data);
 
       if (result.status === 402) {

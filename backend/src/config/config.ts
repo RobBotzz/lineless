@@ -1,14 +1,18 @@
+import type { Algorithm } from "jsonwebtoken";
+
 interface Config {
   nodeEnv: "development" | "production" | "test";
   port: number;
   mongoUri: string;
   jwt: {
     secret: string;
-    /** Token lifetime for organizer (Account) JWTs. */
+    /** JWT signing and verification algorithm. */
+    algorithm: Algorithm;
+    /** Token lifetime for organizer JWTs. */
     expiresIn: string;
+    /** Token lifetime for operator (stand) JWTs. */
+    operatorExpiresIn: string;
   };
-  /** Name of the httpOnly cookie holding the attendee userSessionId. */
-  sessionCookieName: string;
   /** bcrypt cost factor used for all password hashing. */
   bcryptRounds: number;
 
@@ -27,9 +31,10 @@ export const config: Config = {
     "mongodb://localhost:27017/lineless?directConnection=true",
   jwt: {
     secret: "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
+    algorithm: "HS256",
     expiresIn: "30d",
+    operatorExpiresIn: "12h",
   },
-  sessionCookieName: "userSessionId",
   bcryptRounds: 10,
   stripe: {
     secretKey:

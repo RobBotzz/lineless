@@ -4,13 +4,13 @@ import {
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
 } from "../orders/errors";
-import { authAccount } from "../../middleware/authAccount";
+import { authOrganizer } from "../../middleware/auth/guards";
 import { validateBody } from "../../middleware/validate";
 import { IssueCashRefundSchema } from "../orders/types";
 
 const cashPaymentsRouter = Router();
 
-cashPaymentsRouter.use(authAccount);
+cashPaymentsRouter.use(authOrganizer);
 
 cashPaymentsRouter.post(
   "/:cashPaymentId/refund",

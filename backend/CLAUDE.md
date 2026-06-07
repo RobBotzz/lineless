@@ -26,7 +26,7 @@ are the data model and the two assignment / customer-journey documents kept in
   endpoints in the docs are explicitly unidirectional server→client. MongoDB
   Change Streams pair naturally with SSE here.
 - **Dev runner:** nodemon + ts-node (see Scripts)
-- **Auth libraries:** bcrypt (password hashing), jsonwebtoken (JWT), cookie-parser
+- **Auth libraries:** bcrypt (password hashing), jsonwebtoken (JWT)
 
 ## Explicit course constraints (do not "fix" these)
 
@@ -53,19 +53,20 @@ Mongoose enum.
 This is the single most important thing to get right. There is no single auth
 middleware; there are three, kept deliberately separate:
 
-1. **Account (organizer, e.g. Emely)** — real login with `email` + `passwordHash`.
+1. **Organizer (account, e.g. Emely)** — real login with `email` + `passwordHash`.
    Verify with bcrypt, issue a **JWT**, client sends it on subsequent requests.
-   Middleware: `middleware/authAccount.ts`.
-2. **User (attendee, e.g. Andi)** — NO login. `POST /users/session` creates a
-   record with a `userSessionId` and sets it as an **httpOnly cookie**.
-   Middleware reads the cookie each request. Simplest of the three.
-   Middleware: `middleware/authSession.ts`.
-3. **Stand (operator, e.g. Oli)** — per-stand `accessPasswordHash`. Operator
+   Middleware: `middleware/authOrganizer.ts`.
+2. **Attendee (user, e.g. Andi)** — NO login. `POST /api/sessions/create`
+   creates a record with an attendee session ID. The frontend stores it in
+   localStorage and sends it as `X-Attendee-Session-ID` on subsequent requests.
+   Middleware validates the header-backed session against MongoDB each request.
+   Middleware: `middleware/authAttendee.ts`.
+3. **Operator (stand, e.g. Oli)** — per-stand `accessPasswordHash`. Operator
    enters the stand password, compare with bcrypt, then issue a short-lived
-   token / cookie scoped to that stand. Middleware: `middleware/authStand.ts`.
+   token scoped to that stand. Middleware: `middleware/authOperator.ts`.
 
 Auth policy: password hashing is ALWAYS via bcrypt (never hand-rolled). The
-logic around it (login route, token issuing, middleware, session cookie) is
+logic around it (login route, token/session issuing, middleware) is
 written ourselves — it's small and the three identity types don't fit any
 generic boilerplate.
 
@@ -77,7 +78,7 @@ generic boilerplate.
   server-side (no going backwards). Implement as an explicit transition
   function, not arbitrary PATCH.
 - **Money is always an integer in cents.** Never float. (Model already does this:
-  `priceExclTax`, `amountCents`, `authorizedCentsAmount`, etc.)
+  `priceIncludingTax`, `amountCents`, `authorizedCentsAmount`, etc.)
 - **Stripe / Tab flow.** `POST /tabs` → Stripe session → authorize-then-capture.
   `TabPayment.authorizedCentsAmount` vs `capturedCentsAmount` is the standard
   authorize-on-order / capture-on-checkout pattern. Plan for Stripe **webhooks**;
@@ -103,9 +104,9 @@ lineless-backend/
 │   │   ├── payments/
 │   │   └── ratings/
 │   ├── middleware/
-│   │   ├── authAccount.ts  # JWT (organizer)
-│   │   ├── authSession.ts  # session cookie (attendee)
-│   │   └── authStand.ts    # stand password (operator)
+│   │   ├── authOrganizer.ts  # JWT (organizer)
+│   │   ├── authAttendee.ts   # header session (attendee)
+│   │   └── authOperator.ts   # stand JWT (operator)
 │   ├── lib/
 │   │   └── db.ts          # Mongoose connection
 │   ├── config/
@@ -206,7 +207,7 @@ Tooling and config:
   (`typescript-eslint` `recommendedTypeChecked`) scoped to `src/**/*.ts`;
   `eslint-config-prettier` disables formatting-related rules. Run with `npm run lint`.
   The `@typescript-eslint/no-unsafe-*` rules are downgraded to **warnings** because
-  the Express/JWT/cookie boundary is typed `any` — they nudge, but don't block.
+  the Express/JWT boundary is typed `any` — they nudge, but don't block.
 
 Do NOT bypass the hook (`git commit --no-verify`) for normal work — fix the
 reported issues instead.

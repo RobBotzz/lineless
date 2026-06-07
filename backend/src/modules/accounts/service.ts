@@ -5,13 +5,18 @@ import {
   AccountInvalidPasswordError,
   AccountNotFoundError,
 } from "./errors";
-import { comparePassword, generateToken, hashPassword } from "./helper";
+import { signJwt } from "../../lib/jwt";
+import { comparePassword, hashPassword } from "../../lib/password";
 import type {
   ChangePasswordInput,
   LoginInput,
   SignupInput,
   UpdateAccountInput,
 } from "./types";
+
+function issueOrganizerToken(accountId: string): string {
+  return signJwt({ tokenType: "ORGANIZER", sub: accountId });
+}
 
 export interface AuthResult {
   message: string;
@@ -48,7 +53,7 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
 
   return {
     message: "Account created successfully",
-    token: generateToken(account.accountId, account.email),
+    token: issueOrganizerToken(account.accountId),
   };
 }
 
@@ -71,7 +76,7 @@ export async function login(input: LoginInput): Promise<AuthResult> {
 
   return {
     message: "Login successful",
-    token: generateToken(account.accountId, account.email),
+    token: issueOrganizerToken(account.accountId),
   };
 }
 
@@ -79,9 +84,11 @@ export async function deleteAccount(accountId: string): Promise<void> {
   const account = await Account.findOneAndUpdate(
     { accountId, deletedAt: null },
     {
-      $set: { deletedAt: new Date() },
+      $set: {
+        deletedAt: new Date(),
+        email: `deleted:${accountId}`,
+      },
       $unset: {
-        email: 1,
         passwordHash: 1,
         firstName: 1,
         lastName: 1,
@@ -169,6 +176,6 @@ export async function changePassword(
 
   return {
     message: "Password updated successfully",
-    token: generateToken(account.accountId, account.email),
+    token: issueOrganizerToken(account.accountId),
   };
 }

@@ -1,0 +1,25 @@
+meta {
+  name: organizer auth valid
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+tests {
+  test("valid organizer token is accepted", function () {
+    expect(res.status).to.equal(200);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,0 +1,21 @@
+meta {
+  name: attendee auth missing
+  type: http
+  seq: 4
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("missing attendee session is rejected", function () {
+    expect(res.status).to.equal(401);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

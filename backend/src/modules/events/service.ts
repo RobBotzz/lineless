@@ -1,6 +1,15 @@
-import { Event, type EventDoc } from "./model";
+import { Event, generateOperatorAccessKey, type EventDoc } from "./model";
 import { EventNotFoundError, EventStateError } from "./errors";
+import { assertSessionOwnsEvent } from "./ownership";
 import type { CreateEventInput, UpdateEventInput } from "./types";
+
+type AttendeeEvent = Omit<EventDoc, "operatorAccessKey">;
+
+function stripOperatorAccessKey(event: EventDoc): AttendeeEvent {
+  const safe: Partial<EventDoc> = { ...event };
+  delete safe.operatorAccessKey;
+  return safe as AttendeeEvent;
+}
 
 export async function createEvent(
   accountId: string,
@@ -24,14 +33,32 @@ export async function listEvents(accountId: string): Promise<EventDoc[]> {
     .lean();
 }
 
-// Readable by organizer and attendee — no ownership filter, mirrors getStand.
-export async function getEvent(eventId: string): Promise<EventDoc> {
+export async function getEventForOrganizer(
+  eventId: string,
+  accountId: string
+): Promise<EventDoc> {
   const event = await Event.findOne({
     _id: eventId,
+    accountId,
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
   return event;
+}
+
+export async function getEventForAttendee(
+  eventId: string,
+  sessionEventId: string
+): Promise<AttendeeEvent> {
+  assertSessionOwnsEvent(eventId, sessionEventId);
+
+  const event = await Event.findOne({
+    _id: eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+  return stripOperatorAccessKey(event);
 }
 
 async function findActiveEvent(eventId: string, accountId: string) {
@@ -110,6 +137,16 @@ export async function stopEvent(
   event.stoppedAt = new Date();
   await event.save();
   return event;
+}
+
+export async function rotateOperatorAccessKey(
+  eventId: string,
+  accountId: string
+): Promise<{ operatorAccessKey: string }> {
+  const event = await findActiveEvent(eventId, accountId);
+  event.operatorAccessKey = generateOperatorAccessKey();
+  await event.save();
+  return { operatorAccessKey: event.operatorAccessKey };
 }
 
 export async function softDeleteEvent(

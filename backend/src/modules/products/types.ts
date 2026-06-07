@@ -14,7 +14,7 @@ const stock = z.number().int().min(0);
 export const createProductSchema = z.object({
   productName: z.string().min(1),
   productDescription: z.string().min(1).nullable().default(null),
-  priceExclTax: cents,
+  priceIncludingTax: cents,
   taxRate: taxRate,
   productImageUrl: z.url().nullable().default(null),
   instantProduct: z.boolean().default(false),
@@ -24,7 +24,7 @@ export const createProductSchema = z.object({
 export const updateProductSchema = z.object({
   productName: z.string().min(1).optional(),
   productDescription: z.string().min(1).nullable().optional(),
-  priceExclTax: cents.optional(),
+  priceIncludingTax: cents.optional(),
   taxRate: taxRate.optional(),
   productImageUrl: z.url().nullable().optional(),
   instantProduct: z.boolean().optional(),

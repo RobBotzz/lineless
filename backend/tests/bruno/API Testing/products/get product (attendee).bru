@@ -1,0 +1,19 @@
+meta {
+  name: get product (attendee)
+  type: http
+  seq: 8
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/products/{{productId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Cookie: sessionId=test-session
+}
+
+settings {
+  encodeUrl: true
+}
