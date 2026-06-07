@@ -21,14 +21,16 @@ function resolveRating(product: Product): number | null {
 interface ProductCardProps {
   product: Product;
   standName: string;
+  cartQuantity: number;
   onAdd: (product: Product) => void;
 }
 
-export function ProductCard({ product, standName, onAdd }: ProductCardProps) {
+export function ProductCard({ product, standName, cartQuantity, onAdd }: ProductCardProps) {
   const [imageOk, setImageOk] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const showImage = !!product.productImageUrl && imageOk;
   const soldOut = product.productStock <= 0;
+  const atStockLimit = !soldOut && cartQuantity >= product.productStock;
 
   // TODO: currently null when the product has no rating yet (see resolveRating).
   const rating = resolveRating(product);
@@ -38,7 +40,7 @@ export function ProductCard({ product, standName, onAdd }: ProductCardProps) {
   // repeated taps still each add one.
   const lockedRef = useRef(false);
   function handleAdd() {
-    if (lockedRef.current) return;
+    if (lockedRef.current || atStockLimit) return;
     lockedRef.current = true;
     requestAnimationFrame(() => {
       lockedRef.current = false;
@@ -90,12 +92,14 @@ export function ProductCard({ product, standName, onAdd }: ProductCardProps) {
           <Button
             size="sm"
             className="touch-manipulation"
-            disabled={soldOut}
+            disabled={soldOut || atStockLimit}
             onClick={handleAdd}
             aria-label={`Add ${product.productName} to cart`}
           >
             {soldOut ? (
               'Sold out'
+            ) : atStockLimit ? (
+              'Max in cart'
             ) : (
               <span className="inline-flex items-center gap-1">
                 <PlusIcon />

@@ -80,6 +80,7 @@ export function CartLine({ item, onSetQuantity, onSetComment, onRemove }: CartLi
             type="button"
             className={stepperButton}
             onClick={() => onSetQuantity(product._id, quantity - 1)}
+            disabled={quantity <= 1}
             aria-label={`Decrease ${product.productName} quantity`}
           >
             <MinusIcon />
