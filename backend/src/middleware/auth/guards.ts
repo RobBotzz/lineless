@@ -66,6 +66,7 @@ function anyOf(...attempts: AuthAttempt[]) {
   };
 }
 
+export const authAttendee = anyOf(tryAttendee);
 export const authOrganizer = anyOf(tryOrganizer);
 export const authOrganizerOrAttendee = anyOf(tryOrganizer, tryAttendee);
 export const authOrganizerOrOperator = anyOf(tryOrganizer, tryOperator);
