@@ -1,6 +1,9 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 
-import { apiFetch, ApiError } from '@/api/client';
+import { ApiError } from '@/api/client';
+import { getEvent, startEvent, stopEvent, updateEvent } from '@/api/events';
+import { createProduct, deleteProduct, getStandProducts, updateProduct } from '@/api/products';
+import { createStand, deleteStand, getEventStands, updateStand } from '@/api/stands';
 import type { Event, UpdateEventInput } from '@/types/event';
 import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
 import type { Product, CreateProductInput, UpdateProductInput } from '@/types/product';
@@ -17,16 +20,10 @@ export type EventConfigurationLoaderData = {
 export async function eventConfigurationLoader({
   params,
 }: LoaderFunctionArgs): Promise<EventConfigurationLoaderData> {
-  const [event, stands] = await Promise.all([
-    apiFetch<Event>(`/events/${params.eventId}`, { auth: 'organizer' }),
-    apiFetch<Stand[]>(`/events/${params.eventId}/stands`, { auth: 'organizer' }),
-  ]);
+  const eventId = params.eventId as string;
+  const [event, stands] = await Promise.all([getEvent(eventId), getEventStands(eventId)]);
   // Fetch each stand's products in parallel, then index by stand id.
-  const productLists = await Promise.all(
-    stands.map((stand) =>
-      apiFetch<Product[]>(`/stands/${stand._id}/products`, { auth: 'organizer' }),
-    ),
-  );
+  const productLists = await Promise.all(stands.map((stand) => getStandProducts(stand._id)));
   const productsByStand: Record<string, Product[]> = {};
   stands.forEach((stand, i) => {
     productsByStand[stand._id] = productLists[i];
@@ -40,7 +37,7 @@ export async function eventConfigurationAction({
   request,
   params,
 }: ActionFunctionArgs): Promise<EventActionResult> {
-  const eventId = params.eventId;
+  const eventId = params.eventId as string;
   const body = (await request.json()) as
     | { intent: 'start' | 'stop' }
     | { intent: 'save'; patch: UpdateEventInput }
@@ -54,57 +51,31 @@ export async function eventConfigurationAction({
   try {
     switch (body.intent) {
       case 'start':
-        await apiFetch(`/events/${eventId}/start`, { method: 'POST', auth: 'organizer' });
+        await startEvent(eventId);
         break;
       case 'stop':
-        await apiFetch(`/events/${eventId}/stop`, { method: 'POST', auth: 'organizer' });
+        await stopEvent(eventId);
         break;
       case 'save':
-        await apiFetch(`/events/${eventId}`, {
-          method: 'PATCH',
-          body: JSON.stringify(body.patch ?? {}),
-          auth: 'organizer',
-        });
+        await updateEvent(eventId, body.patch ?? {});
         break;
       case 'createStand':
-        await apiFetch(`/events/${eventId}/stands`, {
-          method: 'POST',
-          body: JSON.stringify(body.patch),
-          auth: 'organizer',
-        });
+        await createStand(eventId, body.patch);
         break;
       case 'updateStand':
-        await apiFetch(`/stands/${body.standId}`, {
-          method: 'PATCH',
-          body: JSON.stringify(body.patch),
-          auth: 'organizer',
-        });
+        await updateStand(body.standId, body.patch);
         break;
       case 'deleteStand':
-        await apiFetch(`/stands/${body.standId}`, {
-          method: 'DELETE',
-          auth: 'organizer',
-        });
+        await deleteStand(body.standId);
         break;
       case 'createProduct':
-        await apiFetch(`/stands/${body.standId}/products`, {
-          method: 'POST',
-          body: JSON.stringify(body.patch),
-          auth: 'organizer',
-        });
+        await createProduct(body.standId, body.patch);
         break;
       case 'updateProduct':
-        await apiFetch(`/products/${body.productId}`, {
-          method: 'PATCH',
-          body: JSON.stringify(body.patch),
-          auth: 'organizer',
-        });
+        await updateProduct(body.productId, body.patch);
         break;
       case 'deleteProduct':
-        await apiFetch(`/products/${body.productId}`, {
-          method: 'DELETE',
-          auth: 'organizer',
-        });
+        await deleteProduct(body.productId);
         break;
     }
     return { ok: true };
