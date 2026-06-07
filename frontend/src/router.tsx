@@ -24,6 +24,7 @@ import AttendeeProductSelection, {
 } from './routes/attendee/product-selection/ProductSelection';
 import { productSelectionLoader } from './routes/attendee/product-selection/data';
 import AttendeeCart from './routes/attendee/cart/Cart';
+import AttendeeCheckout from './routes/attendee/checkout/Checkout';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
@@ -72,6 +73,7 @@ export const router = createBrowserRouter(
           errorElement={<ProductSelectionError />}
         />
         <Route path="cart" element={<AttendeeCart />} />
+        <Route path="checkout" element={<AttendeeCheckout />} />
         <Route path="orders" element={<AttendeeOrderHistory />} />
       </Route>
 
