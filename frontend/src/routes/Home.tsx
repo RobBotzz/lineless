@@ -86,19 +86,22 @@ export default function Home() {
               </p>
 
               <div className="mt-8 flex items-center gap-4">
-                {isAuthenticated ? (
-                  <Link
-                    className={buttonVariants({ variant: 'default', size: 'md' })}
-                    to={paths.organizer.root}
-                  >
-                    Go to my dashboard
-                  </Link>
-                ) : (
+                {/* While a stored token is still being validated (status === 'loading')
+                    we optimistically show the dashboard link, since loading only occurs
+                    when a token is present. RequireAuth guards /organizer if it is stale. */}
+                {status === 'unauthenticated' ? (
                   <Link
                     className={buttonVariants({ variant: 'default', size: 'md' })}
                     to={paths.auth}
                   >
                     Get started
+                  </Link>
+                ) : (
+                  <Link
+                    className={buttonVariants({ variant: 'default', size: 'md' })}
+                    to={paths.organizer.root}
+                  >
+                    Go to my dashboard
                   </Link>
                 )}
               </div>
