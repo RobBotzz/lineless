@@ -44,12 +44,10 @@ export async function submitOrder(
   const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
   if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
 
-  if (!tabId) {
-    if (sessionId === null && !event.cashierEnabled)
-      throw new CashierDisabledError();
-    if (sessionId !== null && !event.offlineOrdersEnabled)
-      throw new OfflineOrdersDisabledError();
-  }
+  if (sessionId === null && !event.cashierEnabled)
+    throw new CashierDisabledError();
+  if (sessionId !== null && !event.offlineOrdersEnabled)
+    throw new OfflineOrdersDisabledError();
 
   const productIds = [...new Set(items.map((i) => i.productId))];
   const products = await Product.find({
@@ -58,8 +56,6 @@ export async function submitOrder(
     deletedAt: null,
   }).lean();
   const productById = new Map(products.map((p) => [p._id, p]));
-
-  const now = new Date();
 
   const processedItems = items.flatMap((item) => {
     const product = productById.get(item.productId);
@@ -75,11 +71,9 @@ export async function submitOrder(
       customerComment: item.customerComment ?? null,
       priceIncludingTaxAtPurchase: product.priceIncludingTax,
       taxRateAtPurchase: product.taxRate,
-      // instantProduct items are auto-fulfilled at creation; tab order items
-      // enter the kitchen immediately; cash order items wait for payment.
-      startedAt: product.instantProduct || tabId ? now : null,
-      readyAt: product.instantProduct ? now : null,
-      fulfilledAt: product.instantProduct ? now : null,
+      startedAt: null,
+      readyAt: null,
+      fulfilledAt: null,
       cancelledAt: null as Date | null,
     }));
   });
@@ -153,7 +147,9 @@ export async function listOrdersForStand(
     if (standId !== auth.standId) throw new StandNotFoundError();
   }
 
-  return Order.find({ standId }).sort({ createdAt: -1 }).lean();
+  return Order.find({ standId, paidAt: { $ne: null } })
+    .sort({ createdAt: -1 })
+    .lean();
 }
 
 export async function advanceOrderItem(
@@ -165,6 +161,7 @@ export async function advanceOrderItem(
   const order = await Order.findById(orderId);
   if (!order || order.standId !== operatorStandId)
     throw new OrderNotFoundError();
+  if (!order.paidAt) throw new OrderNotFoundError();
 
   const item = order.items.find((i) => i._id === itemId);
   if (!item) throw new OrderItemNotFoundError();
@@ -199,4 +196,26 @@ export async function advanceOrderItem(
 
   await order.save();
   return order;
+}
+
+// Called by the payments module after confirming payment (cash or Stripe).
+// Advances all instantProduct items to READY so they bypass the operator queue
+// and wait only for customer pickup (fulfilledAt is set via the normal fulfill endpoint).
+export async function releaseInstantItems(orderId: string): Promise<void> {
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+
+  const now = new Date();
+  let changed = false;
+
+  for (const item of order.items) {
+    const product = await Product.findById(item.productId).lean();
+    if (product?.instantProduct && !item.startedAt) {
+      item.startedAt = now;
+      item.readyAt = now;
+      changed = true;
+    }
+  }
+
+  if (changed) await order.save();
 }
