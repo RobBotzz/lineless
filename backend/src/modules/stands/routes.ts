@@ -93,12 +93,12 @@ eventStandsRouter.get(
 // =============================================================================
 export const standsRouter = Router();
 
-// POST /stands/login — operator authenticates against a stand (public).
+// POST /stands/:standId/login — operator authenticates against a stand (public).
 standsRouter.post(
-  "/login",
-  validateBody(operatorLoginSchema, async (_req, res, data) => {
+  "/:standId/login",
+  validateBody(operatorLoginSchema, async (req, res, data) => {
     try {
-      const result = await loginOperator(data);
+      const result = await loginOperator(standId(req), data);
       res.status(200).json(result);
     } catch (err) {
       handleError(err, res);

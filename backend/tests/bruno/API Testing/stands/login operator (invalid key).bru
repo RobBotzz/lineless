@@ -5,14 +5,13 @@ meta {
 }
 
 post {
-  url: http://{{host}}:{{port}}/api/stands/login
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}/login
   body: json
   auth: none
 }
 
 body:json {
   {
-    "standId": "{{standId}}",
     "operatorAccessKey": "definitely-not-the-real-key",
     "accessPassword": "secret123"
   }
