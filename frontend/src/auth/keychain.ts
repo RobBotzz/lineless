@@ -15,18 +15,16 @@ export interface AttendeeCredential {
   expiresAt: string;
 }
 
-export interface AuthKeychainSnapshot {
-  organizer?: OrganizerCredential;
-  operator?: OperatorCredential;
-  attendee?: AttendeeCredential;
-}
-
-const KEYCHAIN_KEY = 'lineless.auth.keychain.v1';
-
 type CredentialByKind = {
   organizer: OrganizerCredential;
   operator: OperatorCredential;
   attendee: AttendeeCredential;
+};
+
+const STORAGE_KEYS: Record<AuthKind, string> = {
+  organizer: 'lineless.auth.organizer.v1',
+  operator: 'lineless.auth.operator.v1',
+  attendee: 'lineless.auth.attendee.v1',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -37,82 +35,70 @@ function isString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
-function parseKeychain(value: string | null): AuthKeychainSnapshot {
-  if (!value) return {};
-
-  try {
-    const data = JSON.parse(value) as unknown;
-    if (!isRecord(data)) return {};
-
-    const snapshot: AuthKeychainSnapshot = {};
-    if (isRecord(data.organizer) && isString(data.organizer.token)) {
-      snapshot.organizer = { token: data.organizer.token };
-    }
-    if (
-      isRecord(data.operator) &&
-      isString(data.operator.token) &&
-      isString(data.operator.standId)
-    ) {
-      snapshot.operator = {
-        token: data.operator.token,
-        standId: data.operator.standId,
-      };
-    }
-    if (
-      isRecord(data.attendee) &&
-      isString(data.attendee.sessionId) &&
-      isString(data.attendee.eventId) &&
-      isString(data.attendee.expiresAt)
-    ) {
-      snapshot.attendee = {
-        sessionId: data.attendee.sessionId,
-        eventId: data.attendee.eventId,
-        expiresAt: data.attendee.expiresAt,
-      };
-    }
-
-    return snapshot;
-  } catch {
-    return {};
-  }
+function parseOrganizer(data: Record<string, unknown>): OrganizerCredential | null {
+  return isString(data.token) ? { token: data.token } : null;
 }
 
-function writeKeychain(snapshot: AuthKeychainSnapshot): void {
-  localStorage.setItem(KEYCHAIN_KEY, JSON.stringify(snapshot));
+function parseOperator(data: Record<string, unknown>): OperatorCredential | null {
+  return isString(data.token) && isString(data.standId)
+    ? { token: data.token, standId: data.standId }
+    : null;
 }
 
-function readKeychain(): AuthKeychainSnapshot {
-  return parseKeychain(localStorage.getItem(KEYCHAIN_KEY));
+function parseAttendee(data: Record<string, unknown>): AttendeeCredential | null {
+  return isString(data.sessionId) && isString(data.eventId) && isString(data.expiresAt)
+    ? { sessionId: data.sessionId, eventId: data.eventId, expiresAt: data.expiresAt }
+    : null;
 }
 
 export function getCredential<K extends AuthKind>(kind: K): CredentialByKind[K] | null {
-  return (readKeychain()[kind] as CredentialByKind[K] | undefined) ?? null;
+  const raw = localStorage.getItem(STORAGE_KEYS[kind]);
+  if (!raw) return null;
+
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isRecord(data)) return null;
+
+  let credential: OrganizerCredential | OperatorCredential | AttendeeCredential | null = null;
+  switch (kind) {
+    case 'organizer':
+      credential = parseOrganizer(data);
+      break;
+    case 'operator':
+      credential = parseOperator(data);
+      break;
+    case 'attendee':
+      credential = parseAttendee(data);
+      break;
+  }
+
+  return credential as CredentialByKind[K] | null;
 }
 
 export function hasCredential(kind: AuthKind): boolean {
   return getCredential(kind) !== null;
 }
 
+function setCredential<K extends AuthKind>(kind: K, credential: CredentialByKind[K]): void {
+  localStorage.setItem(STORAGE_KEYS[kind], JSON.stringify(credential));
+}
+
 export function setOrganizerToken(token: string): void {
-  const snapshot = readKeychain();
-  snapshot.organizer = { token };
-  writeKeychain(snapshot);
+  setCredential('organizer', { token });
 }
 
 export function setOperatorToken(token: string, standId: string): void {
-  const snapshot = readKeychain();
-  snapshot.operator = { token, standId };
-  writeKeychain(snapshot);
+  setCredential('operator', { token, standId });
 }
 
-export function setAttendeeSession(session: AttendeeCredential): void {
-  const snapshot = readKeychain();
-  snapshot.attendee = session;
-  writeKeychain(snapshot);
+export function setAttendeeSession(sessionId: string, eventId: string, expiresAt: string): void {
+  setCredential('attendee', { sessionId, eventId, expiresAt });
 }
 
 export function clearCredential(kind: AuthKind): void {
-  const snapshot = readKeychain();
-  delete snapshot[kind];
-  writeKeychain(snapshot);
+  localStorage.removeItem(STORAGE_KEYS[kind]);
 }
