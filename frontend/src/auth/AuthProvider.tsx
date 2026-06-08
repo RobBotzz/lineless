@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 
 import { login as apiLogin, signup as apiSignup, getAccountInfo } from '../api/account';
 import { setUnauthorizedHandler } from '../api/client';
-import { clearCredential, hasCredential, setOrganizerToken } from './keychain';
+import { clearCredential, clearOperatorStand, hasCredential, setOrganizer } from './keychain';
 import { AuthContext } from './AuthContext';
 import type { AuthContextValue, AuthStatus } from './AuthContext';
 import type { Account, LoginInput, SignupInput } from '../types/account';
@@ -42,18 +42,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [logout]);
 
-  // Let any authed 401 anywhere in the app force a logout.
+  // Clear only the credential scope that a 401 came from.
   useEffect(() => {
-    setUnauthorizedHandler((kind) => {
-      clearCredential(kind);
-      if (kind === 'organizer') logout();
+    setUnauthorizedHandler((scope, standId) => {
+      switch (scope) {
+        case 'organizer':
+          logout();
+          break;
+        case 'operator':
+          if (standId) clearOperatorStand(standId);
+          break;
+        case 'operator-link':
+          clearCredential('operator');
+          break;
+        case 'attendee':
+          clearCredential('attendee');
+          break;
+      }
     });
     return () => setUnauthorizedHandler(null);
   }, [logout]);
 
   const login = useCallback(async (input: LoginInput) => {
     const { token } = await apiLogin(input);
-    setOrganizerToken(token);
+    setOrganizer(token);
     const { account } = await getAccountInfo();
     setAccount(account);
     setStatus('authenticated');
@@ -61,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = useCallback(async (input: SignupInput) => {
     const { token } = await apiSignup(input);
-    setOrganizerToken(token);
+    setOrganizer(token);
     const { account } = await getAccountInfo();
     setAccount(account);
     setStatus('authenticated');

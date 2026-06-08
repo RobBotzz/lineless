@@ -5,6 +5,7 @@ export interface Stand {
   eventId: string;
   standName: string;
   location: Location;
+  requiresPassword: boolean;
   createdAt: string;
   updatedAt: string;
 }

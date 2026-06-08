@@ -196,7 +196,9 @@ export default function EventConfiguration() {
                 ].join(' ')}
               />
             </Button>
-            {showOperatorLink && <OperatorLinkPanel />}
+            {showOperatorLink && (
+              <OperatorLinkPanel eventId={event._id} operatorAccessKey={event.operatorAccessKey} />
+            )}
           </div>
           {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
           <div>

@@ -14,8 +14,9 @@ export const paths = {
     event: (eventId: string) => `/event/${eventId}`,
   },
   operator: {
-    index: '/operator',
     root: (eventId: string) => `/operator/${eventId}`,
+    link: (eventId: string, operatorAccessKey: string) =>
+      `/operator/${eventId}/link/${operatorAccessKey}`,
     pickupDashboard: (eventId: string) => `/operator/${eventId}/pickup`,
     stand: (eventId: string, standId: string) => `/operator/${eventId}/${standId}`,
   },
