@@ -1,14 +1,14 @@
 import { Link } from 'react-router';
 import { buttonVariants } from '../components/ui/button';
+import { Wordmark } from '../components/shared';
 import { paths } from '../paths';
 
 export default function NotFound() {
   return (
     <main className="relative flex h-screen flex-col items-center justify-center overflow-hidden bg-background px-6 py-10 text-text">
       <div className="relative w-full max-w-xl text-center">
-        <div aria-label="lineless" className="font-logo text-4xl text-accent sm:text-5xl">
-          <span className="underline decoration-current decoration-2 underline-offset-4">line</span>
-          less
+        <div aria-label="lineless">
+          <Wordmark className="text-4xl sm:text-5xl" />
         </div>
 
         {/* Brand 404 illustration — line art in the accent colour. */}

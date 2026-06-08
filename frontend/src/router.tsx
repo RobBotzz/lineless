@@ -19,7 +19,12 @@ import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Se
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
 
 import AttendeeLayout from './routes/attendee/AttendeeLayout';
-import AttendeeProductSelection from './routes/attendee/ProductSelection';
+import AttendeeProductSelection, {
+  ProductSelectionError,
+} from './routes/attendee/product-selection/ProductSelection';
+import { productSelectionLoader } from './routes/attendee/product-selection/data';
+import AttendeeCart from './routes/attendee/cart/Cart';
+import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
 import OperatorLinkEntry from './routes/operator/OperatorLinkEntry';
@@ -61,7 +66,14 @@ export const router = createBrowserRouter(
       </Route>
 
       <Route path="event/:eventId" element={<AttendeeLayout />}>
-        <Route index element={<AttendeeProductSelection />} />
+        <Route
+          index
+          element={<AttendeeProductSelection />}
+          loader={productSelectionLoader}
+          errorElement={<ProductSelectionError />}
+        />
+        <Route path="cart" element={<AttendeeCart />} />
+        <Route path="orders" element={<AttendeeOrderHistory />} />
       </Route>
 
       <Route path="operator" element={<OperatorLayout />}>
