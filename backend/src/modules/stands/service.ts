@@ -158,10 +158,11 @@ export interface OperatorLoginResult {
 }
 
 export async function loginOperator(
+  standId: string,
   input: OperatorLoginInput
 ): Promise<OperatorLoginResult> {
   const stand = await Stand.findOne({
-    _id: input.standId,
+    _id: standId,
     deletedAt: null,
   }).lean();
   if (!stand) {
