@@ -25,6 +25,7 @@ import OperatorLayout from './routes/operator/OperatorLayout';
 import OperatorPickupDashboard from './routes/operator/PickupDashboard';
 import OperatorStandDashboard from './routes/operator/Queue';
 import OperatorStandSelection from './routes/operator/StandSelection';
+import CashierHome from './routes/operator/cashier/CashierHome';
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -67,6 +68,10 @@ export const router = createBrowserRouter(
         <Route index element={<OperatorStandSelection />} />
         <Route path=":eventId" element={<OperatorStandSelection />} />
         <Route path=":eventId/pickup" element={<OperatorPickupDashboard />} />
+        {/* Static "cashier" out-ranks the dynamic :standId route in v7. */}
+        <Route path=":eventId/cashier">
+          <Route index element={<CashierHome />} />
+        </Route>
         <Route path=":eventId/:standId" element={<OperatorStandDashboard />} />
       </Route>
 

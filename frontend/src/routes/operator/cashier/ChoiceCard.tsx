@@ -1,0 +1,26 @@
+import type { ReactNode } from 'react';
+import { Link } from 'react-router';
+
+interface ChoiceCardProps {
+  to: string;
+  icon: ReactNode;
+  title: string;
+  description: string;
+}
+
+// Large icon + title + description card used for the cashier entry points
+// (Stand Selection and the Manual Order / Cash Payment choice screen).
+export function ChoiceCard({ to, icon, title, description }: ChoiceCardProps) {
+  return (
+    <Link
+      to={to}
+      className="flex flex-col items-center gap-4 rounded-xl border border-border bg-surface px-8 py-12 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
+      <span className="flex h-20 w-20 items-center justify-center rounded-full bg-accent-soft text-accent">
+        {icon}
+      </span>
+      <span className="text-2xl font-bold text-accent">{title}</span>
+      <span className="text-sm text-text-muted">{description}</span>
+    </Link>
+  );
+}
