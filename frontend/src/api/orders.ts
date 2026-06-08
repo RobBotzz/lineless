@@ -35,6 +35,7 @@ const orders: Order[] = [
     status: 'UNPAID',
     items: [
       {
+        id: 'LL-001-1',
         productId: 'crepe-cinnamon-sugar',
         productName: 'Crepe Cinnamon Sugar',
         standId: 'crepe-stand',
@@ -43,6 +44,7 @@ const orders: Order[] = [
         quantity: 1,
       },
       {
+        id: 'LL-001-2',
         productId: 'cola',
         productName: 'Cola',
         standId: 'beverage-stand',
@@ -61,6 +63,7 @@ const orders: Order[] = [
     status: 'UNPAID',
     items: [
       {
+        id: 'LL-002-1',
         productId: 'crepe-nutella',
         productName: 'Crepe Nutella',
         standId: 'crepe-stand',

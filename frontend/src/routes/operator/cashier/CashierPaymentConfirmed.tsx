@@ -88,12 +88,15 @@ export default function CashierPaymentConfirmed() {
                   <ul className="mt-2 space-y-2">
                     {items.map((item) => (
                       <li
-                        key={item.productId}
+                        key={item.id}
                         className="flex items-start justify-between gap-3 rounded-lg bg-surface-muted p-3"
                       >
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-text">{item.productName}</p>
                           <p className="text-xs text-text-muted">Quantity: {item.quantity}</p>
+                          {item.comment ? (
+                            <p className="mt-1 text-xs text-text-muted italic">“{item.comment}”</p>
+                          ) : null}
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-semibold text-accent">
@@ -111,17 +114,16 @@ export default function CashierPaymentConfirmed() {
             </div>
           </section>
 
-          <div className="rounded-xl bg-accent p-6 text-center text-[var(--color-button-text)]">
-            <p className="text-sm font-medium opacity-90">Total Amount</p>
-            <p className="mt-1 text-3xl font-bold">EUR {formatMoney(order.total)}</p>
+          <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-6 py-4 shadow-sm">
+            <span className="text-sm font-medium text-text-muted">Total Amount</span>
+            <span className="text-xl font-bold text-accent">EUR {formatMoney(order.total)}</span>
           </div>
 
-          <Link
-            to={paths.operator.cashier(eventId)}
-            className={`${buttonVariants({ size: 'lg' })} w-full`}
-          >
-            Back to Cashier Stand
-          </Link>
+          <div className="flex justify-end">
+            <Link to={paths.operator.cashier(eventId)} className={buttonVariants({ size: 'sm' })}>
+              Back to Cashier Stand
+            </Link>
+          </div>
         </div>
       )}
     </div>

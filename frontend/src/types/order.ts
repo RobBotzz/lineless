@@ -3,12 +3,14 @@
 export type OrderStatus = 'UNPAID' | 'PAID';
 
 export interface OrderItem {
+  id: string; // unique per line; the same product can appear as multiple items
   productId: string;
   productName: string;
   standId: string;
   standName: string;
   unitPrice: number; // integer cents, incl. tax
   quantity: number;
+  comment?: string; // optional per-item note from the cashier
 }
 
 export interface Order {

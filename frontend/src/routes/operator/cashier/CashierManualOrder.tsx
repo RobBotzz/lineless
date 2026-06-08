@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { AlertDialog } from '../../../components/feedback';
@@ -15,8 +15,10 @@ const FALLBACK_EVENT_ID = 'demo-event';
 const ALL_STANDS = 'all';
 
 interface CartLine {
+  lineId: string;
   product: CashierProduct;
   quantity: number;
+  comment: string;
 }
 
 // Manual order view: the cashier picks products (filtered per stand), builds a
@@ -29,6 +31,7 @@ export default function CashierManualOrder() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lineIdRef = useRef(0);
 
   const visibleProducts =
     selectedStand === ALL_STANDS
@@ -37,44 +40,50 @@ export default function CashierManualOrder() {
 
   const total = cart.reduce((sum, line) => sum + line.product.priceIncludingTax * line.quantity, 0);
 
+  // Each add is its own line so the same product can carry separate comments.
   function addToCart(product: CashierProduct) {
-    setCart((current) => {
-      const existing = current.find((line) => line.product.id === product.id);
-      if (existing) {
-        return current.map((line) =>
-          line.product.id === product.id ? { ...line, quantity: line.quantity + 1 } : line,
-        );
-      }
-      return [...current, { product, quantity: 1 }];
-    });
+    lineIdRef.current += 1;
+    const lineId = `line-${lineIdRef.current}`;
+    setCart((current) => [...current, { lineId, product, quantity: 1, comment: '' }]);
   }
 
-  function changeQuantity(productId: string, delta: number) {
+  function changeQuantity(lineId: string, delta: number) {
     setCart((current) =>
       current
         .map((line) =>
-          line.product.id === productId ? { ...line, quantity: line.quantity + delta } : line,
+          line.lineId === lineId ? { ...line, quantity: line.quantity + delta } : line,
         )
         .filter((line) => line.quantity > 0),
     );
   }
 
-  function removeLine(productId: string) {
-    setCart((current) => current.filter((line) => line.product.id !== productId));
+  function setLineComment(lineId: string, comment: string) {
+    setCart((current) =>
+      current.map((line) => (line.lineId === lineId ? { ...line, comment } : line)),
+    );
+  }
+
+  function removeLine(lineId: string) {
+    setCart((current) => current.filter((line) => line.lineId !== lineId));
   }
 
   async function handleCheckout() {
     if (cart.length === 0) return;
     setIsCheckingOut(true);
     try {
-      const items: OrderItem[] = cart.map(({ product, quantity }) => ({
-        productId: product.id,
-        productName: product.name,
-        standId: product.standId,
-        standName: product.standName,
-        unitPrice: product.priceIncludingTax,
-        quantity,
-      }));
+      const items: OrderItem[] = cart.map((line) => {
+        const comment = line.comment.trim();
+        return {
+          id: line.lineId,
+          productId: line.product.id,
+          productName: line.product.name,
+          standId: line.product.standId,
+          standName: line.product.standName,
+          unitPrice: line.product.priceIncludingTax,
+          quantity: line.quantity,
+          ...(comment ? { comment } : {}),
+        };
+      });
       const order = await createManualOrder({ items });
       // Skip the order-selection step: go straight to the new order's payment.
       navigate(paths.operator.cashierPaymentOrder(eventId, order.orderId));
@@ -128,11 +137,12 @@ export default function CashierManualOrder() {
               <ul className="divide-y divide-border">
                 {cart.map((line) => (
                   <CartLineRow
-                    key={line.product.id}
+                    key={line.lineId}
                     line={line}
-                    onDecrease={() => changeQuantity(line.product.id, -1)}
-                    onIncrease={() => changeQuantity(line.product.id, 1)}
-                    onRemove={() => removeLine(line.product.id)}
+                    onDecrease={() => changeQuantity(line.lineId, -1)}
+                    onIncrease={() => changeQuantity(line.lineId, 1)}
+                    onRemove={() => removeLine(line.lineId)}
+                    onCommentChange={(value) => setLineComment(line.lineId, value)}
                   />
                 ))}
               </ul>
@@ -226,37 +236,48 @@ function CartLineRow({
   onDecrease,
   onIncrease,
   onRemove,
+  onCommentChange,
 }: {
   line: CartLine;
   onDecrease: () => void;
   onIncrease: () => void;
   onRemove: () => void;
+  onCommentChange: (value: string) => void;
 }) {
   return (
-    <li className="flex items-center gap-2 py-3">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-text">{line.product.name}</p>
-        <p className="text-xs text-text-muted">
-          EUR {formatMoney(line.product.priceIncludingTax * line.quantity)}
-        </p>
+    <li className="py-3">
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-text">{line.product.name}</p>
+          <p className="text-xs text-text-muted">
+            EUR {formatMoney(line.product.priceIncludingTax * line.quantity)}
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <QtyButton label="Decrease quantity" onClick={onDecrease}>
+            <MinusIcon className="h-4 w-4" />
+          </QtyButton>
+          <span className="w-6 text-center text-sm font-semibold text-text">{line.quantity}</span>
+          <QtyButton label="Increase quantity" onClick={onIncrease}>
+            <PlusIcon className="h-4 w-4" />
+          </QtyButton>
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${line.product.name}`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-danger"
+        >
+          <DeleteIcon className="h-4 w-4" />
+        </button>
       </div>
-      <div className="flex items-center gap-1">
-        <QtyButton label="Decrease quantity" onClick={onDecrease}>
-          <MinusIcon className="h-4 w-4" />
-        </QtyButton>
-        <span className="w-6 text-center text-sm font-semibold text-text">{line.quantity}</span>
-        <QtyButton label="Increase quantity" onClick={onIncrease}>
-          <PlusIcon className="h-4 w-4" />
-        </QtyButton>
-      </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${line.product.name}`}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-muted hover:text-danger"
-      >
-        <DeleteIcon className="h-4 w-4" />
-      </button>
+      <input
+        value={line.comment}
+        onChange={(event) => onCommentChange(event.target.value)}
+        placeholder="Add a note (optional)"
+        aria-label={`Note for ${line.product.name}`}
+        className="mt-2 h-9 w-full rounded-md border border-border bg-surface px-3 text-xs text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent"
+      />
     </li>
   );
 }
