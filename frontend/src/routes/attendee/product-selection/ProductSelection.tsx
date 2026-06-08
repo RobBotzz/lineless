@@ -8,10 +8,10 @@ import { ATTENDEE_WIDTH } from '../column';
 import { CartIcon } from '../icons';
 import { ProductCard } from './ProductCard';
 import { ALL_STANDS, StandFilter } from './StandFilter';
-import type { ProductSelectionLoaderData } from './data';
+import type { productSelectionLoader } from './data';
 
 export default function ProductSelection() {
-  const { event, stands, productsByStand } = useLoaderData() as ProductSelectionLoaderData;
+  const { event, stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
   const { eventId } = useParams();
   const { addItem, totalCount, items } = useCart();
 

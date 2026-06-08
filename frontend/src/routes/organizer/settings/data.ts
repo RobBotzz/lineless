@@ -1,7 +1,8 @@
 import type { ActionFunctionArgs } from 'react-router';
 
-import { apiFetch, ApiError } from '@/api/client';
-import { setToken } from '@/auth/tokenStorage';
+import { getAccountInfo, updateOrganizerAccount, updateOrganizerPassword } from '@/api/account';
+import { ApiError } from '@/api/client';
+import { setOrganizer } from '@/auth/keychain';
 import type { Account, UpdateAccountInput } from '@/types/account';
 
 export type SettingsLoaderData = {
@@ -15,16 +16,6 @@ export type SettingsActionResult =
 
 type AccountSettingsPatch = Pick<UpdateAccountInput, 'firstName' | 'lastName'>;
 
-type AccountUpdateResponse = {
-  message: string;
-  account: Account;
-};
-
-type PasswordUpdateResponse = {
-  message: string;
-  token?: string;
-};
-
 export type SettingsActionBody =
   | { intent: 'save-account'; patch?: AccountSettingsPatch }
   | {
@@ -35,7 +26,7 @@ export type SettingsActionBody =
     };
 
 export async function settingsLoader(): Promise<SettingsLoaderData> {
-  return apiFetch<SettingsLoaderData>('/account/info');
+  return getAccountInfo();
 }
 
 // Account settings mutations mirror event-configuration: useFetcher submits JSON,
@@ -48,10 +39,7 @@ export async function settingsAction({
   try {
     switch (body.intent) {
       case 'save-account': {
-        await apiFetch<AccountUpdateResponse>('/account/update', {
-          method: 'PATCH',
-          body: JSON.stringify(body.patch ?? {}),
-        });
+        await updateOrganizerAccount(body.patch ?? {});
         return { ok: true, intent: 'save-account' };
       }
       case 'change-password': {
@@ -62,14 +50,11 @@ export async function settingsAction({
           return { ok: false, error: 'New password and confirmation do not match.' };
         }
 
-        const response = await apiFetch<PasswordUpdateResponse>('/account/password', {
-          method: 'PATCH',
-          body: JSON.stringify({
-            currentPassword: body.currentPassword,
-            newPassword: body.newPassword,
-          }),
+        const response = await updateOrganizerPassword({
+          currentPassword: body.currentPassword,
+          newPassword: body.newPassword,
         });
-        if (response.token) setToken(response.token);
+        if (response.token) setOrganizer(response.token);
         return {
           ok: true,
           intent: 'change-password',

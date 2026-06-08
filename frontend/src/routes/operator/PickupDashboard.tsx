@@ -197,9 +197,7 @@ export default function PickupDashboard() {
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <BackButton to={eventId ? paths.operator.root(eventId) : paths.operator.index}>
-            Back
-          </BackButton>
+          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
 
           <label>
             <span className="sr-only">Filter by stand</span>
