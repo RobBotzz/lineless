@@ -1,0 +1,52 @@
+meta {
+  name: create order
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders
+  body: json
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{attendeeSessionId}}
+}
+
+body:json {
+  {
+    "standId": "{{standId}}",
+    "items": [
+      {
+        "productId": "{{productId}}",
+        "quantity": 2,
+        "customerComment": "No ice please"
+      }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201 && res.body._id) {
+    bru.setEnvVar("orderId", res.body._id);
+    bru.setEnvVar("authCode", res.body.authCode);
+    if (res.body.items && res.body.items.length > 0) {
+      bru.setEnvVar("itemId", res.body.items[0]._id);
+    }
+  }
+}
+
+tests {
+  test("create order returns 201", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body._id).to.be.a("string").and.not.empty;
+    expect(res.body.authCode).to.be.a("string").and.not.empty;
+    expect(res.body.orderNumber).to.be.a("string").and.not.empty;
+    expect(res.body.items).to.be.an("array").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

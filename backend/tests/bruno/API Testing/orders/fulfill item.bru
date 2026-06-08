@@ -1,0 +1,27 @@
+meta {
+  name: fulfill item
+  type: http
+  seq: 7
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{orderId}}/items/{{itemId}}/fulfill
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{operatorToken}}
+}
+
+tests {
+  test("fulfill item returns 200 and item is FULFILLED", function () {
+    expect(res.status).to.equal(200);
+    const item = res.body.items.find(i => i._id === bru.getEnvVar("itemId"));
+    expect(item.fulfilledAt).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}
