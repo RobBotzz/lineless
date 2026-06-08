@@ -8,6 +8,7 @@ import { getOrder } from '../../../api/orders';
 import type { Order, OrderItem } from '../../../types/order';
 import { formatMoney } from '../../../types/product';
 import { paths } from '../../../paths';
+import { ItemComments } from './ItemComments';
 
 const FALLBACK_EVENT_ID = 'demo-event';
 
@@ -88,15 +89,13 @@ export default function CashierPaymentConfirmed() {
                   <ul className="mt-2 space-y-2">
                     {items.map((item) => (
                       <li
-                        key={item.id}
+                        key={item.productId}
                         className="flex items-start justify-between gap-3 rounded-lg bg-surface-muted p-3"
                       >
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-text">{item.productName}</p>
                           <p className="text-xs text-text-muted">Quantity: {item.quantity}</p>
-                          {item.comment ? (
-                            <p className="mt-1 text-xs text-text-muted italic">“{item.comment}”</p>
-                          ) : null}
+                          <ItemComments productName={item.productName} comments={item.comments} />
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-semibold text-accent">
