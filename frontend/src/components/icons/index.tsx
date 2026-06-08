@@ -185,3 +185,19 @@ export function CreditCardIcon({ className = 'h-6 w-6' }: IconProps) {
     </svg>
   );
 }
+
+export function PlusIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+export function MinusIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
