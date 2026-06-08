@@ -107,9 +107,13 @@ interface AuthKeychainSnapshot {
 }
 ```
 
-Store this under one versioned localStorage key, for example
-`lineless.auth.keychain.v1`. Keep separate helper methods instead of exposing
-raw localStorage access:
+Store each credential under its own versioned localStorage key
+(`lineless.auth.organizer.v1`, `lineless.auth.operator.v1`,
+`lineless.auth.attendee.v1`) rather than a single combined blob. Per-credential
+keys mean writing one persona's credential never rewrites another's, so
+concurrent writers (e.g. two tabs) can't clobber each other and a corrupt entry
+only drops itself — and the app never needs an atomic cross-credential snapshot.
+Keep separate helper methods instead of exposing raw localStorage access:
 
 - `getCredential(kind)` returns the selected credential or `null`.
 - `setOrganizerToken(token)` updates only the organizer entry.

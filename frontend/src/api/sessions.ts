@@ -17,6 +17,6 @@ export async function createAttendeeSession(eventId: string): Promise<AttendeeSe
     body: JSON.stringify({ eventId } satisfies CreateAttendeeSessionInput),
     auth: 'public',
   });
-  setAttendeeSession(response);
+  setAttendeeSession(response.sessionId, response.eventId, response.expiresAt);
   return response;
 }
