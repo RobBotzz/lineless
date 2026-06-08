@@ -4,6 +4,7 @@ export interface Stand {
   _id: string;
   eventId: string;
   standName: string;
+  requiresPassword: boolean;
   location: Location;
   createdAt: string;
   updatedAt: string;

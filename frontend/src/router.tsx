@@ -22,6 +22,7 @@ import AttendeeLayout from './routes/attendee/AttendeeLayout';
 import AttendeeProductSelection from './routes/attendee/ProductSelection';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
+import OperatorCashierDashboard from './routes/operator/CashierDashboard';
 import OperatorPickupDashboard from './routes/operator/PickupDashboard';
 import OperatorStandDashboard from './routes/operator/Queue';
 import OperatorStandSelection from './routes/operator/StandSelection';
@@ -67,6 +68,7 @@ export const router = createBrowserRouter(
         <Route index element={<OperatorStandSelection />} />
         <Route path=":eventId" element={<OperatorStandSelection />} />
         <Route path=":eventId/pickup" element={<OperatorPickupDashboard />} />
+        <Route path=":eventId/cashier" element={<OperatorCashierDashboard />} />
         <Route path=":eventId/:standId" element={<OperatorStandDashboard />} />
       </Route>
 

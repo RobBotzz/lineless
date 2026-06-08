@@ -17,6 +17,7 @@ export const paths = {
     index: '/operator',
     root: (eventId: string) => `/operator/${eventId}`,
     pickupDashboard: (eventId: string) => `/operator/${eventId}/pickup`,
+    cashierDashboard: (eventId: string) => `/operator/${eventId}/cashier`,
     stand: (eventId: string, standId: string) => `/operator/${eventId}/${standId}`,
   },
 } as const;

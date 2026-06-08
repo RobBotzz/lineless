@@ -47,6 +47,10 @@ function getOperatorNavbarTitle(pathname: string) {
     return 'Pick Up';
   }
 
+  if (pathSegments[0] === 'operator' && pathSegments.includes('cashier')) {
+    return 'Cashier';
+  }
+
   if (pathname === paths.operator.index || /^\/operator\/[^/]+$/.test(pathname)) {
     return 'Stand Selection';
   }
