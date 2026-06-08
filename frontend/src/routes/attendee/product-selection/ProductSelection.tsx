@@ -13,7 +13,7 @@ import type { productSelectionLoader } from './data';
 export default function ProductSelection() {
   const { event, stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
   const { eventId } = useParams();
-  const { addItem, totalCount, items } = useCart();
+  const { addItem, setQuantity, totalCount, items } = useCart();
 
   const [selectedStand, setSelectedStand] = useState<string>(ALL_STANDS);
 
@@ -55,6 +55,7 @@ export default function ProductSelection() {
               standName={standsById[product.standId] ?? ''}
               cartQuantity={cartQuantityById[product._id] ?? 0}
               onAdd={addItem}
+              onSetQuantity={setQuantity}
             />
           ))
         )}

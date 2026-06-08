@@ -21,12 +21,14 @@ export async function productSelectionLoader({
   const eventId = params.eventId as string;
 
   const [event, stands] = await Promise.all([
-    apiFetch<Event>(`/events/${eventId}`),
-    apiFetch<Stand[]>(`/events/${eventId}/stands`),
+    apiFetch<Event>(`/events/${eventId}`, { auth: 'organizer' }),
+    apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'organizer' }),
   ]);
 
   const productLists = await Promise.all(
-    stands.map((stand) => apiFetch<Product[]>(`/stands/${stand._id}/products`)),
+    stands.map((stand) =>
+      apiFetch<Product[]>(`/stands/${stand._id}/products`, { auth: 'organizer' }),
+    ),
   );
 
   const productsByStand: Record<string, Product[]> = {};
