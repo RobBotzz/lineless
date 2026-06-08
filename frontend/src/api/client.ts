@@ -1,5 +1,4 @@
-import { getCredential } from '../auth/keychain';
-import type { AuthKind } from '../auth/keychain';
+import { getCredential, getOperatorStandToken } from '../auth/keychain';
 
 // All backend calls go through Vite's /api proxy (see vite.config.ts).
 const BASE_URL = '/api';
@@ -13,27 +12,33 @@ export class ApiError extends Error {
   }
 }
 
-export type ApiAuthMode = 'public' | AuthKind;
+export type ApiAuthMode = 'public' | 'organizer' | 'attendee' | 'operator' | 'operator-link';
+
+export type AuthScope = Exclude<ApiAuthMode, 'public'>;
 
 // AuthProvider registers a handler so a 401 on an authed request can clear only
-// the credential type that failed.
-let onUnauthorized: ((kind: AuthKind) => void) | null = null;
-export function setUnauthorizedHandler(handler: ((kind: AuthKind) => void) | null): void {
+// the credential scope that failed.
+let onUnauthorized: ((scope: AuthScope, standId?: string) => void) | null = null;
+export function setUnauthorizedHandler(
+  handler: ((scope: AuthScope, standId?: string) => void) | null,
+): void {
   onUnauthorized = handler;
 }
 
 interface ApiFetchOptions extends RequestInit {
   auth: ApiAuthMode;
+  // Required when auth is 'operator': which stand's token to send.
+  standId?: string;
 }
 
 export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promise<T> {
-  const { auth, headers, body, ...rest } = options;
+  const { auth, standId, headers, body, ...rest } = options;
 
   const finalHeaders = new Headers(headers);
   if (body !== undefined && !finalHeaders.has('Content-Type')) {
     finalHeaders.set('Content-Type', 'application/json');
   }
-  attachAuthHeader(finalHeaders, auth);
+  attachAuthHeader(finalHeaders, auth, standId);
 
   const res = await fetch(`${BASE_URL}${path}`, {
     ...rest,
@@ -42,7 +47,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promi
   });
 
   if (res.status === 401 && auth !== 'public') {
-    onUnauthorized?.(auth);
+    onUnauthorized?.(auth, standId);
   }
 
   if (!res.ok) {
@@ -54,7 +59,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promi
   return (await res.json()) as T;
 }
 
-function attachAuthHeader(headers: Headers, auth: ApiAuthMode): void {
+function attachAuthHeader(headers: Headers, auth: ApiAuthMode, standId?: string): void {
   switch (auth) {
     case 'public':
       return;
@@ -64,24 +69,32 @@ function attachAuthHeader(headers: Headers, auth: ApiAuthMode): void {
       headers.set('Authorization', `Bearer ${credential.token}`);
       return;
     }
-    case 'operator': {
-      const credential = getCredential('operator');
-      if (!credential) throwMissingCredential('operator');
-      headers.set('Authorization', `Bearer ${credential.token}`);
-      return;
-    }
     case 'attendee': {
       const credential = getCredential('attendee');
       if (!credential) throwMissingCredential('attendee');
       headers.set('X-Attendee-Session-ID', credential.sessionId);
       return;
     }
+    case 'operator': {
+      if (!standId) throw new ApiError(400, "operator auth requires a 'standId' option");
+      const token = getOperatorStandToken(standId);
+      if (!token) throwMissingCredential('operator', standId);
+      headers.set('Authorization', `Bearer ${token}`);
+      return;
+    }
+    case 'operator-link': {
+      const credential = getCredential('operator');
+      if (!credential) throwMissingCredential('operator-link');
+      headers.set('X-Operator-Access-Key', credential.operatorAccessKey);
+      return;
+    }
   }
 }
 
-function throwMissingCredential(kind: AuthKind): never {
-  onUnauthorized?.(kind);
-  throw new ApiError(401, `Missing ${kind} credential`);
+function throwMissingCredential(scope: AuthScope, standId?: string): never {
+  onUnauthorized?.(scope, standId);
+  const label = standId ? `operator stand ${standId}` : scope;
+  throw new ApiError(401, `Missing ${label} credential`);
 }
 
 // Backend errors come back as { message } or { error }; fall back to status text.

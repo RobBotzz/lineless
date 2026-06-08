@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from 'react-router';
 
 import { getAccountInfo, updateOrganizerAccount, updateOrganizerPassword } from '@/api/account';
 import { ApiError } from '@/api/client';
-import { setOrganizerToken } from '@/auth/keychain';
+import { setOrganizer } from '@/auth/keychain';
 import type { Account, UpdateAccountInput } from '@/types/account';
 
 export type SettingsLoaderData = {
@@ -54,7 +54,7 @@ export async function settingsAction({
           currentPassword: body.currentPassword,
           newPassword: body.newPassword,
         });
-        if (response.token) setOrganizerToken(response.token);
+        if (response.token) setOrganizer(response.token);
         return {
           ok: true,
           intent: 'change-password',
