@@ -1,11 +1,11 @@
 import { Outlet, useLocation } from 'react-router';
 import { OrganizerRequireAuth } from '../../auth/organizer/OrganizerRequireAuth';
-import { useAuth } from '../../auth/organizer/AuthContext';
+import { useOrganizerAuth } from '../../auth/organizer/OrganizerAuthContext';
 import { OrganizerNavbar } from '../../components/layout';
 import { paths } from '../../paths';
 
 export default function OrganizerLayout() {
-  const { logout } = useAuth();
+  const { logout } = useOrganizerAuth();
   const { pathname } = useLocation();
 
   const centerLinks = [

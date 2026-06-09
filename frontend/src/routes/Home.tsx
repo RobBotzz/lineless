@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { useAuth } from '../auth/organizer/AuthContext';
+import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
 import { LandingPageNavbar } from '../components/layout/navbars';
 import { buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
@@ -11,7 +11,7 @@ const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export default function Home() {
-  const { isAuthenticated, status, logout } = useAuth();
+  const { isAuthenticated, status, logout } = useOrganizerAuth();
   const [activeSection, setActiveSection] = useState<SectionId>('home');
 
   useEffect(() => {

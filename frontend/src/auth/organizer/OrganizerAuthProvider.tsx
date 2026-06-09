@@ -11,13 +11,13 @@ import {
   hasCredential,
   setOrganizer,
 } from '../keychain';
-import { AuthContext } from './AuthContext';
-import type { AuthContextValue, AuthStatus } from './AuthContext';
+import { OrganizerAuthContext } from './OrganizerAuthContext';
+import type { OrganizerAuthContextValue, OrganizerAuthStatus } from './OrganizerAuthContext';
 import type { Account, LoginInput, SignupInput } from '../../types/account';
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function OrganizerAuthProvider({ children }: { children: ReactNode }) {
   // If a token is already stored we start as 'loading' until /info confirms it.
-  const [status, setStatus] = useState<AuthStatus>(() =>
+  const [status, setStatus] = useState<OrganizerAuthStatus>(() =>
     hasCredential('organizer') ? 'loading' : 'unauthenticated',
   );
   const [account, setAccount] = useState<Account | null>(null);
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('authenticated');
   }, []);
 
-  const value = useMemo<AuthContextValue>(
+  const value = useMemo<OrganizerAuthContextValue>(
     () => ({
       status,
       account,
@@ -99,5 +99,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [status, account, login, signup, logout, logoutRedirect],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <OrganizerAuthContext.Provider value={value}>{children}</OrganizerAuthContext.Provider>;
 }

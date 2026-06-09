@@ -1,12 +1,12 @@
 import { Navigate, useLocation } from 'react-router';
 import type { ReactNode } from 'react';
-import { useAuth } from './AuthContext';
+import { useOrganizerAuth } from './OrganizerAuthContext';
 import { paths } from '../../paths';
 
 // Gate for organizer routes. Renders children only when authenticated;
 // otherwise redirects to the login page, remembering where the user wanted to go.
 export function OrganizerRequireAuth({ children }: { children: ReactNode }) {
-  const { status, logoutRedirect } = useAuth();
+  const { status, logoutRedirect } = useOrganizerAuth();
   const location = useLocation();
 
   if (status === 'loading') {
