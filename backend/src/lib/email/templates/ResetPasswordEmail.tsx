@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactElement } from "react";
 import {
   Body,
   Button,
@@ -18,10 +18,16 @@ export interface ResetPasswordEmailProps {
   firstName?: string;
 }
 
-export function ResetPasswordEmail({
+// A React Email template plus the optional `PreviewProps` the React Email dev
+// server reads to render a preview with sample data (ignored at runtime).
+type EmailTemplate = ((props: ResetPasswordEmailProps) => ReactElement) & {
+  PreviewProps?: ResetPasswordEmailProps;
+};
+
+export const ResetPasswordEmail: EmailTemplate = ({
   resetUrl,
   firstName,
-}: ResetPasswordEmailProps) {
+}: ResetPasswordEmailProps) => {
   const greeting = firstName ? `Hi ${firstName},` : "Hi,";
 
   return (
@@ -50,7 +56,12 @@ export function ResetPasswordEmail({
       </Body>
     </Html>
   );
-}
+};
+
+ResetPasswordEmail.PreviewProps = {
+  resetUrl: "https://example.com/reset-password?token=preview-token",
+  firstName: "Robin",
+};
 
 export default ResetPasswordEmail;
 

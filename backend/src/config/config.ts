@@ -41,6 +41,6 @@ export const config: Config = {
   appBaseUrl: "http://localhost:3000",
   resend: {
     apiKey: "re_REPLACE_WITH_YOUR_RESEND_API_KEY",
-    fromAddress: "onboarding@resend.dev",
+    fromAddress: "contact@lineless.shop",
   },
 };
