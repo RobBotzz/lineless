@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { Button } from '../../components/ui/button';
 import { AlertDialog } from '../../components/feedback';
 import { Wordmark } from '../../components/shared';
-import { useAuth } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/organizer/AuthContext';
 import { ApiError } from '../../api/client';
 import { paths } from '../../paths';
 import {
@@ -28,7 +28,7 @@ export default function OrganizerAuth() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Where to send the organizer after success (set by RequireAuth).
+  // Where to send the organizer after success (set by OrganizerRequireAuth).
   const from =
     (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ??
     paths.organizer.root;

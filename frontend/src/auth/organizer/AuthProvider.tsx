@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { login as apiLogin, signup as apiSignup, getAccountInfo } from '../api/account';
-import { setUnauthorizedHandler } from '../api/client';
+import { login as apiLogin, signup as apiSignup, getAccountInfo } from '../../api/account';
+import { setUnauthorizedHandler } from '../../api/client';
 import {
   clearAttendeeSession,
   clearOperatorCredential,
@@ -10,10 +10,10 @@ import {
   clearOrganizerCredential,
   hasCredential,
   setOrganizer,
-} from './keychain';
+} from '../keychain';
 import { AuthContext } from './AuthContext';
 import type { AuthContextValue, AuthStatus } from './AuthContext';
-import type { Account, LoginInput, SignupInput } from '../types/account';
+import type { Account, LoginInput, SignupInput } from '../../types/account';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   // If a token is already stored we start as 'loading' until /info confirms it.
@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasCredential('organizer') ? 'loading' : 'unauthenticated',
   );
   const [account, setAccount] = useState<Account | null>(null);
-  // Where RequireAuth should send the user after this logout (null = default).
+  // Where OrganizerRequireAuth should send the user after logout (null = default).
   const [logoutRedirect, setLogoutRedirect] = useState<string | null>(null);
 
   const logout = useCallback((redirectTo?: string) => {

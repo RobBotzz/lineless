@@ -1,5 +1,5 @@
 import { createAttendeeSession } from '@/api/sessions';
-import { getAttendeeSession, setAttendeeSession } from './keychain';
+import { getAttendeeSession, setAttendeeSession } from '../keychain';
 
 export function hasValidAttendeeSession(eventId: string): boolean {
   const session = getAttendeeSession(eventId);

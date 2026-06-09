@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from 'react-router';
-import { RequireAuth } from '../../auth/RequireAuth';
-import { useAuth } from '../../auth/AuthContext';
+import { OrganizerRequireAuth } from '../../auth/organizer/OrganizerRequireAuth';
+import { useAuth } from '../../auth/organizer/AuthContext';
 import { OrganizerNavbar } from '../../components/layout';
 import { paths } from '../../paths';
 
@@ -15,7 +15,7 @@ export default function OrganizerLayout() {
   ];
 
   return (
-    <RequireAuth>
+    <OrganizerRequireAuth>
       <div className="min-h-screen bg-background">
         <OrganizerNavbar
           activeCenterLinkTo={pathname}
@@ -28,6 +28,6 @@ export default function OrganizerLayout() {
           <Outlet />
         </main>
       </div>
-    </RequireAuth>
+    </OrganizerRequireAuth>
   );
 }

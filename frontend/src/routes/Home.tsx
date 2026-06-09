@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/organizer/AuthContext';
 import { LandingPageNavbar } from '../components/layout/navbars';
 import { buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
@@ -88,7 +88,7 @@ export default function Home() {
               <div className="mt-8 flex items-center gap-4">
                 {/* While a stored token is still being validated (status === 'loading')
                     we optimistically show the dashboard link, since loading only occurs
-                    when a token is present. RequireAuth guards /organizer if it is stale. */}
+                    when a token is present. OrganizerRequireAuth guards /organizer if it is stale. */}
                 {status === 'unauthenticated' ? (
                   <Link
                     className={buttonVariants({ variant: 'default', size: 'md' })}

@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { Account, LoginInput, SignupInput } from '../types/account';
+import type { Account, LoginInput, SignupInput } from '../../types/account';
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 

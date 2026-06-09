@@ -7,14 +7,14 @@ import { paths } from '@/paths';
 import { CartProvider, useCart } from './cart/cart-context';
 import { ATTENDEE_WIDTH } from './column';
 import { CartIcon, HistoryIcon } from '@/components/icons';
-import { RequireAttendeeSession } from './RequireAttendeeSession';
+import { AttendeeRequireSession } from '@/auth/attendee/AttendeeRequireSession';
 
 export default function AttendeeLayout() {
   const { eventId } = useParams();
 
   return (
     <CartProvider key={eventId ?? ''} eventId={eventId ?? ''}>
-      <RequireAttendeeSession eventId={eventId ?? ''}>
+      <AttendeeRequireSession eventId={eventId ?? ''}>
         <div className="min-h-screen bg-background">
           <AttendeeNavbar
             left={<Logo eventId={eventId} />}
@@ -25,7 +25,7 @@ export default function AttendeeLayout() {
             <Outlet />
           </main>
         </div>
-      </RequireAttendeeSession>
+      </AttendeeRequireSession>
     </CartProvider>
   );
 }

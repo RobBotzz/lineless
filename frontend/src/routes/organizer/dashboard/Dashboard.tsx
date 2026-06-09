@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { useAuth } from '@/auth/AuthContext';
+import { useAuth } from '@/auth/organizer/AuthContext';
 import { AlertDialog } from '@/components/feedback';
 import { CalendarIcon, PinIcon, ProductsIcon, StandIcon } from '@/components/icons';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
