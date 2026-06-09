@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { render } from "@react-email/components";
 import { ResetPasswordEmail } from "./templates/ResetPasswordEmail";
+import { WelcomeEmail } from "./templates/WelcomeEmail";
 
 // Local-only dev helper: renders email templates to standalone HTML files you
 // can open in a browser — no preview server, no extra dependencies. Uses each
@@ -13,6 +14,14 @@ async function main(): Promise<void> {
       element: ResetPasswordEmail(
         ResetPasswordEmail.PreviewProps ?? {
           resetUrl: "https://example.com/reset-password?token=preview",
+        }
+      ),
+    },
+    {
+      name: "WelcomeEmail",
+      element: WelcomeEmail(
+        WelcomeEmail.PreviewProps ?? {
+          dashboardUrl: "https://example.com/organizer",
         }
       ),
     },

@@ -10,7 +10,10 @@ import {
 } from "./errors";
 import { signJwt } from "../../lib/jwt";
 import { comparePassword, hashPassword } from "../../lib/password";
-import { sendPasswordResetEmail } from "../../lib/email/mailer";
+import {
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+} from "../../lib/email/mailer";
 import { config } from "../../config/config";
 import type {
   ChangePasswordInput,
@@ -61,6 +64,17 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
     firstName: input.firstName,
     lastName: input.lastName,
   });
+
+  try {
+    await sendWelcomeEmail({
+      to: input.email,
+      firstName: input.firstName,
+      dashboardUrl: `${config.appBaseUrl}/organizer`,
+    });
+  } catch (err) {
+    // A failed welcome mail must not abort a successful registration.
+    console.error("Failed to send welcome email:", err);
+  }
 
   return {
     message: "Account created successfully",
@@ -123,6 +137,7 @@ export async function requestPasswordReset(
       to: account.email,
       resetUrl,
       firstName: account.firstName,
+      expiresInMinutes: config.passwordReset.tokenTtlMinutes,
     });
   } catch (err) {
     // Swallow delivery failures: surfacing them would both leak account
