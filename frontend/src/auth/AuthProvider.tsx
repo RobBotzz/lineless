@@ -3,7 +3,14 @@ import type { ReactNode } from 'react';
 
 import { login as apiLogin, signup as apiSignup, getAccountInfo } from '../api/account';
 import { setUnauthorizedHandler } from '../api/client';
-import { clearCredential, clearOperatorStand, hasCredential, setOrganizer } from './keychain';
+import {
+  clearAttendeeSession,
+  clearOperatorCredential,
+  clearOperatorStand,
+  clearOrganizerCredential,
+  hasCredential,
+  setOrganizer,
+} from './keychain';
 import { AuthContext } from './AuthContext';
 import type { AuthContextValue, AuthStatus } from './AuthContext';
 import type { Account, LoginInput, SignupInput } from '../types/account';
@@ -19,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback((redirectTo?: string) => {
     setLogoutRedirect(redirectTo ?? null);
-    clearCredential('organizer');
+    clearOrganizerCredential();
     setAccount(null);
     setStatus('unauthenticated');
   }, []);
@@ -44,19 +51,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Clear only the credential scope that a 401 came from.
   useEffect(() => {
-    setUnauthorizedHandler((scope, standId) => {
+    setUnauthorizedHandler((scope, ids) => {
       switch (scope) {
         case 'organizer':
           logout();
           break;
         case 'operator':
-          if (standId) clearOperatorStand(standId);
+          if (ids?.standId) clearOperatorStand(ids.standId);
           break;
         case 'operator-link':
-          clearCredential('operator');
+          clearOperatorCredential();
           break;
         case 'attendee':
-          clearCredential('attendee');
+          if (ids?.eventId) clearAttendeeSession(ids.eventId);
           break;
       }
     });

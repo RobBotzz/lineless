@@ -14,7 +14,7 @@ export function getEvent(eventId: string): Promise<Event> {
 }
 
 export function getAttendeeEvent(eventId: string): Promise<Event> {
-  return apiFetch<Event>(`/events/${eventId}`, { auth: 'attendee' });
+  return apiFetch<Event>(`/events/${eventId}`, { auth: 'attendee', eventId });
 }
 
 export function createEvent(input: CreateEventInput): Promise<Event> {

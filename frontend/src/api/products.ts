@@ -5,8 +5,8 @@ export function getStandProducts(standId: string): Promise<Product[]> {
   return apiFetch<Product[]>(`/stands/${standId}/products`, { auth: 'organizer' });
 }
 
-export function getAttendeeStandProducts(standId: string): Promise<Product[]> {
-  return apiFetch<Product[]>(`/stands/${standId}/products`, { auth: 'attendee' });
+export function getAttendeeStandProducts(eventId: string, standId: string): Promise<Product[]> {
+  return apiFetch<Product[]>(`/stands/${standId}/products`, { auth: 'attendee', eventId });
 }
 
 export function createProduct(standId: string, patch: CreateProductInput): Promise<void> {

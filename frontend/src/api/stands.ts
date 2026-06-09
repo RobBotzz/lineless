@@ -11,7 +11,7 @@ export function getOperatorStands(eventId: string): Promise<Stand[]> {
 }
 
 export function getAttendeeStands(eventId: string): Promise<Stand[]> {
-  return apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'attendee' });
+  return apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'attendee', eventId });
 }
 
 export function getOperatorStand(standId: string): Promise<Stand> {

@@ -1,10 +1,10 @@
 import { createAttendeeSession } from '@/api/sessions';
-import { getCredential, setAttendee } from './keychain';
+import { getAttendeeSession, setAttendeeSession } from './keychain';
 
 export function hasValidAttendeeSession(eventId: string): boolean {
-  const credential = getCredential('attendee');
-  if (!credential || credential.eventId !== eventId) return false;
-  return new Date(credential.expiresAt).getTime() > Date.now();
+  const session = getAttendeeSession(eventId);
+  if (!session) return false;
+  return new Date(session.expiresAt).getTime() > Date.now();
 }
 
 let pending: { eventId: string; promise: Promise<unknown> } | null = null;
@@ -16,7 +16,7 @@ export async function ensureAttendeeSession(eventId: string): Promise<void> {
     return;
   }
   const promise = createAttendeeSession(eventId).then((session) => {
-    setAttendee(session.sessionId, session.eventId, session.expiresAt);
+    setAttendeeSession(session.eventId, session.sessionId, session.expiresAt);
   });
   pending = { eventId, promise };
   try {

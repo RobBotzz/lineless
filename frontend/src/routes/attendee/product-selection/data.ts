@@ -27,7 +27,7 @@ export async function productSelectionLoader({
   ]);
 
   const productLists = await Promise.all(
-    stands.map((stand) => getAttendeeStandProducts(stand._id)),
+    stands.map((stand) => getAttendeeStandProducts(eventId, stand._id)),
   );
 
   const productsByStand: Record<string, Product[]> = {};
