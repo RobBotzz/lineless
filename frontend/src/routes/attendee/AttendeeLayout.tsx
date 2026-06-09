@@ -6,7 +6,7 @@ import { paths } from '@/paths';
 
 import { CartProvider, useCart } from './cart/cart-context';
 import { ATTENDEE_WIDTH } from './column';
-import { CartIcon, HistoryIcon } from './icons';
+import { CartIcon, HistoryIcon } from '@/components/icons';
 import { RequireAttendeeSession } from './RequireAttendeeSession';
 
 export default function AttendeeLayout() {

@@ -2,7 +2,14 @@ import { useState } from 'react';
 
 import { formatMoney } from '@/types/product';
 
-import { ChatIcon, ChevronDownIcon, ImageIcon, MinusIcon, PlusIcon, TrashIcon } from '../icons';
+import {
+  ChatIcon,
+  ChevronDownIcon,
+  DeleteIcon,
+  ImageIcon,
+  MinusIcon,
+  PlusIcon,
+} from '@/components/icons';
 import type { CartItem } from './cart-context';
 
 interface CartLineProps {
@@ -44,7 +51,7 @@ export function CartLine({ item, onSetQuantity, onSetComment, onRemove }: CartLi
         aria-label={`Remove ${product.productName} from cart`}
         className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <TrashIcon />
+        <DeleteIcon />
       </button>
 
       <div className="flex gap-4">
