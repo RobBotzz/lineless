@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatMoney, type Product } from '@/types/product';
 
-import { ImageIcon } from '../icons';
+import { ImageIcon } from '@/components/icons';
 import { Rating } from './Rating';
 
 interface ProductDetailsDialogProps {

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { ensureAttendeeSession, hasValidAttendeeSession } from '@/auth/attendeeSession';
+import { ensureAttendeeSession, hasValidAttendeeSession } from './attendeeSession';
 import { subscribeAttendee } from '@/auth/keychain';
 
 type SessionStatus = 'checking' | 'ready' | 'error';
 
-export function RequireAttendeeSession({
+export function AttendeeRequireSession({
   eventId,
   children,
 }: {

@@ -5,7 +5,7 @@ import { paths } from '@/paths';
 import { formatMoney } from '@/types/product';
 
 import { ATTENDEE_WIDTH } from '../column';
-import { CartIcon } from '../icons';
+import { CartIcon } from '@/components/icons';
 import { CartLine } from './CartLine';
 import { useCart } from './cart-context';
 

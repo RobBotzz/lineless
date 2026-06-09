@@ -3,7 +3,7 @@ import type { LoaderFunctionArgs } from 'react-router';
 import { getAttendeeEvent } from '@/api/events';
 import { getAttendeeStandProducts } from '@/api/products';
 import { getAttendeeStands } from '@/api/stands';
-import { ensureAttendeeSession } from '@/auth/attendeeSession';
+import { ensureAttendeeSession } from '@/auth/attendee/attendeeSession';
 import type { Event } from '@/types/event';
 import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';

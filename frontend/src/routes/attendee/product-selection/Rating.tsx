@@ -1,4 +1,4 @@
-import { StarIcon } from '../icons';
+import { StarIcon } from '@/components/icons';
 
 interface RatingProps {
   value: number | null;

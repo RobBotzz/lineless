@@ -5,7 +5,7 @@ import { paths } from '@/paths';
 
 import { useCart } from '../cart/cart-context';
 import { ATTENDEE_WIDTH } from '../column';
-import { CartIcon } from '../icons';
+import { CartIcon } from '@/components/icons';
 import { ProductCard } from './ProductCard';
 import { ALL_STANDS, StandFilter } from './StandFilter';
 import type { productSelectionLoader } from './data';

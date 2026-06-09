@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { useAuth } from '../auth/AuthContext';
+import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
 import { LandingPageNavbar } from '../components/layout/navbars';
 import { buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
@@ -11,7 +11,7 @@ const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export default function Home() {
-  const { isAuthenticated, status, logout } = useAuth();
+  const { isAuthenticated, status, logout } = useOrganizerAuth();
   const [activeSection, setActiveSection] = useState<SectionId>('home');
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export default function Home() {
               <div className="mt-8 flex items-center gap-4">
                 {/* While a stored token is still being validated (status === 'loading')
                     we optimistically show the dashboard link, since loading only occurs
-                    when a token is present. RequireAuth guards /organizer if it is stale. */}
+                    when a token is present. OrganizerRequireAuth guards /organizer if it is stale. */}
                 {status === 'unauthenticated' ? (
                   <Link
                     className={buttonVariants({ variant: 'default', size: 'md' })}

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { useAuth } from '@/auth/AuthContext';
+import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
 import { AlertDialog } from '@/components/feedback';
 import { CalendarIcon, PinIcon, ProductsIcon, StandIcon } from '@/components/icons';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,7 +46,7 @@ export function DashboardError() {
 export default function Dashboard() {
   const { events, standCounts, productCounts } =
     useLoaderData() as import('./data').DashboardLoaderData;
-  const { account } = useAuth();
+  const { account } = useOrganizerAuth();
   const firstName = account?.firstName?.trim();
 
   return (
