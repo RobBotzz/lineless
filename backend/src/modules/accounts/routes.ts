@@ -7,6 +7,7 @@ import {
   getAccountInfo,
   login,
   requestPasswordReset,
+  resetPassword,
   signup,
   updateAccountInfo,
 } from "./service";
@@ -14,6 +15,7 @@ import {
   changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
+  resetPasswordSchema,
   signupSchema,
   updateAccountSchema,
 } from "./types";
@@ -22,6 +24,7 @@ import {
   AccountInvalidCredentialsError,
   AccountInvalidPasswordError,
   AccountNotFoundError,
+  PasswordResetTokenInvalidError,
 } from "./errors";
 
 const accountRouter = Router();
@@ -38,6 +41,9 @@ function handleError(err: unknown, res: Response): Response {
   }
   if (err instanceof AccountNotFoundError) {
     return res.status(404).json({ error: err.message });
+  }
+  if (err instanceof PasswordResetTokenInvalidError) {
+    return res.status(400).json({ error: err.message });
   }
   console.error("Accounts error:", err);
   return res.status(500).json({ error: "Internal server error" });
@@ -80,6 +86,20 @@ accountRouter.post(
         message:
           "If an account exists for this email, a password reset link has been sent.",
       });
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// Public — no auth. Consumes a reset token from the emailed link and sets a new
+// password. On success the user is logged straight in (returns a fresh JWT).
+accountRouter.post(
+  "/reset-password",
+  validateBody(resetPasswordSchema, async (_req, res, data) => {
+    try {
+      const result = await resetPassword(data);
+      res.status(200).json(result);
     } catch (err) {
       handleError(err, res);
     }

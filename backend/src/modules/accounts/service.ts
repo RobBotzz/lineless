@@ -1,9 +1,12 @@
+import { createHmac, randomBytes } from "node:crypto";
 import { Account, type AccountDoc } from "./model";
+import { PasswordResetToken } from "./passwordResetToken.model";
 import {
   AccountAlreadyExistsError,
   AccountInvalidCredentialsError,
   AccountInvalidPasswordError,
   AccountNotFoundError,
+  PasswordResetTokenInvalidError,
 } from "./errors";
 import { signJwt } from "../../lib/jwt";
 import { comparePassword, hashPassword } from "../../lib/password";
@@ -13,9 +16,14 @@ import type {
   ChangePasswordInput,
   ForgotPasswordInput,
   LoginInput,
+  ResetPasswordInput,
   SignupInput,
   UpdateAccountInput,
 } from "./types";
+
+function hashResetToken(rawToken: string): string {
+  return createHmac("sha256", config.jwt.secret).update(rawToken).digest("hex");
+}
 
 function issueOrganizerToken(accountId: string): string {
   return signJwt({ tokenType: "ORGANIZER", sub: accountId });
@@ -95,9 +103,20 @@ export async function requestPasswordReset(
     return;
   }
 
-  // TODO: generate a signed, single-use reset token and append it to
-  // the link. For now the URL points at the reset page without a token.
-  const resetUrl = `${config.appBaseUrl}/reset-password`;
+  // Only one reset link should be live at a time: drop any earlier tokens.
+  await PasswordResetToken.deleteMany({ accountId: account.accountId });
+
+  const rawToken = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(
+    Date.now() + config.passwordReset.tokenTtlMinutes * 60 * 1000
+  );
+  await PasswordResetToken.create({
+    accountId: account.accountId,
+    tokenHash: hashResetToken(rawToken),
+    expiresAt,
+  });
+
+  const resetUrl = `${config.appBaseUrl}/reset-password?token=${rawToken}`;
 
   try {
     await sendPasswordResetEmail({
@@ -110,6 +129,39 @@ export async function requestPasswordReset(
     // existence and turn a transient mail outage into a 500.
     console.error("Failed to send password reset email:", err);
   }
+}
+
+export async function resetPassword(
+  input: ResetPasswordInput
+): Promise<AuthResult> {
+  // TTL purges expired tokens, but its sweep is not instant — guard expiry here
+  // too so a just-expired token is never accepted.
+  const tokenDoc = await PasswordResetToken.findOne({
+    tokenHash: hashResetToken(input.token),
+    expiresAt: { $gt: new Date() },
+  }).lean();
+  if (!tokenDoc) {
+    throw new PasswordResetTokenInvalidError();
+  }
+
+  const account = await Account.findOne({
+    accountId: tokenDoc.accountId,
+    deletedAt: null,
+  });
+  if (!account) {
+    throw new PasswordResetTokenInvalidError();
+  }
+
+  account.passwordHash = await hashPassword(input.newPassword);
+  await account.save();
+
+  // Single-use: invalidate every reset token for this account, not just this one.
+  await PasswordResetToken.deleteMany({ accountId: account.accountId });
+
+  return {
+    message: "Password reset successfully",
+    token: issueOrganizerToken(account.accountId),
+  };
 }
 
 export async function deleteAccount(accountId: string): Promise<void> {

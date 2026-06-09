@@ -22,6 +22,13 @@ export const forgotPasswordSchema = z.object({
   email: emailSchema,
 });
 
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().min(1),
+    newPassword: passwordSchema,
+  })
+  .strict();
+
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1),
@@ -41,5 +48,6 @@ export const updateAccountSchema = z
 export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
