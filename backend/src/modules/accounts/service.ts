@@ -7,8 +7,11 @@ import {
 } from "./errors";
 import { signJwt } from "../../lib/jwt";
 import { comparePassword, hashPassword } from "../../lib/password";
+import { sendPasswordResetEmail } from "../../lib/email/mailer";
+import { config } from "../../config/config";
 import type {
   ChangePasswordInput,
+  ForgotPasswordInput,
   LoginInput,
   SignupInput,
   UpdateAccountInput,
@@ -78,6 +81,35 @@ export async function login(input: LoginInput): Promise<AuthResult> {
     message: "Login successful",
     token: issueOrganizerToken(account.accountId),
   };
+}
+
+export async function requestPasswordReset(
+  input: ForgotPasswordInput
+): Promise<void> {
+  const account = await Account.findOne({
+    email: input.email,
+    deletedAt: null,
+  }).lean();
+
+  if (!account?.email) {
+    return;
+  }
+
+  // TODO: generate a signed, single-use reset token and append it to
+  // the link. For now the URL points at the reset page without a token.
+  const resetUrl = `${config.appBaseUrl}/reset-password`;
+
+  try {
+    await sendPasswordResetEmail({
+      to: account.email,
+      resetUrl,
+      firstName: account.firstName,
+    });
+  } catch (err) {
+    // Swallow delivery failures: surfacing them would both leak account
+    // existence and turn a transient mail outage into a 500.
+    console.error("Failed to send password reset email:", err);
+  }
 }
 
 export async function deleteAccount(accountId: string): Promise<void> {

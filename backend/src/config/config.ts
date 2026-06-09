@@ -15,6 +15,8 @@ interface Config {
   };
   /** bcrypt cost factor used for all password hashing. */
   bcryptRounds: number;
+  /** Public base URL of the frontend, used to build links sent in emails. */
+  appBaseUrl: string;
   resend: {
     /** Resend API key used to send transactional mail. */
     apiKey: string;
@@ -36,6 +38,7 @@ export const config: Config = {
     operatorExpiresIn: "12h",
   },
   bcryptRounds: 10,
+  appBaseUrl: "http://localhost:3000",
   resend: {
     apiKey: "re_REPLACE_WITH_YOUR_RESEND_API_KEY",
     fromAddress: "onboarding@resend.dev",

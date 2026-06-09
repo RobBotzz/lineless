@@ -6,11 +6,13 @@ import {
   deleteAccount,
   getAccountInfo,
   login,
+  requestPasswordReset,
   signup,
   updateAccountInfo,
 } from "./service";
 import {
   changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
   signupSchema,
   updateAccountSchema,
@@ -61,6 +63,23 @@ accountRouter.post(
     try {
       const result = await login(data);
       res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// Public — no auth. Always responds 200 with the same message regardless of
+// whether the email is registered, to avoid leaking which accounts exist.
+accountRouter.post(
+  "/forgot-password",
+  validateBody(forgotPasswordSchema, async (_req, res, data) => {
+    try {
+      await requestPasswordReset(data);
+      res.status(200).json({
+        message:
+          "If an account exists for this email, a password reset link has been sent.",
+      });
     } catch (err) {
       handleError(err, res);
     }
