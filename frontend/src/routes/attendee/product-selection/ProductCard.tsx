@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatMoney, type Product } from '@/types/product';
 
-import { ImageIcon, InfoIcon, PlusIcon } from '../icons';
+import { ImageIcon, InfoIcon, MinusIcon, PlusIcon } from '../icons';
 import { ProductDetailsDialog } from './ProductDetailsDialog';
 import { Rating } from './Rating';
 
@@ -21,14 +21,27 @@ function resolveRating(product: Product): number | null {
 interface ProductCardProps {
   product: Product;
   standName: string;
+  cartQuantity: number;
   onAdd: (product: Product) => void;
+  onSetQuantity: (productId: string, quantity: number) => void;
 }
 
-export function ProductCard({ product, standName, onAdd }: ProductCardProps) {
+// Shared with CartLine's stepper styling.
+const stepperButton =
+  'inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-text transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+
+export function ProductCard({
+  product,
+  standName,
+  cartQuantity,
+  onAdd,
+  onSetQuantity,
+}: ProductCardProps) {
   const [imageOk, setImageOk] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const showImage = !!product.productImageUrl && imageOk;
   const soldOut = product.productStock <= 0;
+  const atStockLimit = !soldOut && cartQuantity >= product.productStock;
 
   // TODO: currently null when the product has no rating yet (see resolveRating).
   const rating = resolveRating(product);
@@ -38,7 +51,7 @@ export function ProductCard({ product, standName, onAdd }: ProductCardProps) {
   // repeated taps still each add one.
   const lockedRef = useRef(false);
   function handleAdd() {
-    if (lockedRef.current) return;
+    if (lockedRef.current || atStockLimit) return;
     lockedRef.current = true;
     requestAnimationFrame(() => {
       lockedRef.current = false;
@@ -87,22 +100,52 @@ export function ProductCard({ product, standName, onAdd }: ProductCardProps) {
           <span className="text-sm font-semibold text-text">
             €{formatMoney(product.priceIncludingTax)}
           </span>
-          <Button
-            size="sm"
-            className="touch-manipulation"
-            disabled={soldOut}
-            onClick={handleAdd}
-            aria-label={`Add ${product.productName} to cart`}
-          >
-            {soldOut ? (
-              'Sold out'
-            ) : (
-              <span className="inline-flex items-center gap-1">
-                <PlusIcon />
-                Add
+          {cartQuantity > 0 ? (
+            // Mirrors the cart's stepper. Minus stays enabled at 1: it drops the
+            // quantity to 0, removing the line and reverting to the Add button.
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className={stepperButton}
+                onClick={() => onSetQuantity(product._id, cartQuantity - 1)}
+                aria-label={`Decrease ${product.productName} quantity`}
+              >
+                <MinusIcon />
+              </button>
+              <span
+                className="min-w-6 text-center text-sm font-semibold text-text"
+                aria-live="polite"
+              >
+                {cartQuantity}
               </span>
-            )}
-          </Button>
+              <button
+                type="button"
+                className={stepperButton}
+                onClick={() => onSetQuantity(product._id, cartQuantity + 1)}
+                disabled={atStockLimit}
+                aria-label={`Increase ${product.productName} quantity`}
+              >
+                <PlusIcon />
+              </button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              className="touch-manipulation"
+              disabled={soldOut}
+              onClick={handleAdd}
+              aria-label={`Add ${product.productName} to cart`}
+            >
+              {soldOut ? (
+                'Sold out'
+              ) : (
+                <span className="inline-flex items-center gap-1">
+                  <PlusIcon />
+                  Add
+                </span>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 

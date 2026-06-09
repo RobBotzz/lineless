@@ -1,21 +1,5 @@
 export type AuthKind = 'organizer' | 'operator' | 'attendee';
 
-export interface OrganizerCredential {
-  token: string;
-}
-
-export interface AttendeeCredential {
-  sessionId: string;
-  eventId: string;
-  expiresAt: string;
-}
-
-export interface OperatorCredential {
-  eventId: string;
-  operatorAccessKey: string;
-  stands: Record<string, string>;
-}
-
 type CredentialByKind = {
   organizer: OrganizerCredential;
   operator: OperatorCredential;
@@ -34,27 +18,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
-}
-
-function parseOrganizer(data: Record<string, unknown>): OrganizerCredential | null {
-  return isString(data.token) ? { token: data.token } : null;
-}
-
-function parseAttendee(data: Record<string, unknown>): AttendeeCredential | null {
-  return isString(data.sessionId) && isString(data.eventId) && isString(data.expiresAt)
-    ? { sessionId: data.sessionId, eventId: data.eventId, expiresAt: data.expiresAt }
-    : null;
-}
-
-function parseOperator(data: Record<string, unknown>): OperatorCredential | null {
-  if (!isString(data.eventId) || !isString(data.operatorAccessKey)) return null;
-  const stands: Record<string, string> = {};
-  if (isRecord(data.stands)) {
-    for (const [standId, token] of Object.entries(data.stands)) {
-      if (isString(token)) stands[standId] = token;
-    }
-  }
-  return { eventId: data.eventId, operatorAccessKey: data.operatorAccessKey, stands };
 }
 
 function readStored<T>(key: string, parse: (data: Record<string, unknown>) => T | null): T | null {
@@ -88,20 +51,52 @@ export function hasCredential(kind: AuthKind): boolean {
   return getCredential(kind) !== null;
 }
 
-export function getOperatorStandToken(standId: string): string | null {
-  return getCredential('operator')?.stands[standId] ?? null;
+// ---------------------------------------------------------------------------
+// Organizer
+// ---------------------------------------------------------------------------
+
+export interface OrganizerCredential {
+  token: string;
+}
+
+function parseOrganizer(data: Record<string, unknown>): OrganizerCredential | null {
+  return isString(data.token) ? { token: data.token } : null;
 }
 
 export function setOrganizer(token: string): void {
   write(KEYS.organizer, { token } satisfies OrganizerCredential);
 }
 
-export function setAttendee(sessionId: string, eventId: string, expiresAt: string): void {
-  write(KEYS.attendee, { sessionId, eventId, expiresAt } satisfies AttendeeCredential);
+export function clearOrganizerCredential(): void {
+  localStorage.removeItem(KEYS.organizer);
 }
 
-// Persist the secret link key for an event. Switching to a different event
-// resets the stored stand tokens; re-opening the same event's link keeps them.
+// ---------------------------------------------------------------------------
+// Operator
+// ---------------------------------------------------------------------------
+
+export interface OperatorCredential {
+  eventId: string;
+  operatorAccessKey: string;
+  //standId => standToken
+  stands: Record<string, string>;
+}
+
+function parseOperator(data: Record<string, unknown>): OperatorCredential | null {
+  if (!isString(data.eventId) || !isString(data.operatorAccessKey)) return null;
+  const stands: Record<string, string> = {};
+  if (isRecord(data.stands)) {
+    for (const [standId, token] of Object.entries(data.stands)) {
+      if (isString(token)) stands[standId] = token;
+    }
+  }
+  return { eventId: data.eventId, operatorAccessKey: data.operatorAccessKey, stands };
+}
+
+export function getOperatorStandToken(standId: string): string | null {
+  return getCredential('operator')?.stands[standId] ?? null;
+}
+
 export function startOperatorSession(eventId: string, operatorAccessKey: string): void {
   const existing = getCredential('operator');
   const credential: OperatorCredential =
@@ -118,8 +113,6 @@ export function addOperatorStand(standId: string, token: string): void {
   write(KEYS.operator, credential);
 }
 
-// Drop a single stand's token (e.g. it expired). The link key and other stands
-// stay intact so the device keeps working for the rest.
 export function clearOperatorStand(standId: string): void {
   const credential = getCredential('operator');
   if (!credential || !credential.stands[standId]) return;
@@ -127,8 +120,65 @@ export function clearOperatorStand(standId: string): void {
   write(KEYS.operator, credential);
 }
 
-// Clears any one credential key, including the whole operator session
-// (`clearCredential('operator')`). To drop a single stand, use clearOperatorStand.
-export function clearCredential(kind: AuthKind): void {
-  localStorage.removeItem(KEYS[kind]);
+export function clearOperatorCredential(): void {
+  localStorage.removeItem(KEYS.operator);
+}
+
+// ---------------------------------------------------------------------------
+// Attendee
+// ---------------------------------------------------------------------------
+
+export interface AttendeeSession {
+  sessionId: string;
+  expiresAt: string;
+}
+
+export interface AttendeeCredential {
+  //eventId => attendeeSession
+  sessions: Record<string, AttendeeSession>;
+}
+
+function parseAttendee(data: Record<string, unknown>): AttendeeCredential | null {
+  const sessions: Record<string, AttendeeSession> = {};
+  if (isRecord(data.sessions)) {
+    for (const [eventId, value] of Object.entries(data.sessions)) {
+      if (isRecord(value) && isString(value.sessionId) && isString(value.expiresAt)) {
+        sessions[eventId] = { sessionId: value.sessionId, expiresAt: value.expiresAt };
+      }
+    }
+  }
+  return { sessions };
+}
+
+type Listener = () => void;
+const attendeeListeners = new Set<Listener>();
+
+export function subscribeAttendee(listener: Listener): () => void {
+  attendeeListeners.add(listener);
+  return () => {
+    attendeeListeners.delete(listener);
+  };
+}
+
+function notifyAttendee(): void {
+  for (const listener of attendeeListeners) listener();
+}
+
+export function getAttendeeSession(eventId: string): AttendeeSession | null {
+  return getCredential('attendee')?.sessions[eventId] ?? null;
+}
+
+export function setAttendeeSession(eventId: string, sessionId: string, expiresAt: string): void {
+  const credential = getCredential('attendee') ?? { sessions: {} };
+  credential.sessions[eventId] = { sessionId, expiresAt };
+  write(KEYS.attendee, credential);
+  notifyAttendee();
+}
+
+export function clearAttendeeSession(eventId: string): void {
+  const credential = getCredential('attendee');
+  if (!credential || !credential.sessions[eventId]) return;
+  delete credential.sessions[eventId];
+  write(KEYS.attendee, credential);
+  notifyAttendee();
 }

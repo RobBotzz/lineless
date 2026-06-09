@@ -41,6 +41,41 @@ export function PlusIcon({ className = 'h-4 w-4', ...props }: IconProps) {
   );
 }
 
+export function MinusIcon({ className = 'h-4 w-4', ...props }: IconProps) {
+  return (
+    <svg className={className} {...base} {...props}>
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+export function TrashIcon({ className = 'h-4 w-4', ...props }: IconProps) {
+  return (
+    <svg className={className} {...base} {...props}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
+export function ChatIcon({ className = 'h-4 w-4', ...props }: IconProps) {
+  return (
+    <svg className={className} {...base} {...props}>
+      <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+    </svg>
+  );
+}
+
+export function ChevronDownIcon({ className = 'h-4 w-4', ...props }: IconProps) {
+  return (
+    <svg className={className} {...base} {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
 export function InfoIcon({ className = 'h-4 w-4', ...props }: IconProps) {
   return (
     <svg className={className} {...base} {...props}>

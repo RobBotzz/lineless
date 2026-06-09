@@ -1,6 +1,9 @@
 import type { LoaderFunctionArgs } from 'react-router';
 
-import { apiFetch } from '@/api/client';
+import { getAttendeeEvent } from '@/api/events';
+import { getAttendeeStandProducts } from '@/api/products';
+import { getAttendeeStands } from '@/api/stands';
+import { ensureAttendeeSession } from '@/auth/attendeeSession';
 import type { Event } from '@/types/event';
 import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
@@ -11,22 +14,20 @@ export interface ProductSelectionLoaderData {
   productsByStand: Record<string, Product[]>;
 }
 
-// TODO: the stand- and product-list endpoints are currently organizer-scoped
-// (authAccount). An attendee-facing, session-authenticated catalog endpoint
-// does not exist yet, so in production this loader needs the backend to expose
-// a public/session menu route. In dev it works with an organizer token present.
 export async function productSelectionLoader({
   params,
 }: LoaderFunctionArgs): Promise<ProductSelectionLoaderData> {
   const eventId = params.eventId as string;
 
+  await ensureAttendeeSession(eventId);
+
   const [event, stands] = await Promise.all([
-    apiFetch<Event>(`/events/${eventId}`),
-    apiFetch<Stand[]>(`/events/${eventId}/stands`),
+    getAttendeeEvent(eventId),
+    getAttendeeStands(eventId),
   ]);
 
   const productLists = await Promise.all(
-    stands.map((stand) => apiFetch<Product[]>(`/stands/${stand._id}/products`)),
+    stands.map((stand) => getAttendeeStandProducts(eventId, stand._id)),
   );
 
   const productsByStand: Record<string, Product[]> = {};

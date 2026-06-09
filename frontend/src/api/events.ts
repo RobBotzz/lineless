@@ -13,6 +13,10 @@ export function getEvent(eventId: string): Promise<Event> {
   return apiFetch<Event>(`/events/${eventId}`, { auth: 'organizer' });
 }
 
+export function getAttendeeEvent(eventId: string): Promise<Event> {
+  return apiFetch<Event>(`/events/${eventId}`, { auth: 'attendee', eventId });
+}
+
 export function createEvent(input: CreateEventInput): Promise<Event> {
   return apiFetch<Event>('/events', {
     method: 'POST',

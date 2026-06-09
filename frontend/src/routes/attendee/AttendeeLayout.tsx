@@ -7,22 +7,25 @@ import { paths } from '@/paths';
 import { CartProvider, useCart } from './cart/cart-context';
 import { ATTENDEE_WIDTH } from './column';
 import { CartIcon, HistoryIcon } from './icons';
+import { RequireAttendeeSession } from './RequireAttendeeSession';
 
 export default function AttendeeLayout() {
   const { eventId } = useParams();
 
   return (
     <CartProvider key={eventId ?? ''} eventId={eventId ?? ''}>
-      <div className="min-h-screen bg-background">
-        <AttendeeNavbar
-          left={<Logo eventId={eventId} />}
-          right={<NavbarActions eventId={eventId} />}
-          widthClassName={ATTENDEE_WIDTH}
-        />
-        <main className={`mx-auto ${ATTENDEE_WIDTH} pb-28 pt-4`}>
-          <Outlet />
-        </main>
-      </div>
+      <RequireAttendeeSession eventId={eventId ?? ''}>
+        <div className="min-h-screen bg-background">
+          <AttendeeNavbar
+            left={<Logo eventId={eventId} />}
+            right={<NavbarActions eventId={eventId} />}
+            widthClassName={ATTENDEE_WIDTH}
+          />
+          <main className={`mx-auto ${ATTENDEE_WIDTH} pb-28 pt-4`}>
+            <Outlet />
+          </main>
+        </div>
+      </RequireAttendeeSession>
     </CartProvider>
   );
 }

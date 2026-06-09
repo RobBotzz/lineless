@@ -13,7 +13,7 @@ import type { productSelectionLoader } from './data';
 export default function ProductSelection() {
   const { event, stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
   const { eventId } = useParams();
-  const { addItem, totalCount } = useCart();
+  const { addItem, setQuantity, totalCount, items } = useCart();
 
   const [selectedStand, setSelectedStand] = useState<string>(ALL_STANDS);
 
@@ -21,6 +21,12 @@ export default function ProductSelection() {
   const standsById = useMemo(
     () => Object.fromEntries(stands.map((s) => [s._id, s.standName])),
     [stands],
+  );
+
+  // Quantity already in the cart per product, to enforce the stock cap on add.
+  const cartQuantityById = useMemo(
+    () => Object.fromEntries(items.map((i) => [i.product._id, i.quantity])),
+    [items],
   );
 
   // Flatten across stands for "All", otherwise show the picked stand only.
@@ -47,7 +53,9 @@ export default function ProductSelection() {
               key={product._id}
               product={product}
               standName={standsById[product.standId] ?? ''}
+              cartQuantity={cartQuantityById[product._id] ?? 0}
               onAdd={addItem}
+              onSetQuantity={setQuantity}
             />
           ))
         )}
