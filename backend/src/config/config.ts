@@ -17,6 +17,11 @@ interface Config {
   bcryptRounds: number;
   /** Public base URL of the frontend, used to build links sent in emails. */
   appBaseUrl: string;
+  /** Password reset settings. */
+  passwordReset: {
+    /** How long a reset token stays valid, in minutes. */
+    tokenTtlMinutes: number;
+  };
   resend: {
     /** Resend API key used to send transactional mail. */
     apiKey: string;
@@ -26,21 +31,24 @@ interface Config {
 }
 
 export const config: Config = {
-  nodeEnv: "development",
+  nodeEnv: (process.env["NODE_ENV"] as Config["nodeEnv"]) ?? "development",
   port: process.env["PORT"] ? Number(process.env["PORT"]) : 8000,
   mongoUri:
     process.env["MONGO_URI"] ??
     "mongodb://localhost:27017/lineless?directConnection=true",
   jwt: {
-    secret: "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
+    secret: process.env["JWT_SECRET"] ?? "dev-only-insecure-secret",
     algorithm: "HS256",
-    expiresIn: "30d",
-    operatorExpiresIn: "12h",
+    expiresIn: process.env["JWT_EXPIRES_IN"] ?? "30d",
+    operatorExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "12h",
   },
   bcryptRounds: 10,
-  appBaseUrl: "http://localhost:3000",
+  appBaseUrl: process.env["APP_BASE_URL"] ?? "",
+  passwordReset: {
+    tokenTtlMinutes: 60,
+  },
   resend: {
-    apiKey: "re_REPLACE_WITH_YOUR_RESEND_API_KEY",
-    fromAddress: "contact@lineless.shop",
+    apiKey: process.env["RESEND_API_KEY"] ?? "",
+    fromAddress: process.env["RESEND_FROM_ADDRESS"] ?? "",
   },
 };
