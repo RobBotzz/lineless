@@ -2,15 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { login as apiLogin, signup as apiSignup, getAccountInfo } from '../../api/account';
-import { setUnauthorizedHandler } from '../../api/client';
-import {
-  clearAttendeeSession,
-  clearOperatorCredential,
-  clearOperatorStand,
-  clearOrganizerCredential,
-  hasCredential,
-  setOrganizer,
-} from '../keychain';
+import { clearOrganizerCredential, hasCredential, setOrganizer } from '../keychain';
 import { OrganizerAuthContext } from './OrganizerAuthContext';
 import type { OrganizerAuthContextValue, OrganizerAuthStatus } from './OrganizerAuthContext';
 import type { Account, LoginInput, SignupInput } from '../../types/account';
@@ -47,27 +39,6 @@ export function OrganizerAuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [logout]);
-
-  // Clear only the credential scope that a 401 came from.
-  useEffect(() => {
-    setUnauthorizedHandler((scope, ids) => {
-      switch (scope) {
-        case 'organizer':
-          logout();
-          break;
-        case 'operator':
-          if (ids?.standId) clearOperatorStand(ids.standId);
-          break;
-        case 'operator-link':
-          clearOperatorCredential();
-          break;
-        case 'attendee':
-          if (ids?.eventId) clearAttendeeSession(ids.eventId);
-          break;
-      }
-    });
-    return () => setUnauthorizedHandler(null);
   }, [logout]);
 
   const login = useCallback(async (input: LoginInput) => {
