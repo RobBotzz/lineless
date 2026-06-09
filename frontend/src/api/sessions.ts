@@ -1,4 +1,3 @@
-import { setAttendee } from '@/auth/keychain';
 import { apiFetch } from './client';
 
 export interface CreateAttendeeSessionInput {
@@ -17,6 +16,5 @@ export async function createAttendeeSession(eventId: string): Promise<AttendeeSe
     body: JSON.stringify({ eventId } satisfies CreateAttendeeSessionInput),
     auth: 'public',
   });
-  setAttendee(response.sessionId, response.eventId, response.expiresAt);
   return response;
 }

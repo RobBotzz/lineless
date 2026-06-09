@@ -73,6 +73,23 @@ function write(key: string, value: unknown): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+// Notify in-tab listeners when the attendee credential changes (set or cleared)
+// so a guard can re-create a lost session. The native `storage` event only
+// fires in OTHER tabs, so we emit our own for same-tab updates.
+type Listener = () => void;
+const attendeeListeners = new Set<Listener>();
+
+export function subscribeAttendee(listener: Listener): () => void {
+  attendeeListeners.add(listener);
+  return () => {
+    attendeeListeners.delete(listener);
+  };
+}
+
+function notifyAttendee(): void {
+  for (const listener of attendeeListeners) listener();
+}
+
 const PARSERS = {
   organizer: parseOrganizer,
   operator: parseOperator,
@@ -98,6 +115,7 @@ export function setOrganizer(token: string): void {
 
 export function setAttendee(sessionId: string, eventId: string, expiresAt: string): void {
   write(KEYS.attendee, { sessionId, eventId, expiresAt } satisfies AttendeeCredential);
+  notifyAttendee();
 }
 
 // Persist the secret link key for an event. Switching to a different event
@@ -131,4 +149,5 @@ export function clearOperatorStand(standId: string): void {
 // (`clearCredential('operator')`). To drop a single stand, use clearOperatorStand.
 export function clearCredential(kind: AuthKind): void {
   localStorage.removeItem(KEYS[kind]);
+  if (kind === 'attendee') notifyAttendee();
 }
