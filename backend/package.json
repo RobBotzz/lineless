@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "format": "prettier --write .",
+    "email:preview": "ts-node src/lib/email/preview.ts",
     "prepare": "husky"
   },
   "lint-staged": {
