@@ -37,18 +37,21 @@ export const config: Config = {
     process.env["MONGO_URI"] ??
     "mongodb://localhost:27017/lineless?directConnection=true",
   jwt: {
-    secret: process.env["JWT_SECRET"] ?? "dev-only-insecure-secret",
+    secret:
+      process.env["JWT_SECRET"] ??
+      "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
     algorithm: "HS256",
     expiresIn: process.env["JWT_EXPIRES_IN"] ?? "30d",
     operatorExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "12h",
   },
   bcryptRounds: 10,
-  appBaseUrl: process.env["APP_BASE_URL"] ?? "",
+  appBaseUrl: process.env["APP_BASE_URL"] ?? "http://localhost:3000",
   passwordReset: {
     tokenTtlMinutes: 60,
   },
   resend: {
-    apiKey: process.env["RESEND_API_KEY"] ?? "",
-    fromAddress: process.env["RESEND_FROM_ADDRESS"] ?? "",
+    apiKey:
+      process.env["RESEND_API_KEY"] ?? "re_REPLACE_WITH_YOUR_RESEND_API_KEY",
+    fromAddress: process.env["RESEND_FROM_ADDRESS"] ?? "contact@lineless.shop",
   },
 };
