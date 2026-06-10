@@ -9,10 +9,7 @@ import { operatorStandQueryOptions } from './operatorQueries';
 export default function OperatorLayout() {
   const { pathname } = useLocation();
   const standTitleRequest = useMemo(() => getStandTitleRequest(pathname), [pathname]);
-  const standTitleQuery = useQuery({
-    ...operatorStandQueryOptions(standTitleRequest?.standId ?? ''),
-    enabled: !!standTitleRequest,
-  });
+  const standTitleQuery = useQuery(operatorStandQueryOptions(standTitleRequest?.standId));
   const navbarTitle = getOperatorNavbarTitle(
     pathname,
     standTitleRequest ? (standTitleQuery.data?.standName ?? null) : null,
