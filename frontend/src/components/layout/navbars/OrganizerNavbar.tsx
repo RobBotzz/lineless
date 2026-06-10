@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 
 import { buttonVariants } from '../../ui/button';
+import { Wordmark } from '../../shared';
 import { paths } from '../../../paths';
 import { BaseNavbar } from './BaseNavbar';
 
@@ -31,10 +32,7 @@ export function OrganizerNavbar({
       {logoSrc ? (
         <img alt={title} className="h-10 w-10 object-contain" src={logoSrc} />
       ) : title === 'lineless' ? (
-        <span className="font-logo text-2xl text-accent">
-          <span className="underline decoration-current decoration-2 underline-offset-4">line</span>
-          less
-        </span>
+        <Wordmark />
       ) : (
         <span className="font-logo text-2xl text-accent">{title}</span>
       )}

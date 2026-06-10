@@ -21,15 +21,13 @@ customer journeys) live in the backend repo's `docs/`.
 - **Build tool:** Vite (chosen over Next.js — we want a plain SPA against a
   separate backend, no SSR, and our own routing)
 - **Routing:** react-router v7
-- **Styling:** NOT YET DECIDED. Deliberately deferred.
-  Tailwind / MUI / Shadcn can all be added later without rework. Notes:
-  - Tailwind = utility CSS, no components; trivial to add later.
-  - MUI = ready-made component library (npm dependency); fastest path to a
-    polished dashboard/form/table UI; higher lock-in but incremental.
-  - Shadcn = you copy component source into the repo and own it; builds ON TOP
-    OF Tailwind, so choosing Shadcn implies adding Tailwind first.
-  - The only indirect fork is Tailwind yes/no (because Shadcn needs it), and even
-    that is retrofittable. Do not block on this.
+- **Styling:** Tailwind CSS v4 (via `@tailwindcss/vite`), with shadcn-style
+  primitives that we own in `src/components/ui/` (`button`, `card`,
+  `text-field`, `password-text-field`, `toggle`). Class merging via `cn()` in
+  `src/lib/utils.ts` (clsx + tailwind-merge); global styles in `src/index.css`.
+  (History: the decision was deferred for a while; we landed on Tailwind + owned
+  shadcn-style components over MUI to avoid dependency lock-in. Do not pull in a
+  competing component library.)
 
 ## Routing — the chosen approach (Variant C)
 
@@ -62,8 +60,10 @@ three backend auth worlds:
 2. **attendee** (Andi) — backend uses a localStorage-backed attendee session ID
    created via `POST /api/sessions/create` and sent as `X-Attendee-Session-ID`.
    No login screen.
-3. **operator** (Oli) — backend uses a per-stand password. Operator enters the
-   stand password to access a stand.
+3. **operator** (Oli) — enters via a per-event operator link carrying an
+   operator access key, then unlocks individual stands. The frontend credential
+   holds the access key plus a map of stand id → stand token (see keychain
+   below), so one operator can hold several stands at once.
 
 ## Auth keychain concept
 
@@ -86,68 +86,79 @@ Backend auth facts to mirror:
 - **Public:** login, signup, attendee session creation, operator login, and
   other explicitly public calls send no auth credential.
 
-Recommended keychain shape:
+The keychain is implemented in `src/auth/keychain.ts` and is the only module
+that touches `localStorage`. Each credential lives under its own versioned key
+(`lineless.auth.organizer.v1`, `lineless.auth.operator.v1`,
+`lineless.auth.attendee.v1`) rather than a single combined blob. Per-credential
+keys mean writing one persona's credential never rewrites another's, so
+concurrent writers (e.g. two tabs) can't clobber each other and a corrupt entry
+only drops itself — and the app never needs an atomic cross-credential snapshot.
+
+Implemented credential shapes. Note operator and attendee are **collections**,
+not single entries — multi-stand and multi-event are first-class:
 
 ```ts
-type AuthKey = 'public' | 'organizer' | 'operator' | 'attendee';
+interface OrganizerCredential {
+  token: string;
+}
 
-interface AuthKeychainSnapshot {
-  organizer?: {
-    token: string;
-  };
-  operator?: {
-    token: string;
-    standId: string;
-  };
-  attendee?: {
-    sessionId: string;
-    eventId: string;
-    expiresAt: string;
-  };
+interface OperatorCredential {
+  eventId: string;
+  operatorAccessKey: string;
+  stands: Record<string, string>; // standId -> stand token
+}
+
+interface AttendeeCredential {
+  sessions: Record<string, { sessionId: string; expiresAt: string }>; // eventId -> session
 }
 ```
 
-Store this under one versioned localStorage key, for example
-`lineless.auth.keychain.v1`. Keep separate helper methods instead of exposing
-raw localStorage access:
+Access goes through typed helpers, never raw `localStorage`:
 
-- `getCredential(kind)` returns the selected credential or `null`.
-- `setOrganizerToken(token)` updates only the organizer entry.
-- `setOperatorToken(token, standId)` updates only the operator entry.
-- `setAttendeeSession(session)` updates only the attendee entry.
-- `clearCredential(kind)` removes only that credential.
+- `getCredential(kind)` / `hasCredential(kind)` — read any persona's credential.
+- Organizer: `setOrganizer(token)`, `clearOrganizerCredential()`.
+- Operator: `startOperatorSession(eventId, accessKey)`, `addOperatorStand(standId, token)`,
+  `getOperatorStandToken(standId)`, `clearOperatorStand(standId)`, `clearOperatorCredential()`.
+- Attendee: `getAttendeeSession(eventId)`, `setAttendeeSession(eventId, sessionId, expiresAt)`,
+  `clearAttendeeSession(eventId)`, plus `subscribeAttendee(listener)` to react when a
+  stored session changes (e.g. cleared by a 401) — used by `AttendeeRequireSession`.
 
 The API client uses an explicit auth mode. `auth` is required on every
 `apiFetch` call, including public calls, so a protected endpoint can never
 accidentally become unauthenticated because the caller omitted an option:
 
 ```ts
-type ApiAuthMode = AuthKey;
+type ApiAuthMode = 'public' | 'organizer' | 'operator' | 'operator-link' | 'attendee';
 
 interface ApiFetchOptions extends RequestInit {
   auth: ApiAuthMode;
+  // Scope ids the chosen mode needs to pick the right credential:
+  eventId?: string; // required by 'attendee'
+  standId?: string; // required by 'operator'
 }
 ```
 
-Rules for attaching headers:
+Rules for attaching headers (see `attachAuthHeader` in `src/api/client.ts`):
 
 - `auth: 'public'`: attach no credential.
-- `auth: 'organizer'`: attach only the organizer bearer token.
-- `auth: 'operator'`: attach only the operator bearer token.
-- `auth: 'attendee'`: attach only `X-Attendee-Session-ID`.
+- `auth: 'organizer'`: `Authorization: Bearer <organizer token>`.
+- `auth: 'operator'`: `Authorization: Bearer <stand token>` — requires a `standId`.
+- `auth: 'operator-link'`: `X-Operator-Access-Key: <accessKey>` (link-entry flow,
+  before any stand token exists).
+- `auth: 'attendee'`: `X-Attendee-Session-ID: <sessionId>` — requires an `eventId`.
 - Never attach more than one credential type to a single request.
 - Do not support arrays like `auth: ['organizer', 'attendee']`; the route or
   API wrapper must choose one persona credential explicitly.
-- The current foundation stores one active credential per role. Multi-operator
-  or multi-event session switching is follow-up UI work, not part of the v1
-  keychain shape.
+- The keychain already holds multiple stands (operator) and multiple event
+  sessions (attendee) at once; what remains follow-up UI work is the switching
+  surface for them, not the storage shape.
 
 Request modules should make the auth contract visible at the call site. Examples:
 
 ```ts
 apiFetch('/account/info', { auth: 'organizer' });
-apiFetch(`/events/${eventId}`, { auth: 'attendee' });
-apiFetch(`/stands/${standId}`, { auth: 'operator' });
+apiFetch(`/events/${eventId}`, { auth: 'attendee', eventId });
+apiFetch(`/stands/${standId}`, { auth: 'operator', standId });
 apiFetch('/operator/login', { method: 'POST', auth: 'public', body });
 ```
 
@@ -167,20 +178,37 @@ selection. A failed attendee request should clear only the attendee session and
 create or request a new event session. Do not clear the whole keychain because a
 single role credential expired.
 
-Implementation order:
+This is wired through a single callback: `apiFetch` calls `onUnauthorized(scope,
+ids)` on a 401 (set via `setUnauthorizedHandler` in `src/api/client.ts`), and the
+cross-cutting `src/auth/UnauthorizedHandler.tsx` component (mounted once at the
+auth root) routes it to the right scope — organizer logout, or
+`clearOperatorStand` / `clearOperatorCredential` / `clearAttendeeSession`. This
+deliberately lives outside `OrganizerAuthProvider` because it spans every
+persona, not just the organizer.
 
-1. Use `src/auth/keychain.ts` as the only frontend credential store.
-2. Change `apiFetch` to accept explicit `auth` modes and attach exactly one
-   matching backend credential.
-3. Update organizer auth provider and settings password flow to read/write the
-   organizer entry.
-4. Add operator login/session helpers that write the operator entry after
-   `/operator/login`.
-5. Add attendee session helpers that create, cache, expire, and send
-   `X-Attendee-Session-ID`.
-6. Update every API call to declare the intended auth mode.
-7. Add focused tests or manual verification for header selection so organizer,
-   operator, attendee, and public calls cannot leak the wrong credential.
+## Auth module layout
+
+`src/auth/` is split by persona, mirroring the three credential worlds:
+
+```
+src/auth/
+├── keychain.ts                 # the only localStorage owner (all personas)
+├── UnauthorizedHandler.tsx     # cross-persona 401 router (mounted in App.tsx)
+├── organizer/
+│   ├── OrganizerAuthContext.ts   # context + useOrganizerAuth() hook + types
+│   ├── OrganizerAuthProvider.tsx # holds organizer status/account, login/logout
+│   └── OrganizerRequireAuth.tsx  # route guard for /organizer
+└── attendee/
+    ├── attendeeSession.ts        # ensure/validate the per-event session (lazy)
+    └── AttendeeRequireSession.tsx# route guard that auto-creates the session
+```
+
+Naming rule: organizer auth symbols carry the persona prefix
+(`OrganizerAuthContext`, `OrganizerAuthProvider`, `useOrganizerAuth`) so they
+read unambiguously next to the other personas. The attendee side has no
+context/provider on purpose — there is no shared, reactive attendee identity to
+distribute; a route guard plus the keychain module is enough. Add a provider
+only if attendee state ever needs to be read reactively across the tree.
 
 ## Project structure
 
@@ -189,27 +217,39 @@ extra nested `lineless-frontend/` directory), symmetric to the backend.
 
 ```
 src/
-├── routes/                 # one area per persona
-│   ├── organizer/
+├── routes/                 # one area per persona; a page folder per route,
+│   │                       #   each with its data.ts (loader/action) when needed
+│   ├── organizer/          # /organizer/*
 │   │   ├── OrganizerLayout.tsx
-│   │   ├── Dashboard.tsx
-│   │   └── EventConfig.tsx     # uses useParams() for :eventId
-│   ├── attendee/
+│   │   ├── dashboard/      # Dashboard.tsx + data.ts
+│   │   ├── event-configuration/  # /organizer/events/:eventId
+│   │   └── settings/
+│   ├── attendee/           # /event/:eventId/* (URL noun is "event")
 │   │   ├── AttendeeLayout.tsx
-│   │   └── ProductSelection.tsx
-│   ├── operator/
-│   │   ├── OperatorLayout.tsx
-│   │   └── StandSelection.tsx
+│   │   ├── product-selection/  # index route + data.ts
+│   │   ├── cart/  ├── checkout/  └── order-history/
+│   ├── operator/           # /operator/*
+│   ├── auth/               # OrganizerAuth.tsx (the /auth login screen)
 │   ├── Home.tsx
 │   └── NotFound.tsx
-├── components/             # reusable UI pieces
-├── api/                    # fetch wrappers, one module per backend resource
-├── hooks/                  # e.g. useSSE for the stream endpoints
+├── auth/                   # credentials + guards, split by persona (see above)
+├── api/                    # one module per backend resource; client.ts = apiFetch
+├── components/             # ui/ (owned shadcn-style), layout/, feedback/,
+│                           #   icons/ (shared SVG set), shared/, location/
+├── features/               # cross-route feature modules (auth, branding, …)
+├── hooks/                  # (planned) e.g. useSSE for the stream endpoints
+├── lib/                    # utils.ts (cn helper)
 ├── types/                  # shared TS types mirroring the data model
+├── paths.ts                # central URL builders, kept in sync with router.tsx
 ├── router.tsx              # central route definition
-├── App.tsx                 # App
+├── App.tsx                 # mounts providers + <RouterProvider>
 └── main.tsx                # Vite entry point
 ```
+
+Note the folder split is **by persona**, not by URL: file layout has no routing
+role (routes are declared explicitly in `router.tsx`), so we organize by the
+strongest axis — persona = auth world = layout. `paths.ts` is the bridge between
+URLs and code.
 
 ## Dev proxy (CORS)
 
@@ -232,30 +272,101 @@ The data model already exists. Mirror the TS interfaces for `Order`, `Product`,
 For a university project, keeping them in sync by hand is fine and forces us to
 think about the API contracts. Money is always integer cents (matches backend).
 
-## Conventions
+## Coding guidelines
 
-- TypeScript strict.
-- **Comments: keep them short, and always write them in English only** (no German
-  comments, even though we discuss in German). Prefer self-explanatory code over
-  comments; comment the "why", not the "what".
-- Routing definition centralized in `router.tsx`; `App.tsx` stays minimal.
-- Loaders for one-shot fetches; `useSSE` hook for live streams — do not conflate.
-- routes/ split by persona (organizer / attendee / operator).
-- Styling decision is deferred; start with plain CSS, do not prematurely commit
-  to Tailwind/MUI/Shadcn.
-- Money: integer cents, never float.
+These are the working conventions for the frontend. They describe how the code
+is already written — follow them so the codebase stays consistent.
 
-## Scripts (package.json — Vite defaults)
+### Language & types
+
+- TypeScript strict. No `any`; prefer precise types and narrowing helpers (see
+  the `isRecord`/`isString` parsers in `keychain.ts`). Use `unknown` at trust
+  boundaries (parsing JSON / `localStorage`) and validate before use.
+- Mirror backend contracts in `src/types/`; money is always integer **cents**,
+  never a float.
+- Prefer `type`/`interface` exports colocated with the module that owns them.
+
+### Comments
+
+- Keep them short, and **always in English** (even though we discuss in German).
+- Prefer self-explanatory code; comment the **why**, not the what.
+
+### Files, components & naming
+
+- Components in `PascalCase.tsx`; one primary component per file. Hooks
+  `useXxx`. Non-component modules in `camelCase.ts` (e.g. `attendeeSession.ts`,
+  `keychain.ts`); the owned `components/ui/` primitives stay lowercase
+  (`button.tsx`) to match their shadcn origin.
+- Per-route folder with a colocated `data.ts` for that route's `loader`/`action`;
+  export a route's error UI from the route module (e.g. `DashboardError`).
+- When a name would be ambiguous across personas, prefix it with the persona
+  (`OrganizerAuthProvider`, `useOrganizerAuth`, `AttendeeRequireSession`).
+- Keep shared, reusable UI in `components/`; cross-route feature logic in
+  `features/`; truly route-local pieces next to their route.
+
+### Imports
+
+- Use the `@/` alias for cross-area imports (`@/components/...`, `@/auth/...`);
+  relative imports are fine within the same folder/feature.
+- Import shared icons from `@/components/icons` — do not redeclare local icon
+  sets per area.
+
+### Routing & data fetching
+
+- Route tree centralized in `router.tsx`; `App.tsx` only mounts providers and
+  `<RouterProvider>`.
+- `loader`/`action` for one-shot fetches (read via `useLoaderData()`); the
+  `useSSE` hook for live streams. **Do not conflate** loaders and streams.
+- All backend access goes through named functions in `src/api/<resource>.ts`;
+  `apiFetch` (in `api/client.ts`) is the low-level HTTP/auth/error client those
+  modules call — components/routes never call `fetch` directly.
+
+### Auth
+
+- Every `apiFetch` call must declare an explicit `auth` mode; the route/API
+  wrapper picks exactly one persona credential (never an array, never two).
+- `keychain.ts` is the only module allowed to touch `localStorage`.
+- 401 handling is credential-scoped via `UnauthorizedHandler` — never clear the
+  whole keychain because one credential expired.
+
+### Styling
+
+- Tailwind utility classes; compose conditional classes with `cn()` from
+  `lib/utils.ts`. Reuse the `components/ui/` primitives instead of re-styling raw
+  elements. Do not add a competing component library.
+
+### State
+
+- Reach for React Context + Provider only for shared, reactive state that many
+  components consume (as with the organizer auth). For a one-off gate or a value
+  only read at call time, use a local hook/guard or a small module — see why the
+  attendee side has no provider (Auth module layout above).
+
+### Formatting & tooling
+
+- Prettier + ESLint are authoritative; do not hand-fight their formatting. A
+  Husky pre-commit hook runs `eslint --fix`, `prettier --write`, and `tsc -b`
+  (typecheck) on staged files — commits must typecheck cleanly. Run `npm run
+lint` / `npm run typecheck` locally before pushing.
+
+## Scripts (package.json)
 
 ```json
 "scripts": {
   "dev": "vite",
-  "build": "tsc && vite build",
-  "preview": "vite preview"
+  "build": "tsc -b && vite build",
+  "preview": "vite preview",
+  "lint": "eslint .",
+  "format": "prettier --write .",
+  "format:check": "prettier --check .",
+  "typecheck": "tsc -b",
+  "prepare": "husky"
 }
 ```
 
-`npm run dev` starts the Vite dev server with hot reload.
+`npm run dev` starts the Vite dev server with hot reload. A Husky pre-commit
+hook runs lint-staged (`eslint --fix`, `prettier --write`) plus `tsc -b` on
+staged files, so a commit that does not typecheck is rejected.
 
 ## Version caveat
 

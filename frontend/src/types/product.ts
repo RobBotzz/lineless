@@ -14,6 +14,7 @@ export interface Product {
   instantProduct: boolean;
   productStock: number;
   productStatus: ProductStatus;
+  rating: number | null;
   createdAt: string;
   updatedAt: string;
 }

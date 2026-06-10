@@ -1,5 +1,6 @@
-import { setOperatorToken } from '@/auth/keychain';
+import { addOperatorStand } from '@/auth/keychain';
 import type { Stand } from '@/types/stand';
+
 import { apiFetch } from './client';
 
 export interface OperatorLoginInput {
@@ -13,10 +14,7 @@ export interface OperatorLoginResponse {
   standId: string;
 }
 
-export async function listOperatorStands(
-  eventId: string,
-  operatorAccessKey: string,
-): Promise<Stand[]> {
+export function listOperatorStands(eventId: string, operatorAccessKey: string): Promise<Stand[]> {
   return apiFetch<Stand[]>(`/events/${eventId}/stands`, {
     auth: 'public',
     headers: {
@@ -26,11 +24,13 @@ export async function listOperatorStands(
 }
 
 export async function loginOperator(input: OperatorLoginInput): Promise<OperatorLoginResponse> {
-  const response = await apiFetch<OperatorLoginResponse>('/stands/login', {
+  const { standId, operatorAccessKey, accessPassword } = input;
+  const response = await apiFetch<OperatorLoginResponse>(`/stands/${standId}/login`, {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({ operatorAccessKey, accessPassword }),
     auth: 'public',
   });
-  setOperatorToken(response.token, response.standId);
+
+  addOperatorStand(response.standId, response.token);
   return response;
 }

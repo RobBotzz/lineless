@@ -1,9 +1,11 @@
 import { redirect } from 'react-router';
 
-import { apiFetch, ApiError } from '@/api/client';
+import { ApiError } from '@/api/client';
+import { createEvent, getEvents } from '@/api/events';
+import { getStandProducts } from '@/api/products';
+import { getEventStands } from '@/api/stands';
 import type { Event } from '@/types/event';
 import type { Stand } from '@/types/stand';
-import type { Product } from '@/types/product';
 
 export type DashboardActionResult = { ok: false; error: string };
 
@@ -14,14 +16,10 @@ export interface DashboardLoaderData {
 }
 
 export async function dashboardLoader(): Promise<DashboardLoaderData> {
-  const events = await apiFetch<Event[]>('/events', { auth: 'organizer' });
+  const events = await getEvents();
 
   const standArrays = await Promise.all(
-    events.map((e) =>
-      apiFetch<Stand[]>(`/events/${e._id}/stands`, { auth: 'organizer' }).catch(
-        () => [] as Stand[],
-      ),
-    ),
+    events.map((e) => getEventStands(e._id).catch(() => [] as Stand[])),
   );
 
   const standCounts: Record<string, number> = {};
@@ -32,7 +30,7 @@ export async function dashboardLoader(): Promise<DashboardLoaderData> {
       standCounts[e._id] = stands.length;
       const perStand = await Promise.all(
         stands.map((s) =>
-          apiFetch<Product[]>(`/stands/${s._id}/products`, { auth: 'organizer' })
+          getStandProducts(s._id)
             .then((products) => products.length)
             .catch(() => 0),
         ),
@@ -47,11 +45,7 @@ export async function dashboardLoader(): Promise<DashboardLoaderData> {
 // Create a draft event, then send the organizer straight to its config page.
 export async function dashboardAction() {
   try {
-    const event = await apiFetch<Event>('/events', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'New Event' }),
-      auth: 'organizer',
-    });
+    const event = await createEvent({ name: 'New Event' });
     return redirect(`/organizer/events/${event._id}`);
   } catch (err) {
     const message =

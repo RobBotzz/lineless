@@ -1,9 +1,11 @@
+import { Wordmark } from '../shared';
+
 export default function OrganizerFooter() {
   return (
     <footer className="border-t border-border pt-10">
       <div className="grid grid-cols-1 gap-8 pb-8 sm:grid-cols-2 md:grid-cols-3">
         <div className="flex flex-col items-start gap-2">
-          <span className="font-logo text-2xl text-accent">lineless</span>
+          <Wordmark underline={false} />
           <p className="mt-1 text-sm leading-relaxed text-text-muted">
             Smarter guest flow for better event experiences.
           </p>

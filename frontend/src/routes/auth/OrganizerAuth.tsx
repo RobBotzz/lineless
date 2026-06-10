@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { Button } from '../../components/ui/button';
 import { AlertDialog } from '../../components/feedback';
-import { useAuth } from '../../auth/AuthContext';
+import { Wordmark } from '../../components/shared';
+import { useOrganizerAuth } from '../../auth/organizer/OrganizerAuthContext';
 import { ApiError } from '../../api/client';
 import { paths } from '../../paths';
 import {
@@ -23,11 +24,11 @@ const initialTouched: Record<AuthField, boolean> = {
 };
 
 export default function OrganizerAuth() {
-  const { login, signup } = useAuth();
+  const { login, signup } = useOrganizerAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Where to send the organizer after success (set by RequireAuth).
+  // Where to send the organizer after success (set by OrganizerRequireAuth).
   const from =
     (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ??
     paths.organizer.root;
@@ -91,11 +92,8 @@ export default function OrganizerAuth() {
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8 text-text sm:px-6">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div aria-label="lineless" className="font-logo text-5xl text-accent sm:text-6xl">
-            <span className="underline decoration-current decoration-2 underline-offset-4">
-              line
-            </span>
-            less
+          <div aria-label="lineless">
+            <Wordmark className="text-5xl sm:text-6xl" />
           </div>
           <p className="mt-3 text-xs font-semibold uppercase text-text-muted">Organizer access</p>
         </div>

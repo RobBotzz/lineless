@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { useAuth } from '../auth/AuthContext';
+import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
 import { LandingPageNavbar } from '../components/layout/navbars';
-import { Button, buttonVariants } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
 import { paths } from '../paths';
 
@@ -11,7 +11,7 @@ const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export default function Home() {
-  const { isAuthenticated, status, logout } = useAuth();
+  const { isAuthenticated, status, logout } = useOrganizerAuth();
   const [activeSection, setActiveSection] = useState<SectionId>('home');
 
   useEffect(() => {
@@ -86,12 +86,24 @@ export default function Home() {
               </p>
 
               <div className="mt-8 flex items-center gap-4">
-                <Button variant="default" size="md">
-                  Get started
-                </Button>
-                <Link className={buttonVariants({ variant: 'outline', size: 'md' })} to="#">
-                  See event flow
-                </Link>
+                {/* While a stored token is still being validated (status === 'loading')
+                    we optimistically show the dashboard link, since loading only occurs
+                    when a token is present. OrganizerRequireAuth guards /organizer if it is stale. */}
+                {status === 'unauthenticated' ? (
+                  <Link
+                    className={buttonVariants({ variant: 'default', size: 'md' })}
+                    to={paths.auth}
+                  >
+                    Get started
+                  </Link>
+                ) : (
+                  <Link
+                    className={buttonVariants({ variant: 'default', size: 'md' })}
+                    to={paths.organizer.root}
+                  >
+                    Go to my dashboard
+                  </Link>
+                )}
               </div>
             </div>
 
