@@ -1,20 +1,21 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { listOperatorStands, loginOperator } from '@/api/operator';
+import { getOperatorStands, loginOperator } from '@/api/stands';
+import { clearOperatorCredential, getCredential } from '@/auth/keychain';
 import { Button } from '@/components/ui/button';
 import { PasswordTextField } from '@/components/ui/password-text-field';
 import { CashierIcon, LockIcon, PickupIcon, PinIcon, StandIcon } from '@/components/icons';
 import { paths } from '@/paths';
 import type { Stand } from '@/types/stand';
 
-const OPERATOR_KEY_STORAGE_PREFIX = 'lineless.operatorAccessKey.';
 // TODO: Replace with cashierEnabled from operator bootstrap endpoint.
 const CASHIER_ENABLED_PLACEHOLDER = true;
-const INVALID_CREDENTIALS_MESSAGE =
-  'The stand password is incorrect or this operator link expired.';
+const LINK_EXPIRED_MESSAGE = 'Link expired. Please reopen the operator link.';
+const LOGIN_FAILED_MESSAGE = 'Login failed. Please try again.';
+const WRONG_PASSWORD_OR_LINK_MESSAGE = 'Wrong password or invalid link.';
 
 type LoadState = 'loading' | 'ready' | 'invalid' | 'error';
 type StandFetchState = {
@@ -25,16 +26,13 @@ type StandFetchState = {
 
 export default function StandSelection() {
   const { eventId } = useParams();
-  const location = useLocation();
   const navigate = useNavigate();
 
-  const searchParams = new URLSearchParams(location.search);
-  const keyFromUrl = searchParams.get('key')?.trim() || null;
-  const storedOperatorAccessKey = eventId
-    ? (sessionStorage.getItem(`${OPERATOR_KEY_STORAGE_PREFIX}${eventId}`)?.trim() ?? null)
-    : null;
-  const operatorAccessKey = keyFromUrl ?? storedOperatorAccessKey;
-  const fetchRequestKey = eventId && operatorAccessKey ? `${eventId}:${operatorAccessKey}` : null;
+  const operatorSession = getCredential('operator');
+  const hasSessionForEvent = !!eventId && operatorSession?.eventId === eventId;
+  const loggedInStands = hasSessionForEvent ? operatorSession.stands : {};
+  const fetchRequestKey =
+    eventId && hasSessionForEvent ? `${eventId}:${operatorSession.operatorAccessKey}` : null;
 
   const [standFetchState, setStandFetchState] = useState<StandFetchState>({
     requestKey: null,
@@ -44,34 +42,18 @@ export default function StandSelection() {
   const [selectedStand, setSelectedStand] = useState<Stand | null>(null);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [invalidLinkMessage, setInvalidLinkMessage] = useState<string | null>(null);
   const [loggingInStandId, setLoggingInStandId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!eventId || !keyFromUrl) return;
-
-    const storageKey = `${OPERATOR_KEY_STORAGE_PREFIX}${eventId}`;
-    const params = new URLSearchParams(location.search);
-
-    sessionStorage.setItem(storageKey, keyFromUrl);
-    params.delete('key');
-    navigate(
-      {
-        pathname: location.pathname,
-        search: params.toString() ? `?${params.toString()}` : '',
-        hash: location.hash,
-      },
-      { replace: true },
-    );
-  }, [eventId, keyFromUrl, location.hash, location.pathname, location.search, navigate]);
-
-  useEffect(() => {
-    if (!eventId || !operatorAccessKey || !fetchRequestKey) return;
+    if (!eventId || !hasSessionForEvent || !fetchRequestKey) return;
 
     let cancelled = false;
 
-    listOperatorStands(eventId, operatorAccessKey)
+    getOperatorStands(eventId)
       .then((nextStands) => {
         if (cancelled) return;
+        setInvalidLinkMessage(null);
         setStandFetchState({
           requestKey: fetchRequestKey,
           status: 'ready',
@@ -81,6 +63,7 @@ export default function StandSelection() {
       .catch((error: unknown) => {
         if (cancelled) return;
         if (error instanceof ApiError && (error.status === 401 || error.status === 404)) {
+          setInvalidLinkMessage(null);
           setStandFetchState({
             requestKey: fetchRequestKey,
             status: 'invalid',
@@ -98,10 +81,11 @@ export default function StandSelection() {
     return () => {
       cancelled = true;
     };
-  }, [eventId, fetchRequestKey, operatorAccessKey]);
+  }, [eventId, fetchRequestKey, hasSessionForEvent]);
 
-  const loadState: LoadState =
-    !eventId || !operatorAccessKey
+  const loadState: LoadState = !eventId
+    ? 'invalid'
+    : !hasSessionForEvent
       ? 'invalid'
       : standFetchState.requestKey === fetchRequestKey
         ? standFetchState.status === 'idle'
@@ -110,7 +94,7 @@ export default function StandSelection() {
         : 'loading';
   const stands = standFetchState.requestKey === fetchRequestKey ? standFetchState.stands : [];
 
-  const canUseOperatorLink = loadState === 'ready' && !!eventId && !!operatorAccessKey;
+  const canUseOperatorSession = loadState === 'ready' && !!eventId && hasSessionForEvent;
 
   function openPasswordDialog(stand: Stand) {
     setSelectedStand(stand);
@@ -126,28 +110,44 @@ export default function StandSelection() {
   }
 
   async function authenticateStand(stand: Stand, accessPassword?: string) {
-    if (!eventId || !operatorAccessKey) return;
+    if (!eventId || !hasSessionForEvent) return;
 
     setLoggingInStandId(stand._id);
     setLoginError(null);
 
     try {
-      await loginOperator({
-        standId: stand._id,
-        operatorAccessKey,
-        ...(accessPassword ? { accessPassword } : {}),
-      });
+      await loginOperator(stand._id, accessPassword);
       navigate(paths.operator.stand(eventId, stand._id));
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof ApiError && error.status === 401) {
+        if (stand.requiresPassword) {
+          setSelectedStand(stand);
+          setLoginError(WRONG_PASSWORD_OR_LINK_MESSAGE);
+        } else {
+          clearOperatorCredential();
+          setSelectedStand(null);
+          setInvalidLinkMessage(LINK_EXPIRED_MESSAGE);
+          setStandFetchState({
+            requestKey: fetchRequestKey,
+            status: 'invalid',
+            stands: [],
+          });
+        }
+        return;
+      }
       setSelectedStand(stand);
-      setLoginError(INVALID_CREDENTIALS_MESSAGE);
+      setLoginError(LOGIN_FAILED_MESSAGE);
     } finally {
       setLoggingInStandId(null);
     }
   }
 
   function handleStandClick(stand: Stand) {
-    if (!canUseOperatorLink || loggingInStandId) return;
+    if (!canUseOperatorSession || loggingInStandId) return;
+    if (loggedInStands[stand._id]) {
+      navigate(paths.operator.stand(eventId, stand._id));
+      return;
+    }
     if (stand.requiresPassword) {
       openPasswordDialog(stand);
       return;
@@ -169,24 +169,20 @@ export default function StandSelection() {
   }
 
   function navigateToSystemDashboard(path: string) {
-    if (!canUseOperatorLink) return;
+    if (!canUseOperatorSession) return;
     navigate(path);
   }
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold text-text">Choose an operator view</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-text-muted">
-            Select Pick Up, Cashier, or the stand you are operating for this event.
-          </p>
-        </header>
-
         {loadState === 'invalid' && (
           <StatePanel
             title="Invalid operator link"
-            message="Open the operator dashboard from the event link provided by the organizer."
+            message={
+              invalidLinkMessage ??
+              'Open the operator dashboard from the event link provided by the organizer.'
+            }
           />
         )}
 
@@ -223,6 +219,7 @@ export default function StandSelection() {
                 <SelectionTile
                   icon={<StandIcon className="h-6 w-6" />}
                   key={stand._id}
+                  loggedIn={Boolean(loggedInStands[stand._id])}
                   locked={stand.requiresPassword}
                   loading={loggingInStandId === stand._id}
                   meta={stand.location.locationName ?? 'Stand dashboard'}
@@ -259,6 +256,7 @@ export default function StandSelection() {
 
 function SelectionTile({
   icon,
+  loggedIn = false,
   locked = false,
   loading = false,
   meta,
@@ -266,6 +264,7 @@ function SelectionTile({
   title,
 }: {
   icon: ReactNode;
+  loggedIn?: boolean;
   locked?: boolean;
   loading?: boolean;
   meta: string;
@@ -283,18 +282,22 @@ function SelectionTile({
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-[var(--color-button-text)]">
           {icon}
         </span>
-        {locked && (
+        {loggedIn ? (
+          <span className="inline-flex items-center rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent">
+            Logged in
+          </span>
+        ) : locked ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-text-muted">
             <LockIcon className="h-3.5 w-3.5" />
             Password
           </span>
-        )}
+        ) : null}
       </span>
       <span className="mt-5 block text-lg font-semibold text-text">
         {loading ? 'Signing in…' : title}
       </span>
       <span className="mt-2 flex items-center gap-1.5 text-sm text-text-muted">
-        {!locked && title !== 'Pick Up' && title !== 'Cashier' && (
+        {!locked && !loggedIn && title !== 'Pick Up' && title !== 'Cashier' && (
           <PinIcon className="h-4 w-4 shrink-0" />
         )}
         <span className="truncate">{meta}</span>
