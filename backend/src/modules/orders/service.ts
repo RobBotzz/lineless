@@ -57,7 +57,7 @@ export async function submitOrder(
   }).lean();
   const productById = new Map(products.map((p) => [p._id, p]));
 
-  const processedItems = items.flatMap((item) => {
+  const processedItems = items.map((item) => {
     const product = productById.get(item.productId);
     if (!product || product.productStatus !== "LIVE") {
       throw new OrderValidationError(
@@ -65,7 +65,7 @@ export async function submitOrder(
       );
     }
 
-    return Array.from({ length: item.quantity }).map(() => ({
+    return {
       _id: uuidv4(),
       productId: item.productId,
       customerComment: item.customerComment ?? null,
@@ -75,7 +75,7 @@ export async function submitOrder(
       readyAt: null,
       fulfilledAt: null,
       cancelledAt: null as Date | null,
-    }));
+    };
   });
 
   const orderCount = await Order.countDocuments({ eventId });

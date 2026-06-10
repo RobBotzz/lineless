@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const orderItemInputSchema = z.object({
   productId: z.uuid(),
-  quantity: z.number().int().min(1),
   customerComment: z.string().optional(),
 });
 
