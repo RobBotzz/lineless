@@ -1,11 +1,13 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { formatMoney, type Product } from '@/types/product';
 
-import { ImageIcon, InfoIcon, MinusIcon, PlusIcon } from '@/components/icons';
-import { ProductDetailsDialog } from './ProductDetailsDialog';
-import { Rating } from './Rating';
+import { ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
+import { QuantityStepper } from '@/components/shared/QuantityStepper';
+import { useAddGuard } from '@/lib/useAddGuard';
+import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
+import { Rating } from '@/features/catalog/Rating';
 
 // TODO: dev-only placeholder until the backend exposes an aggregate product
 // rating. Once `product.rating` is populated from the API, drop this helper and
@@ -26,10 +28,6 @@ interface ProductCardProps {
   onSetQuantity: (productId: string, quantity: number) => void;
 }
 
-// Shared with CartLine's stepper styling.
-const stepperButton =
-  'inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-text transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
-
 export function ProductCard({
   product,
   standName,
@@ -46,17 +44,11 @@ export function ProductCard({
   // TODO: currently null when the product has no rating yet (see resolveRating).
   const rating = resolveRating(product);
 
-  // Guard against a single tap firing the click handler twice (duplicate/ghost
-  // events on some browsers). The lock releases on the next frame, so genuine
-  // repeated taps still each add one.
-  const lockedRef = useRef(false);
+  // Guards a single tap firing twice (duplicate/ghost events on some browsers).
+  const runGuarded = useAddGuard();
   function handleAdd() {
-    if (lockedRef.current || atStockLimit) return;
-    lockedRef.current = true;
-    requestAnimationFrame(() => {
-      lockedRef.current = false;
-    });
-    onAdd(product);
+    if (atStockLimit) return;
+    runGuarded(() => onAdd(product));
   }
 
   return (
@@ -103,31 +95,14 @@ export function ProductCard({
           {cartQuantity > 0 ? (
             // Mirrors the cart's stepper. Minus stays enabled at 1: it drops the
             // quantity to 0, removing the line and reverting to the Add button.
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className={stepperButton}
-                onClick={() => onSetQuantity(product._id, cartQuantity - 1)}
-                aria-label={`Decrease ${product.productName} quantity`}
-              >
-                <MinusIcon />
-              </button>
-              <span
-                className="min-w-6 text-center text-sm font-semibold text-text"
-                aria-live="polite"
-              >
-                {cartQuantity}
-              </span>
-              <button
-                type="button"
-                className={stepperButton}
-                onClick={() => onSetQuantity(product._id, cartQuantity + 1)}
-                disabled={atStockLimit}
-                aria-label={`Increase ${product.productName} quantity`}
-              >
-                <PlusIcon />
-              </button>
-            </div>
+            <QuantityStepper
+              quantity={cartQuantity}
+              onDecrease={() => onSetQuantity(product._id, cartQuantity - 1)}
+              onIncrease={() => onSetQuantity(product._id, cartQuantity + 1)}
+              disableIncrease={atStockLimit}
+              decreaseLabel={`Decrease ${product.productName} quantity`}
+              increaseLabel={`Increase ${product.productName} quantity`}
+            />
           ) : (
             <Button
               size="sm"
