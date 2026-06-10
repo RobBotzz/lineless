@@ -12,10 +12,14 @@ export const paths = {
   },
   attendee: {
     event: (eventId: string) => `/event/${eventId}`,
+    cart: (eventId: string) => `/event/${eventId}/cart`,
+    checkout: (eventId: string) => `/event/${eventId}/checkout`,
+    orders: (eventId: string) => `/event/${eventId}/orders`,
   },
   operator: {
-    index: '/operator',
     root: (eventId: string) => `/operator/${eventId}`,
+    link: (eventId: string, operatorAccessKey: string) =>
+      `/operator/${eventId}/link/${operatorAccessKey}`,
     pickupDashboard: (eventId: string) => `/operator/${eventId}/pickup`,
     stand: (eventId: string, standId: string) => `/operator/${eventId}/${standId}`,
     cashier: (eventId: string) => `/operator/${eventId}/cashier`,

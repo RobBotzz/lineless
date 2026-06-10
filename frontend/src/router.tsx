@@ -19,9 +19,16 @@ import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Se
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
 
 import AttendeeLayout from './routes/attendee/AttendeeLayout';
-import AttendeeProductSelection from './routes/attendee/ProductSelection';
+import AttendeeProductSelection, {
+  ProductSelectionError,
+} from './routes/attendee/product-selection/ProductSelection';
+import { productSelectionLoader } from './routes/attendee/product-selection/data';
+import AttendeeCart from './routes/attendee/cart/Cart';
+import AttendeeCheckout from './routes/attendee/checkout/Checkout';
+import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
+import OperatorLinkEntry from './routes/operator/OperatorLinkEntry';
 import OperatorPickupDashboard from './routes/operator/PickupDashboard';
 import OperatorStandDashboard from './routes/operator/Queue';
 import OperatorStandSelection from './routes/operator/StandSelection';
@@ -65,11 +72,19 @@ export const router = createBrowserRouter(
       </Route>
 
       <Route path="event/:eventId" element={<AttendeeLayout />}>
-        <Route index element={<AttendeeProductSelection />} />
+        <Route
+          index
+          element={<AttendeeProductSelection />}
+          loader={productSelectionLoader}
+          errorElement={<ProductSelectionError />}
+        />
+        <Route path="cart" element={<AttendeeCart />} />
+        <Route path="checkout" element={<AttendeeCheckout />} />
+        <Route path="orders" element={<AttendeeOrderHistory />} />
       </Route>
 
       <Route path="operator" element={<OperatorLayout />}>
-        <Route index element={<OperatorStandSelection />} />
+        <Route path=":eventId/link/:operatorAccessKey" element={<OperatorLinkEntry />} />
         <Route path=":eventId" element={<OperatorStandSelection />} />
         <Route path=":eventId/pickup" element={<OperatorPickupDashboard />} />
         {/* Static "cashier" out-ranks the dynamic :standId route in v7. */}

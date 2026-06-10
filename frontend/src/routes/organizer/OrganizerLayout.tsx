@@ -1,11 +1,11 @@
 import { Outlet, useLocation } from 'react-router';
-import { RequireAuth } from '../../auth/RequireAuth';
-import { useAuth } from '../../auth/AuthContext';
+import { OrganizerRequireAuth } from '../../auth/organizer/OrganizerRequireAuth';
+import { useOrganizerAuth } from '../../auth/organizer/OrganizerAuthContext';
 import { OrganizerNavbar } from '../../components/layout';
 import { paths } from '../../paths';
 
 export default function OrganizerLayout() {
-  const { logout } = useAuth();
+  const { logout } = useOrganizerAuth();
   const { pathname } = useLocation();
 
   const centerLinks = [
@@ -15,7 +15,7 @@ export default function OrganizerLayout() {
   ];
 
   return (
-    <RequireAuth>
+    <OrganizerRequireAuth>
       <div className="min-h-screen bg-background">
         <OrganizerNavbar
           activeCenterLinkTo={pathname}
@@ -28,6 +28,6 @@ export default function OrganizerLayout() {
           <Outlet />
         </main>
       </div>
-    </RequireAuth>
+    </OrganizerRequireAuth>
   );
 }

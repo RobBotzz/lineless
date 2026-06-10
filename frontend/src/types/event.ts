@@ -18,6 +18,7 @@ export interface Event {
   name: string;
   plannedDate?: string;
   status: EventStatus;
+  operatorAccessKey: string;
   ratingsEnabled: boolean;
   cashierEnabled: boolean;
   offlineOrdersEnabled: boolean;

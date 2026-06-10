@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Outlet, useLocation } from 'react-router';
 
 import { OperatorNavbar } from '../../components/layout/navbars';
-import { paths } from '../../paths';
 import { OperatorOutletContext, type OperatorNavbarActions } from './operatorNavbarActions';
 
 export default function OperatorLayout() {
@@ -53,7 +52,7 @@ function getOperatorNavbarTitle(pathname: string) {
     return 'Cashier Stand';
   }
 
-  if (pathname === paths.operator.index || /^\/operator\/[^/]+$/.test(pathname)) {
+  if (/^\/operator\/[^/]+$/.test(pathname)) {
     return 'Stand Selection';
   }
 

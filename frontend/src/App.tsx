@@ -1,11 +1,13 @@
 import { RouterProvider } from 'react-router';
 import { router } from './router';
-import { AuthProvider } from './auth/AuthProvider';
+import { OrganizerAuthProvider } from './auth/organizer/OrganizerAuthProvider';
+import { UnauthorizedHandler } from './auth/UnauthorizedHandler';
 
 export default function App() {
   return (
-    <AuthProvider>
+    <OrganizerAuthProvider>
+      <UnauthorizedHandler />
       <RouterProvider router={router} />
-    </AuthProvider>
+    </OrganizerAuthProvider>
   );
 }

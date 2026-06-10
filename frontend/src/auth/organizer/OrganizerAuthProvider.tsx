@@ -1,25 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { login as apiLogin, signup as apiSignup, getAccountInfo } from '../api/account';
-import { setUnauthorizedHandler } from '../api/client';
-import { clearCredential, hasCredential, setOrganizerToken } from './keychain';
-import { AuthContext } from './AuthContext';
-import type { AuthContextValue, AuthStatus } from './AuthContext';
-import type { Account, LoginInput, SignupInput } from '../types/account';
+import { login as apiLogin, signup as apiSignup, getAccountInfo } from '../../api/account';
+import { clearOrganizerCredential, hasCredential, setOrganizer } from '../keychain';
+import { OrganizerAuthContext } from './OrganizerAuthContext';
+import type { OrganizerAuthContextValue, OrganizerAuthStatus } from './OrganizerAuthContext';
+import type { Account, LoginInput, SignupInput } from '../../types/account';
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function OrganizerAuthProvider({ children }: { children: ReactNode }) {
   // If a token is already stored we start as 'loading' until /info confirms it.
-  const [status, setStatus] = useState<AuthStatus>(() =>
+  const [status, setStatus] = useState<OrganizerAuthStatus>(() =>
     hasCredential('organizer') ? 'loading' : 'unauthenticated',
   );
   const [account, setAccount] = useState<Account | null>(null);
-  // Where RequireAuth should send the user after this logout (null = default).
+  // Where OrganizerRequireAuth should send the user after logout (null = default).
   const [logoutRedirect, setLogoutRedirect] = useState<string | null>(null);
 
   const logout = useCallback((redirectTo?: string) => {
     setLogoutRedirect(redirectTo ?? null);
-    clearCredential('organizer');
+    clearOrganizerCredential();
     setAccount(null);
     setStatus('unauthenticated');
   }, []);
@@ -42,18 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [logout]);
 
-  // Let any authed 401 anywhere in the app force a logout.
-  useEffect(() => {
-    setUnauthorizedHandler((kind) => {
-      clearCredential(kind);
-      if (kind === 'organizer') logout();
-    });
-    return () => setUnauthorizedHandler(null);
-  }, [logout]);
-
   const login = useCallback(async (input: LoginInput) => {
     const { token } = await apiLogin(input);
-    setOrganizerToken(token);
+    setOrganizer(token);
     const { account } = await getAccountInfo();
     setAccount(account);
     setStatus('authenticated');
@@ -61,13 +51,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = useCallback(async (input: SignupInput) => {
     const { token } = await apiSignup(input);
-    setOrganizerToken(token);
+    setOrganizer(token);
     const { account } = await getAccountInfo();
     setAccount(account);
     setStatus('authenticated');
   }, []);
 
-  const value = useMemo<AuthContextValue>(
+  const value = useMemo<OrganizerAuthContextValue>(
     () => ({
       status,
       account,
@@ -80,5 +70,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [status, account, login, signup, logout, logoutRedirect],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <OrganizerAuthContext.Provider value={value}>{children}</OrganizerAuthContext.Provider>;
 }
