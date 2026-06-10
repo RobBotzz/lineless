@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
@@ -85,12 +85,12 @@ export default function StandSelection() {
     setLoginError(null);
   }
 
-  function closePasswordDialog() {
+  const closePasswordDialog = useCallback(() => {
     if (loggingInStandId) return;
     setSelectedStand(null);
     setPassword('');
     setLoginError(null);
-  }
+  }, [loggingInStandId]);
 
   function authenticateStand(stand: Stand, accessPassword?: string) {
     if (!eventId || !hasSessionForEvent) return;
