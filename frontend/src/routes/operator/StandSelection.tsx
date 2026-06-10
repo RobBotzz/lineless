@@ -33,7 +33,6 @@ export default function StandSelection() {
 
   const operatorStandsQuery = useQuery({
     ...operatorStandsQueryOptions(eventId),
-    // skipToken handles the missing-eventId case; gate the rest on the session.
     enabled: hasSessionForEvent && !!operatorAccessKey,
   });
   const [selectedStand, setSelectedStand] = useState<Stand | null>(null);
