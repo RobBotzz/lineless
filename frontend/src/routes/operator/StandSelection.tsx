@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { getOperatorStands, loginOperator } from '@/api/stands';
+import { loginOperator } from '@/api/stands';
 import { clearOperatorCredential, getCredential } from '@/auth/keychain';
 import { Button } from '@/components/ui/button';
 import { PasswordTextField } from '@/components/ui/password-text-field';
 import { CashierIcon, LockIcon, PickupIcon, PinIcon, StandIcon } from '@/components/icons';
 import { paths } from '@/paths';
+import { hasCoordinates } from '@/types/location';
 import type { Stand } from '@/types/stand';
+import { operatorStandsQueryOptions } from './operatorQueries';
 
 // TODO: Replace with cashierEnabled from operator bootstrap endpoint.
 const CASHIER_ENABLED_PLACEHOLDER = true;
@@ -18,11 +21,6 @@ const LOGIN_FAILED_MESSAGE = 'Login failed. Please try again.';
 const WRONG_PASSWORD_OR_LINK_MESSAGE = 'Wrong password or invalid link.';
 
 type LoadState = 'loading' | 'ready' | 'invalid' | 'error';
-type StandFetchState = {
-  requestKey: string | null;
-  status: Exclude<LoadState, 'loading'> | 'idle';
-  stands: Stand[];
-};
 
 export default function StandSelection() {
   const { eventId } = useParams();
@@ -31,68 +29,53 @@ export default function StandSelection() {
   const operatorSession = getCredential('operator');
   const hasSessionForEvent = !!eventId && operatorSession?.eventId === eventId;
   const loggedInStands = hasSessionForEvent ? operatorSession.stands : {};
-  const fetchRequestKey =
-    eventId && hasSessionForEvent ? `${eventId}:${operatorSession.operatorAccessKey}` : null;
+  const operatorAccessKey = hasSessionForEvent ? operatorSession.operatorAccessKey : null;
 
-  const [standFetchState, setStandFetchState] = useState<StandFetchState>({
-    requestKey: null,
-    status: 'idle',
-    stands: [],
+  const operatorStandsQuery = useQuery({
+    ...operatorStandsQueryOptions(eventId ?? '', operatorAccessKey ?? ''),
+    enabled: !!eventId && hasSessionForEvent && !!operatorAccessKey,
   });
   const [selectedStand, setSelectedStand] = useState<Stand | null>(null);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [invalidLinkMessage, setInvalidLinkMessage] = useState<string | null>(null);
-  const [loggingInStandId, setLoggingInStandId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!eventId || !hasSessionForEvent || !fetchRequestKey) return;
-
-    let cancelled = false;
-
-    getOperatorStands(eventId)
-      .then((nextStands) => {
-        if (cancelled) return;
-        setInvalidLinkMessage(null);
-        setStandFetchState({
-          requestKey: fetchRequestKey,
-          status: 'ready',
-          stands: nextStands,
-        });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        if (error instanceof ApiError && (error.status === 401 || error.status === 404)) {
-          setInvalidLinkMessage(null);
-          setStandFetchState({
-            requestKey: fetchRequestKey,
-            status: 'invalid',
-            stands: [],
-          });
-          return;
+  const loginMutation = useMutation({
+    mutationFn: ({ accessPassword, stand }: { accessPassword?: string; stand: Stand }) =>
+      loginOperator(stand._id, accessPassword),
+    onSuccess: (_response, { stand }) => {
+      if (eventId) navigate(paths.operator.stand(eventId, stand._id));
+    },
+    onError: (error: unknown, { stand }) => {
+      if (error instanceof ApiError && error.status === 401) {
+        if (stand.requiresPassword) {
+          setSelectedStand(stand);
+          setLoginError(WRONG_PASSWORD_OR_LINK_MESSAGE);
+        } else {
+          clearOperatorCredential();
+          setSelectedStand(null);
+          setInvalidLinkMessage(LINK_EXPIRED_MESSAGE);
         }
-        setStandFetchState({
-          requestKey: fetchRequestKey,
-          status: 'error',
-          stands: [],
-        });
-      });
+        return;
+      }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, fetchRequestKey, hasSessionForEvent]);
+      setSelectedStand(stand);
+      setLoginError(LOGIN_FAILED_MESSAGE);
+    },
+  });
+  const loggingInStandId = loginMutation.isPending ? loginMutation.variables?.stand._id : null;
 
   const loadState: LoadState = !eventId
     ? 'invalid'
     : !hasSessionForEvent
       ? 'invalid'
-      : standFetchState.requestKey === fetchRequestKey
-        ? standFetchState.status === 'idle'
-          ? 'loading'
-          : standFetchState.status
-        : 'loading';
-  const stands = standFetchState.requestKey === fetchRequestKey ? standFetchState.stands : [];
+      : operatorStandsQuery.isPending
+        ? 'loading'
+        : operatorStandsQuery.isError
+          ? isInvalidOperatorLinkError(operatorStandsQuery.error)
+            ? 'invalid'
+            : 'error'
+          : 'ready';
+  const stands = operatorStandsQuery.data ?? [];
 
   const canUseOperatorSession = loadState === 'ready' && !!eventId && hasSessionForEvent;
 
@@ -109,37 +92,11 @@ export default function StandSelection() {
     setLoginError(null);
   }
 
-  async function authenticateStand(stand: Stand, accessPassword?: string) {
+  function authenticateStand(stand: Stand, accessPassword?: string) {
     if (!eventId || !hasSessionForEvent) return;
 
-    setLoggingInStandId(stand._id);
     setLoginError(null);
-
-    try {
-      await loginOperator(stand._id, accessPassword);
-      navigate(paths.operator.stand(eventId, stand._id));
-    } catch (error: unknown) {
-      if (error instanceof ApiError && error.status === 401) {
-        if (stand.requiresPassword) {
-          setSelectedStand(stand);
-          setLoginError(WRONG_PASSWORD_OR_LINK_MESSAGE);
-        } else {
-          clearOperatorCredential();
-          setSelectedStand(null);
-          setInvalidLinkMessage(LINK_EXPIRED_MESSAGE);
-          setStandFetchState({
-            requestKey: fetchRequestKey,
-            status: 'invalid',
-            stands: [],
-          });
-        }
-        return;
-      }
-      setSelectedStand(stand);
-      setLoginError(LOGIN_FAILED_MESSAGE);
-    } finally {
-      setLoggingInStandId(null);
-    }
+    loginMutation.mutate({ stand, accessPassword });
   }
 
   function handleStandClick(stand: Stand) {
@@ -152,7 +109,7 @@ export default function StandSelection() {
       openPasswordDialog(stand);
       return;
     }
-    void authenticateStand(stand);
+    authenticateStand(stand);
   }
 
   function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
@@ -165,7 +122,7 @@ export default function StandSelection() {
       return;
     }
 
-    void authenticateStand(selectedStand, trimmedPassword);
+    authenticateStand(selectedStand, trimmedPassword);
   }
 
   function navigateToSystemDashboard(path: string) {
@@ -216,15 +173,12 @@ export default function StandSelection() {
               )}
 
               {stands.map((stand) => (
-                <SelectionTile
-                  icon={<StandIcon className="h-6 w-6" />}
+                <StandSelectionTile
                   key={stand._id}
                   loggedIn={Boolean(loggedInStands[stand._id])}
-                  locked={stand.requiresPassword}
                   loading={loggingInStandId === stand._id}
-                  meta={stand.location.locationName ?? 'Stand dashboard'}
                   onClick={() => handleStandClick(stand)}
-                  title={stand.standName}
+                  stand={stand}
                 />
               ))}
             </div>
@@ -254,12 +208,53 @@ export default function StandSelection() {
   );
 }
 
+function isInvalidOperatorLinkError(error: unknown) {
+  return error instanceof ApiError && (error.status === 401 || error.status === 404);
+}
+
+function getStandLocationLabel(stand: Stand) {
+  const locationName = stand.location.locationName?.trim();
+  if (locationName) return locationName;
+  if (hasCoordinates(stand.location)) {
+    return `${stand.location.yCoordinate}, ${stand.location.xCoordinate}`;
+  }
+  return null;
+}
+
+function StandSelectionTile({
+  loggedIn,
+  loading,
+  onClick,
+  stand,
+}: {
+  loggedIn: boolean;
+  loading: boolean;
+  onClick: () => void;
+  stand: Stand;
+}) {
+  const locationLabel = getStandLocationLabel(stand);
+
+  return (
+    <SelectionTile
+      icon={<StandIcon className="h-6 w-6" />}
+      loggedIn={loggedIn}
+      locked={stand.requiresPassword}
+      loading={loading}
+      meta={locationLabel}
+      metaIcon={locationLabel ? <PinIcon className="h-4 w-4 shrink-0" /> : null}
+      onClick={onClick}
+      title={stand.standName}
+    />
+  );
+}
+
 function SelectionTile({
   icon,
   loggedIn = false,
   locked = false,
   loading = false,
   meta,
+  metaIcon = null,
   onClick,
   title,
 }: {
@@ -267,7 +262,8 @@ function SelectionTile({
   loggedIn?: boolean;
   locked?: boolean;
   loading?: boolean;
-  meta: string;
+  meta?: string | null;
+  metaIcon?: ReactNode;
   onClick: () => void;
   title: string;
 }) {
@@ -296,12 +292,12 @@ function SelectionTile({
       <span className="mt-5 block text-lg font-semibold text-text">
         {loading ? 'Signing in…' : title}
       </span>
-      <span className="mt-2 flex items-center gap-1.5 text-sm text-text-muted">
-        {!locked && !loggedIn && title !== 'Pick Up' && title !== 'Cashier' && (
-          <PinIcon className="h-4 w-4 shrink-0" />
-        )}
-        <span className="truncate">{meta}</span>
-      </span>
+      {meta && (
+        <span className="mt-2 flex items-center gap-1.5 text-sm text-text-muted">
+          {metaIcon}
+          <span className="truncate">{meta}</span>
+        </span>
+      )}
     </button>
   );
 }

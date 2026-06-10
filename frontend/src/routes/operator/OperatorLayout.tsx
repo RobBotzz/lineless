@@ -1,12 +1,22 @@
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Outlet, useLocation } from 'react-router';
 
 import { OperatorNavbar } from '../../components/layout/navbars';
 import { OperatorOutletContext, type OperatorNavbarActions } from './operatorNavbarActions';
+import { operatorStandQueryOptions } from './operatorQueries';
 
 export default function OperatorLayout() {
   const { pathname } = useLocation();
-  const navbarTitle = getOperatorNavbarTitle(pathname);
+  const standTitleRequest = useMemo(() => getStandTitleRequest(pathname), [pathname]);
+  const standTitleQuery = useQuery({
+    ...operatorStandQueryOptions(standTitleRequest?.standId ?? ''),
+    enabled: !!standTitleRequest,
+  });
+  const navbarTitle = getOperatorNavbarTitle(
+    pathname,
+    standTitleRequest ? (standTitleQuery.data?.standName ?? null) : null,
+  );
   const [navbarActions, setNavbarActions] = useState<OperatorNavbarActions>({});
   const outletContext = useMemo(() => ({ setNavbarActions }), []);
 
@@ -39,7 +49,7 @@ function CustomerLogoPlaceholder() {
   );
 }
 
-function getOperatorNavbarTitle(pathname: string) {
+function getOperatorNavbarTitle(pathname: string, standTitle: string | null) {
   const pathSegments = pathname.split('/').filter(Boolean);
 
   if (pathSegments[0] === 'operator' && pathSegments.includes('pickup')) {
@@ -55,8 +65,20 @@ function getOperatorNavbarTitle(pathname: string) {
   }
 
   if (/^\/operator\/[^/]+\/[^/]+$/.test(pathname)) {
-    return 'Operator Dashboard';
+    return standTitle ?? 'Operator Dashboard';
   }
 
   return 'Operator';
+}
+
+function getStandTitleRequest(pathname: string) {
+  const match = /^\/operator\/([^/]+)\/([^/]+)$/.exec(pathname);
+  if (!match) return null;
+
+  const [, eventId, standId] = match;
+  if (!eventId || !standId || standId === 'pickup' || standId === 'cashier') return null;
+
+  return {
+    standId,
+  };
 }
