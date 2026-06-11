@@ -1,25 +1,30 @@
 import { useState } from 'react';
 
 import { formatMoney } from '@/types/product';
+import { QuantityStepper } from '@/components/shared/QuantityStepper';
+import { ChatIcon, ChevronDownIcon, DeleteIcon, ImageIcon } from '@/components/icons';
 
-import {
-  ChatIcon,
-  ChevronDownIcon,
-  DeleteIcon,
-  ImageIcon,
-  MinusIcon,
-  PlusIcon,
-} from '@/components/icons';
-import type { CartItem } from './cart-context';
+import type { CartItem } from './useCartState';
 
-interface CartLineProps {
+interface CartCardProps {
   item: CartItem;
   onSetQuantity: (productId: string, quantity: number) => void;
   onSetComment: (productId: string, index: number, comment: string) => void;
   onRemove: (productId: string) => void;
+  // Tighter thumbnail for narrow layouts (e.g. the cashier cart aside).
+  compact?: boolean;
+  // Optional stand label under the name; the attendee omits it.
+  standName?: string;
 }
 
-export function CartLine({ item, onSetQuantity, onSetComment, onRemove }: CartLineProps) {
+export function CartCard({
+  item,
+  onSetQuantity,
+  onSetComment,
+  onRemove,
+  compact = false,
+  standName,
+}: CartCardProps) {
   const { product, quantity, comments } = item;
 
   const [imageOk, setImageOk] = useState(true);
@@ -39,8 +44,7 @@ export function CartLine({ item, onSetQuantity, onSetComment, onRemove }: CartLi
   const lastFilled = comments.reduce((last, c, i) => (c.trim() !== '' ? i : last), -1);
   const visibleComments = Math.min(comments.length, lastFilled + 2);
 
-  const stepperButton =
-    'inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-text transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+  const thumbSize = compact ? 'h-14 w-14' : 'h-20 w-20';
 
   return (
     <div className="relative rounded-xl border border-border bg-surface p-4 shadow-sm">
@@ -49,14 +53,16 @@ export function CartLine({ item, onSetQuantity, onSetComment, onRemove }: CartLi
         type="button"
         onClick={() => onRemove(product._id)}
         aria-label={`Remove ${product.productName} from cart`}
-        className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <DeleteIcon />
       </button>
 
       <div className="flex gap-4">
         {/* Thumbnail */}
-        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-muted">
+        <div
+          className={`${thumbSize} shrink-0 overflow-hidden rounded-lg border border-border bg-surface-muted`}
+        >
           {showImage ? (
             <img
               alt=""
@@ -71,9 +77,10 @@ export function CartLine({ item, onSetQuantity, onSetComment, onRemove }: CartLi
           )}
         </div>
 
-        {/* Name + unit price */}
+        {/* Name + optional stand + unit price */}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-6">
           <h3 className="truncate text-sm font-semibold text-text">{product.productName}</h3>
+          {standName && <span className="truncate text-xs text-text-muted">{standName}</span>}
           <span className="text-sm font-semibold text-accent">
             €{formatMoney(product.priceIncludingTax)}
           </span>
@@ -82,29 +89,15 @@ export function CartLine({ item, onSetQuantity, onSetComment, onRemove }: CartLi
 
       {/* Quantity stepper + line total */}
       <div className="mt-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className={stepperButton}
-            onClick={() => onSetQuantity(product._id, quantity - 1)}
-            disabled={quantity <= 1}
-            aria-label={`Decrease ${product.productName} quantity`}
-          >
-            <MinusIcon />
-          </button>
-          <span className="min-w-6 text-center text-sm font-semibold text-text" aria-live="polite">
-            {quantity}
-          </span>
-          <button
-            type="button"
-            className={stepperButton}
-            onClick={() => onSetQuantity(product._id, quantity + 1)}
-            disabled={atStockLimit}
-            aria-label={`Increase ${product.productName} quantity`}
-          >
-            <PlusIcon />
-          </button>
-        </div>
+        <QuantityStepper
+          quantity={quantity}
+          onDecrease={() => onSetQuantity(product._id, quantity - 1)}
+          onIncrease={() => onSetQuantity(product._id, quantity + 1)}
+          disableDecrease={quantity <= 1}
+          disableIncrease={atStockLimit}
+          decreaseLabel={`Decrease ${product.productName} quantity`}
+          increaseLabel={`Increase ${product.productName} quantity`}
+        />
         <span className="text-sm font-semibold text-text">€{formatMoney(lineTotal)}</span>
       </div>
 
