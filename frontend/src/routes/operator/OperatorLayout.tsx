@@ -1,19 +1,17 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Outlet, useLocation } from 'react-router';
+import { Outlet, useMatches } from 'react-router';
 
 import { OperatorNavbar } from '../../components/layout/navbars';
 import { OperatorOutletContext, type OperatorNavbarActions } from './operatorNavbarActions';
-import { operatorStandQueryOptions } from './operatorQueries';
+
+type OperatorRouteHandle = {
+  title?: string;
+};
 
 export default function OperatorLayout() {
-  const { pathname } = useLocation();
-  const standTitleRequest = useMemo(() => getStandTitleRequest(pathname), [pathname]);
-  const standTitleQuery = useQuery(operatorStandQueryOptions(standTitleRequest?.standId));
-  const navbarTitle = getOperatorNavbarTitle(
-    pathname,
-    standTitleRequest ? (standTitleQuery.data?.standName ?? null) : null,
-  );
+  const matches = useMatches();
+  const navbarTitle =
+    (matches.at(-1)?.handle as OperatorRouteHandle | undefined)?.title ?? 'Operator';
   const [navbarActions, setNavbarActions] = useState<OperatorNavbarActions>({});
   const outletContext = useMemo(() => ({ setNavbarActions }), []);
 
@@ -44,38 +42,4 @@ function CustomerLogoPlaceholder() {
       Logo
     </div>
   );
-}
-
-function getOperatorNavbarTitle(pathname: string, standTitle: string | null) {
-  const pathSegments = pathname.split('/').filter(Boolean);
-
-  if (pathSegments[0] === 'operator' && pathSegments.includes('pickup')) {
-    return 'Pick Up';
-  }
-
-  if (pathSegments[0] === 'operator' && pathSegments.includes('cashier')) {
-    return 'Cashier';
-  }
-
-  if (/^\/operator\/[^/]+$/.test(pathname)) {
-    return 'Stand Selection';
-  }
-
-  if (/^\/operator\/[^/]+\/[^/]+$/.test(pathname)) {
-    return standTitle ?? 'Operator Dashboard';
-  }
-
-  return 'Operator';
-}
-
-function getStandTitleRequest(pathname: string) {
-  const match = /^\/operator\/([^/]+)\/([^/]+)$/.exec(pathname);
-  if (!match) return null;
-
-  const [, eventId, standId] = match;
-  if (!eventId || !standId || standId === 'pickup' || standId === 'cashier') return null;
-
-  return {
-    standId,
-  };
 }
