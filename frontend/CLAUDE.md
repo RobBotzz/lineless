@@ -21,6 +21,8 @@ customer journeys) live in the backend repo's `docs/`.
 - **Build tool:** Vite (chosen over Next.js — we want a plain SPA against a
   separate backend, no SSR, and our own routing)
 - **Routing:** react-router v7
+- **Client data cache:** TanStack Query for operator-side component fetches that
+  depend on keychain credentials.
 - **Styling:** Tailwind CSS v4 (via `@tailwindcss/vite`), with shadcn-style
   primitives that we own in `src/components/ui/` (`button`, `card`,
   `text-field`, `password-text-field`, `toggle`). Class merging via `cn()` in
@@ -43,12 +45,18 @@ Key facts:
   pure style — we picked JSX for readability.
 - Router definition lives in its own `src/router.tsx`; `App.tsx` only renders
   `<RouterProvider router={router} />`.
-- `loader` is attached directly to a `<Route>` for one-shot fetches (event
-  config, lists). Read with `useLoaderData()`.
+- `loader` is attached directly to a `<Route>` for route-level one-shot fetches
+  that do not depend on client-only keychain credentials (organizer pages and
+  attendee public/product-selection reads). Read with `useLoaderData()`.
+- TanStack Query is used for component-level Operator fetches that depend on the
+  operator keychain credential (`operator-link` access key or per-stand operator
+  token). Keep operator query keys centralized instead of rebuilding
+  requestKey/status/cancelled state by hand in each screen.
 - **SSE streams are NOT loaders.** Live data (`/orders/{id}/stream`,
   `/events/{id}/analytics/stream`, `/stands/{id}/orders/stream`) goes through a
-  dedicated `useSSE` hook inside the component. Loaders = one-shot fetches,
-  streams = live updates. Keep this separation.
+  dedicated `useSSE` hook inside the component. Loaders = route one-shot
+  fetches, TanStack Query = cached operator client fetches, streams = live
+  updates. Keep this separation.
 
 ## Personas / Auth (mirrors the three backend auth types)
 
@@ -315,8 +323,13 @@ is already written — follow them so the codebase stays consistent.
 
 - Route tree centralized in `router.tsx`; `App.tsx` only mounts providers and
   `<RouterProvider>`.
-- `loader`/`action` for one-shot fetches (read via `useLoaderData()`); the
-  `useSSE` hook for live streams. **Do not conflate** loaders and streams.
+- `loader`/`action` for route-level one-shot reads/mutations that do not depend
+  on client-only keychain credentials (read via `useLoaderData()`).
+- TanStack Query for Operator component fetches that depend on keychain
+  credentials and benefit from caching/refetching. Put reusable operator
+  `queryKey` definitions next to the operator routes.
+- `useSSE` hook for live streams. **Do not conflate** loaders, query-backed
+  fetches, and streams.
 - All backend access goes through named functions in `src/api/<resource>.ts`;
   `apiFetch` (in `api/client.ts`) is the low-level HTTP/auth/error client those
   modules call — components/routes never call `fetch` directly.

@@ -21,6 +21,7 @@ export const paths = {
     link: (eventId: string, operatorAccessKey: string) =>
       `/operator/${eventId}/link/${operatorAccessKey}`,
     pickupDashboard: (eventId: string) => `/operator/${eventId}/pickup`,
+    cashierDashboard: (eventId: string) => `/operator/${eventId}/cashier`,
     stand: (eventId: string, standId: string) => `/operator/${eventId}/${standId}`,
     cashier: (eventId: string) => `/operator/${eventId}/cashier`,
     cashierOrder: (eventId: string) => `/operator/${eventId}/cashier/order`,
