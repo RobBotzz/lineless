@@ -22,13 +22,6 @@ const WRONG_PASSWORD_OR_LINK_MESSAGE = 'Wrong password or invalid link.';
 
 type LoadState = 'loading' | 'ready' | 'invalid' | 'error';
 
-type LoadStateInput = {
-  error: unknown;
-  hasSessionForEvent: boolean;
-  isError: boolean;
-  isPending: boolean;
-};
-
 export default function StandSelection() {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -71,12 +64,18 @@ export default function StandSelection() {
   });
   const loggingInStandId = loginMutation.isPending ? loginMutation.variables?.stand._id : null;
 
-  const loadState = getLoadState({
-    error: operatorStandsQuery.error,
-    hasSessionForEvent,
-    isError: operatorStandsQuery.isError,
-    isPending: operatorStandsQuery.isPending,
-  });
+  let loadState: LoadState = 'ready';
+  if (!hasSessionForEvent) {
+    loadState = 'invalid';
+  } else if (operatorStandsQuery.isPending) {
+    loadState = 'loading';
+  } else if (operatorStandsQuery.isError) {
+    const { error } = operatorStandsQuery;
+    loadState =
+      error instanceof ApiError && (error.status === 401 || error.status === 404)
+        ? 'invalid'
+        : 'error';
+  }
   const stands = operatorStandsQuery.data ?? [];
 
   const canUseOperatorSession = loadState === 'ready' && !!eventId && hasSessionForEvent;
@@ -208,22 +207,6 @@ export default function StandSelection() {
       />
     </div>
   );
-}
-
-function isInvalidOperatorLinkError(error: unknown) {
-  return error instanceof ApiError && (error.status === 401 || error.status === 404);
-}
-
-function getLoadState({
-  error,
-  hasSessionForEvent,
-  isError,
-  isPending,
-}: LoadStateInput): LoadState {
-  if (!hasSessionForEvent) return 'invalid';
-  if (isPending) return 'loading';
-  if (isError) return isInvalidOperatorLinkError(error) ? 'invalid' : 'error';
-  return 'ready';
 }
 
 function getStandLocationLabel(stand: Stand) {
