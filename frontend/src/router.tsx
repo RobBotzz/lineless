@@ -28,6 +28,7 @@ import AttendeeCheckout from './routes/attendee/checkout/Checkout';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
+import OperatorCashierDashboard from './routes/operator/CashierDashboard';
 import OperatorLinkEntry from './routes/operator/OperatorLinkEntry';
 import OperatorPickupDashboard from './routes/operator/PickupDashboard';
 import OperatorStandDashboard from './routes/operator/Queue';
@@ -78,11 +79,32 @@ export const router = createBrowserRouter(
         <Route path="orders" element={<AttendeeOrderHistory />} />
       </Route>
 
-      <Route path="operator" element={<OperatorLayout />}>
-        <Route path=":eventId/link/:operatorAccessKey" element={<OperatorLinkEntry />} />
-        <Route path=":eventId" element={<OperatorStandSelection />} />
-        <Route path=":eventId/pickup" element={<OperatorPickupDashboard />} />
-        <Route path=":eventId/:standId" element={<OperatorStandDashboard />} />
+      <Route path="operator" element={<OperatorLayout />} handle={{ title: 'Operator' }}>
+        <Route
+          path=":eventId/link/:operatorAccessKey"
+          element={<OperatorLinkEntry />}
+          handle={{ title: 'Stand Selection' }}
+        />
+        <Route
+          path=":eventId"
+          element={<OperatorStandSelection />}
+          handle={{ title: 'Stand Selection' }}
+        />
+        <Route
+          path=":eventId/pickup"
+          element={<OperatorPickupDashboard />}
+          handle={{ title: 'Pick Up' }}
+        />
+        <Route
+          path=":eventId/cashier"
+          element={<OperatorCashierDashboard />}
+          handle={{ title: 'Cashier' }}
+        />
+        <Route
+          path=":eventId/:standId"
+          element={<OperatorStandDashboard />}
+          handle={{ title: 'Operator Dashboard' }}
+        />
       </Route>
 
       <Route path="*" element={<NotFound />} />

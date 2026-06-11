@@ -1,12 +1,17 @@
 import { useMemo, useState } from 'react';
-import { Outlet, useLocation } from 'react-router';
+import { Outlet, useMatches } from 'react-router';
 
 import { OperatorNavbar } from '../../components/layout/navbars';
 import { OperatorOutletContext, type OperatorNavbarActions } from './operatorNavbarActions';
 
+type OperatorRouteHandle = {
+  title?: string;
+};
+
 export default function OperatorLayout() {
-  const { pathname } = useLocation();
-  const navbarTitle = getOperatorNavbarTitle(pathname);
+  const matches = useMatches();
+  const navbarTitle =
+    (matches.at(-1)?.handle as OperatorRouteHandle | undefined)?.title ?? 'Operator';
   const [navbarActions, setNavbarActions] = useState<OperatorNavbarActions>({});
   const outletContext = useMemo(() => ({ setNavbarActions }), []);
 
@@ -37,22 +42,4 @@ function CustomerLogoPlaceholder() {
       Logo
     </div>
   );
-}
-
-function getOperatorNavbarTitle(pathname: string) {
-  const pathSegments = pathname.split('/').filter(Boolean);
-
-  if (pathSegments[0] === 'operator' && pathSegments.includes('pickup')) {
-    return 'Pick Up';
-  }
-
-  if (/^\/operator\/[^/]+$/.test(pathname)) {
-    return 'Stand Selection';
-  }
-
-  if (/^\/operator\/[^/]+\/[^/]+$/.test(pathname)) {
-    return 'Operator Dashboard';
-  }
-
-  return 'Operator';
 }

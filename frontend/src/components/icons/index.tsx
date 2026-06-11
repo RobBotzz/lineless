@@ -35,6 +35,39 @@ export function StandIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
+export function PickupIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M6 7h12l-1 14H7L6 7Z" />
+      <path d="M9 7a3 3 0 0 1 6 0" />
+      <path d="M9 12h6" />
+      <path d="M10.5 16h3" />
+    </svg>
+  );
+}
+
+export function CashierIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <rect height="10" rx="2" width="18" x="3" y="10" />
+      <path d="M7 10V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3" />
+      <path d="M7 14h.01" />
+      <path d="M11 14h.01" />
+      <path d="M15 14h2" />
+      <path d="M7 18h10" />
+    </svg>
+  );
+}
+
+export function LockIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <rect height="11" rx="2" width="16" x="4" y="11" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  );
+}
+
 export function PinIcon({ className = 'h-5 w-5' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>
