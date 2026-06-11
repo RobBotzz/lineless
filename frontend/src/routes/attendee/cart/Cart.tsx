@@ -6,7 +6,7 @@ import { formatMoney } from '@/types/product';
 
 import { ATTENDEE_WIDTH } from '../column';
 import { CartIcon } from '@/components/icons';
-import { CartLine } from './CartLine';
+import { CartCard } from '@/features/cart/CartCard';
 import { useCart } from './cart-context';
 
 export default function Cart() {
@@ -36,7 +36,7 @@ export default function Cart() {
         <>
           <div className="space-y-3">
             {items.map((item) => (
-              <CartLine
+              <CartCard
                 key={item.product._id}
                 item={item}
                 onSetQuantity={setQuantity}
