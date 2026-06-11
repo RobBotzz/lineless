@@ -9,6 +9,7 @@
     "outDir": "./dist",
 
     "strict": true,
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,

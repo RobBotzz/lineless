@@ -1,5 +1,8 @@
 node_modules/
 dist/
 *.log
+# React Email preview server scaffold + locally rendered template previews.
+.react-email/
+.email-preview/
 # Only the repo-root docs/ (assignment PDFs, data model) — NOT src/docs/.
 /docs/
