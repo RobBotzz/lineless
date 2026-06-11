@@ -12,7 +12,11 @@ import {
   updateStand,
   softDeleteStand,
 } from "./service";
-import { OperatorInvalidCredentialsError, StandNotFoundError } from "./errors";
+import {
+  CashierStandDisabledError,
+  OperatorInvalidCredentialsError,
+  StandNotFoundError,
+} from "./errors";
 import { EventNotFoundError } from "../events/errors";
 import {
   createStandSchema,
@@ -40,6 +44,8 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof OperatorInvalidCredentialsError)
     return res.status(401).json({ error: err.message });
+  if (err instanceof CashierStandDisabledError)
+    return res.status(403).json({ error: err.message });
   console.error("Stands error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
