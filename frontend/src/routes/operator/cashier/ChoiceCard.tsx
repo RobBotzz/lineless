@@ -8,8 +8,8 @@ interface ChoiceCardProps {
   description: string;
 }
 
-// Large icon + title + description card used for the cashier entry points
-// (Stand Selection and the Manual Order / Cash Payment choice screen).
+// Large icon + title + description card for the cashier's Manual Order / Cash
+// Payment choice screen.
 export function ChoiceCard({ to, icon, title, description }: ChoiceCardProps) {
   return (
     <Link

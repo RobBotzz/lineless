@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useOutletContext } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
 import { CartIcon, ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
@@ -10,56 +10,52 @@ import { useCartState } from '@/features/cart/useCartState';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { useAddGuard } from '@/lib/useAddGuard';
 import { createManualOrder } from '@/api/orders';
-import { getOperatorStand } from '@/api/stands';
-import { getOperatorStandProducts } from '@/api/products';
-import { getCredential } from '@/auth/keychain';
+import { getOperatorStands } from '@/api/stands';
+import { getOperatorEventProducts } from '@/api/products';
 import type { OrderItemView } from '@/types/order';
-import type { Stand } from '@/types/stand';
 import { formatMoney, type Product } from '@/types/product';
 import { paths } from '@/paths';
+import type { CashierContext } from './CashierLayout';
 
 // Cart is in-memory (no persistKey) so it starts fresh for each customer.
 export default function CashierManualOrder() {
-  const { eventId } = useParams() as { eventId: string };
+  const { eventId, standId } = useOutletContext<CashierContext>();
   const navigate = useNavigate();
 
   const { items, totalCents, addItem, setQuantity, setComment, removeItem, clear } = useCartState();
 
-  const standId = Object.keys(getCredential('operator')?.stands ?? {})[0] ?? '';
-
-  const [stand, setStand] = useState<Stand | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(!!standId);
+  const [standNameById, setStandNameById] = useState<Map<string, string>>(new Map());
+  const [isLoading, setIsLoading] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The cashier sells the whole event menu, so the catalog spans every stand.
   useEffect(() => {
-    if (!standId) return;
-    Promise.all([getOperatorStand(standId), getOperatorStandProducts(standId)])
-      .then(([s, p]) => {
-        setStand(s);
-        setProducts(p.filter((prod) => prod.productStatus === 'LIVE'));
+    Promise.all([getOperatorEventProducts(eventId, standId), getOperatorStands(eventId)])
+      .then(([p, stands]) => {
+        setProducts(p);
+        setStandNameById(new Map(stands.map((s) => [s._id, s.standName])));
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load products.'))
       .finally(() => setIsLoading(false));
-  }, [standId]);
+  }, [eventId, standId]);
+
+  const standNameFor = (product: Product) => standNameById.get(product.standId) ?? '';
 
   async function handleCheckout() {
     if (items.length === 0) return;
     setIsCheckingOut(true);
     try {
-      const orderItems: OrderItemView[] = items.map((item) => {
-        const comments = item.comments.map((comment) => comment.trim());
-        return {
-          productId: item.product._id,
-          productName: item.product.productName,
-          standName: stand?.standName ?? '',
-          unitPrice: item.product.priceIncludingTax,
-          quantity: item.quantity,
-          ...(comments.some(Boolean) ? { comments } : {}),
-        };
-      });
-      const order = await createManualOrder({ items: orderItems });
+      const orderItems: OrderItemView[] = items.map((item) => ({
+        productId: item.product._id,
+        productName: item.product.productName,
+        standName: standNameFor(item.product),
+        unitPrice: item.product.priceIncludingTax,
+        quantity: item.quantity,
+        comments: item.comments.map((comment) => comment.trim()),
+      }));
+      const order = await createManualOrder({ eventId, items: orderItems }, standId);
       clear(); // next customer starts with an empty cart
       // Skip the order-selection step: go straight to the new order's payment.
       navigate(paths.operator.cashierPaymentOrder(eventId, order._id));
@@ -88,7 +84,7 @@ export default function CashierManualOrder() {
                   <ProductTile
                     key={product._id}
                     product={product}
-                    standName={stand?.standName ?? ''}
+                    standName={standNameFor(product)}
                     onAdd={() => addItem(product)}
                   />
                 ))
@@ -112,7 +108,7 @@ export default function CashierManualOrder() {
                       key={item.product._id}
                       item={item}
                       compact
-                      standName={stand?.standName}
+                      standName={standNameFor(item.product)}
                       onSetQuantity={setQuantity}
                       onSetComment={setComment}
                       onRemove={removeItem}

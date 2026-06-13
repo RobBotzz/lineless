@@ -35,6 +35,7 @@ import OperatorLinkEntry from './routes/operator/OperatorLinkEntry';
 import OperatorPickupDashboard from './routes/operator/PickupDashboard';
 import OperatorStandDashboard from './routes/operator/Queue';
 import OperatorStandSelection from './routes/operator/StandSelection';
+import CashierLayout from './routes/operator/cashier/CashierLayout';
 import CashierHome from './routes/operator/cashier/CashierHome';
 import CashierManualOrder from './routes/operator/cashier/CashierManualOrder';
 import CashierPayment from './routes/operator/cashier/CashierPayment';
@@ -110,7 +111,7 @@ export const router = createBrowserRouter(
           handle={{ title: 'Pick Up' }}
         />
         {/* Static "cashier" out-ranks the dynamic :standId route in v7. */}
-        <Route path=":eventId/cashier" handle={{ title: 'Cashier Stand' }}>
+        <Route path=":eventId/cashier" element={<CashierLayout />} handle={{ title: 'Cashier Stand' }}>
           <Route index element={<CashierHome />} />
           <Route path="order" element={<CashierManualOrder />} handle={{ title: 'Manual Order' }} />
           <Route path="payment" element={<CashierPayment />} handle={{ title: 'Payment' }} />

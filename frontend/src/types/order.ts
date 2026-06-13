@@ -14,7 +14,6 @@ export interface OrderItem {
 // Mirrors OrderDoc from backend (modules/orders/model.ts).
 export interface Order {
   _id: string; // UUID — used in all API calls
-  standId: string;
   eventId: string;
   tabId: string | null;
   sessionId: string | null;
@@ -43,5 +42,5 @@ export interface OrderItemView {
   standName: string;
   unitPrice: number; // integer cents (priceIncludingTaxAtPurchase)
   quantity: number;
-  comments?: string[]; // per-unit; index i = comment for unit #(i+1)
+  comments: string[]; // per-unit; index i = comment for unit #(i+1), '' if none
 }

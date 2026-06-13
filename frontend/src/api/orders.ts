@@ -1,103 +1,82 @@
-// Order API — wired to the backend where endpoints exist.
-//
-// NOT YET IN BACKEND (no endpoint):
-//   getUnpaidOrders   — GET /api/stands/:standId/orders exists but returns PAID orders only
-//   confirmCashPayment — needs POST /api/orders/:orderId/cash-payment (payments module)
+// Order API for the cashier. The cashier always acts as its event's CASHIER
+// stand; callers pass that standId (resolved by CashierLayout) for operator auth.
 import { apiFetch } from './client';
-import { getCredential } from '../auth/keychain';
-import { getOperatorStandProducts } from './products';
-import { getOperatorStand } from './stands';
+import { getOperatorEventProducts } from './products';
+import { getOperatorStands } from './stands';
 import type { Order, OrderItemView } from '../types/order';
 
-// The cashier always operates for the stand the operator is logged into.
-function currentStandId(): string {
-  const cred = getCredential('operator');
-  return Object.keys(cred?.stands ?? {})[0] ?? '';
-}
-
-// In-session cache of enriched view items built by createManualOrder.
-// For orders not in this cache, buildOrderViewItems falls back to a products fetch.
-const viewItemCache = new Map<string, OrderItemView[]>();
-
 // orderId must be the UUID _id, not the human-readable orderNumber.
-export function getOrder(orderId: string): Promise<Order> {
-  return apiFetch<Order>(`/orders/${orderId}`, {
-    auth: 'operator',
-    standId: currentStandId(),
-  });
+export function getOrder(orderId: string, standId: string): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}`, { auth: 'operator', standId });
 }
 
-// Builds enriched view items for display. Fast path reads from the in-session
-// cache (set by createManualOrder) — no extra network call needed for that case.
-export async function buildOrderViewItems(order: Order): Promise<OrderItemView[]> {
-  const cached = viewItemCache.get(order._id);
-  if (cached) return cached;
-
-  const [products, stand] = await Promise.all([
-    getOperatorStandProducts(order.standId),
-    getOperatorStand(order.standId),
+// Builds enriched view items for display. The cashier spans the whole event, so
+// names are resolved from the event-wide catalog and stand list rather than a
+// single stand (an order's items may come from several stands).
+export async function buildOrderViewItems(
+  order: Order,
+  eventId: string,
+  standId: string,
+): Promise<OrderItemView[]> {
+  const [products, stands] = await Promise.all([
+    getOperatorEventProducts(eventId, standId),
+    getOperatorStands(eventId),
   ]);
   const productById = new Map(products.map((p) => [p._id, p]));
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
 
-  // Group flat items by productId — each backend item is exactly one unit.
-  // Exclude cancelled items.
-  const groups = new Map<string, { unitPrice: number; comments: string[] }>();
+  // Group the flat backend items (one per unit, cancelled excluded) by product.
+  const groups = new Map<string, OrderItemView>();
   for (const item of order.items) {
     if (item.cancelledAt) continue;
     const existing = groups.get(item.productId);
     if (existing) {
+      existing.quantity += 1;
       existing.comments.push(item.customerComment ?? '');
-    } else {
-      groups.set(item.productId, {
-        unitPrice: item.priceIncludingTaxAtPurchase,
-        comments: [item.customerComment ?? ''],
-      });
+      continue;
     }
+    const product = productById.get(item.productId);
+    groups.set(item.productId, {
+      productId: item.productId,
+      productName: product?.productName ?? item.productId,
+      standName: product ? (standNameById.get(product.standId) ?? '') : '',
+      unitPrice: item.priceIncludingTaxAtPurchase,
+      quantity: 1,
+      comments: [item.customerComment ?? ''],
+    });
   }
-
-  return [...groups.entries()].map(([productId, { unitPrice, comments }]) => ({
-    productId,
-    productName: productById.get(productId)?.productName ?? productId,
-    standName: stand.standName,
-    unitPrice,
-    quantity: comments.length,
-    ...(comments.some(Boolean) ? { comments } : {}),
-  }));
+  return [...groups.values()];
 }
 
 // POST /api/orders — creates a cashier order (operator auth, no attendee session).
-export async function createManualOrder(input: { items: OrderItemView[] }): Promise<Order> {
-  const standId = currentStandId();
-
+export async function createManualOrder(
+  input: { eventId: string; items: OrderItemView[] },
+  standId: string,
+): Promise<Order> {
   // Each cart line becomes N individual items (one per unit), carrying its comment.
   const flatItems = input.items.flatMap((view) =>
     Array.from({ length: view.quantity }, (_, i) => ({
       productId: view.productId,
-      ...(view.comments?.[i] ? { customerComment: view.comments[i] } : {}),
+      ...(view.comments[i] ? { customerComment: view.comments[i] } : {}),
     })),
   );
 
-  const order = await apiFetch<Order>('/orders', {
+  return apiFetch<Order>('/orders', {
     method: 'POST',
     auth: 'operator',
     standId,
-    body: JSON.stringify({ standId, items: flatItems }),
+    body: JSON.stringify({ eventId: input.eventId, items: flatItems }),
   });
-
-  // Cache enriched items — the backend response has no product names.
-  viewItemCache.set(order._id, input.items);
-  return order;
 }
 
-// TODO: needs GET /api/stands/:standId/orders?paidAt=null — endpoint not yet available.
-export function getUnpaidOrders(): Promise<Order[]> {
-  return Promise.resolve([]);
+// GET /api/stands/:standId/orders — unpaid orders for the cashier's event.
+export function getUnpaidOrders(standId: string): Promise<Order[]> {
+  return apiFetch<Order[]>(`/stands/${standId}/orders`, { auth: 'operator', standId });
 }
 
-// TODO: needs POST /api/orders/:orderId/cash-payment — payments module not yet available.
+// Mocked: the real POST /api/orders/:orderId/cash-payment (mark paid + release
+// instant items) lands in a follow-up MR — payments are out of scope here.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function confirmCashPayment(_orderId: string): Promise<Order> {
-  return Promise.reject(
-    new Error('Cash payment confirmation is not yet available in the backend.'),
-  );
+export function confirmCashPayment(_orderId: string): Promise<void> {
+  return Promise.resolve();
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useOutletContext } from 'react-router';
 
 import { SearchIcon } from '../../../components/icons';
 import { BackButton } from '../../../components/shared';
@@ -9,10 +9,11 @@ import type { Order } from '../../../types/order';
 import { computeTotal } from '../../../types/order';
 import { formatMoney } from '../../../types/product';
 import { paths } from '../../../paths';
-import { formatOrderTime, itemCount } from './orderFormat';
+import { formatOrderTime } from './orderFormat';
+import type { CashierContext } from './CashierLayout';
 
 export default function CashierPayment() {
-  const { eventId } = useParams() as { eventId: string };
+  const { eventId, standId } = useOutletContext<CashierContext>();
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -21,13 +22,17 @@ export default function CashierPayment() {
 
   useEffect(() => {
     let active = true;
-    getUnpaidOrders().then((result) => {
-      if (active) setOrders(result);
-    });
+    getUnpaidOrders(standId)
+      .then((result) => {
+        if (active) setOrders(result);
+      })
+      .catch(() => {
+        if (active) setOrders([]);
+      });
     return () => {
       active = false;
     };
-  }, []);
+  }, [standId]);
 
   const trimmed = query.trim().toLowerCase();
 
@@ -120,7 +125,7 @@ export default function CashierPayment() {
                       <span>{order.pickupCode}</span>
                       <span>{formatOrderTime(order.createdAt)}</span>
                     </div>
-                    <p className="mt-0.5 text-xs text-text-muted">{itemCount(order)} items</p>
+                    <p className="mt-0.5 text-xs text-text-muted">{order.items.length} items</p>
                   </button>
                 </li>
               ))}

@@ -11,18 +11,9 @@ interface OrderConfirmationProps {
   // Banner copy is passed in so each persona words it its own way.
   title: string;
   subtitle: string;
-  // wide=true: on lg+ screens, products go left and order-meta cards go right.
-  wide?: boolean;
 }
 
-export function OrderConfirmation({
-  order,
-  items,
-  total,
-  title,
-  subtitle,
-  wide = false,
-}: OrderConfirmationProps) {
+export function OrderConfirmation({ order, items, total, title, subtitle }: OrderConfirmationProps) {
   const banner = (
     <div className="flex flex-col items-center gap-2 rounded-xl border border-success/40 bg-success/5 p-8 text-center">
       <CheckCircleIcon className="h-12 w-12 text-success" />
@@ -56,32 +47,13 @@ export function OrderConfirmation({
     </section>
   );
 
-  if (wide) {
-    return (
-      <div className="space-y-6">
-        {banner}
-        <div className="space-y-4 lg:grid lg:grid-cols-[1fr_280px] lg:items-start lg:gap-6 lg:space-y-0">
-          {productSummary}
-          <div className="lg:sticky lg:top-6">{orderMeta}</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {banner}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-          <p className="text-xs text-text-muted">Order Number</p>
-          <p className="mt-1 text-lg font-semibold text-accent">{order.orderNumber}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-          <p className="text-xs text-text-muted">Pickup Code</p>
-          <p className="mt-1 text-lg font-semibold text-success">{order.pickupCode}</p>
-        </div>
+      <div className="space-y-4 lg:grid lg:grid-cols-[1fr_280px] lg:items-start lg:gap-6 lg:space-y-0">
+        {productSummary}
+        <div className="lg:sticky lg:top-6">{orderMeta}</div>
       </div>
-      {productSummary}
     </div>
   );
 }

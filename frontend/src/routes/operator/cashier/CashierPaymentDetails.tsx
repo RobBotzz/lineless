@@ -1,48 +1,26 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useState } from 'react';
+import { useNavigate, useOutletContext, useParams } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
 import { BackButton } from '@/components/shared';
-import { buildOrderViewItems, confirmCashPayment, getOrder } from '@/api/orders';
-import type { Order, OrderItemView } from '@/types/order';
+import { confirmCashPayment } from '@/api/orders';
 import { computeTotal } from '@/types/order';
 import { formatMoney } from '@/types/product';
 import { paths } from '@/paths';
 import { OrderSummary } from '@/features/orders/OrderSummary';
 import { formatOrderDateTime } from './orderFormat';
+import type { CashierContext } from './CashierLayout';
+import { useCashierOrder } from './useCashierOrder';
 
 export default function CashierPaymentDetails() {
-  const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
+  const { orderId } = useParams() as { orderId: string };
+  const { eventId, standId } = useOutletContext<CashierContext>();
   const navigate = useNavigate();
 
-  const [order, setOrder] = useState<Order | null>(null);
-  const [viewItems, setViewItems] = useState<OrderItemView[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const { order, items: viewItems, isLoading } = useCashierOrder(orderId, eventId, standId);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    getOrder(orderId)
-      .then((result) => buildOrderViewItems(result).then((items) => ({ result, items })))
-      .then(({ result, items }) => {
-        if (active) {
-          setOrder(result);
-          setViewItems(items);
-        }
-      })
-      .catch(() => {
-        if (active) setLoadFailed(true);
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [orderId]);
 
   async function confirmPayment() {
     if (!order) return;
@@ -65,7 +43,7 @@ export default function CashierPaymentDetails() {
 
       {isLoading ? (
         <p className="mt-10 text-center text-sm text-text-muted">Loading order…</p>
-      ) : loadFailed || !order ? (
+      ) : !order ? (
         <p className="mt-10 text-center text-sm text-text-muted">
           Order &quot;{orderId}&quot; could not be found.
         </p>

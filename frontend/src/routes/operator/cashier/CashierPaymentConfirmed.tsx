@@ -1,38 +1,16 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { useOutletContext, useParams } from 'react-router';
 
 import { BackButton } from '@/components/shared';
-import { buildOrderViewItems, getOrder } from '@/api/orders';
-import type { Order, OrderItemView } from '@/types/order';
 import { computeTotal } from '@/types/order';
 import { paths } from '@/paths';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
+import type { CashierContext } from './CashierLayout';
+import { useCashierOrder } from './useCashierOrder';
 
 export default function CashierPaymentConfirmed() {
-  const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
-
-  const [order, setOrder] = useState<Order | null>(null);
-  const [viewItems, setViewItems] = useState<OrderItemView[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    getOrder(orderId)
-      .then((result) => buildOrderViewItems(result).then((items) => ({ result, items })))
-      .then(({ result, items }) => {
-        if (active) {
-          setOrder(result);
-          setViewItems(items);
-        }
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [orderId]);
+  const { orderId } = useParams() as { orderId: string };
+  const { eventId, standId } = useOutletContext<CashierContext>();
+  const { order, items, isLoading } = useCashierOrder(orderId, eventId, standId);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -48,11 +26,10 @@ export default function CashierPaymentConfirmed() {
         <div className="mt-6">
           <OrderConfirmation
             order={order}
-            items={viewItems}
+            items={items}
             total={computeTotal(order)}
             title="Payment Successful!"
             subtitle="The order has been paid and is being processed."
-            wide
           />
         </div>
       )}
