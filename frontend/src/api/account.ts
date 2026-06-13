@@ -1,10 +1,12 @@
 import { apiFetch } from './client';
 import type { Account, LoginInput, SignupInput, UpdateAccountInput } from '../types/account';
 
-// Login/signup return the JWT in the response body (no cookie).
-interface AuthResponse {
+// Login/signup return the access JWT plus a rotating refresh token in the
+// response body (no cookie).
+export interface AuthResponse {
   message: string;
   token: string;
+  refreshToken: string;
 }
 
 export function login(input: LoginInput): Promise<AuthResponse> {
@@ -19,6 +21,37 @@ export function signup(input: SignupInput): Promise<AuthResponse> {
   return apiFetch<AuthResponse>('/account/signup', {
     method: 'POST',
     body: JSON.stringify(input),
+    auth: 'public',
+  });
+}
+
+// Trades a valid refresh token for a fresh access/refresh pair. Authenticated
+// by the refresh token itself (the access token may already be expired), so
+// this is a 'public' call. The presented refresh token is rotated server-side.
+export function refreshOrganizerSession(refreshToken: string): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>('/account/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+    auth: 'public',
+  });
+}
+
+// Revokes the refresh token (and its whole rotation family). Idempotent.
+export function logoutOrganizer(refreshToken: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/account/logout', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+    auth: 'public',
+  });
+}
+
+// Triggers the password reset email. Public, and intentionally always resolves
+// with the same generic message regardless of whether the email is registered
+// (the backend never reveals account existence here).
+export function requestPasswordReset(email: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/account/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
     auth: 'public',
   });
 }
@@ -39,9 +72,12 @@ export interface UpdateOrganizerPasswordInput {
   newPassword: string;
 }
 
+// A password change logs the account out everywhere else, so the backend
+// issues a fresh access/refresh pair for the current device.
 export interface OrganizerPasswordUpdateResponse {
   message: string;
-  token?: string;
+  token: string;
+  refreshToken: string;
 }
 
 export function updateOrganizerAccount(

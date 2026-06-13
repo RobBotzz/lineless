@@ -4,6 +4,7 @@
 export const paths = {
   home: '/',
   auth: '/auth',
+  forgotPassword: '/auth/forgot-password',
   organizer: {
     root: '/organizer',
     payment: '/organizer/payment',

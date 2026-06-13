@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { PasswordTextField } from '@/components/ui/password-text-field';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
-import { ChevronDownIcon, PinIcon } from '@/components/icons';
+import { ChevronDownIcon, PinIcon, WarningTriangleIcon } from '@/components/icons';
 import { hasCoordinates, toLatLng, type Location } from '@/types/location';
 import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
 import type { EventActionResult } from './data';
@@ -177,14 +177,25 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
             </div>
 
             {changePassword && (
-              <PasswordTextField
-                id="access-password"
-                label="Access Password"
-                value={accessPassword}
-                onChange={(e) => setAccessPassword(e.target.value)}
-                placeholder={isEdit ? 'Leave empty to remove password' : 'For operator login'}
-                required={!isEdit}
-              />
+              <div className="space-y-2">
+                <PasswordTextField
+                  id="access-password"
+                  label="Access Password"
+                  value={accessPassword}
+                  onChange={(e) => setAccessPassword(e.target.value)}
+                  placeholder={isEdit ? 'Leave empty to remove password' : 'For operator login'}
+                  required={!isEdit}
+                />
+                {isEdit && accessPassword.trim().length > 0 && (
+                  <div className="flex items-start gap-2 rounded bg-amber-50 p-3 text-sm text-amber-800">
+                    <WarningTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      Changing the password will log out all operators currently signed in to this
+                      stand.
+                    </span>
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="mt-6 flex justify-end gap-3 border-t pt-4">

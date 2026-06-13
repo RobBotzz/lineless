@@ -57,14 +57,17 @@ export function hasCredential(kind: AuthKind): boolean {
 
 export interface OrganizerCredential {
   token: string;
+  refreshToken: string;
 }
 
 function parseOrganizer(data: Record<string, unknown>): OrganizerCredential | null {
-  return isString(data.token) ? { token: data.token } : null;
+  return isString(data.token) && isString(data.refreshToken)
+    ? { token: data.token, refreshToken: data.refreshToken }
+    : null;
 }
 
-export function setOrganizer(token: string): void {
-  write(KEYS.organizer, { token } satisfies OrganizerCredential);
+export function setOrganizer(token: string, refreshToken: string): void {
+  write(KEYS.organizer, { token, refreshToken } satisfies OrganizerCredential);
 }
 
 export function clearOrganizerCredential(): void {
@@ -75,26 +78,36 @@ export function clearOrganizerCredential(): void {
 // Operator
 // ---------------------------------------------------------------------------
 
+export interface OperatorStandTokens {
+  token: string;
+  refreshToken: string;
+}
+
 export interface OperatorCredential {
   eventId: string;
   operatorAccessKey: string;
-  //standId => standToken
-  stands: Record<string, string>;
+  stands: Record<string, OperatorStandTokens>;
 }
 
 function parseOperator(data: Record<string, unknown>): OperatorCredential | null {
   if (!isString(data.eventId) || !isString(data.operatorAccessKey)) return null;
-  const stands: Record<string, string> = {};
+  const stands: Record<string, OperatorStandTokens> = {};
   if (isRecord(data.stands)) {
-    for (const [standId, token] of Object.entries(data.stands)) {
-      if (isString(token)) stands[standId] = token;
+    for (const [standId, value] of Object.entries(data.stands)) {
+      if (isRecord(value) && isString(value.token) && isString(value.refreshToken)) {
+        stands[standId] = { token: value.token, refreshToken: value.refreshToken };
+      }
     }
   }
   return { eventId: data.eventId, operatorAccessKey: data.operatorAccessKey, stands };
 }
 
 export function getOperatorStandToken(standId: string): string | null {
-  return getCredential('operator')?.stands[standId] ?? null;
+  return getCredential('operator')?.stands[standId]?.token ?? null;
+}
+
+export function getOperatorStandRefreshToken(standId: string): string | null {
+  return getCredential('operator')?.stands[standId]?.refreshToken ?? null;
 }
 
 export function startOperatorSession(eventId: string, operatorAccessKey: string): void {
@@ -106,10 +119,10 @@ export function startOperatorSession(eventId: string, operatorAccessKey: string)
   write(KEYS.operator, credential);
 }
 
-export function addOperatorStand(standId: string, token: string): void {
+export function addOperatorStand(standId: string, token: string, refreshToken: string): void {
   const credential = getCredential('operator');
   if (!credential) return;
-  credential.stands[standId] = token;
+  credential.stands[standId] = { token, refreshToken };
   write(KEYS.operator, credential);
 }
 
