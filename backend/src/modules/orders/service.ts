@@ -18,7 +18,7 @@ import {
 import type { CreateOrderInput } from "./types";
 
 function generatePickupCode(): string {
-  return crypto.randomBytes(3).toString("hex").toUpperCase();
+  return crypto.randomBytes(2).toString("hex").toUpperCase();
 }
 
 type ItemState = "PENDING" | "PREPARING" | "READY" | "FULFILLED" | "CANCELLED";
