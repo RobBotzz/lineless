@@ -1,13 +1,13 @@
-import { redirect } from 'react-router';
+import { redirect, type ActionFunctionArgs } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { createEvent, getEvents } from '@/api/events';
+import { createEvent, deleteEvent, getEvents } from '@/api/events';
 import { getStandProducts } from '@/api/products';
 import { getEventStands } from '@/api/stands';
 import type { Event } from '@/types/event';
 import type { Stand } from '@/types/stand';
 
-export type DashboardActionResult = { ok: false; error: string };
+export type DashboardActionResult = { ok: true } | { ok: false; error: string };
 
 export interface DashboardLoaderData {
   events: Event[];
@@ -42,14 +42,32 @@ export async function dashboardLoader(): Promise<DashboardLoaderData> {
   return { events, standCounts, productCounts };
 }
 
-// Create a draft event, then send the organizer straight to its config page.
-export async function dashboardAction() {
+// Create a draft event by default, or handle explicit dashboard mutations.
+export async function dashboardAction({ request }: ActionFunctionArgs) {
+  let actionLabel = 'create';
+
   try {
+    const contentType = request.headers.get('content-type') ?? '';
+
+    if (contentType.includes('application/json')) {
+      const body = (await request.json()) as { intent?: string; eventId?: string };
+      if (body.intent === 'deleteEvent') {
+        actionLabel = 'delete';
+        if (!body.eventId) throw new Error('Missing event id.');
+        await deleteEvent(body.eventId);
+        return { ok: true } satisfies DashboardActionResult;
+      }
+    }
+
     const event = await createEvent({ name: 'New Event' });
     return redirect(`/organizer/events/${event._id}`);
   } catch (err) {
     const message =
-      err instanceof ApiError ? err.message : 'Could not create the event. Please try again.';
+      err instanceof ApiError
+        ? err.message
+        : actionLabel === 'delete'
+          ? 'Could not delete the event. Please try again.'
+          : 'Could not create the event. Please try again.';
     return { ok: false, error: message } as DashboardActionResult;
   }
 }
