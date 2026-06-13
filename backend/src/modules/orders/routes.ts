@@ -19,6 +19,7 @@ import {
 } from "./errors";
 import { createOrderSchema } from "./types";
 import {
+  authOperator,
   authOrganizerOrAttendee,
   authOrganizerOrOperator,
   authOperatorOrAttendee,
@@ -93,96 +94,46 @@ ordersRouter.get(
   }
 );
 
-// POST /orders/:orderId/items/:itemId/start — PENDING → PREPARING (operator).
+// The four item-state transitions share one operator-scoped handler shape;
+// only the action differs. advanceOrderItem validates the transition itself
+// (no going backwards) and scopes the item to the operator's stand.
+function itemTransition(action: "start" | "ready" | "fulfill" | "cancel") {
+  return async (req: Request, res: Response): Promise<unknown> => {
+    try {
+      const order = await advanceOrderItem(
+        orderId(req),
+        itemId(req),
+        action,
+        req.operator!.standId
+      );
+      return res.status(200).json(order);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  };
+}
+
+// POST /orders/:orderId/items/:itemId/{start|ready|fulfill|cancel} — operator
+// drives the item state machine (PENDING → PREPARING → READY → FULFILLED, or cancel).
 ordersRouter.post(
   "/:orderId/items/:itemId/start",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.operator)
-        return res
-          .status(403)
-          .json({ error: "Operator authentication required" });
-      const order = await advanceOrderItem(
-        orderId(req),
-        itemId(req),
-        "start",
-        req.operator.standId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  authOperator,
+  itemTransition("start")
 );
-
-// POST /orders/:orderId/items/:itemId/ready — PREPARING → READY (operator).
 ordersRouter.post(
   "/:orderId/items/:itemId/ready",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.operator)
-        return res
-          .status(403)
-          .json({ error: "Operator authentication required" });
-      const order = await advanceOrderItem(
-        orderId(req),
-        itemId(req),
-        "ready",
-        req.operator.standId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  authOperator,
+  itemTransition("ready")
 );
-
-// POST /orders/:orderId/items/:itemId/fulfill — READY → FULFILLED (operator).
 ordersRouter.post(
   "/:orderId/items/:itemId/fulfill",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.operator)
-        return res
-          .status(403)
-          .json({ error: "Operator authentication required" });
-      const order = await advanceOrderItem(
-        orderId(req),
-        itemId(req),
-        "fulfill",
-        req.operator.standId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  authOperator,
+  itemTransition("fulfill")
 );
-
-// POST /orders/:orderId/items/:itemId/cancel — cancel item (operator).
 ordersRouter.post(
   "/:orderId/items/:itemId/cancel",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.operator)
-        return res
-          .status(403)
-          .json({ error: "Operator authentication required" });
-      const order = await advanceOrderItem(
-        orderId(req),
-        itemId(req),
-        "cancel",
-        req.operator.standId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  authOperator,
+  itemTransition("cancel")
 );
 
 // =============================================================================
