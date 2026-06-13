@@ -3,7 +3,6 @@ import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
   getOrderForAttendee,
-  getOrderForOperator,
   getOrderForOrganizer,
   listOrdersForStand,
   submitOrder,
@@ -20,8 +19,9 @@ import {
 } from "./errors";
 import { createOrderSchema } from "./types";
 import {
+  authOrganizerOrAttendee,
   authOrganizerOrOperator,
-  authOrganizerOrOperatorOrAttendee,
+  authOperatorOrAttendee,
 } from "../../middleware/auth/guards";
 
 function orderId(req: Request): string {
@@ -62,10 +62,10 @@ function handleError(err: unknown, res: Response): unknown {
 // =============================================================================
 export const ordersRouter = Router();
 
-// POST /orders — submit an order (attendee, operator/cashier, or organizer).
+// POST /orders — submit an order (attendee or operator/cashier).
 ordersRouter.post(
   "/",
-  authOrganizerOrOperatorOrAttendee,
+  authOperatorOrAttendee,
   validateBody(createOrderSchema, async (req, res, data) => {
     try {
       const sessionId = req.attendee?.sessionId ?? null;
@@ -77,17 +77,15 @@ ordersRouter.post(
   })
 );
 
-// GET /orders/:orderId — fetch a single order by ID.
+// GET /orders/:orderId — fetch a single order by ID (organizer or attendee only).
 ordersRouter.get(
   "/:orderId",
-  authOrganizerOrOperatorOrAttendee,
+  authOrganizerOrAttendee,
   async (req: Request, res: Response) => {
     try {
       const order = req.organizer
         ? await getOrderForOrganizer(orderId(req), req.organizer.accountId)
-        : req.operator
-          ? await getOrderForOperator(orderId(req), req.operator.standId)
-          : await getOrderForAttendee(orderId(req), req.attendee!.sessionId);
+        : await getOrderForAttendee(orderId(req), req.attendee!.sessionId);
       return res.status(200).json(order);
     } catch (err) {
       return handleError(err, res);

@@ -118,21 +118,6 @@ export async function getOrderForOrganizer(
   return order;
 }
 
-export async function getOrderForOperator(
-  orderId: string,
-  operatorStandId: string
-): Promise<OrderDoc> {
-  const order = await Order.findById(orderId).lean();
-  if (!order) throw new OrderNotFoundError();
-  const productIds = order.items.map((i) => i.productId);
-  const standProduct = await Product.findOne({
-    _id: { $in: productIds },
-    standId: operatorStandId,
-  }).lean();
-  if (!standProduct) throw new OrderNotFoundError();
-  return order;
-}
-
 export async function listOrdersForStand(
   standId: string,
   auth:
