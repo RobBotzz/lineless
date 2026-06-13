@@ -1,13 +1,14 @@
 import { lazy, Suspense, useState } from 'react';
-import { useFetcher, useLoaderData, useRouteError } from 'react-router';
+import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
 import { AlertDialog } from '@/components/feedback';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import { ChevronDownIcon, LinkIcon, PinIcon, ProductsIcon, UploadIcon } from '@/components/icons';
+import { paths } from '@/paths';
 import type { Event, UpdateEventInput } from '@/types/event';
 import type { Stand } from '@/types/stand';
 import type { Product } from '@/types/product';
@@ -234,9 +235,12 @@ export default function EventConfiguration() {
             </Button>
             {showCustomerLink && <CustomerLinkPanel eventId={event._id} />}
           </div>
-          <Button className="w-full" disabled size="lg" variant="secondary">
+          <Link
+            className={[buttonVariants({ variant: 'secondary', size: 'lg' }), 'w-full'].join(' ')}
+            to={paths.organizer.eventAnalytics(event._id)}
+          >
             Analytics Dashboard
-          </Button>
+          </Link>
         </CardContent>
       </Card>
 
