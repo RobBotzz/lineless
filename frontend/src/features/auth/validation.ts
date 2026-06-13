@@ -1,7 +1,7 @@
 import type { AuthTab } from './types';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const signupPasswordPattern = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+const signupPasswordPattern = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7E]{8,}$/;
 
 export function getEmailError(email: string): string {
   const trimmedEmail = email.trim();
