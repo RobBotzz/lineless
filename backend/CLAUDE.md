@@ -169,9 +169,25 @@ assume that it lies one folder higher, so it will reference the frontend build a
   "typecheck": "tsc --noEmit",
   "lint": "eslint src",
   "format": "prettier --write .",
+  "db:up": "docker compose up -d --wait mongo",
+  "db:down": "docker compose stop mongo",
   "prepare": "husky"
 }
 ```
+
+### Local development database (replica set)
+
+MongoDB runs as a **single-node replica set** (`rs0`) so that multi-document
+transactions and change streams (used by the SSE streams) work. The
+`docker-compose.yml` starts Mongo with `--replSet rs0` and auto-initiates it via
+the healthcheck — no manual `rs.initiate()` needed.
+
+For local dev with the backend on the host (`npm run dev`), bring up just the DB
+with `npm run db:up` (waits until the replica set is healthy) and stop it with
+`npm run db:down`. The default `mongoUri` uses `?directConnection=true`, which
+connects straight to the single node — do NOT add `replicaSet=rs0` to the local
+default, as the driver would then try to reach the internally advertised
+`mongo:27017` host, which is not resolvable from the host machine.
 
 `nodemon.json`:
 
