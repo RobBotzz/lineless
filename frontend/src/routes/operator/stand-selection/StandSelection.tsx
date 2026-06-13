@@ -12,7 +12,7 @@ import { CashierIcon, LockIcon, PickupIcon, PinIcon, StandIcon } from '@/compone
 import { paths } from '@/paths';
 import { hasCoordinates } from '@/types/location';
 import type { Stand } from '@/types/stand';
-import { operatorStandsQueryOptions } from './operatorQueries';
+import { operatorStandsQueryOptions } from '../operatorQueries';
 
 // TODO: Replace with cashierEnabled from operator bootstrap endpoint.
 const CASHIER_ENABLED_PLACEHOLDER = true;

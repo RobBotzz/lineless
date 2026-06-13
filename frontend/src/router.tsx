@@ -31,11 +31,11 @@ import AttendeeCheckout from './routes/attendee/checkout/Checkout';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
-import OperatorCashierDashboard from './routes/operator/CashierDashboard';
-import OperatorLinkEntry from './routes/operator/OperatorLinkEntry';
-import OperatorPickupDashboard from './routes/operator/PickupDashboard';
-import OperatorStandDashboard from './routes/operator/Queue';
-import OperatorStandSelection from './routes/operator/StandSelection';
+import OperatorCashierDashboard from './routes/operator/cashier-dashboard/CashierDashboard';
+import OperatorLinkEntry from './routes/operator/link-entry/OperatorLinkEntry';
+import OperatorPickupDashboard from './routes/operator/pickup-dashboard/PickupDashboard';
+import OperatorStandDashboard from './routes/operator/stand-dashboard/OperatorDashboard';
+import OperatorStandSelection from './routes/operator/stand-selection/StandSelection';
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
