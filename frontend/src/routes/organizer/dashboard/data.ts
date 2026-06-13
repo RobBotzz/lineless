@@ -1,7 +1,7 @@
 import { redirect, type ActionFunctionArgs } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { createEvent, deleteEvent, getEvents } from '@/api/events';
+import { createEvent, deleteEvent, getEvent, getEvents } from '@/api/events';
 import { getStandProducts } from '@/api/products';
 import { getEventStands } from '@/api/stands';
 import type { Event } from '@/types/event';
@@ -54,6 +54,13 @@ export async function dashboardAction({ request }: ActionFunctionArgs) {
       if (body.intent === 'deleteEvent') {
         actionLabel = 'delete';
         if (!body.eventId) throw new Error('Missing event id.');
+        const event = await getEvent(body.eventId);
+        if (event.status !== 'DRAFT') {
+          return {
+            ok: false,
+            error: 'Only draft events can be deleted.',
+          } satisfies DashboardActionResult;
+        }
         await deleteEvent(body.eventId);
         return { ok: true } satisfies DashboardActionResult;
       }
