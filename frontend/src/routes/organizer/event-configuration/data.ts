@@ -79,6 +79,12 @@ export async function eventConfigurationAction({
         await deleteProduct(body.productId);
         break;
       case 'deleteEvent':
+        {
+          const event = await getEvent(eventId);
+          if (event.status !== 'DRAFT') {
+            return { ok: false, error: 'Only draft events can be deleted.' };
+          }
+        }
         await deleteEvent(eventId);
         return redirect('/organizer');
     }

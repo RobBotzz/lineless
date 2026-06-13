@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
-import { LandingPageNavbar } from '../components/layout/navbars';
+import { AccountMenu, LandingPageNavbar } from '../components/layout/navbars';
 import { buttonVariants } from '../components/ui/button';
 import OrganizerFooter from '../components/layout/OperatorFooter';
 import { paths } from '../paths';
@@ -57,12 +57,10 @@ export default function Home() {
           const el = document.getElementById(id);
           if (el) el.scrollIntoView({ behavior: 'smooth' });
         }}
-        rightLink={
-          status === 'loading'
-            ? undefined
-            : isAuthenticated
-              ? { label: 'Sign Out', onClick: logout }
-              : { label: 'Sign In', to: paths.auth }
+        right={
+          status === 'loading' ? null : (
+            <AccountMenu isAuthenticated={isAuthenticated} onSignOut={logout} />
+          )
         }
         widthClassName="w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)]"
       />

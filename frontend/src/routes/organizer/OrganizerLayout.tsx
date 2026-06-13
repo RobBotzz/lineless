@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router';
 import { OrganizerRequireAuth } from '../../auth/organizer/OrganizerRequireAuth';
 import { useOrganizerAuth } from '../../auth/organizer/OrganizerAuthContext';
-import { OrganizerNavbar } from '../../components/layout';
+import { AccountMenu, OrganizerNavbar } from '../../components/layout';
 import { paths } from '../../paths';
 
 export default function OrganizerLayout() {
@@ -11,19 +11,11 @@ export default function OrganizerLayout() {
     pathname,
   );
 
-  const centerLinks = [
-    { label: 'Dashboard', to: paths.organizer.root },
-    { label: 'Payments', to: paths.organizer.payment },
-    { label: 'Settings', to: paths.organizer.settings },
-  ];
-
   return (
     <OrganizerRequireAuth>
       <div className="min-h-screen bg-background">
         <OrganizerNavbar
-          activeCenterLinkTo={pathname}
-          centerLinks={centerLinks}
-          rightLink={{ label: 'Sign Out', onClick: () => logout(paths.home) }}
+          right={<AccountMenu isAuthenticated={true} onSignOut={() => logout(paths.home)} />}
           widthClassName={
             isEventControlCenterRoute
               ? 'w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]'

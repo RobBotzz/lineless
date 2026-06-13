@@ -4,7 +4,8 @@ import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 import { ApiError } from '@/api/client';
 import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
 import { AlertDialog } from '@/components/feedback';
-import { CalendarIcon, DeleteIcon, PinIcon, ProductsIcon, StandIcon } from '@/components/icons';
+import { CalendarIcon, PinIcon, ProductsIcon, StandIcon } from '@/components/icons';
+import { DeleteIconButton } from '@/components/shared';
 import {
   Card,
   CardAction,
@@ -13,12 +14,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import type { Event } from '@/types/event';
+import type { Event, EventStatus } from '@/types/event';
 import { hasCoordinates, type Location } from '@/types/location';
 import type { DashboardActionResult } from './data';
 
-type EventFilter = 'all' | 'active' | 'stopped';
+type EventFilter = 'all' | 'draft' | 'active' | 'stopped';
 
 function formatDate(date?: string) {
   if (!date) return 'No date set';
@@ -38,6 +38,27 @@ function formatLocation(location: Location | null | undefined) {
   if (hasCoordinates(location)) return `${location.yCoordinate}, ${location.xCoordinate}`;
   return 'No location set';
 }
+
+const statusDetails: Record<
+  EventStatus,
+  { label: string; description: string; className: string }
+> = {
+  DRAFT: {
+    label: 'Draft',
+    description: 'Setup in progress',
+    className: 'border-accent/30 bg-accent-soft text-accent',
+  },
+  ACTIVE: {
+    label: 'Active',
+    description: 'Open for orders',
+    className: 'border-success/30 bg-success/10 text-success',
+  },
+  STOPPED: {
+    label: 'Stopped',
+    description: 'Event completed',
+    className: 'border-border bg-surface-muted text-text-muted',
+  },
+};
 
 // Rendered as the route's errorElement when the loader throws.
 export function DashboardError() {
@@ -64,6 +85,7 @@ export default function Dashboard() {
   const firstName = account?.firstName?.trim();
 
   const visibleEvents = useMemo(() => {
+    if (activeFilter === 'draft') return events.filter((event) => event.status === 'DRAFT');
     if (activeFilter === 'active') return events.filter((event) => event.status === 'ACTIVE');
     if (activeFilter === 'stopped') return events.filter((event) => event.status === 'STOPPED');
     return events;
@@ -135,6 +157,7 @@ function EventStatusTabs({
 }) {
   const tabs: { id: EventFilter; label: string }[] = [
     { id: 'all', label: 'All' },
+    { id: 'draft', label: 'Drafts' },
     { id: 'active', label: 'Active Events' },
     { id: 'stopped', label: 'Stopped Events' },
   ];
@@ -174,27 +197,39 @@ function EventCard({
   productCount: number;
   onRequestDelete: () => void;
 }) {
+  const status = statusDetails[event.status];
+  const canDelete = event.status === 'DRAFT';
+
   return (
     <Card className="group h-full gap-4 transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
       <CardHeader>
         <Link className="min-w-0" to={`/organizer/events/${event._id}`}>
           <CardTitle className="truncate text-lg group-hover:text-accent">{event.name}</CardTitle>
         </Link>
-        <CardAction>
-          <Button
-            aria-label={`Delete ${event.name || 'event'}`}
-            className="shrink-0 border-danger/30 px-2 text-danger hover:bg-danger/10 hover:text-danger"
-            onClick={onRequestDelete}
-            size="sm"
-            variant="outline"
-          >
-            <DeleteIcon />
-          </Button>
-        </CardAction>
+        {canDelete ? (
+          <CardAction>
+            <DeleteIconButton
+              className="shrink-0"
+              label={`Delete ${event.name || 'event'}`}
+              onClick={onRequestDelete}
+            />
+          </CardAction>
+        ) : null}
       </CardHeader>
 
       <Link className="block" to={`/organizer/events/${event._id}`}>
         <CardContent className="space-y-2">
+          <div className="flex items-center justify-between gap-3 pb-1">
+            <span
+              className={[
+                'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold',
+                status.className,
+              ].join(' ')}
+            >
+              {status.label}
+            </span>
+            <span className="text-xs text-text-muted">{status.description}</span>
+          </div>
           <p className="text-text-muted flex items-center gap-2 text-sm">
             <CalendarIcon className="h-4 w-4 shrink-0" />
             {formatDate(event.plannedDate)}

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { login as apiLogin, signup as apiSignup, getAccountInfo } from '../../api/account';
 import { clearOrganizerCredential, hasCredential, setOrganizer } from '../keychain';
+import { revokeOrganizerSession } from '../tokenRefresh';
 import { OrganizerAuthContext } from './OrganizerAuthContext';
 import type { OrganizerAuthContextValue, OrganizerAuthStatus } from './OrganizerAuthContext';
 import type { Account, LoginInput, SignupInput } from '../../types/account';
@@ -18,6 +19,7 @@ export function OrganizerAuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback((redirectTo?: string) => {
     setLogoutRedirect(redirectTo ?? null);
+    revokeOrganizerSession();
     clearOrganizerCredential();
     setAccount(null);
     setStatus('unauthenticated');
@@ -41,21 +43,28 @@ export function OrganizerAuthProvider({ children }: { children: ReactNode }) {
     };
   }, [logout]);
 
-  const login = useCallback(async (input: LoginInput) => {
-    const { token } = await apiLogin(input);
-    setOrganizer(token);
+  const establishSession = useCallback(async (token: string, refreshToken: string) => {
+    setOrganizer(token, refreshToken);
     const { account } = await getAccountInfo();
     setAccount(account);
     setStatus('authenticated');
   }, []);
 
-  const signup = useCallback(async (input: SignupInput) => {
-    const { token } = await apiSignup(input);
-    setOrganizer(token);
-    const { account } = await getAccountInfo();
-    setAccount(account);
-    setStatus('authenticated');
-  }, []);
+  const login = useCallback(
+    async (input: LoginInput) => {
+      const { token, refreshToken } = await apiLogin(input);
+      await establishSession(token, refreshToken);
+    },
+    [establishSession],
+  );
+
+  const signup = useCallback(
+    async (input: SignupInput) => {
+      const { token, refreshToken } = await apiSignup(input);
+      await establishSession(token, refreshToken);
+    },
+    [establishSession],
+  );
 
   const value = useMemo<OrganizerAuthContextValue>(
     () => ({
@@ -64,10 +73,11 @@ export function OrganizerAuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: status === 'authenticated',
       login,
       signup,
+      establishSession,
       logout,
       logoutRedirect,
     }),
-    [status, account, login, signup, logout, logoutRedirect],
+    [status, account, login, signup, establishSession, logout, logoutRedirect],
   );
 
   return <OrganizerAuthContext.Provider value={value}>{children}</OrganizerAuthContext.Provider>;

@@ -17,18 +17,28 @@ interface ProductDialogProps {
   onClose: () => void;
 }
 
-// Parse a user-entered decimal (e.g. "12.50") to integer cents.
-function parseCents(value: string): number | null {
-  const n = Number.parseFloat(value);
+// Accept both "12.50" and "12,50": normalize the comma, then require a plain
+// number with at most two decimals. Rejecting >2 decimals (instead of letting
+// Number round them) keeps the entered value exact — no silent rounding.
+function parseHundredths(value: string): number | null {
+  const normalized = value.trim().replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return null;
+  const n = Number.parseFloat(normalized);
   if (!Number.isFinite(n) || n < 0) return null;
+  // n has ≤2 decimals, so n*100 is an integer; round() only clears float dust.
   return Math.round(n * 100);
 }
 
-// Parse a user-entered percentage (e.g. "19" or "19.5") to integer basis points.
+// Parse a user-entered price (e.g. "12.50" or "12,50") to integer cents.
+function parseCents(value: string): number | null {
+  return parseHundredths(value);
+}
+
+// Parse a user-entered percentage (e.g. "19" or "19,5") to integer basis points.
 function parseTaxRate(value: string): number | null {
-  const n = Number.parseFloat(value);
-  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
-  return Math.round(n * 100);
+  const bp = parseHundredths(value);
+  if (bp === null || bp > 10000) return null; // 100.00% max
+  return bp;
 }
 
 function parseStock(value: string): number | null {
@@ -97,12 +107,12 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
     }
     const priceIncludingTax = parseCents(price);
     if (priceIncludingTax === null) {
-      setValidationError('Enter a valid price');
+      setValidationError('Enter a valid price with at most two decimals (e.g. 12.50 or 12,50)');
       return;
     }
     const taxRateBp = parseTaxRate(taxRate);
     if (taxRateBp === null) {
-      setValidationError('Enter a valid tax rate between 0 and 100');
+      setValidationError('Enter a valid tax rate between 0 and 100 (e.g. 19 or 19,5)');
       return;
     }
     const productStock = parseStock(stock);

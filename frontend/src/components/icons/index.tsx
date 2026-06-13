@@ -254,6 +254,46 @@ export function InfoIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
+export function UserIcon({ className = 'h-5 w-5' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M19 21a7 7 0 0 0-14 0" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+export function DashboardIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <rect height="7" rx="1.5" width="7" x="3" y="3" />
+      <rect height="7" rx="1.5" width="7" x="14" y="3" />
+      <rect height="7" rx="1.5" width="7" x="3" y="14" />
+      <rect height="7" rx="1.5" width="7" x="14" y="14" />
+    </svg>
+  );
+}
+
+export function CreditCardIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <rect height="14" rx="2" width="20" x="2" y="5" />
+      <path d="M2 10h20" />
+      <path d="M6 15h3" />
+    </svg>
+  );
+}
+
+export function LogOutIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
+  );
+}
+
 export function StarIcon({
   className = 'h-3.5 w-3.5',
   filled = true,
