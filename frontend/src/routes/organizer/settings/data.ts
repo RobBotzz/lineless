@@ -54,7 +54,9 @@ export async function settingsAction({
           currentPassword: body.currentPassword,
           newPassword: body.newPassword,
         });
-        if (response.token) setOrganizer(response.token);
+        // A password change rotates the session: store the fresh token pair so
+        // the current device stays logged in (other sessions are revoked).
+        setOrganizer(response.token, response.refreshToken);
         return {
           ok: true,
           intent: 'change-password',

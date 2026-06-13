@@ -20,6 +20,7 @@ export function getOperatorStand(standId: string): Promise<Stand> {
 
 export interface OperatorLoginResponse {
   token: string;
+  refreshToken: string;
   standId: string;
 }
 
@@ -34,9 +35,35 @@ export async function loginOperator(
     body: JSON.stringify({ operatorAccessKey: session.operatorAccessKey, accessPassword }),
     auth: 'public',
   });
-  // Persist the stand's token so the device can switch back without re-login.
-  addOperatorStand(response.standId, response.token);
+  // Persist the stand's token pair so the device can switch back without re-login.
+  addOperatorStand(response.standId, response.token, response.refreshToken);
   return response;
+}
+
+// Trades a valid operator refresh token for a fresh access/refresh pair. The
+// refresh token is scoped to this stand and rotated server-side; authenticated
+// by the refresh token itself, so it is a 'public' call.
+export function refreshOperatorSession(
+  standId: string,
+  refreshToken: string,
+): Promise<OperatorLoginResponse> {
+  return apiFetch<OperatorLoginResponse>(`/stands/${standId}/refresh`, {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+    auth: 'public',
+  });
+}
+
+// Revokes the operator refresh token (and its whole rotation family). Idempotent.
+export function logoutOperator(
+  standId: string,
+  refreshToken: string,
+): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/stands/${standId}/logout`, {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+    auth: 'public',
+  });
 }
 
 export function createStand(eventId: string, patch: CreateStandInput): Promise<void> {
