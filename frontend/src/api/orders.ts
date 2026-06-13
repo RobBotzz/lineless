@@ -40,8 +40,10 @@ export async function buildOrderViewItems(order: Order): Promise<OrderItemView[]
   const productById = new Map(products.map((p) => [p._id, p]));
 
   // Group flat items by productId — each backend item is exactly one unit.
+  // Exclude cancelled items.
   const groups = new Map<string, { unitPrice: number; comments: string[] }>();
   for (const item of order.items) {
+    if (item.cancelledAt) continue;
     const existing = groups.get(item.productId);
     if (existing) {
       existing.comments.push(item.customerComment ?? '');

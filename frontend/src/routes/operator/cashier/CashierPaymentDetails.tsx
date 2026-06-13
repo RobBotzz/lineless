@@ -11,10 +11,8 @@ import { paths } from '@/paths';
 import { OrderSummary } from '@/features/orders/OrderSummary';
 import { formatOrderDateTime } from './orderFormat';
 
-const FALLBACK_EVENT_ID = 'demo-event';
-
 export default function CashierPaymentDetails() {
-  const { eventId = FALLBACK_EVENT_ID, orderId = '' } = useParams();
+  const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
   const navigate = useNavigate();
 
   const [order, setOrder] = useState<Order | null>(null);

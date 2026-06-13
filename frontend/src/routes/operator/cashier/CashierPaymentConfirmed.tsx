@@ -8,10 +8,8 @@ import { computeTotal } from '@/types/order';
 import { paths } from '@/paths';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
 
-const FALLBACK_EVENT_ID = 'demo-event';
-
 export default function CashierPaymentConfirmed() {
-  const { eventId = FALLBACK_EVENT_ID, orderId = '' } = useParams();
+  const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
 
   const [order, setOrder] = useState<Order | null>(null);
   const [viewItems, setViewItems] = useState<OrderItemView[]>([]);

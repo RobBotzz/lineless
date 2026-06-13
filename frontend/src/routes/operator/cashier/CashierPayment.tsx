@@ -11,10 +11,8 @@ import { formatMoney } from '../../../types/product';
 import { paths } from '../../../paths';
 import { formatOrderTime, itemCount } from './orderFormat';
 
-const FALLBACK_EVENT_ID = 'demo-event';
-
 export default function CashierPayment() {
-  const { eventId = FALLBACK_EVENT_ID } = useParams();
+  const { eventId } = useParams() as { eventId: string };
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState<Order[] | null>(null);

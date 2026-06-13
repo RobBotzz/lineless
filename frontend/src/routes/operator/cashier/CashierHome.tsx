@@ -5,13 +5,10 @@ import { BackButton } from '../../../components/shared';
 import { paths } from '../../../paths';
 import { ChoiceCard } from './ChoiceCard';
 
-// Fallback so the flow is reachable even without an event in the URL.
-const FALLBACK_EVENT_ID = 'demo-event';
-
 // Cashier entry screen: choose between taking a manual order or collecting a
 // cash payment for an existing order.
 export default function CashierHome() {
-  const { eventId = FALLBACK_EVENT_ID } = useParams();
+  const { eventId } = useParams() as { eventId: string };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">

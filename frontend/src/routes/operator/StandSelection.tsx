@@ -166,9 +166,7 @@ export default function StandSelection() {
                 <SelectionTile
                   icon={<CashierIcon className="h-6 w-6" />}
                   meta="Manual orders and cash payments"
-                  onClick={() =>
-                    navigateToSystemDashboard(paths.operator.cashierDashboard(eventId))
-                  }
+                  onClick={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
                   title="Cashier"
                 />
               )}

@@ -18,11 +18,9 @@ import type { Stand } from '@/types/stand';
 import { formatMoney, type Product } from '@/types/product';
 import { paths } from '@/paths';
 
-const FALLBACK_EVENT_ID = 'demo-event';
-
 // Cart is in-memory (no persistKey) so it starts fresh for each customer.
 export default function CashierManualOrder() {
-  const { eventId = FALLBACK_EVENT_ID } = useParams();
+  const { eventId } = useParams() as { eventId: string };
   const navigate = useNavigate();
 
   const { items, totalCents, addItem, setQuantity, setComment, removeItem, clear } = useCartState();
@@ -40,7 +38,7 @@ export default function CashierManualOrder() {
     Promise.all([getOperatorStand(standId), getOperatorStandProducts(standId)])
       .then(([s, p]) => {
         setStand(s);
-        setProducts(p);
+        setProducts(p.filter((prod) => prod.productStatus === 'LIVE'));
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load products.'))
       .finally(() => setIsLoading(false));

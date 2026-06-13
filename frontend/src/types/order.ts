@@ -28,8 +28,11 @@ export interface Order {
 }
 
 // Total in integer cents — not stored by the backend, derived from items.
+// Excludes cancelled items.
 export function computeTotal(order: Order): number {
-  return order.items.reduce((sum, item) => sum + item.priceIncludingTaxAtPurchase, 0);
+  return order.items
+    .filter((item) => !item.cancelledAt)
+    .reduce((sum, item) => sum + item.priceIncludingTaxAtPurchase, 0);
 }
 
 // Enriched view type for display. Backend items are flat (one per unit); callers
