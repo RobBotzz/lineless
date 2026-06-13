@@ -108,16 +108,6 @@ export async function getOrderForAttendee(
   return order;
 }
 
-export async function getOrderByPickupCode(
-  pickupCode: string
-): Promise<OrderDoc> {
-  const order = await Order.findOne({
-    pickupCode: pickupCode.toUpperCase(),
-  }).lean();
-  if (!order) throw new OrderNotFoundError();
-  return order;
-}
-
 export async function getOrderForOrganizer(
   orderId: string,
   accountId: string
