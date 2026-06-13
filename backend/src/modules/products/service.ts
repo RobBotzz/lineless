@@ -4,10 +4,26 @@ import type { CreateProductInput, UpdateProductInput } from "./types";
 import { verifyStandOwnership } from "../stands/ownership";
 import { Stand } from "../stands/model";
 import { StandNotFoundError } from "../stands/errors";
-import { verifyActiveEvent } from "../events/ownership";
+import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
 
 async function productsForStand(standId: string): Promise<ProductDoc[]> {
   return Product.find({ standId, deletedAt: null })
+    .sort({ createdAt: 1 })
+    .lean();
+}
+
+// All LIVE products across every stand in an event — the cashier's catalog,
+// which spans the whole event rather than a single stand.
+async function liveProductsForEvent(eventId: string): Promise<ProductDoc[]> {
+  const stands = await Stand.find({ eventId, deletedAt: null })
+    .select("_id")
+    .lean();
+  const standIds = stands.map((s) => s._id);
+  return Product.find({
+    standId: { $in: standIds },
+    productStatus: "LIVE",
+    deletedAt: null,
+  })
     .sort({ createdAt: 1 })
     .lean();
 }
@@ -87,6 +103,29 @@ export async function listProductsForAttendee(
 ): Promise<ProductDoc[]> {
   await verifyStandAccessForAttendee(standId, eventId);
   return productsForStand(standId);
+}
+
+export async function listEventProductsForOrganizer(
+  eventId: string,
+  accountId: string
+): Promise<ProductDoc[]> {
+  await verifyEventOwnership(eventId, accountId);
+  return liveProductsForEvent(eventId);
+}
+
+// The operator token is scoped to one stand; allow the event-wide catalog only
+// when that stand belongs to the requested (active) event.
+export async function listEventProductsForOperator(
+  eventId: string,
+  operatorStandId: string
+): Promise<ProductDoc[]> {
+  const stand = await Stand.findOne({
+    _id: operatorStandId,
+    deletedAt: null,
+  }).lean();
+  if (!stand || stand.eventId !== eventId) throw new StandNotFoundError();
+  await verifyActiveEvent(eventId);
+  return liveProductsForEvent(eventId);
 }
 
 export async function getProductForOrganizer(

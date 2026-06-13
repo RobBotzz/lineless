@@ -5,6 +5,8 @@ import {
   listProductsForOrganizer,
   listProductsForOperator,
   listProductsForAttendee,
+  listEventProductsForOrganizer,
+  listEventProductsForOperator,
   getProductForOrganizer,
   updateProduct,
   softDeleteProduct,
@@ -22,6 +24,10 @@ import {
 
 function standId(req: Request): string {
   return req.params["standId"] as string;
+}
+
+function eventId(req: Request): string {
+  return req.params["eventId"] as string;
 }
 
 function productId(req: Request): string {
@@ -73,6 +79,34 @@ standProductsRouter.get(
         : req.operator
           ? await listProductsForOperator(standId(req), req.operator.standId)
           : await listProductsForAttendee(standId(req), req.attendee!.eventId);
+      res.status(200).json(products);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// =============================================================================
+// Event-scoped product routes — mounted at /events/:eventId/products
+// =============================================================================
+export const eventProductsRouter = Router({ mergeParams: true });
+
+// GET /events/:eventId/products — the event-wide LIVE catalog. Used by the
+// cashier (operator), whose token is stand-scoped, and the organizer.
+eventProductsRouter.get(
+  "/",
+  authOrganizerOrOperator,
+  async (req: Request, res: Response) => {
+    try {
+      const products = req.organizer
+        ? await listEventProductsForOrganizer(
+            eventId(req),
+            req.organizer.accountId
+          )
+        : await listEventProductsForOperator(
+            eventId(req),
+            req.operator!.standId
+          );
       res.status(200).json(products);
     } catch (err) {
       handleError(err, res);

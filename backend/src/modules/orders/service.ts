@@ -117,6 +117,40 @@ export async function getOrderForOrganizer(
   return order;
 }
 
+// A cashier operator may read any order in its own event (to collect a cash
+// payment). The operator token is stand-scoped, so we resolve the stand's event
+// and require the order to belong to it.
+export async function getOrderForOperator(
+  orderId: string,
+  operatorStandId: string
+): Promise<OrderDoc> {
+  const order = await Order.findById(orderId).lean();
+  if (!order) throw new OrderNotFoundError();
+  const stand = await Stand.findOne({
+    _id: operatorStandId,
+    deletedAt: null,
+  }).lean();
+  if (!stand || stand.eventId !== order.eventId) throw new OrderNotFoundError();
+  return order;
+}
+
+// Unpaid orders for the cashier's event — both attendee orders awaiting cash and
+// cashier-created orders not yet paid. Restricted to the dedicated CASHIER stand.
+export async function listUnpaidOrdersForCashier(
+  standId: string,
+  operatorStandId: string
+): Promise<OrderDoc[]> {
+  if (standId !== operatorStandId) throw new OrderNotFoundError();
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
+  if (!stand || stand.standType !== "CASHIER") throw new OrderNotFoundError();
+  const event = await Event.findById(stand.eventId).lean();
+  if (!event || event.status !== "ACTIVE" || !event.cashierEnabled)
+    throw new CashierDisabledError();
+  return Order.find({ eventId: stand.eventId, paidAt: null })
+    .sort({ createdAt: -1 })
+    .lean();
+}
+
 export async function advanceOrderItem(
   orderId: string,
   itemId: string,
