@@ -13,7 +13,7 @@ export function getEmailError(email: string): string {
 export function getPasswordError(password: string, mode: AuthTab): string {
   if (!password) return 'Password is required.';
   if (mode === 'signup' && !signupPasswordPattern.test(password)) {
-    return 'Use 8–128 printable characters with at least one letter and one number. No spaces or emoji.';
+    return 'Use at least 8 characters with one letter and one number.';
   }
   return '';
 }
