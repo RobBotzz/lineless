@@ -67,11 +67,11 @@ export default function CashierPaymentConfirmed() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-              <p className="text-xs text-text-muted">Order ID</p>
+              <p className="text-xs text-text-muted">Order Number</p>
               <p className="mt-1 text-lg font-semibold text-accent">{order.orderId}</p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-              <p className="text-xs text-text-muted">Authentication ID</p>
+              <p className="text-xs text-text-muted">Pickup Code</p>
               <p className="mt-1 text-lg font-semibold text-success">{order.authenticationId}</p>
             </div>
           </div>

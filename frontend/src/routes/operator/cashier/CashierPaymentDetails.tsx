@@ -97,7 +97,7 @@ export default function CashierPaymentDetails() {
 
           <div className="mt-3 space-y-1 text-xs text-text-muted">
             <p>
-              <span className="font-semibold text-text">Order ID:</span> {order.orderId}
+              <span className="font-semibold text-text">Order Number:</span> {order.orderId}
             </p>
             <p>
               <span className="font-semibold text-text">Order Time:</span>{' '}

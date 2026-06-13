@@ -56,7 +56,7 @@ export default function CashierPayment() {
         className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm"
       >
         <label htmlFor="order-id" className="text-base font-semibold text-text">
-          Enter Order ID
+          Enter Order Number
         </label>
         <div className="mt-3 flex gap-3">
           <input
