@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import type { Account } from '@/types/account';
+import { getPasswordError } from '@/features/auth/validation';
 import type { SettingsActionBody, SettingsActionResult, SettingsLoaderData } from './data';
 
 export function SettingsError() {
@@ -63,6 +64,7 @@ export default function Settings() {
   const successMessage =
     fetcher.data?.ok && fetcher.data.intent === 'change-password' ? fetcher.data.message : null;
   const [dismissedSuccess, setDismissedSuccess] = useState<string | null>(null);
+  const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
   const visibleSuccess =
     successMessage && successMessage !== dismissedSuccess ? successMessage : null;
   const busy = fetcher.state !== 'idle';
@@ -72,6 +74,7 @@ export default function Settings() {
   }
 
   function updatePasswordField<K extends keyof PasswordForm>(key: K, value: PasswordForm[K]) {
+    if (key === 'newPassword') setNewPasswordError(null);
     setPasswordForm((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -89,6 +92,11 @@ export default function Settings() {
   }
 
   function handlePasswordSave() {
+    const pwdError = getPasswordError(passwordForm.newPassword, 'signup');
+    if (pwdError) {
+      setNewPasswordError(pwdError);
+      return;
+    }
     submit({
       intent: 'change-password',
       currentPassword: passwordForm.currentPassword,
@@ -164,7 +172,8 @@ export default function Settings() {
 
             <VisiblePasswordField
               autoComplete="new-password"
-              helperText="At least 8 characters, including one letter and one number."
+              error={newPasswordError ?? undefined}
+              helperText="8–128 printable characters with at least one letter and one number. No spaces or emoji."
               id="new-password"
               label="New Password"
               onChange={(value) => updatePasswordField('newPassword', value)}
@@ -208,6 +217,7 @@ export default function Settings() {
 
 function VisiblePasswordField({
   autoComplete,
+  error,
   helperText,
   id,
   label,
@@ -216,6 +226,7 @@ function VisiblePasswordField({
   value,
 }: {
   autoComplete: string;
+  error?: string;
   helperText?: string;
   id: string;
   label: string;
@@ -250,7 +261,11 @@ function VisiblePasswordField({
           {showPassword ? <EyeOffIcon /> : <EyeIcon />}
         </Button>
       </div>
-      {helperText ? <p className="mt-1.5 text-xs text-text-muted">{helperText}</p> : null}
+      {error ? (
+        <p className="mt-1.5 text-xs text-danger">{error}</p>
+      ) : helperText ? (
+        <p className="mt-1.5 text-xs text-text-muted">{helperText}</p>
+      ) : null}
     </div>
   );
 }
