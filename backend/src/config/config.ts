@@ -4,24 +4,24 @@ interface Config {
   nodeEnv: "development" | "production" | "test";
   port: number;
   mongoUri: string;
-  jwt: {
-    secret: string;
-    /** JWT signing and verification algorithm. */
-    algorithm: Algorithm;
-    /** Token lifetime for organizer JWTs. */
-    expiresIn: string;
-    /** Token lifetime for operator (stand) JWTs. */
-    operatorExpiresIn: string;
+  auth: {
+    jwt: {
+      secret: string;
+      algorithm: Algorithm;
+    };
+    bcryptRounds: number;
+    organizer: {
+      accessTokenExpiresIn: string;
+      refreshTokenTtlDays: number;
+      passwordResetTtlMinutes: number;
+    };
+    operator: {
+      accessTokenExpiresIn: string;
+      refreshTokenTtlDays: number;
+    };
   };
-  /** bcrypt cost factor used for all password hashing. */
-  bcryptRounds: number;
   /** Public base URL of the frontend, used to build links sent in emails. */
   appBaseUrl: string;
-  /** Password reset settings. */
-  passwordReset: {
-    /** How long a reset token stays valid, in minutes. */
-    tokenTtlMinutes: number;
-  };
   resend: {
     /** Resend API key used to send transactional mail. */
     apiKey: string;
@@ -36,19 +36,33 @@ export const config: Config = {
   mongoUri:
     process.env["MONGO_URI"] ??
     "mongodb://localhost:27017/lineless?directConnection=true",
-  jwt: {
-    secret:
-      process.env["JWT_SECRET"] ??
-      "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
-    algorithm: "HS256",
-    expiresIn: process.env["JWT_EXPIRES_IN"] ?? "30d",
-    operatorExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "12h",
+  auth: {
+    jwt: {
+      secret:
+        process.env["JWT_SECRET"] ??
+        "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET",
+      algorithm: "HS256",
+    },
+    bcryptRounds: process.env["BCRYPT_ROUNDS"]
+      ? Number(process.env["BCRYPT_ROUNDS"])
+      : 10,
+    organizer: {
+      accessTokenExpiresIn: process.env["JWT_EXPIRES_IN"] ?? "15m",
+      refreshTokenTtlDays: process.env["REFRESH_TOKEN_TTL_DAYS"]
+        ? Number(process.env["REFRESH_TOKEN_TTL_DAYS"])
+        : 30,
+      passwordResetTtlMinutes: process.env["PASSWORD_RESET_TTL_MINUTES"]
+        ? Number(process.env["PASSWORD_RESET_TTL_MINUTES"])
+        : 60,
+    },
+    operator: {
+      accessTokenExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "15m",
+      refreshTokenTtlDays: process.env["OPERATOR_REFRESH_TOKEN_TTL_DAYS"]
+        ? Number(process.env["OPERATOR_REFRESH_TOKEN_TTL_DAYS"])
+        : 7,
+    },
   },
-  bcryptRounds: 10,
   appBaseUrl: process.env["APP_BASE_URL"] ?? "http://localhost:3000",
-  passwordReset: {
-    tokenTtlMinutes: 60,
-  },
   resend: {
     apiKey:
       process.env["RESEND_API_KEY"] ?? "re_REPLACE_WITH_YOUR_RESEND_API_KEY",
