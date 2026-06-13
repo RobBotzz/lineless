@@ -17,7 +17,7 @@ import {
 } from "./errors";
 import type { CreateOrderInput } from "./types";
 
-function generateAuthCode(): string {
+function generateOrderCode(): string {
   return crypto.randomBytes(3).toString("hex").toUpperCase();
 }
 
@@ -79,8 +79,11 @@ export async function submitOrder(
   });
 
   const orderCount = await Order.countDocuments({ eventId });
-  const orderNumber = String(orderCount + 1);
-  const authCode = generateAuthCode();
+  const letterIndex = Math.floor(orderCount / 1000) % 26;
+  const letter = String.fromCharCode(65 + letterIndex);
+  const numberPart = (orderCount % 1000).toString().padStart(3, "0");
+  const orderNumber = `${letter}${numberPart}`;
+  const orderCode = generateOrderCode();
 
   const order = await Order.create({
     standId,
@@ -88,7 +91,7 @@ export async function submitOrder(
     tabId: tabId ?? null,
     sessionId,
     orderNumber,
-    authCode,
+    orderCode,
     customerEmail: customerEmail ?? null,
     items: processedItems,
   });
@@ -105,9 +108,11 @@ export async function getOrderForAttendee(
   return order;
 }
 
-export async function getOrderByAuthCode(authCode: string): Promise<OrderDoc> {
+export async function getOrderByOrderCode(
+  orderCode: string
+): Promise<OrderDoc> {
   const order = await Order.findOne({
-    authCode: authCode.toUpperCase(),
+    orderCode: orderCode.toUpperCase(),
   }).lean();
   if (!order) throw new OrderNotFoundError();
   return order;

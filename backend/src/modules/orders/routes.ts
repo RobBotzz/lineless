@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
-  getOrderByAuthCode,
+  getOrderByOrderCode,
   getOrderForAttendee,
   getOrderForOperator,
   getOrderForOrganizer,
@@ -82,13 +82,13 @@ ordersRouter.post(
 // Must be registered before /:orderId to avoid Express matching "status" as an id.
 ordersRouter.get("/status", async (req: Request, res: Response) => {
   try {
-    const authCode = req.query["authCode"];
-    if (typeof authCode !== "string" || authCode.trim() === "") {
+    const orderCode = req.query["orderCode"];
+    if (typeof orderCode !== "string" || orderCode.trim() === "") {
       return res
         .status(400)
-        .json({ error: "authCode query parameter is required" });
+        .json({ error: "orderCode query parameter is required" });
     }
-    const order = await getOrderByAuthCode(authCode);
+    const order = await getOrderByOrderCode(orderCode);
     return res.status(200).json(order);
   } catch (err) {
     return handleError(err, res);
