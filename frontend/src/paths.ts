@@ -5,6 +5,7 @@ export const paths = {
   home: '/',
   auth: '/auth',
   forgotPassword: '/auth/forgot-password',
+  resetPassword: '/reset-password',
   organizer: {
     root: '/organizer',
     payment: '/organizer/payment',

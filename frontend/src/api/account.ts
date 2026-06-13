@@ -56,6 +56,21 @@ export function requestPasswordReset(email: string): Promise<{ message: string }
   });
 }
 
+export interface ResetPasswordInput {
+  token: string;
+  newPassword: string;
+}
+
+// Consumes a reset token from the emailed link and sets a new password. On
+// success the backend logs the user straight in (returns a fresh token pair).
+export function resetPassword(input: ResetPasswordInput): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>('/account/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    auth: 'public',
+  });
+}
+
 export function getAccountInfo(): Promise<{ account: Account }> {
   return apiFetch<{ account: Account }>('/account/info', { auth: 'organizer' });
 }
