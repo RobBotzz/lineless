@@ -46,3 +46,10 @@ export function stopEvent(eventId: string): Promise<void> {
     auth: 'organizer',
   });
 }
+
+export function deleteEvent(eventId: string): Promise<void> {
+  return apiFetch<void>(`/events/${eventId}`, {
+    method: 'DELETE',
+    auth: 'organizer',
+  });
+}

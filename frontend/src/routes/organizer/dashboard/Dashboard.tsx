@@ -1,14 +1,24 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
 import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
 import { AlertDialog } from '@/components/feedback';
-import { CalendarIcon, PinIcon, ProductsIcon, StandIcon } from '@/components/icons';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { CalendarIcon, DeleteIcon, PinIcon, ProductsIcon, StandIcon } from '@/components/icons';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import type { Event } from '@/types/event';
 import { hasCoordinates, type Location } from '@/types/location';
 import type { DashboardActionResult } from './data';
+
+type EventFilter = 'all' | 'active' | 'stopped';
 
 function formatDate(date?: string) {
   if (!date) return 'No date set';
@@ -47,7 +57,30 @@ export default function Dashboard() {
   const { events, standCounts, productCounts } =
     useLoaderData() as import('./data').DashboardLoaderData;
   const { account } = useOrganizerAuth();
+  const fetcher = useFetcher<DashboardActionResult>();
+  const [activeFilter, setActiveFilter] = useState<EventFilter>('all');
+  const [pendingDeleteEvent, setPendingDeleteEvent] = useState<Event | null>(null);
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
   const firstName = account?.firstName?.trim();
+
+  const visibleEvents = useMemo(() => {
+    if (activeFilter === 'active') return events.filter((event) => event.status === 'ACTIVE');
+    if (activeFilter === 'stopped') return events.filter((event) => event.status === 'STOPPED');
+    return events;
+  }, [activeFilter, events]);
+
+  const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
+  const visibleError = actionError && actionError !== dismissedError ? actionError : null;
+
+  function confirmDeleteEvent() {
+    if (!pendingDeleteEvent) return;
+    setDismissedError(null);
+    void fetcher.submit(
+      { intent: 'deleteEvent', eventId: pendingDeleteEvent._id },
+      { method: 'post', encType: 'application/json' },
+    );
+    setPendingDeleteEvent(null);
+  }
 
   return (
     <div className="space-y-8">
@@ -56,17 +89,76 @@ export default function Dashboard() {
         <p className="mt-2 text-sm text-text-muted">Manage your events and settings</p>
       </header>
 
+      <EventStatusTabs activeFilter={activeFilter} onChange={setActiveFilter} />
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {events.map((event) => (
+        {visibleEvents.map((event) => (
           <EventCard
             event={event}
             key={event._id}
+            onRequestDelete={() => setPendingDeleteEvent(event)}
             standCount={standCounts[event._id] ?? 0}
             productCount={productCounts[event._id] ?? 0}
           />
         ))}
         <CreateEventTile />
       </div>
+
+      <AlertDialog
+        acknowledgeLabel="Delete"
+        cancelLabel="Cancel"
+        message={
+          pendingDeleteEvent
+            ? `“${pendingDeleteEvent.name || 'Untitled Event'}” will be irreversibly deleted and removed from the organizer dashboard.`
+            : null
+        }
+        onAcknowledge={confirmDeleteEvent}
+        onCancel={() => setPendingDeleteEvent(null)}
+        title="Delete event?"
+      />
+
+      <AlertDialog
+        message={visibleError}
+        onAcknowledge={() => setDismissedError(actionError)}
+        title="Couldn't delete event"
+      />
+    </div>
+  );
+}
+
+function EventStatusTabs({
+  activeFilter,
+  onChange,
+}: {
+  activeFilter: EventFilter;
+  onChange: (filter: EventFilter) => void;
+}) {
+  const tabs: { id: EventFilter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'active', label: 'Active Events' },
+    { id: 'stopped', label: 'Stopped Events' },
+  ];
+
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {tabs.map((tab) => {
+        const isActive = activeFilter === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={[
+              'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+              isActive
+                ? 'border-accent bg-accent text-[var(--color-button-text)]'
+                : 'border-border bg-surface text-text hover:bg-surface-muted',
+            ].join(' ')}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -75,18 +167,33 @@ function EventCard({
   event,
   standCount,
   productCount,
+  onRequestDelete,
 }: {
   event: Event;
   standCount: number;
   productCount: number;
+  onRequestDelete: () => void;
 }) {
   return (
-    <Link className="group" to={`/organizer/events/${event._id}`}>
-      <Card className="h-full gap-4 transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
-        <CardHeader>
-          <CardTitle className="text-lg group-hover:text-accent">{event.name}</CardTitle>
-        </CardHeader>
+    <Card className="group h-full gap-4 transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
+      <CardHeader>
+        <Link className="min-w-0" to={`/organizer/events/${event._id}`}>
+          <CardTitle className="truncate text-lg group-hover:text-accent">{event.name}</CardTitle>
+        </Link>
+        <CardAction>
+          <Button
+            aria-label={`Delete ${event.name || 'event'}`}
+            className="shrink-0 border-danger/30 px-2 text-danger hover:bg-danger/10 hover:text-danger"
+            onClick={onRequestDelete}
+            size="sm"
+            variant="outline"
+          >
+            <DeleteIcon />
+          </Button>
+        </CardAction>
+      </CardHeader>
 
+      <Link className="block" to={`/organizer/events/${event._id}`}>
         <CardContent className="space-y-2">
           <p className="text-text-muted flex items-center gap-2 text-sm">
             <CalendarIcon className="h-4 w-4 shrink-0" />
@@ -97,8 +204,13 @@ function EventCard({
             <span className="min-w-0 truncate">{formatLocation(event.location)}</span>
           </p>
         </CardContent>
+      </Link>
 
-        <CardFooter className="text-text-muted w-full justify-between border-t text-sm">
+      <CardFooter className="text-text-muted w-full items-center justify-between gap-3 border-t text-sm">
+        <Link
+          className="flex min-w-0 flex-1 justify-between gap-3"
+          to={`/organizer/events/${event._id}`}
+        >
           <span className="flex items-center gap-1.5">
             <StandIcon className="h-4 w-4 shrink-0" /> {standCount}{' '}
             {standCount === 1 ? 'Stand' : 'Stands'}
@@ -107,9 +219,9 @@ function EventCard({
             <ProductsIcon className="h-4 w-4 shrink-0" /> {productCount}{' '}
             {productCount === 1 ? 'Product' : 'Products'}
           </span>
-        </CardFooter>
-      </Card>
-    </Link>
+        </Link>
+      </CardFooter>
+    </Card>
   );
 }
 
