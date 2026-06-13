@@ -1,10 +1,10 @@
 import { Product, type ProductDoc } from "./model";
-import { ProductNotFoundError } from "./errors";
+import { ProductNotFoundError, ProductStateError } from "./errors";
 import type { CreateProductInput, UpdateProductInput } from "./types";
 import { verifyStandOwnership } from "../stands/ownership";
 import { Stand } from "../stands/model";
 import { StandNotFoundError } from "../stands/errors";
-import { verifyActiveEvent } from "../events/ownership";
+import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
 
 async function productsForStand(standId: string): Promise<ProductDoc[]> {
   return Product.find({ standId, deletedAt: null })
@@ -111,6 +111,59 @@ export async function verifyProductControlAccess(
   }
 
   await verifyStandAccessForOperator(product.standId, auth.standId);
+}
+
+function assertProductCanPause(product: ProductDoc): void {
+  if (product.productStatus === "TERMINATED") {
+    throw new ProductStateError("Terminated products cannot be paused");
+  }
+}
+
+export async function pauseProduct(
+  productId: string,
+  auth:
+    | { type: "organizer"; accountId: string }
+    | { type: "operator"; standId: string }
+): Promise<ProductDoc> {
+  const product = await Product.findOne({ _id: productId, deletedAt: null });
+  if (!product) throw new ProductNotFoundError();
+
+  if (auth.type === "organizer") {
+    await verifyStandOwnership(product.standId, auth.accountId);
+  } else {
+    await verifyStandAccessForOperator(product.standId, auth.standId);
+  }
+
+  assertProductCanPause(product);
+  product.productStatus = "PAUSED";
+  await product.save();
+  // TODO SSE: publish product availability after shared SSE infrastructure exists.
+  return product;
+}
+
+export async function pauseProductForEventControlCenter(
+  eventId: string,
+  standId: string,
+  productId: string,
+  accountId: string
+): Promise<ProductDoc> {
+  await verifyEventOwnership(eventId, accountId);
+
+  const stand = await Stand.findOne({ _id: standId, eventId, deletedAt: null });
+  if (!stand) throw new StandNotFoundError();
+
+  const product = await Product.findOne({
+    _id: productId,
+    standId,
+    deletedAt: null,
+  });
+  if (!product) throw new ProductNotFoundError();
+
+  assertProductCanPause(product);
+  product.productStatus = "PAUSED";
+  await product.save();
+  // TODO SSE: publish product/stand availability after shared SSE infrastructure exists.
+  return product;
 }
 
 export async function updateProduct(

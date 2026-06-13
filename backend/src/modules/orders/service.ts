@@ -30,6 +30,19 @@ function getItemState(item: OrderItemDoc): ItemState {
   return "PENDING";
 }
 
+function assertOrderBelongsToEvent(order: OrderDoc, eventId: string): void {
+  if (order.eventId !== eventId) throw new OrderNotFoundError();
+}
+
+function assertItemCancellable(item: OrderItemDoc): void {
+  const state = getItemState(item);
+  if (state === "FULFILLED" || state === "CANCELLED") {
+    throw new OrderItemStateError(
+      `Item cannot be cancelled from ${state} state`
+    );
+  }
+}
+
 export async function submitOrder(
   sessionId: string | null,
   input: CreateOrderInput
@@ -114,6 +127,67 @@ export async function getOrderForOrganizer(
   const order = await Order.findById(orderId).lean();
   if (!order) throw new OrderNotFoundError();
   await verifyEventOwnership(order.eventId, accountId);
+  return order;
+}
+
+export async function cancelOrderForOrganizer(
+  eventId: string,
+  orderId: string,
+  accountId: string
+): Promise<OrderDoc> {
+  await verifyEventOwnership(eventId, accountId);
+
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+  assertOrderBelongsToEvent(order, eventId);
+
+  const now = new Date();
+  let changed = false;
+  for (const item of order.items) {
+    if (item.fulfilledAt || item.cancelledAt) continue;
+    item.cancelledAt = now;
+    changed = true;
+  }
+
+  if (!changed) {
+    throw new OrderItemStateError("Order has no cancellable items");
+  }
+
+  await order.save();
+  // TODO SSE: publish an order update after shared SSE infrastructure exists.
+  return order;
+}
+
+export async function cancelOrderItemsForOrganizer(
+  eventId: string,
+  orderId: string,
+  itemIds: string[],
+  accountId: string
+): Promise<OrderDoc> {
+  await verifyEventOwnership(eventId, accountId);
+
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+  assertOrderBelongsToEvent(order, eventId);
+
+  const itemsById = new Map(order.items.map((item) => [item._id, item]));
+  const items = itemIds.map((itemId) => {
+    const item = itemsById.get(itemId);
+    if (!item) throw new OrderItemNotFoundError();
+    return item;
+  });
+
+  for (const item of items) {
+    assertItemCancellable(item);
+  }
+
+  const now = new Date();
+  for (const item of items) {
+    item.cancelledAt = now;
+  }
+
+  await order.save();
+  // TODO SSE: publish an order update after shared SSE infrastructure exists.
   return order;
 }
 

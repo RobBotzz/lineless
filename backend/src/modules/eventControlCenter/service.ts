@@ -4,16 +4,15 @@ import { EventNotFoundError } from "../events/errors";
 import { verifyEventOwnership } from "../events/ownership";
 import { Order, type OrderDoc, type OrderItemDoc } from "../orders/model";
 import { Product } from "../products/model";
+import { StandNotFoundError } from "../stands/errors";
 import { Stand } from "../stands/model";
 import type {
   EventControlCenterData,
+  EventControlCenterQuery,
   RevenuePoint,
   StandQueueMetric,
   StandRevenueSeries,
 } from "./types";
-
-const QUEUE_LENGTH_ALERT_THRESHOLD = 10;
-const AVERAGE_WAIT_ALERT_THRESHOLD_MINUTES = 15;
 
 function elapsedMinutesSince(baseDate: Date, date: Date): number {
   return Math.max(0, Math.floor((date.getTime() - baseDate.getTime()) / 60000));
@@ -51,7 +50,8 @@ function orderCreatedAtDate(order: OrderDoc): Date {
 
 export async function getEventControlCenter(
   eventId: string,
-  accountId: string
+  accountId: string,
+  options: EventControlCenterQuery
 ): Promise<EventControlCenterData> {
   await verifyEventOwnership(eventId, accountId);
 
@@ -146,8 +146,8 @@ export async function getEventControlCenter(
       queueLength: stats.queueLength,
       averageWaitMinutes,
       alert:
-        stats.queueLength >= QUEUE_LENGTH_ALERT_THRESHOLD ||
-        averageWaitMinutes >= AVERAGE_WAIT_ALERT_THRESHOLD_MINUTES,
+        stats.queueLength >= options.queueLengthAlertThreshold ||
+        averageWaitMinutes >= options.averageWaitAlertThresholdMinutes,
     };
   });
 
@@ -190,4 +190,15 @@ export async function getEventControlCenter(
     standRevenue,
     standQueues,
   };
+}
+
+export async function verifyStandPausePreconditions(
+  eventId: string,
+  standId: string,
+  accountId: string
+): Promise<void> {
+  await verifyEventOwnership(eventId, accountId);
+
+  const stand = await Stand.findOne({ _id: standId, eventId, deletedAt: null });
+  if (!stand) throw new StandNotFoundError();
 }

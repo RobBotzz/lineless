@@ -8,9 +8,10 @@ import {
   getProductForOrganizer,
   updateProduct,
   softDeleteProduct,
+  pauseProduct,
   verifyProductControlAccess,
 } from "./service";
-import { ProductNotFoundError } from "./errors";
+import { ProductNotFoundError, ProductStateError } from "./errors";
 import { StandNotFoundError } from "../stands/errors";
 import { EventNotFoundError } from "../events/errors";
 import { createProductSchema, updateProductSchema } from "./types";
@@ -31,6 +32,8 @@ function productId(req: Request): string {
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof ProductNotFoundError)
     return res.status(404).json({ error: err.message });
+  if (err instanceof ProductStateError)
+    return res.status(409).json({ error: err.message });
   if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
@@ -102,23 +105,20 @@ productsRouter.get(
   }
 );
 
-// POST /products/:productId/pause — placeholder for the LIVE -> PAUSED
-// transition. Status is intentionally NOT settable via PATCH; it gets its own
-// endpoint.
-// TODO: implement pauseProduct in the service as an explicit, validated state
-// transition (mirror the events start/stop pattern with a ProductStateError).
+// POST /products/:productId/pause — LIVE/PAUSED -> PAUSED. Status is
+// intentionally NOT settable via PATCH; it gets its own endpoint.
 productsRouter.post(
   "/:productId/pause",
   authOrganizerOrOperator,
   async (req: Request, res: Response) => {
     try {
-      await verifyProductControlAccess(
+      const product = await pauseProduct(
         productId(req),
         req.organizer
           ? { type: "organizer", accountId: req.organizer.accountId }
           : { type: "operator", standId: req.operator!.standId }
       );
-      res.status(501).json({ error: "Not implemented" });
+      res.status(200).json(product);
     } catch (err) {
       handleError(err, res);
     }
