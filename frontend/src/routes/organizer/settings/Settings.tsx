@@ -173,7 +173,7 @@ export default function Settings() {
             <VisiblePasswordField
               autoComplete="new-password"
               error={newPasswordError ?? undefined}
-              helperText="8–128 printable characters with at least one letter and one number. No spaces or emoji."
+              helperText="At least 8 characters, including a letter and a number. Spaces not allowed."
               id="new-password"
               label="New Password"
               onChange={(value) => updatePasswordField('newPassword', value)}
