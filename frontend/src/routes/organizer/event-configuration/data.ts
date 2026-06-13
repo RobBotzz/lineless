@@ -1,7 +1,7 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
+import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { getEvent, startEvent, stopEvent, updateEvent } from '@/api/events';
+import { deleteEvent, getEvent, startEvent, stopEvent, updateEvent } from '@/api/events';
 import { createProduct, deleteProduct, getStandProducts, updateProduct } from '@/api/products';
 import { createStand, deleteStand, getEventStands, updateStand } from '@/api/stands';
 import type { Event, UpdateEventInput } from '@/types/event';
@@ -36,7 +36,7 @@ export async function eventConfigurationLoader({
 export async function eventConfigurationAction({
   request,
   params,
-}: ActionFunctionArgs): Promise<EventActionResult> {
+}: ActionFunctionArgs): Promise<EventActionResult | Response> {
   const eventId = params.eventId as string;
   const body = (await request.json()) as
     | { intent: 'start' | 'stop' }
@@ -46,7 +46,8 @@ export async function eventConfigurationAction({
     | { intent: 'deleteStand'; standId: string }
     | { intent: 'createProduct'; standId: string; patch: CreateProductInput }
     | { intent: 'updateProduct'; productId: string; patch: UpdateProductInput }
-    | { intent: 'deleteProduct'; productId: string };
+    | { intent: 'deleteProduct'; productId: string }
+    | { intent: 'deleteEvent' };
 
   try {
     switch (body.intent) {
@@ -77,6 +78,9 @@ export async function eventConfigurationAction({
       case 'deleteProduct':
         await deleteProduct(body.productId);
         break;
+      case 'deleteEvent':
+        await deleteEvent(eventId);
+        return redirect('/organizer');
     }
     return { ok: true };
   } catch (err) {

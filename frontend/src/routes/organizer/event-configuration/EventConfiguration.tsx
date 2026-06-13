@@ -80,6 +80,7 @@ export default function EventConfiguration() {
   const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
   const [editingStand, setEditingStand] = useState<Stand | null>(null);
   const [pendingDeleteStandId, setPendingDeleteStandId] = useState<string | null>(null);
+  const [pendingDeleteEvent, setPendingDeleteEvent] = useState(false);
 
   // Product dialog: track which stand we're adding to / which product we're editing.
   const [productDialog, setProductDialog] = useState<{
@@ -124,6 +125,11 @@ export default function EventConfiguration() {
     setPendingDeleteProduct(null);
   }
 
+  function confirmDeleteEvent() {
+    submit({ intent: 'deleteEvent' });
+    setPendingDeleteEvent(false);
+  }
+
   function handleSave() {
     const patch: UpdateEventInput = {
       name: form.name,
@@ -148,7 +154,7 @@ export default function EventConfiguration() {
           <CardTitle className="text-2xl font-bold">{event.name || 'Untitled Event'}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <Button
               className="w-full bg-success text-white hover:bg-success/90"
               disabled={!canStart || busy}
@@ -165,6 +171,15 @@ export default function EventConfiguration() {
               variant="secondary"
             >
               Complete Event
+            </Button>
+            <Button
+              className="w-full border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
+              disabled={busy}
+              onClick={() => setPendingDeleteEvent(true)}
+              size="lg"
+              variant="outline"
+            >
+              Delete Event
             </Button>
           </div>
         </CardContent>
@@ -412,6 +427,19 @@ export default function EventConfiguration() {
         message={visibleError}
         onAcknowledge={() => setDismissedError(actionError)}
         title="Something went wrong"
+      />
+
+      <AlertDialog
+        acknowledgeLabel="Delete"
+        cancelLabel="Cancel"
+        message={
+          pendingDeleteEvent
+            ? `“${event.name || 'Untitled Event'}” will be deleted and removed from organizer lists.`
+            : null
+        }
+        onAcknowledge={confirmDeleteEvent}
+        onCancel={() => setPendingDeleteEvent(false)}
+        title="Delete event?"
       />
 
       <AlertDialog
