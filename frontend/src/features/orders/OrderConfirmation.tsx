@@ -1,24 +1,24 @@
 import { CheckCircleIcon, StandIcon } from '@/components/icons';
-import type { Order } from '@/types/order';
+import type { Order, OrderItemView } from '@/types/order';
 
 import { OrderSummary } from './OrderSummary';
 
 interface OrderConfirmationProps {
   order: Order;
-  // Banner copy is passed in so each persona words it its own way
-  // ("Payment Successful" for the cashier, "Order placed" for the attendee).
+  // Enriched items — caller joins backend OrderItem[] with product catalog data.
+  items: OrderItemView[];
+  total: number;
+  // Banner copy is passed in so each persona words it its own way.
   title: string;
   subtitle: string;
   // wide=true: on lg+ screens, products go left and order-meta cards go right.
-  // Default stacked layout is used by the attendee confirmation screen.
   wide?: boolean;
 }
 
-// Persona-agnostic order-confirmation body: success banner + order number /
-// pickup code + the grouped order summary. The page above owns the data fetch
-// and the surrounding chrome (back link, etc.).
 export function OrderConfirmation({
   order,
+  items,
+  total,
   title,
   subtitle,
   wide = false,
@@ -35,11 +35,11 @@ export function OrderConfirmation({
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
         <p className="text-xs text-text-muted">Order Number</p>
-        <p className="mt-1 text-lg font-semibold text-accent">{order.orderId}</p>
+        <p className="mt-1 text-lg font-semibold text-accent">{order.orderNumber}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
         <p className="text-xs text-text-muted">Pickup Code</p>
-        <p className="mt-1 text-lg font-semibold text-success">{order.authenticationId}</p>
+        <p className="mt-1 text-lg font-semibold text-success">{order.pickupCode}</p>
       </div>
     </div>
   );
@@ -51,7 +51,7 @@ export function OrderConfirmation({
         <h3 className="font-semibold">Products by Stand</h3>
       </div>
       <div className="mt-4">
-        <OrderSummary items={order.items} total={order.total} />
+        <OrderSummary items={items} total={total} />
       </div>
     </section>
   );
@@ -74,11 +74,11 @@ export function OrderConfirmation({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
           <p className="text-xs text-text-muted">Order Number</p>
-          <p className="mt-1 text-lg font-semibold text-accent">{order.orderId}</p>
+          <p className="mt-1 text-lg font-semibold text-accent">{order.orderNumber}</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
           <p className="text-xs text-text-muted">Pickup Code</p>
-          <p className="mt-1 text-lg font-semibold text-success">{order.authenticationId}</p>
+          <p className="mt-1 text-lg font-semibold text-success">{order.pickupCode}</p>
         </div>
       </div>
       {productSummary}

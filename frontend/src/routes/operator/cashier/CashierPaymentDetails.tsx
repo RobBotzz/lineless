@@ -1,23 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
-import { AlertDialog } from '../../../components/feedback';
-import { BackButton } from '../../../components/shared';
-import { confirmCashPayment, getOrder } from '../../../api/orders';
-import type { Order } from '../../../types/order';
-import { formatMoney } from '../../../types/product';
-import { paths } from '../../../paths';
-import { formatOrderDateTime } from './orderFormat';
+import { AlertDialog } from '@/components/feedback';
+import { BackButton } from '@/components/shared';
+import { buildOrderViewItems, confirmCashPayment, getOrder } from '@/api/orders';
+import type { Order, OrderItemView } from '@/types/order';
+import { computeTotal } from '@/types/order';
+import { formatMoney } from '@/types/product';
+import { paths } from '@/paths';
 import { OrderSummary } from '@/features/orders/OrderSummary';
+import { formatOrderDateTime } from './orderFormat';
 
 const FALLBACK_EVENT_ID = 'demo-event';
 
-// Order details for a single unpaid order, with cash-payment confirmation.
 export default function CashierPaymentDetails() {
   const { eventId = FALLBACK_EVENT_ID, orderId = '' } = useParams();
   const navigate = useNavigate();
 
   const [order, setOrder] = useState<Order | null>(null);
+  const [viewItems, setViewItems] = useState<OrderItemView[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -27,8 +28,12 @@ export default function CashierPaymentDetails() {
   useEffect(() => {
     let active = true;
     getOrder(orderId)
-      .then((result) => {
-        if (active) setOrder(result);
+      .then((result) => buildOrderViewItems(result).then((items) => ({ result, items })))
+      .then(({ result, items }) => {
+        if (active) {
+          setOrder(result);
+          setViewItems(items);
+        }
       })
       .catch(() => {
         if (active) setLoadFailed(true);
@@ -46,13 +51,15 @@ export default function CashierPaymentDetails() {
     setConfirmOpen(false);
     setIsPaying(true);
     try {
-      await confirmCashPayment(order.orderId);
-      navigate(paths.operator.cashierPaymentConfirmed(eventId, order.orderId));
+      await confirmCashPayment(order._id);
+      navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
     } catch (err) {
       setPayError(err instanceof Error ? err.message : 'Could not confirm the payment.');
       setIsPaying(false);
     }
   }
+
+  const total = order ? computeTotal(order) : 0;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -66,15 +73,14 @@ export default function CashierPaymentDetails() {
         </p>
       ) : (
         <div className="mt-6 space-y-4 lg:grid lg:grid-cols-[1fr_320px] lg:items-start lg:gap-6 lg:space-y-0">
-          {/* Left: order line-items */}
           <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
             <h2 className="text-base font-semibold text-text">Order Details</h2>
             <div className="mt-4">
-              <OrderSummary items={order.items} total={order.total} />
+              <OrderSummary items={viewItems} total={total} />
             </div>
             <div className="mt-3 space-y-1 text-xs text-text-muted">
               <p>
-                <span className="font-semibold text-text">Order Number:</span> {order.orderId}
+                <span className="font-semibold text-text">Order Number:</span> {order.orderNumber}
               </p>
               <p>
                 <span className="font-semibold text-text">Order Time:</span>{' '}
@@ -83,11 +89,10 @@ export default function CashierPaymentDetails() {
             </div>
           </section>
 
-          {/* Right: sticky total + CTA */}
           <div className="sticky top-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-semibold text-text">Total</span>
-              <span className="text-2xl font-bold text-accent">EUR {formatMoney(order.total)}</span>
+              <span className="text-2xl font-bold text-accent">EUR {formatMoney(total)}</span>
             </div>
             <button
               type="button"
@@ -104,7 +109,7 @@ export default function CashierPaymentDetails() {
       <AlertDialog
         message={
           confirmOpen && order
-            ? `Confirm cash payment of EUR ${formatMoney(order.total)} for order ${order.orderId}?`
+            ? `Confirm cash payment of EUR ${formatMoney(total)} for order ${order.orderNumber}?`
             : null
         }
         title="Confirm payment"

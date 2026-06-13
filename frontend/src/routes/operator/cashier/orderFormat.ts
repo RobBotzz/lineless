@@ -11,7 +11,7 @@ export function formatOrderDateTime(iso: string): string {
   return `${date.toLocaleTimeString()} - ${date.toLocaleDateString()}`;
 }
 
-// Total quantity across all line items.
+// Total unit count — backend items are flat (one entry per unit).
 export function itemCount(order: Order): number {
-  return order.items.reduce((count, item) => count + item.quantity, 0);
+  return order.items.length;
 }

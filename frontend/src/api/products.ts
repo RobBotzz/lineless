@@ -9,6 +9,10 @@ export function getAttendeeStandProducts(eventId: string, standId: string): Prom
   return apiFetch<Product[]>(`/stands/${standId}/products`, { auth: 'attendee', eventId });
 }
 
+export function getOperatorStandProducts(standId: string): Promise<Product[]> {
+  return apiFetch<Product[]>(`/stands/${standId}/products`, { auth: 'operator', standId });
+}
+
 export function createProduct(standId: string, patch: CreateProductInput): Promise<void> {
   return apiFetch<void>(`/stands/${standId}/products`, {
     method: 'POST',

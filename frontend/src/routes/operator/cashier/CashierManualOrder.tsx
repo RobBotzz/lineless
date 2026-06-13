@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
@@ -10,50 +10,52 @@ import { useCartState } from '@/features/cart/useCartState';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { useAddGuard } from '@/lib/useAddGuard';
 import { createManualOrder } from '@/api/orders';
-import type { OrderItem } from '@/types/order';
+import { getOperatorStand } from '@/api/stands';
+import { getOperatorStandProducts } from '@/api/products';
+import { getCredential } from '@/auth/keychain';
+import type { OrderItemView } from '@/types/order';
+import type { Stand } from '@/types/stand';
 import { formatMoney, type Product } from '@/types/product';
 import { paths } from '@/paths';
 
-import { cashierProducts, cashierStands } from './cashierMockData';
-
 const FALLBACK_EVENT_ID = 'demo-event';
-const ALL_STANDS = 'all';
 
-// Manual order view: the cashier picks products (filtered per stand), builds a
-// cart, and checks out — creating the order, then going straight to its cash
-// payment. The cart is in-memory (no persistKey) so it starts fresh per customer.
+// Cart is in-memory (no persistKey) so it starts fresh for each customer.
 export default function CashierManualOrder() {
   const { eventId = FALLBACK_EVENT_ID } = useParams();
   const navigate = useNavigate();
 
   const { items, totalCents, addItem, setQuantity, setComment, removeItem, clear } = useCartState();
 
-  const [selectedStand, setSelectedStand] = useState<string>(ALL_STANDS);
+  const standId = Object.keys(getCredential('operator')?.stands ?? {})[0] ?? '';
+
+  const [stand, setStand] = useState<Stand | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(!!standId);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Product carries no stand name; resolve it by id like the attendee page does.
-  const standsById = useMemo(
-    () => Object.fromEntries(cashierStands.map((s) => [s._id, s.standName])),
-    [],
-  );
-
-  const visibleProducts =
-    selectedStand === ALL_STANDS
-      ? cashierProducts
-      : cashierProducts.filter((product) => product.standId === selectedStand);
+  useEffect(() => {
+    if (!standId) return;
+    Promise.all([getOperatorStand(standId), getOperatorStandProducts(standId)])
+      .then(([s, p]) => {
+        setStand(s);
+        setProducts(p);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load products.'))
+      .finally(() => setIsLoading(false));
+  }, [standId]);
 
   async function handleCheckout() {
     if (items.length === 0) return;
     setIsCheckingOut(true);
     try {
-      const orderItems: OrderItem[] = items.map((item) => {
+      const orderItems: OrderItemView[] = items.map((item) => {
         const comments = item.comments.map((comment) => comment.trim());
         return {
           productId: item.product._id,
           productName: item.product.productName,
-          standId: item.product.standId,
-          standName: standsById[item.product.standId] ?? '',
+          standName: stand?.standName ?? '',
           unitPrice: item.product.priceIncludingTax,
           quantity: item.quantity,
           ...(comments.some(Boolean) ? { comments } : {}),
@@ -62,7 +64,7 @@ export default function CashierManualOrder() {
       const order = await createManualOrder({ items: orderItems });
       clear(); // next customer starts with an empty cart
       // Skip the order-selection step: go straight to the new order's payment.
-      navigate(paths.operator.cashierPaymentOrder(eventId, order.orderId));
+      navigate(paths.operator.cashierPaymentOrder(eventId, order._id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the order.');
       setIsCheckingOut(false);
@@ -73,114 +75,81 @@ export default function CashierManualOrder() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <BackButton to={paths.operator.cashier(eventId)}>Back to Cashier Stand</BackButton>
 
-      <div className="mt-6 flex flex-col gap-6 lg:flex-row">
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
-            <StandTab
-              active={selectedStand === ALL_STANDS}
-              onClick={() => setSelectedStand(ALL_STANDS)}
-            >
-              All
-            </StandTab>
-            {cashierStands.map((stand) => (
-              <StandTab
-                key={stand._id}
-                active={selectedStand === stand._id}
-                onClick={() => setSelectedStand(stand._id)}
-              >
-                {stand.standName}
-              </StandTab>
-            ))}
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-            {visibleProducts.map((product) => (
-              <ProductTile
-                key={product._id}
-                product={product}
-                standName={standsById[product.standId] ?? ''}
-                onAdd={() => addItem(product)}
-              />
-            ))}
-          </div>
-        </div>
-
-        <aside className="flex w-full flex-col lg:w-80 lg:border-l lg:border-border lg:pl-6">
-          <div className="flex items-center gap-2 border-b border-border pb-4 text-text">
-            <CartIcon className="h-5 w-5" />
-            <span className="font-semibold">Cart</span>
-          </div>
-
-          <div className="flex-1 py-4">
-            {items.length === 0 ? (
-              <EmptyCart />
-            ) : (
-              <div className="space-y-3">
-                {items.map((item) => (
-                  <CartCard
-                    key={item.product._id}
-                    item={item}
-                    compact
-                    standName={standsById[item.product.standId]}
-                    onSetQuantity={setQuantity}
-                    onSetComment={setComment}
-                    onRemove={removeItem}
+      {isLoading ? (
+        <p className="mt-10 text-center text-sm text-text-muted">Loading products…</p>
+      ) : (
+        <div className="mt-6 flex flex-col gap-6 lg:flex-row">
+          <div className="flex-1">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+              {products.length === 0 ? (
+                <p className="col-span-full py-12 text-center text-sm text-text-muted">
+                  No products available.
+                </p>
+              ) : (
+                products.map((product) => (
+                  <ProductTile
+                    key={product._id}
+                    product={product}
+                    standName={stand?.standName ?? ''}
+                    onAdd={() => addItem(product)}
                   />
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
 
-          <div className="border-t border-border pt-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-text-muted">Total:</span>
-              <span className="text-base font-semibold text-accent">
-                €{formatMoney(totalCents)}
-              </span>
+          <aside className="flex w-full flex-col lg:w-80 lg:border-l lg:border-border lg:pl-6">
+            <div className="flex items-center gap-2 border-b border-border pb-4 text-text">
+              <CartIcon className="h-5 w-5" />
+              <span className="font-semibold">Cart</span>
             </div>
-            <Button
-              className="mt-3 w-full"
-              disabled={items.length === 0 || isCheckingOut}
-              onClick={handleCheckout}
-            >
-              {isCheckingOut ? 'Processing…' : 'Checkout'}
-            </Button>
-          </div>
-        </aside>
-      </div>
+
+            <div className="flex-1 py-4">
+              {items.length === 0 ? (
+                <EmptyCart />
+              ) : (
+                <div className="space-y-3">
+                  {items.map((item) => (
+                    <CartCard
+                      key={item.product._id}
+                      item={item}
+                      compact
+                      standName={stand?.standName}
+                      onSetQuantity={setQuantity}
+                      onSetComment={setComment}
+                      onRemove={removeItem}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-muted">Total:</span>
+                <span className="text-base font-semibold text-accent">
+                  €{formatMoney(totalCents)}
+                </span>
+              </div>
+              <Button
+                className="mt-3 w-full"
+                disabled={items.length === 0 || isCheckingOut}
+                onClick={handleCheckout}
+              >
+                {isCheckingOut ? 'Processing…' : 'Checkout'}
+              </Button>
+            </div>
+          </aside>
+        </div>
+      )}
 
       <AlertDialog
         message={error}
         onAcknowledge={() => setError(null)}
-        title="Checkout failed"
+        title="Error"
         acknowledgeLabel="Close"
       />
     </div>
-  );
-}
-
-function StandTab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`h-9 rounded-md px-4 text-sm font-semibold transition-colors ${
-        active
-          ? 'bg-accent text-[var(--color-button-text)]'
-          : 'bg-surface-muted text-text hover:bg-surface-muted/80'
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 

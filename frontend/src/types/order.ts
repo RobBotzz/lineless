@@ -1,24 +1,44 @@
-// Order/payment types for the cashier flow. Mirrors the planned backend orders
-// module (not implemented yet). Money is integer cents, never float.
-export type OrderStatus = 'UNPAID' | 'PAID';
-
+// Mirrors OrderItemDoc from backend (modules/orders/model.ts).
 export interface OrderItem {
+  _id: string;
   productId: string;
-  productName: string;
-  standId: string;
-  standName: string;
-  unitPrice: number; // integer cents, incl. tax
-  quantity: number;
-  // Per-unit notes; index i is the note for unit #(i+1). Length tracks quantity.
-  comments?: string[];
+  customerComment: string | null; // single note per unit; null when none
+  priceIncludingTaxAtPurchase: number; // integer cents, incl. tax
+  taxRateAtPurchase: number; // basis points, e.g. 1900 for 19%
+  startedAt: string | null;
+  readyAt: string | null;
+  fulfilledAt: string | null;
+  cancelledAt: string | null;
 }
 
+// Mirrors OrderDoc from backend (modules/orders/model.ts).
 export interface Order {
-  orderId: string; // human-readable, e.g. "LL-001"
-  status: OrderStatus;
+  _id: string; // UUID — used in all API calls
+  standId: string;
+  eventId: string;
+  tabId: string | null;
+  sessionId: string | null;
+  orderNumber: string; // human-readable display ID, e.g. "A001"
+  pickupCode: string; // 4-char hex pickup code shown to the customer
+  customerEmail: string | null;
+  paidAt: string | null; // null = unpaid; non-null = paid
   items: OrderItem[];
-  total: number; // integer cents
-  authenticationId: string; // pickup/auth code, e.g. "SE8B"
-  createdAt: string; // ISO timestamp
-  paidAt: string | null; // ISO timestamp, set once paid
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Total in integer cents — not stored by the backend, derived from items.
+export function computeTotal(order: Order): number {
+  return order.items.reduce((sum, item) => sum + item.priceIncludingTaxAtPurchase, 0);
+}
+
+// Enriched view type for display. Backend items are flat (one per unit); callers
+// group by productId and join product/stand names before passing here.
+export interface OrderItemView {
+  productId: string;
+  productName: string;
+  standName: string;
+  unitPrice: number; // integer cents (priceIncludingTaxAtPurchase)
+  quantity: number;
+  comments?: string[]; // per-unit; index i = comment for unit #(i+1)
 }

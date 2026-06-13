@@ -1,11 +1,10 @@
-import type { OrderItem } from '@/types/order';
+import type { OrderItemView } from '@/types/order';
 import { formatMoney } from '@/types/product';
 
 import { ItemComments } from './ItemComments';
 
-// Group items by stand name, preserving first-seen order.
-function groupByStand(items: OrderItem[]): [string, OrderItem[]][] {
-  const groups = new Map<string, OrderItem[]>();
+function groupByStand(items: OrderItemView[]): [string, OrderItemView[]][] {
+  const groups = new Map<string, OrderItemView[]>();
   for (const item of items) {
     const existing = groups.get(item.standName);
     if (existing) existing.push(item);
@@ -15,13 +14,11 @@ function groupByStand(items: OrderItem[]): [string, OrderItem[]][] {
 }
 
 interface OrderSummaryProps {
-  items: OrderItem[];
+  items: OrderItemView[];
   total: number;
 }
 
-// Persona-agnostic order line-items, grouped by stand, with a total. Reads only
-// from the shared Order types, so the cashier and (later) the attendee render
-// the same summary — the page above owns the data fetch and any action.
+// Callers must join backend OrderItem[] with product catalog data before passing items here.
 export function OrderSummary({ items, total }: OrderSummaryProps) {
   return (
     <div>
