@@ -8,7 +8,7 @@ import type { Order } from '../../../types/order';
 import { formatMoney } from '../../../types/product';
 import { paths } from '../../../paths';
 import { formatOrderDateTime } from './orderFormat';
-import { ItemComments } from './ItemComments';
+import { OrderSummary } from '@/features/orders/OrderSummary';
 
 const FALLBACK_EVENT_ID = 'demo-event';
 
@@ -55,7 +55,7 @@ export default function CashierPaymentDetails() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <BackButton to={paths.operator.cashierPayment(eventId)}>Back to orders</BackButton>
 
       {isLoading ? (
@@ -65,55 +65,40 @@ export default function CashierPaymentDetails() {
           Order &quot;{orderId}&quot; could not be found.
         </p>
       ) : (
-        <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-text">Order Details</h2>
+        <div className="mt-6 space-y-4 lg:grid lg:grid-cols-[1fr_320px] lg:items-start lg:gap-6 lg:space-y-0">
+          {/* Left: order line-items */}
+          <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+            <h2 className="text-base font-semibold text-text">Order Details</h2>
+            <div className="mt-4">
+              <OrderSummary items={order.items} total={order.total} />
+            </div>
+            <div className="mt-3 space-y-1 text-xs text-text-muted">
+              <p>
+                <span className="font-semibold text-text">Order Number:</span> {order.orderId}
+              </p>
+              <p>
+                <span className="font-semibold text-text">Order Time:</span>{' '}
+                {formatOrderDateTime(order.createdAt)}
+              </p>
+            </div>
+          </section>
 
-          <ul className="mt-4 space-y-3">
-            {order.items.map((item) => (
-              <li
-                key={item.productId}
-                className="flex items-start justify-between gap-3 rounded-lg bg-surface-muted p-4"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-text">{item.productName}</p>
-                  <p className="text-xs text-text-muted">{item.standName}</p>
-                  <p className="text-xs text-text-muted">Quantity: {item.quantity}</p>
-                  <ItemComments productName={item.productName} comments={item.comments} />
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-accent">
-                    EUR {formatMoney(item.unitPrice * item.quantity)}
-                  </p>
-                  <p className="text-xs text-text-muted">EUR {formatMoney(item.unitPrice)} / pc</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-            <span className="text-base font-semibold text-text">Total Amount:</span>
-            <span className="text-lg font-bold text-accent">EUR {formatMoney(order.total)}</span>
+          {/* Right: sticky total + CTA */}
+          <div className="sticky top-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-text">Total</span>
+              <span className="text-2xl font-bold text-accent">EUR {formatMoney(order.total)}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(true)}
+              disabled={isPaying}
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-md bg-success px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50"
+            >
+              {isPaying ? 'Processing…' : 'Confirm Payment'}
+            </button>
           </div>
-
-          <div className="mt-3 space-y-1 text-xs text-text-muted">
-            <p>
-              <span className="font-semibold text-text">Order Number:</span> {order.orderId}
-            </p>
-            <p>
-              <span className="font-semibold text-text">Order Time:</span>{' '}
-              {formatOrderDateTime(order.createdAt)}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setConfirmOpen(true)}
-            disabled={isPaying}
-            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md bg-success px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50"
-          >
-            {isPaying ? 'Processing…' : 'Confirm Payment'}
-          </button>
-        </section>
+        </div>
       )}
 
       <AlertDialog

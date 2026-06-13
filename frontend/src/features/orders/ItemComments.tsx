@@ -1,9 +1,9 @@
 import { useState } from 'react';
 
-import { ChevronDownIcon, CommentIcon } from '../../../components/icons';
+import { ChevronDownIcon, CommentIcon } from '@/components/icons';
 
 // Read-only, collapsible per-unit comments for an order item. Renders nothing
-// when no unit has a note. Used on the payment details and confirmation screens.
+// when no unit has a note. Persona-agnostic — used by any order summary.
 export function ItemComments({
   productName,
   comments,
