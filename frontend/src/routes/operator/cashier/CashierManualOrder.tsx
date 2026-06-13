@@ -1,119 +1,66 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
-import { AlertDialog } from '../../../components/feedback';
-import {
-  CartIcon,
-  ChevronDownIcon,
-  CommentIcon,
-  DeleteIcon,
-  MinusIcon,
-  PlusIcon,
-} from '../../../components/icons';
-import { BackButton } from '../../../components/shared';
-import { Button } from '../../../components/ui/button';
-import { createManualOrder } from '../../../api/orders';
-import type { OrderItem } from '../../../types/order';
-import { formatMoney } from '../../../types/product';
-import { paths } from '../../../paths';
-import { cashierProducts, cashierStands, type CashierProduct } from './cashierMockData';
+import { AlertDialog } from '@/components/feedback';
+import { CartIcon, ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
+import { BackButton } from '@/components/shared';
+import { Button } from '@/components/ui/button';
+import { CartCard } from '@/features/cart/CartCard';
+import { useCartState } from '@/features/cart/useCartState';
+import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
+import { useAddGuard } from '@/lib/useAddGuard';
+import { createManualOrder } from '@/api/orders';
+import type { OrderItem } from '@/types/order';
+import { formatMoney, type Product } from '@/types/product';
+import { paths } from '@/paths';
+
+import { cashierProducts, cashierStands } from './cashierMockData';
 
 const FALLBACK_EVENT_ID = 'demo-event';
 const ALL_STANDS = 'all';
 
-interface CartLine {
-  product: CashierProduct;
-  quantity: number;
-  comments: string[]; // one entry per unit (index i = unit #(i+1))
-  showComments: boolean;
-}
-
 // Manual order view: the cashier picks products (filtered per stand), builds a
 // cart, and checks out — creating the order, then returns to the cashier home.
+// The cart is in-memory (no persistKey) so it starts fresh for each customer.
 export default function CashierManualOrder() {
   const { eventId = FALLBACK_EVENT_ID } = useParams();
   const navigate = useNavigate();
 
+  const { items, totalCents, addItem, setQuantity, setComment, removeItem, clear } = useCartState();
+
   const [selectedStand, setSelectedStand] = useState<string>(ALL_STANDS);
-  const [cart, setCart] = useState<CartLine[]>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Product carries no stand name; resolve it by id like the attendee page does.
+  const standsById = useMemo(
+    () => Object.fromEntries(cashierStands.map((s) => [s._id, s.standName])),
+    [],
+  );
 
   const visibleProducts =
     selectedStand === ALL_STANDS
       ? cashierProducts
       : cashierProducts.filter((product) => product.standId === selectedStand);
 
-  const total = cart.reduce((sum, line) => sum + line.product.priceIncludingTax * line.quantity, 0);
-
-  // One card per product; a unit (and its comment slot) is added on each add.
-  function addToCart(product: CashierProduct) {
-    setCart((current) => {
-      const existing = current.find((line) => line.product.id === product.id);
-      if (existing) {
-        return current.map((line) =>
-          line.product.id === product.id
-            ? { ...line, quantity: line.quantity + 1, comments: [...line.comments, ''] }
-            : line,
-        );
-      }
-      return [...current, { product, quantity: 1, comments: [''], showComments: false }];
-    });
-  }
-
-  function changeQuantity(productId: string, delta: number) {
-    setCart((current) =>
-      current
-        .map((line) => {
-          if (line.product.id !== productId) return line;
-          const quantity = line.quantity + delta;
-          const comments =
-            delta > 0 ? [...line.comments, ''] : line.comments.slice(0, Math.max(quantity, 0));
-          return { ...line, quantity, comments };
-        })
-        .filter((line) => line.quantity > 0),
-    );
-  }
-
-  function toggleComments(productId: string) {
-    setCart((current) =>
-      current.map((line) =>
-        line.product.id === productId ? { ...line, showComments: !line.showComments } : line,
-      ),
-    );
-  }
-
-  function setComment(productId: string, index: number, value: string) {
-    setCart((current) =>
-      current.map((line) =>
-        line.product.id === productId
-          ? { ...line, comments: line.comments.map((c, i) => (i === index ? value : c)) }
-          : line,
-      ),
-    );
-  }
-
-  function removeLine(productId: string) {
-    setCart((current) => current.filter((line) => line.product.id !== productId));
-  }
-
   async function handleCheckout() {
-    if (cart.length === 0) return;
+    if (items.length === 0) return;
     setIsCheckingOut(true);
     try {
-      const items: OrderItem[] = cart.map((line) => {
-        const comments = line.comments.map((comment) => comment.trim());
+      const orderItems: OrderItem[] = items.map((item) => {
+        const comments = item.comments.map((comment) => comment.trim());
         return {
-          productId: line.product.id,
-          productName: line.product.name,
-          standId: line.product.standId,
-          standName: line.product.standName,
-          unitPrice: line.product.priceIncludingTax,
-          quantity: line.quantity,
+          productId: item.product._id,
+          productName: item.product.productName,
+          standId: item.product.standId,
+          standName: standsById[item.product.standId] ?? '',
+          unitPrice: item.product.priceIncludingTax,
+          quantity: item.quantity,
           ...(comments.some(Boolean) ? { comments } : {}),
         };
       });
-      await createManualOrder({ items });
+      await createManualOrder({ items: orderItems });
+      clear(); // next customer starts with an empty cart
       navigate(paths.operator.cashier(eventId));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the order.');
@@ -136,18 +83,23 @@ export default function CashierManualOrder() {
             </StandTab>
             {cashierStands.map((stand) => (
               <StandTab
-                key={stand.id}
-                active={selectedStand === stand.id}
-                onClick={() => setSelectedStand(stand.id)}
+                key={stand._id}
+                active={selectedStand === stand._id}
+                onClick={() => setSelectedStand(stand._id)}
               >
-                {stand.name}
+                {stand.standName}
               </StandTab>
             ))}
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
             {visibleProducts.map((product) => (
-              <ProductCard key={product.id} product={product} onAdd={() => addToCart(product)} />
+              <ProductTile
+                key={product._id}
+                product={product}
+                standName={standsById[product.standId] ?? ''}
+                onAdd={() => addItem(product)}
+              />
             ))}
           </div>
         </div>
@@ -159,33 +111,35 @@ export default function CashierManualOrder() {
           </div>
 
           <div className="flex-1 py-4">
-            {cart.length === 0 ? (
+            {items.length === 0 ? (
               <EmptyCart />
             ) : (
-              <ul className="space-y-3">
-                {cart.map((line) => (
-                  <CartLineCard
-                    key={line.product.id}
-                    line={line}
-                    onDecrease={() => changeQuantity(line.product.id, -1)}
-                    onIncrease={() => changeQuantity(line.product.id, 1)}
-                    onRemove={() => removeLine(line.product.id)}
-                    onToggleComments={() => toggleComments(line.product.id)}
-                    onCommentChange={(index, value) => setComment(line.product.id, index, value)}
+              <div className="space-y-3">
+                {items.map((item) => (
+                  <CartCard
+                    key={item.product._id}
+                    item={item}
+                    compact
+                    standName={standsById[item.product.standId]}
+                    onSetQuantity={setQuantity}
+                    onSetComment={setComment}
+                    onRemove={removeItem}
                   />
                 ))}
-              </ul>
+              </div>
             )}
           </div>
 
           <div className="border-t border-border pt-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-text-muted">Total:</span>
-              <span className="text-base font-semibold text-accent">EUR {formatMoney(total)}</span>
+              <span className="text-base font-semibold text-accent">
+                €{formatMoney(totalCents)}
+              </span>
             </div>
             <Button
               className="mt-3 w-full"
-              disabled={cart.length === 0 || isCheckingOut}
+              disabled={items.length === 0 || isCheckingOut}
               onClick={handleCheckout}
             >
               {isCheckingOut ? 'Processing…' : 'Checkout'}
@@ -229,149 +183,77 @@ function StandTab({
   );
 }
 
-// The whole card is the add button; the "+" is an affordance inside it.
-function ProductCard({ product, onAdd }: { product: CashierProduct; onAdd: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onAdd}
-      className="group flex flex-col overflow-hidden rounded-lg border border-border bg-surface text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-    >
-      <div className="aspect-[4/3] w-full overflow-hidden bg-surface-muted">
-        <img
-          src={product.imageUrl}
-          alt={product.name}
-          loading="lazy"
-          className="h-full w-full object-cover"
-        />
-      </div>
-      <div className="flex items-center justify-between gap-2 p-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-text">{product.name}</p>
-          <p className="text-sm font-semibold text-accent">
-            EUR {formatMoney(product.priceIncludingTax)}
-          </p>
-        </div>
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-accent transition-colors group-hover:bg-accent-soft">
-          <PlusIcon className="h-5 w-5" />
-        </span>
-      </div>
-    </button>
-  );
-}
-
-function CartLineCard({
-  line,
-  onDecrease,
-  onIncrease,
-  onRemove,
-  onToggleComments,
-  onCommentChange,
+// The whole tile is the add button; a small "i" opens product details. The two
+// buttons are siblings (not nested) so the markup stays valid and accessible.
+function ProductTile({
+  product,
+  standName,
+  onAdd,
 }: {
-  line: CartLine;
-  onDecrease: () => void;
-  onIncrease: () => void;
-  onRemove: () => void;
-  onToggleComments: () => void;
-  onCommentChange: (index: number, value: string) => void;
+  product: Product;
+  standName: string;
+  onAdd: () => void;
 }) {
-  return (
-    <li className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-      <div className="flex items-start gap-3">
-        <img
-          src={line.product.imageUrl}
-          alt={line.product.name}
-          loading="lazy"
-          className="h-14 w-14 shrink-0 rounded-md bg-surface-muted object-cover"
-        />
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-text">{line.product.name}</p>
-          <p className="text-xs text-text-muted">{line.product.standName}</p>
-          <p className="text-sm font-semibold text-accent">
-            EUR {formatMoney(line.product.priceIncludingTax)}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Remove ${line.product.name}`}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-danger transition-colors hover:bg-danger/10"
-        >
-          <DeleteIcon className="h-4 w-4" />
-        </button>
-      </div>
+  const [imageOk, setImageOk] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const showImage = !!product.productImageUrl && imageOk;
 
-      <div className="mt-3 flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          <QtyButton label="Decrease quantity" onClick={onDecrease}>
-            <MinusIcon className="h-4 w-4" />
-          </QtyButton>
-          <span className="w-6 text-center text-sm font-semibold text-text">{line.quantity}</span>
-          <QtyButton label="Increase quantity" onClick={onIncrease}>
-            <PlusIcon className="h-4 w-4" />
-          </QtyButton>
+  // Guards a single tap firing twice (duplicate/ghost events on some browsers).
+  const runGuarded = useAddGuard();
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => runGuarded(onAdd)}
+        className="group flex w-full flex-col overflow-hidden rounded-lg border border-border bg-surface text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      >
+        <div className="aspect-[4/3] w-full overflow-hidden bg-surface-muted">
+          {showImage ? (
+            <img
+              src={product.productImageUrl!}
+              alt={product.productName}
+              loading="lazy"
+              onError={() => setImageOk(false)}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-text-muted">
+              <ImageIcon className="h-8 w-8" />
+            </div>
+          )}
         </div>
-        <span className="text-sm font-semibold text-text">
-          EUR {formatMoney(line.product.priceIncludingTax * line.quantity)}
-        </span>
-      </div>
+        <div className="flex items-center justify-between gap-2 p-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-text">{product.productName}</p>
+            <p className="text-sm font-semibold text-accent">
+              €{formatMoney(product.priceIncludingTax)}
+            </p>
+          </div>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-accent transition-colors group-hover:bg-accent-soft">
+            <PlusIcon className="h-5 w-5" />
+          </span>
+        </div>
+      </button>
 
       <button
         type="button"
-        onClick={onToggleComments}
-        aria-expanded={line.showComments}
-        className="mt-3 flex w-full items-center gap-2 border-t border-border pt-3 text-xs font-semibold tracking-wide text-text-muted uppercase transition-colors hover:text-text"
+        onClick={() => setDetailsOpen(true)}
+        aria-label={`Details for ${product.productName}`}
+        className="absolute left-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-surface/90 text-text-muted shadow-sm transition-colors hover:bg-surface hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <CommentIcon className="h-4 w-4" />
-        <span>Item comments</span>
-        <ChevronDownIcon
-          className={`ml-auto h-4 w-4 transition-transform ${line.showComments ? 'rotate-180' : ''}`}
-        />
+        <InfoIcon className="h-4 w-4" />
       </button>
 
-      {line.showComments ? (
-        <div className="mt-3 space-y-3">
-          {line.comments.map((comment, index) => (
-            <div key={index}>
-              <label
-                htmlFor={`${line.product.id}-note-${index}`}
-                className="text-xs text-text-muted"
-              >
-                {line.product.name} #{index + 1}
-              </label>
-              <input
-                id={`${line.product.id}-note-${index}`}
-                value={comment}
-                onChange={(event) => onCommentChange(index, event.target.value)}
-                placeholder="Add a note (optional)"
-                className="mt-1 h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent"
-              />
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </li>
-  );
-}
-
-function QtyButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-text transition-colors hover:bg-surface-muted"
-    >
-      {children}
-    </button>
+      {detailsOpen && (
+        <ProductDetailsDialog
+          product={product}
+          standName={standName}
+          rating={product.rating}
+          onClose={() => setDetailsOpen(false)}
+        />
+      )}
+    </div>
   );
 }
 

@@ -2,27 +2,22 @@
 //
 // The cashier spans every stand in an event, but operator auth is currently
 // single-stand scoped and the backend products endpoint is per-stand, so the
-// catalog is mocked here until cashier-scoped auth exists. Money is integer
-// cents. Product photos use deterministic placeholder images; swap for real
-// product images once available.
+// catalog is mocked here until cashier-scoped auth exists. These are real
+// `Product` records (the same shape the attendee uses) so the cashier can reuse
+// the shared cart/catalog primitives. Money is integer cents; photos use
+// deterministic placeholders. `Product` has no stand name, so stands are kept in
+// a separate list and resolved by id, exactly like the attendee product page.
+
+import type { Product } from '@/types/product';
 
 export interface CashierStand {
-  id: string;
-  name: string;
-}
-
-export interface CashierProduct {
-  id: string;
-  name: string;
-  priceIncludingTax: number; // integer cents
-  imageUrl: string;
-  standId: string;
+  _id: string;
   standName: string;
 }
 
 export const cashierStands: CashierStand[] = [
-  { id: 'crepe-stand', name: 'Crepe Stand' },
-  { id: 'beverage-stand', name: 'Beverage Stand' },
+  { _id: 'crepe-stand', standName: 'Crepe Stand' },
+  { _id: 'beverage-stand', standName: 'Beverage Stand' },
 ];
 
 // Deterministic placeholder photo per product (replace with real images later).
@@ -30,37 +25,69 @@ function placeholderImage(seed: string): string {
   return `https://picsum.photos/seed/${seed}/640/480`;
 }
 
-export const cashierProducts: CashierProduct[] = [
+// High stock so the shared cart's stock cap never blocks the cashier.
+const CASHIER_STOCK = 9999;
+const SEED_TIME = '2026-01-01T00:00:00.000Z';
+
+export const cashierProducts: Product[] = [
   {
-    id: 'crepe-nutella',
-    name: 'Crepe Nutella',
+    _id: 'crepe-nutella',
+    standId: 'crepe-stand',
+    productName: 'Crepe Nutella',
+    productDescription: 'Warm crepe with a generous Nutella spread.',
     priceIncludingTax: 450,
-    imageUrl: placeholderImage('crepe-nutella'),
-    standId: 'crepe-stand',
-    standName: 'Crepe Stand',
+    taxRate: 700,
+    productImageUrl: placeholderImage('crepe-nutella'),
+    instantProduct: false,
+    productStock: CASHIER_STOCK,
+    productStatus: 'LIVE',
+    rating: 4.7,
+    createdAt: SEED_TIME,
+    updatedAt: SEED_TIME,
   },
   {
-    id: 'crepe-cinnamon-sugar',
-    name: 'Crepe Cinnamon Sugar',
+    _id: 'crepe-cinnamon-sugar',
+    standId: 'crepe-stand',
+    productName: 'Crepe Cinnamon Sugar',
+    productDescription: 'Classic crepe dusted with cinnamon and sugar.',
     priceIncludingTax: 400,
-    imageUrl: placeholderImage('crepe-cinnamon'),
-    standId: 'crepe-stand',
-    standName: 'Crepe Stand',
+    taxRate: 700,
+    productImageUrl: placeholderImage('crepe-cinnamon'),
+    instantProduct: false,
+    productStock: CASHIER_STOCK,
+    productStatus: 'LIVE',
+    rating: 4.4,
+    createdAt: SEED_TIME,
+    updatedAt: SEED_TIME,
   },
   {
-    id: 'cola',
-    name: 'Cola',
+    _id: 'cola',
+    standId: 'beverage-stand',
+    productName: 'Cola',
+    productDescription: 'Chilled 0.33L cola.',
     priceIncludingTax: 300,
-    imageUrl: placeholderImage('cola'),
-    standId: 'beverage-stand',
-    standName: 'Beverage Stand',
+    taxRate: 1900,
+    productImageUrl: placeholderImage('cola'),
+    instantProduct: true,
+    productStock: CASHIER_STOCK,
+    productStatus: 'LIVE',
+    rating: 4.1,
+    createdAt: SEED_TIME,
+    updatedAt: SEED_TIME,
   },
   {
-    id: 'sparkling-water',
-    name: 'Sparkling Water',
-    priceIncludingTax: 250,
-    imageUrl: placeholderImage('sparkling-water'),
+    _id: 'sparkling-water',
     standId: 'beverage-stand',
-    standName: 'Beverage Stand',
+    productName: 'Sparkling Water',
+    productDescription: 'Refreshing sparkling water, 0.5L.',
+    priceIncludingTax: 250,
+    taxRate: 1900,
+    productImageUrl: placeholderImage('sparkling-water'),
+    instantProduct: true,
+    productStock: CASHIER_STOCK,
+    productStatus: 'LIVE',
+    rating: null,
+    createdAt: SEED_TIME,
+    updatedAt: SEED_TIME,
   },
 ];
