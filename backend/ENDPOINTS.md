@@ -8,7 +8,7 @@ These are marked as **Shared** at the bottom.
 
 ## Organizer
 
-Admin dashboard, event configuration, analytics, payout management.
+Admin dashboard, event configuration, event control center, payout management.
 
 ### Events
 
@@ -42,13 +42,13 @@ Admin dashboard, event configuration, analytics, payout management.
 | POST   | `/products/{productId}/pause`     | Pause product                                |
 | POST   | `/products/{productId}/terminate` | Terminate product                            |
 
-### Analytics
+### Event Control Center
 
-| Method | URL                           | Description                                        |
-| ------ | ----------------------------- | -------------------------------------------------- |
-| GET    | `/analytics/{eventId}/stream` | Analytics stream (SSE) – live KPIs, sales, ratings |
+| Method | URL                                      | Description                                      |
+| ------ | ---------------------------------------- | ------------------------------------------------ |
+| GET    | `/events/{eventId}/event-control-center` | Event control center data – live KPIs and queues |
 
-### Operational control (analytics dashboard)
+### Operational control (event control center)
 
 | Method                      | URL                        | Description                         |
 | --------------------------- | -------------------------- | ----------------------------------- | --------------------------- |
