@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { DeleteIcon, EditIcon, ImageIcon } from '@/components/icons';
+import { EditIcon, ImageIcon } from '@/components/icons';
+import { DeleteIconButton } from '@/components/shared';
 import { formatMoney, priceExclTax, type Product } from '@/types/product';
 
 interface ProductRowProps {
@@ -80,14 +81,7 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
         >
           <EditIcon />
         </button>
-        <button
-          aria-label={`Delete ${product.productName}`}
-          className="rounded-md p-2 text-text-muted transition-colors hover:bg-danger/10 hover:text-danger"
-          onClick={onDelete}
-          type="button"
-        >
-          <DeleteIcon />
-        </button>
+        <DeleteIconButton label={`Delete ${product.productName}`} onClick={onDelete} />
       </div>
     </div>
   );

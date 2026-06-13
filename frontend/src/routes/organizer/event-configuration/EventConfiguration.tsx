@@ -4,6 +4,7 @@ import { useFetcher, useLoaderData, useRouteError } from 'react-router';
 import { ApiError } from '@/api/client';
 import { AlertDialog } from '@/components/feedback';
 import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
+import { DeleteIconButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
@@ -208,6 +209,7 @@ export default function EventConfiguration() {
   // Lifecycle rules mirror the backend: start only from DRAFT, stop only from ACTIVE.
   const canStart = event.status === 'DRAFT';
   const canStop = event.status === 'ACTIVE';
+  const canDelete = event.status === 'DRAFT';
 
   return (
     <div className="min-h-screen bg-background">
@@ -229,9 +231,19 @@ export default function EventConfiguration() {
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl font-bold">{event.name || 'Untitled Event'}</CardTitle>
+              {canDelete ? (
+                <CardAction>
+                  <DeleteIconButton
+                    className="shrink-0"
+                    disabled={busy}
+                    label={`Delete ${event.name || 'event'}`}
+                    onClick={() => setPendingDeleteEvent(true)}
+                  />
+                </CardAction>
+              ) : null}
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Button
                   className="w-full bg-success text-white hover:bg-success/90"
                   disabled={!canStart || busy}
@@ -248,15 +260,6 @@ export default function EventConfiguration() {
                   variant="secondary"
                 >
                   Complete Event
-                </Button>
-                <Button
-                  className="w-full border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
-                  disabled={busy}
-                  onClick={() => setPendingDeleteEvent(true)}
-                  size="lg"
-                  variant="outline"
-                >
-                  Delete Event
                 </Button>
               </div>
             </CardContent>
