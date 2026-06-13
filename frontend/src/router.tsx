@@ -4,6 +4,7 @@ import Home from './routes/Home';
 import NotFound from './routes/NotFound';
 
 import OrganizerAuth from './routes/auth/OrganizerAuth';
+import { OrganizerRequireAuth } from './auth/organizer/OrganizerRequireAuth';
 import ForgotPassword from './routes/auth/ForgotPassword';
 import ResetPassword from './routes/auth/ResetPassword';
 import OrganizerLayout from './routes/organizer/OrganizerLayout';
@@ -62,14 +63,19 @@ export const router = createBrowserRouter(
           action={settingsAction}
           errorElement={<SettingsError />}
         />
-        <Route
-          path="events/:eventId"
-          element={<OrganizerEventConfiguration />}
-          loader={eventConfigurationLoader}
-          action={eventConfigurationAction}
-          errorElement={<EventConfigurationError />}
-        />
       </Route>
+
+      <Route
+        path="organizer/events/:eventId"
+        element={
+          <OrganizerRequireAuth>
+            <OrganizerEventConfiguration />
+          </OrganizerRequireAuth>
+        }
+        loader={eventConfigurationLoader}
+        action={eventConfigurationAction}
+        errorElement={<EventConfigurationError />}
+      />
 
       <Route path="event/:eventId" element={<AttendeeLayout />}>
         <Route
