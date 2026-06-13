@@ -34,9 +34,6 @@ import OperatorStandDashboard from './routes/operator/Queue';
 import OperatorStandSelection from './routes/operator/StandSelection';
 import CashierHome from './routes/operator/cashier/CashierHome';
 import CashierManualOrder from './routes/operator/cashier/CashierManualOrder';
-import CashierPayment from './routes/operator/cashier/CashierPayment';
-import CashierPaymentDetails from './routes/operator/cashier/CashierPaymentDetails';
-import CashierPaymentConfirmed from './routes/operator/cashier/CashierPaymentConfirmed';
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -103,17 +100,6 @@ export const router = createBrowserRouter(
         <Route path=":eventId/cashier" handle={{ title: 'Cashier Stand' }}>
           <Route index element={<CashierHome />} />
           <Route path="order" element={<CashierManualOrder />} handle={{ title: 'Manual Order' }} />
-          <Route path="payment" element={<CashierPayment />} handle={{ title: 'Payment' }} />
-          <Route
-            path="payment/:orderId"
-            element={<CashierPaymentDetails />}
-            handle={{ title: 'Payment' }}
-          />
-          <Route
-            path="payment/:orderId/confirmed"
-            element={<CashierPaymentConfirmed />}
-            handle={{ title: 'Payment Confirmed' }}
-          />
         </Route>
         <Route
           path=":eventId/:standId"
