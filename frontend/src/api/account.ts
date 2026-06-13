@@ -45,6 +45,32 @@ export function logoutOrganizer(refreshToken: string): Promise<{ message: string
   });
 }
 
+// Triggers the password reset email. Public, and intentionally always resolves
+// with the same generic message regardless of whether the email is registered
+// (the backend never reveals account existence here).
+export function requestPasswordReset(email: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/account/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+    auth: 'public',
+  });
+}
+
+export interface ResetPasswordInput {
+  token: string;
+  newPassword: string;
+}
+
+// Consumes a reset token from the emailed link and sets a new password. On
+// success the backend logs the user straight in (returns a fresh token pair).
+export function resetPassword(input: ResetPasswordInput): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>('/account/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    auth: 'public',
+  });
+}
+
 export function getAccountInfo(): Promise<{ account: Account }> {
   return apiFetch<{ account: Account }>('/account/info', { auth: 'organizer' });
 }

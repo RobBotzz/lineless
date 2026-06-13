@@ -43,21 +43,28 @@ export function OrganizerAuthProvider({ children }: { children: ReactNode }) {
     };
   }, [logout]);
 
-  const login = useCallback(async (input: LoginInput) => {
-    const { token, refreshToken } = await apiLogin(input);
+  const establishSession = useCallback(async (token: string, refreshToken: string) => {
     setOrganizer(token, refreshToken);
     const { account } = await getAccountInfo();
     setAccount(account);
     setStatus('authenticated');
   }, []);
 
-  const signup = useCallback(async (input: SignupInput) => {
-    const { token, refreshToken } = await apiSignup(input);
-    setOrganizer(token, refreshToken);
-    const { account } = await getAccountInfo();
-    setAccount(account);
-    setStatus('authenticated');
-  }, []);
+  const login = useCallback(
+    async (input: LoginInput) => {
+      const { token, refreshToken } = await apiLogin(input);
+      await establishSession(token, refreshToken);
+    },
+    [establishSession],
+  );
+
+  const signup = useCallback(
+    async (input: SignupInput) => {
+      const { token, refreshToken } = await apiSignup(input);
+      await establishSession(token, refreshToken);
+    },
+    [establishSession],
+  );
 
   const value = useMemo<OrganizerAuthContextValue>(
     () => ({
@@ -66,10 +73,11 @@ export function OrganizerAuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: status === 'authenticated',
       login,
       signup,
+      establishSession,
       logout,
       logoutRedirect,
     }),
-    [status, account, login, signup, logout, logoutRedirect],
+    [status, account, login, signup, establishSession, logout, logoutRedirect],
   );
 
   return <OrganizerAuthContext.Provider value={value}>{children}</OrganizerAuthContext.Provider>;

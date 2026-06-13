@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { Button } from '../../components/ui/button';
 import { EyeIcon, EyeOffIcon } from '../../components/icons';
+import { paths } from '../../paths';
 
 interface PasswordFieldProps {
   error: string;
@@ -27,14 +29,12 @@ export function PasswordField({
       <span className="flex items-center justify-between gap-3 text-sm font-semibold text-text">
         Password
         {!isSignup ? (
-          <Button
-            type="button"
-            variant="transparent"
-            size="sm"
-            className="h-auto px-0 text-sm font-semibold text-accent hover:bg-transparent hover:underline"
+          <Link
+            to={paths.forgotPassword}
+            className="text-sm font-semibold text-accent hover:underline"
           >
             Forgot password?
-          </Button>
+          </Link>
         ) : null}
       </span>
       <div className="relative mt-2">
