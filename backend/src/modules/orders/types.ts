@@ -6,7 +6,7 @@ export const orderItemInputSchema = z.object({
 });
 
 export const createOrderSchema = z.object({
-  standId: z.uuid(),
+  eventId: z.uuid(),
   tabId: z.uuid().optional(),
   customerEmail: z.email().optional(),
   items: z.array(orderItemInputSchema).min(1),

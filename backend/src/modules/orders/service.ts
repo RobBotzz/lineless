@@ -35,11 +35,7 @@ export async function submitOrder(
   sessionId: string | null,
   input: CreateOrderInput
 ): Promise<OrderDoc> {
-  const { standId, tabId, customerEmail, items } = input;
-
-  const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
-  if (!stand) throw new StandNotFoundError();
-  const { eventId } = stand;
+  const { eventId, tabId, customerEmail, items } = input;
 
   const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
   if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
@@ -49,10 +45,15 @@ export async function submitOrder(
   if (sessionId !== null && !event.offlineOrdersEnabled)
     throw new OfflineOrdersDisabledError();
 
+  const eventStands = await Stand.find({ eventId, deletedAt: null })
+    .select("_id")
+    .lean();
+  const eventStandIds = eventStands.map((s) => s._id);
+
   const productIds = [...new Set(items.map((i) => i.productId))];
   const products = await Product.find({
     _id: { $in: productIds },
-    standId,
+    standId: { $in: eventStandIds },
     deletedAt: null,
   }).lean();
   const productById = new Map(products.map((p) => [p._id, p]));
@@ -86,7 +87,6 @@ export async function submitOrder(
   const pickupCode = generatePickupCode();
 
   const order = await Order.create({
-    standId,
     eventId,
     tabId: tabId ?? null,
     sessionId,
@@ -123,8 +123,13 @@ export async function getOrderForOperator(
   operatorStandId: string
 ): Promise<OrderDoc> {
   const order = await Order.findById(orderId).lean();
-  if (!order || order.standId !== operatorStandId)
-    throw new OrderNotFoundError();
+  if (!order) throw new OrderNotFoundError();
+  const productIds = order.items.map((i) => i.productId);
+  const standProduct = await Product.findOne({
+    _id: { $in: productIds },
+    standId: operatorStandId,
+  }).lean();
+  if (!standProduct) throw new OrderNotFoundError();
   return order;
 }
 
@@ -142,7 +147,15 @@ export async function listOrdersForStand(
     if (standId !== auth.standId) throw new StandNotFoundError();
   }
 
-  return Order.find({ standId, paidAt: { $ne: null } })
+  const standProducts = await Product.find({ standId, deletedAt: null })
+    .select("_id")
+    .lean();
+  const standProductIds = standProducts.map((p) => p._id);
+
+  return Order.find({
+    "items.productId": { $in: standProductIds },
+    paidAt: { $ne: null },
+  })
     .sort({ createdAt: -1 })
     .lean();
 }
@@ -154,12 +167,17 @@ export async function advanceOrderItem(
   operatorStandId: string
 ): Promise<OrderDoc> {
   const order = await Order.findById(orderId);
-  if (!order || order.standId !== operatorStandId)
-    throw new OrderNotFoundError();
+  if (!order) throw new OrderNotFoundError();
   if (!order.paidAt) throw new OrderNotFoundError();
 
   const item = order.items.find((i) => i._id === itemId);
   if (!item) throw new OrderItemNotFoundError();
+
+  const product = await Product.findOne({
+    _id: item.productId,
+    standId: operatorStandId,
+  }).lean();
+  if (!product) throw new OrderItemNotFoundError();
 
   const state = getItemState(item);
   const now = new Date();
