@@ -158,6 +158,9 @@ export async function softDeleteEvent(
   accountId: string
 ): Promise<void> {
   const event = await findActiveEvent(eventId, accountId);
+  if (event.status !== "DRAFT") {
+    throw new EventStateError("Only draft events can be deleted");
+  }
   event.deletedAt = new Date();
   await event.save();
 }
