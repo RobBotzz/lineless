@@ -1,36 +1,35 @@
 meta {
-  name: login operator
+  name: refresh operator
   type: http
-  seq: 6
+  seq: 11
 }
 
 post {
-  url: http://{{host}}:{{port}}/api/stands/{{standId}}/login
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}/refresh
   body: json
   auth: none
 }
 
 body:json {
   {
-    "operatorAccessKey": "{{operatorAccessKey}}",
-    "accessPassword": "secret123"
+    "refreshToken": "{{operatorRefreshToken}}"
   }
 }
 
 script:post-response {
-  if (res.status === 200 && res.body.token) {
+  if (res.status === 200 && res.body.refreshToken) {
     bru.setEnvVar("operatorToken", res.body.token);
     bru.setEnvVar("operatorRefreshToken", res.body.refreshToken);
   }
 }
 
 tests {
-  test("operator login returns stand-scoped token", function () {
+  test("operator refresh returns a new access token", function () {
     expect(res.status).to.equal(200);
     expect(res.body.token).to.be.a("string").and.not.empty;
     expect(res.body.standId).to.equal(bru.getEnvVar("standId"));
   });
-  test("operator login returns a refresh token", function () {
+  test("operator refresh rotates the refresh token", function () {
     expect(res.body.refreshToken).to.be.a("string").and.not.empty;
   });
 }

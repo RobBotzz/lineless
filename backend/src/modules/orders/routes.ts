@@ -3,9 +3,7 @@ import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
   getOrderForAttendee,
-  getOrderForOperator,
   getOrderForOrganizer,
-  listOrdersForStand,
   submitOrder,
 } from "./service";
 import {
@@ -16,12 +14,12 @@ import {
   OrderItemStateError,
   OrderNotFoundError,
   OrderValidationError,
-  StandNotFoundError,
 } from "./errors";
 import { createOrderSchema } from "./types";
 import {
-  authOrganizerOrOperator,
-  authOrganizerOrOperatorOrAttendee,
+  authOperator,
+  authOrganizerOrAttendee,
+  authOperatorOrAttendee,
 } from "../../middleware/auth/guards";
 
 function orderId(req: Request): string {
@@ -32,16 +30,10 @@ function itemId(req: Request): string {
   return req.params["itemId"] as string;
 }
 
-function standId(req: Request): string {
-  return req.params["standId"] as string;
-}
-
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof OrderNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof OrderItemNotFoundError)
-    return res.status(404).json({ error: err.message });
-  if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotActiveError)
     return res.status(409).json({ error: err.message });
@@ -62,10 +54,10 @@ function handleError(err: unknown, res: Response): unknown {
 // =============================================================================
 export const ordersRouter = Router();
 
-// POST /orders — submit an order (attendee, operator/cashier, or organizer).
+// POST /orders — submit an order (attendee or operator/cashier).
 ordersRouter.post(
   "/",
-  authOrganizerOrOperatorOrAttendee,
+  authOperatorOrAttendee,
   validateBody(createOrderSchema, async (req, res, data) => {
     try {
       const sessionId = req.attendee?.sessionId ?? null;
@@ -77,17 +69,15 @@ ordersRouter.post(
   })
 );
 
-// GET /orders/:orderId — fetch a single order by ID.
+// GET /orders/:orderId — fetch a single order by ID (organizer or attendee only).
 ordersRouter.get(
   "/:orderId",
-  authOrganizerOrOperatorOrAttendee,
+  authOrganizerOrAttendee,
   async (req: Request, res: Response) => {
     try {
       const order = req.organizer
         ? await getOrderForOrganizer(orderId(req), req.organizer.accountId)
-        : req.operator
-          ? await getOrderForOperator(orderId(req), req.operator.standId)
-          : await getOrderForAttendee(orderId(req), req.attendee!.sessionId);
+        : await getOrderForAttendee(orderId(req), req.attendee!.sessionId);
       return res.status(200).json(order);
     } catch (err) {
       return handleError(err, res);
@@ -95,118 +85,41 @@ ordersRouter.get(
   }
 );
 
-// POST /orders/:orderId/items/:itemId/start — PENDING → PREPARING (operator).
+function itemTransition(action: "start" | "ready" | "fulfill" | "cancel") {
+  return async (req: Request, res: Response): Promise<unknown> => {
+    try {
+      const order = await advanceOrderItem(
+        orderId(req),
+        itemId(req),
+        action,
+        req.operator!.standId
+      );
+      return res.status(200).json(order);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  };
+}
+
+// POST /orders/:orderId/items/:itemId/{start|ready|fulfill|cancel} — operator
+// drives the item state machine (PENDING → PREPARING → READY → FULFILLED, or cancel).
 ordersRouter.post(
   "/:orderId/items/:itemId/start",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.operator)
-        return res
-          .status(403)
-          .json({ error: "Operator authentication required" });
-      const order = await advanceOrderItem(
-        orderId(req),
-        itemId(req),
-        "start",
-        req.operator.standId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  authOperator,
+  itemTransition("start")
 );
-
-// POST /orders/:orderId/items/:itemId/ready — PREPARING → READY (operator).
 ordersRouter.post(
   "/:orderId/items/:itemId/ready",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.operator)
-        return res
-          .status(403)
-          .json({ error: "Operator authentication required" });
-      const order = await advanceOrderItem(
-        orderId(req),
-        itemId(req),
-        "ready",
-        req.operator.standId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  authOperator,
+  itemTransition("ready")
 );
-
-// POST /orders/:orderId/items/:itemId/fulfill — READY → FULFILLED (operator).
 ordersRouter.post(
   "/:orderId/items/:itemId/fulfill",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.operator)
-        return res
-          .status(403)
-          .json({ error: "Operator authentication required" });
-      const order = await advanceOrderItem(
-        orderId(req),
-        itemId(req),
-        "fulfill",
-        req.operator.standId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  authOperator,
+  itemTransition("fulfill")
 );
-
-// POST /orders/:orderId/items/:itemId/cancel — cancel item (operator).
 ordersRouter.post(
   "/:orderId/items/:itemId/cancel",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.operator)
-        return res
-          .status(403)
-          .json({ error: "Operator authentication required" });
-      const order = await advanceOrderItem(
-        orderId(req),
-        itemId(req),
-        "cancel",
-        req.operator.standId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
-);
-
-// =============================================================================
-// Stand-scoped order routes — mounted at /api/stands/:standId/orders
-// =============================================================================
-export const standOrdersRouter = Router({ mergeParams: true });
-
-// GET /stands/:standId/orders — list orders for the stand (organizer or operator).
-standOrdersRouter.get(
-  "/",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      const orders = await listOrdersForStand(
-        standId(req),
-        req.organizer
-          ? { type: "organizer", accountId: req.organizer.accountId }
-          : { type: "operator", standId: req.operator!.standId }
-      );
-      return res.status(200).json(orders);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  authOperator,
+  itemTransition("cancel")
 );

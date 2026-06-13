@@ -15,7 +15,6 @@ export interface OrderItemDoc {
 
 export interface OrderDoc {
   _id: string;
-  standId: string;
   eventId: string;
   tabId: string | null;
   sessionId: string | null;
@@ -43,7 +42,6 @@ const orderItemSchema = new Schema<OrderItemDoc>({
 const orderSchema = new Schema<OrderDoc>(
   {
     _id: { type: String, default: () => uuidv4() },
-    standId: { type: String, required: true, index: true },
     eventId: { type: String, required: true, index: true },
     tabId: { type: String, default: null, index: true },
     sessionId: { type: String, default: null, index: true },
