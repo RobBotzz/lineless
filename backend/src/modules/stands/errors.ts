@@ -11,3 +11,10 @@ export class OperatorInvalidCredentialsError extends Error {
     this.name = "OperatorInvalidCredentialsError";
   }
 }
+
+export class CashierStandDisabledError extends Error {
+  constructor() {
+    super("The cashier is disabled for this event");
+    this.name = "CashierStandDisabledError";
+  }
+}

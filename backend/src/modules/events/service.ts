@@ -1,6 +1,7 @@
 import { Event, generateOperatorAccessKey, type EventDoc } from "./model";
 import { EventNotFoundError, EventStateError } from "./errors";
 import { assertSessionOwnsEvent } from "./ownership";
+import { ensureCashierStand } from "../stands/service";
 import type { CreateEventInput, UpdateEventInput } from "./types";
 
 type AttendeeEvent = Omit<EventDoc, "operatorAccessKey">;
@@ -15,7 +16,7 @@ export async function createEvent(
   accountId: string,
   input: CreateEventInput
 ): Promise<EventDoc> {
-  return Event.create({
+  const event = await Event.create({
     accountId: accountId,
     name: input.name,
     plannedDate: input.plannedDate,
@@ -25,6 +26,8 @@ export async function createEvent(
     branding: input.branding,
     location: input.location,
   });
+  if (event.cashierEnabled) await ensureCashierStand(event._id);
+  return event;
 }
 
 export async function listEvents(accountId: string): Promise<EventDoc[]> {
@@ -84,6 +87,7 @@ export async function updateEvent(
   }
   if (patch.cashierEnabled !== undefined) {
     event.cashierEnabled = patch.cashierEnabled;
+    if (patch.cashierEnabled) await ensureCashierStand(event._id);
   }
   if (patch.offlineOrdersEnabled !== undefined) {
     event.offlineOrdersEnabled = patch.offlineOrdersEnabled;
