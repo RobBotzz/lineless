@@ -29,7 +29,7 @@ interface CartLine {
 }
 
 // Manual order view: the cashier picks products (filtered per stand), builds a
-// cart, and checks out — creating the order, then returns to the cashier home.
+// cart, and checks out — creating an order and going straight to its payment.
 export default function CashierManualOrder() {
   const { eventId = FALLBACK_EVENT_ID } = useParams();
   const navigate = useNavigate();
@@ -113,8 +113,9 @@ export default function CashierManualOrder() {
           ...(comments.some(Boolean) ? { comments } : {}),
         };
       });
-      await createManualOrder({ items });
-      navigate(paths.operator.cashier(eventId));
+      const order = await createManualOrder({ items });
+      // Skip the order-selection step: go straight to the new order's payment.
+      navigate(paths.operator.cashierPaymentOrder(eventId, order.orderId));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the order.');
       setIsCheckingOut(false);

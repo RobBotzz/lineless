@@ -25,5 +25,10 @@ export const paths = {
     stand: (eventId: string, standId: string) => `/operator/${eventId}/${standId}`,
     cashier: (eventId: string) => `/operator/${eventId}/cashier`,
     cashierOrder: (eventId: string) => `/operator/${eventId}/cashier/order`,
+    cashierPayment: (eventId: string) => `/operator/${eventId}/cashier/payment`,
+    cashierPaymentOrder: (eventId: string, orderId: string) =>
+      `/operator/${eventId}/cashier/payment/${orderId}`,
+    cashierPaymentConfirmed: (eventId: string, orderId: string) =>
+      `/operator/${eventId}/cashier/payment/${orderId}/confirmed`,
   },
 } as const;
