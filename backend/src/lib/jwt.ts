@@ -1,24 +1,21 @@
 import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
 import { config } from "../config/config";
 
-const SIGN_OPTIONS: SignOptions = {
-  algorithm: config.jwt.algorithm,
-  expiresIn: config.jwt.expiresIn as SignOptions["expiresIn"],
-};
-
+// There is no default lifetime here — lifetimes live with their identity type
+// in config.auth, so every caller states the lifetime of the token it issues.
 export function signJwt(
   payload: Record<string, unknown>,
-  options?: { expiresIn?: SignOptions["expiresIn"] }
+  options: { expiresIn: string }
 ): string {
-  return jwt.sign(payload, config.jwt.secret, {
-    ...SIGN_OPTIONS,
-    ...(options?.expiresIn ? { expiresIn: options.expiresIn } : {}),
+  return jwt.sign(payload, config.auth.jwt.secret, {
+    algorithm: config.auth.jwt.algorithm,
+    expiresIn: options.expiresIn as SignOptions["expiresIn"],
   });
 }
 
 export function verifyJwt(token: string): JwtPayload {
-  const payload = jwt.verify(token, config.jwt.secret, {
-    algorithms: [config.jwt.algorithm],
+  const payload = jwt.verify(token, config.auth.jwt.secret, {
+    algorithms: [config.auth.jwt.algorithm],
   });
   if (typeof payload !== "object" || payload === null) {
     throw new Error("Invalid token payload");

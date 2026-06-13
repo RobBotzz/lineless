@@ -9,6 +9,8 @@ import {
   getStandForOrganizer,
   getStandForOperator,
   loginOperator,
+  refreshOperatorSession,
+  logoutOperator,
   updateStand,
   softDeleteStand,
 } from "./service";
@@ -17,6 +19,8 @@ import {
   OperatorInvalidCredentialsError,
   StandNotFoundError,
 } from "./errors";
+import { RefreshTokenInvalidError } from "../auth/errors";
+import { refreshTokenSchema } from "../auth/types";
 import { EventNotFoundError } from "../events/errors";
 import {
   createStandSchema,
@@ -46,6 +50,8 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(401).json({ error: err.message });
   if (err instanceof CashierStandDisabledError)
     return res.status(403).json({ error: err.message });
+  if (err instanceof RefreshTokenInvalidError)
+    return res.status(401).json({ error: err.message });
   console.error("Stands error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -106,6 +112,34 @@ standsRouter.post(
     try {
       const result = await loginOperator(standId(req), data);
       res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// POST /stands/:standId/refresh — rotates an operator refresh token and
+// returns a fresh access/refresh pair (public; the refresh token authenticates).
+standsRouter.post(
+  "/:standId/refresh",
+  validateBody(refreshTokenSchema, async (req, res, data) => {
+    try {
+      const result = await refreshOperatorSession(standId(req), data);
+      res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// POST /stands/:standId/logout — revokes the operator refresh token (and its
+// whole rotation family). Idempotent.
+standsRouter.post(
+  "/:standId/logout",
+  validateBody(refreshTokenSchema, async (_req, res, data) => {
+    try {
+      await logoutOperator(data);
+      res.status(200).json({ message: "Logged out successfully" });
     } catch (err) {
       handleError(err, res);
     }

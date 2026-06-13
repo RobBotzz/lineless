@@ -6,6 +6,8 @@ import {
   deleteAccount,
   getAccountInfo,
   login,
+  logout,
+  refreshSession,
   requestPasswordReset,
   resetPassword,
   signup,
@@ -19,6 +21,8 @@ import {
   signupSchema,
   updateAccountSchema,
 } from "./types";
+import { refreshTokenSchema } from "../auth/types";
+import { RefreshTokenInvalidError } from "../auth/errors";
 import {
   AccountAlreadyExistsError,
   AccountInvalidCredentialsError,
@@ -44,6 +48,9 @@ function handleError(err: unknown, res: Response): Response {
   }
   if (err instanceof PasswordResetTokenInvalidError) {
     return res.status(400).json({ error: err.message });
+  }
+  if (err instanceof RefreshTokenInvalidError) {
+    return res.status(401).json({ error: err.message });
   }
   console.error("Accounts error:", err);
   return res.status(500).json({ error: "Internal server error" });
@@ -100,6 +107,35 @@ accountRouter.post(
     try {
       const result = await resetPassword(data);
       res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// Public — authenticates via the refresh token itself (the access token may
+// already be expired, which is exactly when this endpoint is needed). Rotates
+// the refresh token: the response carries a new access/refresh token pair.
+accountRouter.post(
+  "/refresh",
+  validateBody(refreshTokenSchema, async (_req, res, data) => {
+    try {
+      const result = await refreshSession(data);
+      res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// Public — revokes the refresh token (and its whole rotation family).
+// Idempotent: an unknown token still yields 200.
+accountRouter.post(
+  "/logout",
+  validateBody(refreshTokenSchema, async (_req, res, data) => {
+    try {
+      await logout(data);
+      res.status(200).json({ message: "Logged out successfully" });
     } catch (err) {
       handleError(err, res);
     }

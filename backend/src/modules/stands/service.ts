@@ -9,9 +9,16 @@ import type {
   OperatorLoginInput,
   UpdateStandInput,
 } from "./types";
-import type { SignOptions } from "jsonwebtoken";
 import { signJwt } from "../../lib/jwt";
 import { comparePassword, hashPassword } from "../../lib/password";
+import {
+  issueRefreshToken,
+  rotateRefreshToken,
+  revokeRefreshToken,
+  revokeAllRefreshTokens,
+} from "../auth/refreshToken.service";
+import { RefreshTokenInvalidError } from "../auth/errors";
+import type { RefreshTokenInput } from "../auth/types";
 import { config } from "../../config/config";
 import {
   assertSessionOwnsEvent,
@@ -31,7 +38,7 @@ type SafeStand = Omit<StandDoc, "accessPasswordHash"> & {
 function issueOperatorToken(standId: string): string {
   return signJwt(
     { tokenType: "OPERATOR", standId },
-    { expiresIn: config.jwt.operatorExpiresIn as SignOptions["expiresIn"] }
+    { expiresIn: config.auth.operator.accessTokenExpiresIn }
   );
 }
 
@@ -186,6 +193,7 @@ export async function updateStand(
     stand.accessPasswordHash = patch.accessPassword
       ? await hashPassword(patch.accessPassword)
       : null;
+    await revokeAllRefreshTokens("OPERATOR", standId);
   }
   await stand.save();
   return strip(stand.toObject());
@@ -203,6 +211,7 @@ export async function listStandsForEventLink(
 
 export interface OperatorLoginResult {
   token: string;
+  refreshToken: string;
   standId: string;
 }
 
@@ -249,8 +258,58 @@ export async function loginOperator(
 
   return {
     token: issueOperatorToken(stand._id),
+    refreshToken: await issueRefreshToken("OPERATOR", stand._id),
     standId: stand._id,
   };
+}
+
+// Re-checks that a stand is still operable: it exists, its event is active, and
+// it is not a disabled cashier. Used on refresh, where the refresh token itself
+// is the proof of identity (no password/access key re-entry).
+async function assertStandOperable(standId: string): Promise<void> {
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
+  if (!stand) {
+    throw new RefreshTokenInvalidError();
+  }
+
+  const event = await Event.findOne({
+    _id: stand.eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  }).lean();
+  if (!event) {
+    throw new RefreshTokenInvalidError();
+  }
+
+  if (stand.standType === "CASHIER" && !event.cashierEnabled) {
+    throw new RefreshTokenInvalidError();
+  }
+}
+
+// Trades a valid operator refresh token for a fresh access JWT. The token is
+// scoped to this stand (a token for another stand is rejected without being
+// consumed) and rotated on every use.
+export async function refreshOperatorSession(
+  standId: string,
+  input: RefreshTokenInput
+): Promise<OperatorLoginResult> {
+  const { subjectId, refreshToken } = await rotateRefreshToken(
+    input.refreshToken,
+    "OPERATOR",
+    standId
+  );
+
+  await assertStandOperable(subjectId);
+
+  return {
+    token: issueOperatorToken(subjectId),
+    refreshToken,
+    standId: subjectId,
+  };
+}
+
+export async function logoutOperator(input: RefreshTokenInput): Promise<void> {
+  await revokeRefreshToken(input.refreshToken);
 }
 
 export async function softDeleteStand(
@@ -262,4 +321,6 @@ export async function softDeleteStand(
   await verifyEventOwnership(stand.eventId, accountId);
   stand.deletedAt = new Date();
   await stand.save();
+  // A deleted stand can no longer be operated.
+  await revokeAllRefreshTokens("OPERATOR", standId);
 }
