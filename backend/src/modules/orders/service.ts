@@ -13,7 +13,6 @@ import {
   OrderItemStateError,
   OrderNotFoundError,
   OrderValidationError,
-  StandNotFoundError,
 } from "./errors";
 import type { CreateOrderInput } from "./types";
 
@@ -116,33 +115,6 @@ export async function getOrderForOrganizer(
   if (!order) throw new OrderNotFoundError();
   await verifyEventOwnership(order.eventId, accountId);
   return order;
-}
-
-export async function listOrdersForStand(
-  standId: string,
-  auth:
-    | { type: "organizer"; accountId: string }
-    | { type: "operator"; standId: string }
-): Promise<OrderDoc[]> {
-  if (auth.type === "organizer") {
-    const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
-    if (!stand) throw new StandNotFoundError();
-    await verifyEventOwnership(stand.eventId, auth.accountId);
-  } else {
-    if (standId !== auth.standId) throw new StandNotFoundError();
-  }
-
-  const standProducts = await Product.find({ standId, deletedAt: null })
-    .select("_id")
-    .lean();
-  const standProductIds = standProducts.map((p) => p._id);
-
-  return Order.find({
-    "items.productId": { $in: standProductIds },
-    paidAt: { $ne: null },
-  })
-    .sort({ createdAt: -1 })
-    .lean();
 }
 
 export async function advanceOrderItem(

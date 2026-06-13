@@ -7,7 +7,7 @@ import {
   standProductsRouter,
   productsRouter,
 } from "../modules/products/routes";
-import { ordersRouter, standOrdersRouter } from "../modules/orders/routes";
+import { ordersRouter } from "../modules/orders/routes";
 import sessionsRouter from "../modules/sessions/routes";
 import {
   authOrganizer,
@@ -43,11 +43,6 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
   },
   { base: "/api/products", router: productsRouter, tag: "Products" },
   { base: "/api/orders", router: ordersRouter, tag: "Orders" },
-  {
-    base: "/api/stands/:standId/orders",
-    router: standOrdersRouter,
-    tag: "Orders",
-  },
 ];
 
 // Maps an auth middleware to the OpenAPI security requirement it enforces.

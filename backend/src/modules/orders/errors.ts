@@ -26,13 +26,6 @@ export class OrderValidationError extends Error {
   }
 }
 
-export class StandNotFoundError extends Error {
-  constructor() {
-    super("Stand not found");
-    this.name = "StandNotFoundError";
-  }
-}
-
 export class EventNotActiveError extends Error {
   constructor() {
     super("Event is not active");

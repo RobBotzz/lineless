@@ -4,7 +4,6 @@ import {
   advanceOrderItem,
   getOrderForAttendee,
   getOrderForOrganizer,
-  listOrdersForStand,
   submitOrder,
 } from "./service";
 import {
@@ -15,13 +14,11 @@ import {
   OrderItemStateError,
   OrderNotFoundError,
   OrderValidationError,
-  StandNotFoundError,
 } from "./errors";
 import { createOrderSchema } from "./types";
 import {
   authOperator,
   authOrganizerOrAttendee,
-  authOrganizerOrOperator,
   authOperatorOrAttendee,
 } from "../../middleware/auth/guards";
 
@@ -33,16 +30,10 @@ function itemId(req: Request): string {
   return req.params["itemId"] as string;
 }
 
-function standId(req: Request): string {
-  return req.params["standId"] as string;
-}
-
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof OrderNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof OrderItemNotFoundError)
-    return res.status(404).json({ error: err.message });
-  if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotActiveError)
     return res.status(409).json({ error: err.message });
@@ -94,9 +85,6 @@ ordersRouter.get(
   }
 );
 
-// The four item-state transitions share one operator-scoped handler shape;
-// only the action differs. advanceOrderItem validates the transition itself
-// (no going backwards) and scopes the item to the operator's stand.
 function itemTransition(action: "start" | "ready" | "fulfill" | "cancel") {
   return async (req: Request, res: Response): Promise<unknown> => {
     try {
@@ -134,28 +122,4 @@ ordersRouter.post(
   "/:orderId/items/:itemId/cancel",
   authOperator,
   itemTransition("cancel")
-);
-
-// =============================================================================
-// Stand-scoped order routes — mounted at /api/stands/:standId/orders
-// =============================================================================
-export const standOrdersRouter = Router({ mergeParams: true });
-
-// GET /stands/:standId/orders — list orders for the stand (organizer or operator).
-standOrdersRouter.get(
-  "/",
-  authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      const orders = await listOrdersForStand(
-        standId(req),
-        req.organizer
-          ? { type: "organizer", accountId: req.organizer.accountId }
-          : { type: "operator", standId: req.operator!.standId }
-      );
-      return res.status(200).json(orders);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
 );
