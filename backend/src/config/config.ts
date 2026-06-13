@@ -47,7 +47,7 @@ export const config: Config = {
       ? Number(process.env["BCRYPT_ROUNDS"])
       : 10,
     organizer: {
-      accessTokenExpiresIn: process.env["JWT_EXPIRES_IN"] ?? "15m",
+      accessTokenExpiresIn: process.env["JWT_EXPIRES_IN"] ?? "5m",
       refreshTokenTtlDays: process.env["REFRESH_TOKEN_TTL_DAYS"]
         ? Number(process.env["REFRESH_TOKEN_TTL_DAYS"])
         : 30,
@@ -56,7 +56,7 @@ export const config: Config = {
         : 60,
     },
     operator: {
-      accessTokenExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "15m",
+      accessTokenExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "5m",
       refreshTokenTtlDays: process.env["OPERATOR_REFRESH_TOKEN_TTL_DAYS"]
         ? Number(process.env["OPERATOR_REFRESH_TOKEN_TTL_DAYS"])
         : 7,
