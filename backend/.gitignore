@@ -6,4 +6,3 @@ dist/
 .email-preview/
 # Only the repo-root docs/ (assignment PDFs, data model) — NOT src/docs/.
 /docs/
-start-all.sh
