@@ -33,6 +33,23 @@ export function setUnauthorizedHandler(
   onUnauthorized = handler;
 }
 
+// Token refresher registered by the auth layer. On a 401 for a credential that
+// has a refresh token (organizer, operator) we try to mint a fresh access token
+// and retry once before giving up and clearing the credential. Resolves true if
+// the credential was refreshed (the new token is already stored in the keychain).
+let refreshCredential: ((scope: AuthScope, ids?: ScopeIds) => Promise<boolean>) | null = null;
+export function setTokenRefresher(
+  refresher: ((scope: AuthScope, ids?: ScopeIds) => Promise<boolean>) | null,
+): void {
+  refreshCredential = refresher;
+}
+
+// Only these credentials carry a refresh token; attendee uses an auto-renewing
+// session and operator-link carries a long-lived access key, so neither refreshes.
+function canRefresh(auth: ApiAuthMode): auth is 'organizer' | 'operator' {
+  return auth === 'organizer' || auth === 'operator';
+}
+
 interface ApiFetchOptions extends RequestInit {
   auth: ApiAuthMode;
   // Required when auth is 'operator': which stand's token to send.
@@ -42,6 +59,13 @@ interface ApiFetchOptions extends RequestInit {
 }
 
 export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promise<T> {
+  return doFetch<T>(path, options, false);
+}
+
+// `isRetry` guards against a refresh loop: we attempt at most one refresh +
+// retry per request. The refreshed token is re-read from the keychain by
+// attachAuthHeader on the retry, so options stay untouched.
+async function doFetch<T>(path: string, options: ApiFetchOptions, isRetry: boolean): Promise<T> {
   const { auth, standId, eventId, headers, body, ...rest } = options;
 
   const finalHeaders = new Headers(headers);
@@ -57,6 +81,11 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promi
   });
 
   if (res.status === 401 && auth !== 'public') {
+    // Try a one-shot token refresh before treating the credential as dead.
+    if (!isRetry && canRefresh(auth) && refreshCredential) {
+      const refreshed = await refreshCredential(auth, { standId, eventId });
+      if (refreshed) return doFetch<T>(path, options, true);
+    }
     onUnauthorized?.(auth, { standId, eventId });
   }
 
