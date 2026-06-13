@@ -4,7 +4,9 @@ import Home from './routes/Home';
 import NotFound from './routes/NotFound';
 
 import OrganizerAuth from './routes/auth/OrganizerAuth';
+import { OrganizerRequireAuth } from './auth/organizer/OrganizerRequireAuth';
 import ForgotPassword from './routes/auth/ForgotPassword';
+import ResetPassword from './routes/auth/ResetPassword';
 import OrganizerLayout from './routes/organizer/OrganizerLayout';
 import OrganizerDashboard, { DashboardError } from './routes/organizer/dashboard/Dashboard';
 import { dashboardLoader, dashboardAction } from './routes/organizer/dashboard/data';
@@ -47,6 +49,7 @@ export const router = createBrowserRouter(
       {/* Auth sits outside the guarded layout to avoid a redirect loop. */}
       <Route path="auth" element={<OrganizerAuth />} />
       <Route path="auth/forgot-password" element={<ForgotPassword />} />
+      <Route path="reset-password" element={<ResetPassword />} />
 
       <Route path="organizer" element={<OrganizerLayout />}>
         <Route
@@ -64,14 +67,19 @@ export const router = createBrowserRouter(
           action={settingsAction}
           errorElement={<SettingsError />}
         />
-        <Route
-          path="events/:eventId"
-          element={<OrganizerEventConfiguration />}
-          loader={eventConfigurationLoader}
-          action={eventConfigurationAction}
-          errorElement={<EventConfigurationError />}
-        />
       </Route>
+
+      <Route
+        path="organizer/events/:eventId"
+        element={
+          <OrganizerRequireAuth>
+            <OrganizerEventConfiguration />
+          </OrganizerRequireAuth>
+        }
+        loader={eventConfigurationLoader}
+        action={eventConfigurationAction}
+        errorElement={<EventConfigurationError />}
+      />
 
       <Route path="event/:eventId" element={<AttendeeLayout />}>
         <Route

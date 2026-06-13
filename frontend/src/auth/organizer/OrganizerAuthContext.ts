@@ -9,6 +9,7 @@ export interface OrganizerAuthContextValue {
   isAuthenticated: boolean;
   login: (input: LoginInput) => Promise<void>;
   signup: (input: SignupInput) => Promise<void>;
+  establishSession: (token: string, refreshToken: string) => Promise<void>;
   logout: (redirectTo?: string) => void;
   logoutRedirect: string | null;
 }

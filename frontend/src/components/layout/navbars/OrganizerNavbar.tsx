@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
 import { buttonVariants } from '../../ui/button';
@@ -15,6 +16,7 @@ type OrganizerNavbarProps = {
   widthClassName?: string;
   centerLinks?: NavLink[];
   rightLink?: NavLink | NavButton;
+  right?: ReactNode;
   activeCenterLinkTo?: string;
 };
 
@@ -25,6 +27,7 @@ export function OrganizerNavbar({
   widthClassName,
   centerLinks = [],
   rightLink,
+  right: customRight,
   activeCenterLinkTo,
 }: OrganizerNavbarProps) {
   const left = (
@@ -63,7 +66,9 @@ export function OrganizerNavbar({
       </div>
     ) : null;
 
-  const right = rightLink ? (
+  const right = customRight ? (
+    customRight
+  ) : rightLink ? (
     'onClick' in rightLink ? (
       <button
         className={`${buttonVariants({ variant: 'default', size: 'sm' })} text-xs`}

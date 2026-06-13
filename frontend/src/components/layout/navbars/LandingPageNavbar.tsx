@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
 import { buttonVariants } from '../../ui/button';
@@ -15,6 +16,7 @@ type LandingPageNavbarProps = {
   widthClassName?: string;
   centerLinks?: NavLink[];
   rightLink?: NavLink | NavButton;
+  right?: ReactNode;
   activeCenterLinkTo?: string;
   onCenterLinkClick?: (to: string) => void;
 };
@@ -26,6 +28,7 @@ export function LandingPageNavbar({
   widthClassName,
   centerLinks = [],
   rightLink,
+  right: customRight,
   activeCenterLinkTo,
   onCenterLinkClick,
 }: LandingPageNavbarProps) {
@@ -72,7 +75,9 @@ export function LandingPageNavbar({
       </div>
     ) : null;
 
-  const right = rightLink ? (
+  const right = customRight ? (
+    customRight
+  ) : rightLink ? (
     'onClick' in rightLink ? (
       <button
         className={`${buttonVariants({ variant: 'default', size: 'sm' })} text-xs`}
