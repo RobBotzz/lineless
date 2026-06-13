@@ -1,11 +1,12 @@
 // Order API — wired to the backend where endpoints exist.
 //
 // NOT YET IN BACKEND (no endpoint):
-//   getUnpaidOrders   — needs GET /api/stands/:standId/orders?paidAt=null
-//   confirmCashPayment — needs POST /api/orders/:orderId/cash-payment
+//   getUnpaidOrders   — GET /api/stands/:standId/orders exists but returns PAID orders only
+//   confirmCashPayment — needs POST /api/orders/:orderId/cash-payment (payments module)
 import { apiFetch } from './client';
 import { getCredential } from '../auth/keychain';
 import { getOperatorStandProducts } from './products';
+import { getOperatorStand } from './stands';
 import type { Order, OrderItemView } from '../types/order';
 
 // The cashier always operates for the stand the operator is logged into.
@@ -32,7 +33,10 @@ export async function buildOrderViewItems(order: Order): Promise<OrderItemView[]
   const cached = viewItemCache.get(order._id);
   if (cached) return cached;
 
-  const products = await getOperatorStandProducts(order.standId);
+  const [products, stand] = await Promise.all([
+    getOperatorStandProducts(order.standId),
+    getOperatorStand(order.standId),
+  ]);
   const productById = new Map(products.map((p) => [p._id, p]));
 
   // Group flat items by productId — each backend item is exactly one unit.
@@ -52,8 +56,7 @@ export async function buildOrderViewItems(order: Order): Promise<OrderItemView[]
   return [...groups.entries()].map(([productId, { unitPrice, comments }]) => ({
     productId,
     productName: productById.get(productId)?.productName ?? productId,
-    // TODO: resolve to stand name once a stand-detail endpoint is available.
-    standName: order.standId,
+    standName: stand.standName,
     unitPrice,
     quantity: comments.length,
     ...(comments.some(Boolean) ? { comments } : {}),
