@@ -2,12 +2,13 @@ import mongoose from "mongoose";
 import Stripe from "stripe";
 import crypto from "crypto";
 import { config } from "../../config/config";
-import { Order } from "./model";
+import { Order, type OrderDoc, type OrderItemDoc } from "./model";
 import { Tab } from "../tabs/model";
 import { TabPayment } from "../payments/model";
 import { Product } from "../products/model";
 import { Stand } from "../stands/model";
 import { Event } from "../events/model";
+import { verifyEventOwnership } from "../events/ownership";
 import {
   CashierDisabledError,
   CashPaymentNotFoundError,
@@ -15,6 +16,8 @@ import {
   EventNotActiveError,
   OfflineOrdersDisabledError,
   OrderAlreadyPaidError,
+  OrderItemNotFoundError,
+  OrderItemStateError,
   OrderNotFoundError,
   StandNotFoundError,
   OrderValidationError,
@@ -34,20 +37,16 @@ export async function submitOrder(
 ) {
   const { standId, tabId, items } = input;
 
-  // Resolve the stand to get the eventId and verify it exists.
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
   const { eventId } = stand;
 
-  // Verify the event is running.
   const event = await Event.findOne({ _id: eventId, deletedAt: null });
   if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
 
-  // Cash orders require offlineOrdersEnabled when there is no tabId.
   if (!tabId && !event.offlineOrdersEnabled)
     throw new OfflineOrdersDisabledError();
 
-  // Tab orders: verify the tab is OPEN before doing any further work.
   if (tabId) {
     const tab = await Tab.findById(tabId);
     if (!tab || tab.status !== "OPEN") {
@@ -55,7 +54,6 @@ export async function submitOrder(
     }
   }
 
-  // Fetch products and verify they are LIVE and belong to this stand.
   const productIds = items.map((item) => item.productId);
   const products = await Product.find({
     _id: { $in: productIds },
@@ -82,14 +80,10 @@ export async function submitOrder(
     }));
   });
 
-  // orderNumber is the next sequential number scoped to this event.
   const orderCount = await Order.countDocuments({ eventId });
   const orderNumber = orderCount + 1;
   const authCode = generateAuthCode();
 
-  // Cash order: persist immediately; items are gated (startedAt = null) until
-  // the operator confirms cash via POST /cash-payments/:cashPaymentId/... .
-  // For cashier (operator) orders, cashierEnabled must be on.
   if (!tabId) {
     if (!event.cashierEnabled && sessionId === null) {
       throw new CashierDisabledError();
@@ -118,7 +112,6 @@ export async function submitOrder(
     return { status: 201 as const, order: createdOrder };
   }
 
-  // Tab (Stripe) order: check remaining authorization headroom.
   const payments = await TabPayment.find({
     tabId,
     tabPaymentStatus: { $in: ["AUTHORIZED", "CAPTURED"] },
@@ -136,7 +129,6 @@ export async function submitOrder(
   if (consumedCents + totalCents > authorizedCents) {
     const overage = consumedCents + totalCents - authorizedCents;
 
-    // Stripe call outside the transaction — cannot be rolled back.
     const pi = await stripe.paymentIntents.create({
       amount: overage,
       currency: "eur",
@@ -182,7 +174,6 @@ export async function submitOrder(
     return { status: 402 as const, clientSecret: pi.client_secret };
   }
 
-  // Under limit: release items to the kitchen immediately.
   processedItems.forEach((i) => (i.startedAt = new Date()));
 
   const dbSession = await mongoose.startSession();
@@ -238,7 +229,6 @@ export async function issueCashRefund(
   const order = await Order.findOne({ "cashPayment._id": cashPaymentId });
   if (!order?.cashPayment) throw new CashPaymentNotFoundError();
 
-  // Refund must not exceed the order total (sum of all items incl. tax).
   const orderTotal = order.items.reduce(
     (sum, i) =>
       sum + Math.round(i.priceExclTaxAtPurchase * (1 + i.taxRateAtPurchase)),
@@ -260,4 +250,103 @@ export async function issueCashRefund(
   await order.save();
 
   return order.cashRefunds[order.cashRefunds.length - 1];
+}
+
+export async function getOrderForAttendee(
+  orderId: string,
+  sessionId: string
+): Promise<OrderDoc> {
+  const order = await Order.findById(orderId).lean();
+  if (!order || order.sessionId !== sessionId) throw new OrderNotFoundError();
+  return order;
+}
+
+export async function getOrderForOrganizer(
+  orderId: string,
+  accountId: string
+): Promise<OrderDoc> {
+  const order = await Order.findById(orderId).lean();
+  if (!order) throw new OrderNotFoundError();
+  await verifyEventOwnership(order.eventId, accountId);
+  return order;
+}
+
+type ItemState = "PENDING" | "PREPARING" | "READY" | "FULFILLED" | "CANCELLED";
+
+function getItemState(item: OrderItemDoc): ItemState {
+  if (item.cancelledAt) return "CANCELLED";
+  if (item.fulfilledAt) return "FULFILLED";
+  if (item.readyAt) return "READY";
+  if (item.startedAt) return "PREPARING";
+  return "PENDING";
+}
+
+export async function advanceOrderItem(
+  orderId: string,
+  itemId: string,
+  action: "start" | "ready" | "fulfill" | "cancel",
+  operatorStandId: string
+): Promise<OrderDoc> {
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+  if (!order.paidAt) throw new OrderNotFoundError();
+
+  const item = order.items.find((i) => i._id === itemId);
+  if (!item) throw new OrderItemNotFoundError();
+
+  const product = await Product.findOne({
+    _id: item.productId,
+    standId: operatorStandId,
+  }).lean();
+  if (!product) throw new OrderItemNotFoundError();
+
+  const state = getItemState(item);
+  const now = new Date();
+
+  switch (action) {
+    case "start":
+      if (state !== "PENDING")
+        throw new OrderItemStateError("Item must be PENDING to start");
+      item.startedAt = now;
+      break;
+    case "ready":
+      if (state !== "PREPARING")
+        throw new OrderItemStateError("Item must be PREPARING to mark ready");
+      item.readyAt = now;
+      break;
+    case "fulfill":
+      if (state !== "READY")
+        throw new OrderItemStateError("Item must be READY to fulfill");
+      item.fulfilledAt = now;
+      break;
+    case "cancel":
+      if (state === "FULFILLED" || state === "CANCELLED")
+        throw new OrderItemStateError(
+          `Item cannot be cancelled from ${state} state`
+        );
+      item.cancelledAt = now;
+      break;
+  }
+
+  await order.save();
+  return order;
+}
+
+export async function releaseInstantItems(orderId: string): Promise<void> {
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+
+  const now = new Date();
+  let changed = false;
+
+  for (const item of order.items) {
+    const product = await Product.findById(item.productId).lean();
+    if (product?.instantProduct && !item.startedAt) {
+      item.startedAt = now;
+      item.readyAt = now;
+      changed = true;
+    }
+  }
+
+  if (changed) await order.save();
 }

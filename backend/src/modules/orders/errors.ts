@@ -12,6 +12,20 @@ export class OrderNotFoundError extends Error {
   }
 }
 
+export class OrderItemNotFoundError extends Error {
+  constructor() {
+    super("Order item not found");
+    this.name = "OrderItemNotFoundError";
+  }
+}
+
+export class OrderItemStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OrderItemStateError";
+  }
+}
+
 export class OrderAlreadyPaidError extends Error {
   constructor() {
     super("Order has already been paid");

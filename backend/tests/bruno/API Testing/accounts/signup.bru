@@ -12,8 +12,8 @@ post {
 
 body:json {
   {
-    "email": "testuser@example.com",
-    "password": "SecurePassword123",
+    "email": "torben@test.de",
+    "password": "1234567a",
     "firstName": "Max",
     "lastName": "Mustermann"
   }
@@ -22,6 +22,7 @@ body:json {
 script:post-response {
   if (res.status === 201 && res.body.token) {
     bru.setEnvVar("organizerToken", res.body.token);
+    bru.setEnvVar("organizerRefreshToken", res.body.refreshToken);
   }
 }
 
@@ -38,4 +39,5 @@ tests {
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

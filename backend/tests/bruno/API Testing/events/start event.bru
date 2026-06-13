@@ -1,0 +1,26 @@
+meta {
+  name: start event
+  type: http
+  seq: 5
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/start
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+tests {
+  test("start event returns 200 and status is ACTIVE", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.status).to.equal("ACTIVE");
+  });
+}
+
+settings {
+  encodeUrl: true
+}

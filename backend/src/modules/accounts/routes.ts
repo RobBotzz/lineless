@@ -6,20 +6,29 @@ import {
   deleteAccount,
   getAccountInfo,
   login,
+  logout,
+  refreshSession,
+  requestPasswordReset,
+  resetPassword,
   signup,
   updateAccountInfo,
 } from "./service";
 import {
   changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
+  resetPasswordSchema,
   signupSchema,
   updateAccountSchema,
 } from "./types";
+import { refreshTokenSchema } from "../auth/types";
+import { RefreshTokenInvalidError } from "../auth/errors";
 import {
   AccountAlreadyExistsError,
   AccountInvalidCredentialsError,
   AccountInvalidPasswordError,
   AccountNotFoundError,
+  PasswordResetTokenInvalidError,
 } from "./errors";
 
 const accountRouter = Router();
@@ -36,6 +45,12 @@ function handleError(err: unknown, res: Response): Response {
   }
   if (err instanceof AccountNotFoundError) {
     return res.status(404).json({ error: err.message });
+  }
+  if (err instanceof PasswordResetTokenInvalidError) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (err instanceof RefreshTokenInvalidError) {
+    return res.status(401).json({ error: err.message });
   }
   console.error("Accounts error:", err);
   return res.status(500).json({ error: "Internal server error" });
@@ -61,6 +76,66 @@ accountRouter.post(
     try {
       const result = await login(data);
       res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// Public — no auth. Always responds 200 with the same message regardless of
+// whether the email is registered, to avoid leaking which accounts exist.
+accountRouter.post(
+  "/forgot-password",
+  validateBody(forgotPasswordSchema, async (_req, res, data) => {
+    try {
+      await requestPasswordReset(data);
+      res.status(200).json({
+        message:
+          "If an account exists for this email, a password reset link has been sent.",
+      });
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// Public — no auth. Consumes a reset token from the emailed link and sets a new
+// password. On success the user is logged straight in (returns a fresh JWT).
+accountRouter.post(
+  "/reset-password",
+  validateBody(resetPasswordSchema, async (_req, res, data) => {
+    try {
+      const result = await resetPassword(data);
+      res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// Public — authenticates via the refresh token itself (the access token may
+// already be expired, which is exactly when this endpoint is needed). Rotates
+// the refresh token: the response carries a new access/refresh token pair.
+accountRouter.post(
+  "/refresh",
+  validateBody(refreshTokenSchema, async (_req, res, data) => {
+    try {
+      const result = await refreshSession(data);
+      res.status(200).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// Public — revokes the refresh token (and its whole rotation family).
+// Idempotent: an unknown token still yields 200.
+accountRouter.post(
+  "/logout",
+  validateBody(refreshTokenSchema, async (_req, res, data) => {
+    try {
+      await logout(data);
+      res.status(200).json({ message: "Logged out successfully" });
     } catch (err) {
       handleError(err, res);
     }

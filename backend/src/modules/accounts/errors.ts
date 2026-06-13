@@ -25,3 +25,10 @@ export class AccountNotFoundError extends Error {
     this.name = "AccountNotFoundError";
   }
 }
+
+export class PasswordResetTokenInvalidError extends Error {
+  constructor() {
+    super("Invalid or expired password reset token");
+    this.name = "PasswordResetTokenInvalidError";
+  }
+}

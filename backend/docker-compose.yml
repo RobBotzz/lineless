@@ -6,6 +6,10 @@ services:
     environment:
       MONGO_URI: "mongodb://mongo:27017/lineless?replicaSet=rs0"
       PORT: "8000"
+      APP_BASE_URL: "http://localhost:3000"
+      JWT_SECRET: "REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET"
+      RESEND_API_KEY: "re_REPLACE_WITH_YOUR_RESEND_API_KEY"
+      RESEND_FROM_ADDRESS: "contact@lineless.shop"
     depends_on:
       mongo:
         condition: service_healthy
@@ -19,6 +23,7 @@ services:
       - backend
     restart: unless-stopped
 
+  #TODO: Entfernen vor der Abgabe
   mongo-express:
     image: mongo-express:1.0.2
     ports:

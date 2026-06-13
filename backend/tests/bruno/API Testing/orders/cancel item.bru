@@ -1,0 +1,27 @@
+meta {
+  name: cancel item
+  type: http
+  seq: 8
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{orderId}}/items/{{itemId}}/cancel
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{operatorToken}}
+}
+
+tests {
+  test("cancel item returns 200 and item is CANCELLED", function () {
+    expect(res.status).to.equal(200);
+    const item = res.body.items.find(i => i._id === bru.getEnvVar("itemId"));
+    expect(item.cancelledAt).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

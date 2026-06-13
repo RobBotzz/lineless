@@ -1,0 +1,28 @@
+meta {
+  name: start item
+  type: http
+  seq: 5
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{orderId}}/items/{{itemId}}/start
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{operatorToken}}
+}
+
+tests {
+  test("start item returns 200 and item is PREPARING", function () {
+    expect(res.status).to.equal(200);
+    const item = res.body.items.find(i => i._id === bru.getEnvVar("itemId"));
+    expect(item.startedAt).to.be.a("string").and.not.empty;
+    expect(item.readyAt).to.equal(null);
+  });
+}
+
+settings {
+  encodeUrl: true
+}
