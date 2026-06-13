@@ -7,15 +7,15 @@ import type { Event } from '@/types/event';
 import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
 
-export interface AnalyticsLoaderData {
+export interface EventControlCenterLoaderData {
   event: Event;
   stands: Stand[];
   productsByStand: Record<string, Product[]>;
 }
 
-export async function analyticsLoader({
+export async function eventControlCenterLoader({
   params,
-}: LoaderFunctionArgs): Promise<AnalyticsLoaderData> {
+}: LoaderFunctionArgs): Promise<EventControlCenterLoaderData> {
   const eventId = params.eventId;
   if (!eventId) throw new Error('Missing event id.');
 

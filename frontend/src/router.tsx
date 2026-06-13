@@ -14,10 +14,10 @@ import {
   eventConfigurationLoader,
   eventConfigurationAction,
 } from './routes/organizer/event-configuration/data';
-import OrganizerLiveAnalyticsDashboard, {
-  AnalyticsError,
-} from './routes/organizer/analytics/LiveAnalyticsDashboard';
-import { analyticsLoader } from './routes/organizer/analytics/data';
+import OrganizerEventControlCenter, {
+  EventControlCenterError,
+} from './routes/organizer/event-control-center/EventControlCenter';
+import { eventControlCenterLoader } from './routes/organizer/event-control-center/data';
 import OrganizerPayment from './routes/organizer/Payment';
 import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Settings';
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
@@ -70,10 +70,10 @@ export const router = createBrowserRouter(
           errorElement={<EventConfigurationError />}
         />
         <Route
-          path="events/:eventId/analytics"
-          element={<OrganizerLiveAnalyticsDashboard />}
-          loader={analyticsLoader}
-          errorElement={<AnalyticsError />}
+          path="events/:eventId/event-control-center"
+          element={<OrganizerEventControlCenter />}
+          loader={eventControlCenterLoader}
+          errorElement={<EventControlCenterError />}
         />
       </Route>
 

@@ -11,18 +11,18 @@ import { paths } from '@/paths';
 import type { Product } from '@/types/product';
 import { formatMoney } from '@/types/product';
 import type { Stand } from '@/types/stand';
-import type { AnalyticsLoaderData } from './data';
+import type { EventControlCenterLoaderData } from './data';
 
-type DashboardTab = 'analytics' | 'management';
+type DashboardTab = 'metrics' | 'management';
 
 const BACKEND_PENDING = 'Backend endpoint pending';
 
-export function AnalyticsError() {
+export function EventControlCenterError() {
   const error = useRouteError();
   const message =
     error instanceof ApiError
       ? error.message
-      : 'This analytics dashboard could not be loaded. Check whether the backend is running and try again.';
+      : 'This event control center could not be loaded. Check whether the backend is running and try again.';
 
   return (
     <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-5 text-sm text-text">
@@ -31,9 +31,9 @@ export function AnalyticsError() {
   );
 }
 
-export default function LiveAnalyticsDashboard() {
-  const { event, stands, productsByStand } = useLoaderData() as AnalyticsLoaderData;
-  const [activeTab, setActiveTab] = useState<DashboardTab>('analytics');
+export default function EventControlCenter() {
+  const { event, stands, productsByStand } = useLoaderData() as EventControlCenterLoaderData;
+  const [activeTab, setActiveTab] = useState<DashboardTab>('metrics');
   const [selectedStandId, setSelectedStandId] = useState<string>(() => stands[0]?._id ?? 'all');
 
   const selectedStand =
@@ -56,7 +56,7 @@ export default function LiveAnalyticsDashboard() {
                 <EventStatusBadge status={event.status} />
               </div>
               <p className="mt-2 text-sm text-text-muted">
-                Live analytics and operational controls for this event.
+                Event Control Center for live metrics and operational controls.
               </p>
             </div>
 
@@ -65,8 +65,8 @@ export default function LiveAnalyticsDashboard() {
         </CardHeader>
       </Card>
 
-      {activeTab === 'analytics' ? (
-        <AnalyticsTab stands={stands} />
+      {activeTab === 'metrics' ? (
+        <MetricsTab stands={stands} />
       ) : (
         <ManagementTab
           productsByStand={productsByStand}
@@ -80,7 +80,7 @@ export default function LiveAnalyticsDashboard() {
   );
 }
 
-function EventStatusBadge({ status }: { status: AnalyticsLoaderData['event']['status'] }) {
+function EventStatusBadge({ status }: { status: EventControlCenterLoaderData['event']['status'] }) {
   const label =
     status === 'ACTIVE' ? 'Live' : status === 'DRAFT' ? 'Draft event' : 'Completed event';
   const className =
@@ -110,7 +110,7 @@ function TabNavigation({
   onChange: (tab: DashboardTab) => void;
 }) {
   const tabs: { id: DashboardTab; label: string }[] = [
-    { id: 'analytics', label: 'Analytics' },
+    { id: 'metrics', label: 'Analytics' },
     { id: 'management', label: 'Management' },
   ];
 
@@ -138,7 +138,7 @@ function TabNavigation({
   );
 }
 
-function AnalyticsTab({ stands }: { stands: Stand[] }) {
+function MetricsTab({ stands }: { stands: Stand[] }) {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
@@ -154,7 +154,7 @@ function AnalyticsTab({ stands }: { stands: Stand[] }) {
           </CardHeader>
           <CardContent>
             <ChartPendingState
-              title="Waiting for GET /events/:eventId/analytics"
+              title="Waiting for GET /events/:eventId/event-control-center"
               message="The chart will render cumulative event revenue over elapsed event time once the backend returns revenue points."
             />
           </CardContent>
@@ -182,7 +182,7 @@ function AnalyticsTab({ stands }: { stands: Stand[] }) {
             </div>
             <ChartPendingState
               title="Stand comparison pending"
-              message="Stand-specific revenue series will be shown here after analytics data exists."
+              message="Stand-specific revenue series will be shown here after event control center data exists."
               short
             />
           </CardContent>
@@ -203,7 +203,7 @@ function AnalyticsTab({ stands }: { stands: Stand[] }) {
           ) : (
             <EmptyState
               title="No stands configured"
-              message="Add stands to the event configuration before analytics can be grouped by station."
+              message="Add stands to the event configuration before metrics can be grouped by station."
             />
           )}
         </CardContent>
@@ -217,7 +217,7 @@ function AnalyticsTab({ stands }: { stands: Stand[] }) {
           <EmptyState
             icon
             title="Alert engine waiting for queue metrics"
-            message="Average wait thresholds, flashing stand warnings, and critical queue alerts require GET /events/:eventId/analytics."
+            message="Average wait thresholds, flashing stand warnings, and critical queue alerts require GET /events/:eventId/event-control-center."
           />
         </CardContent>
       </Card>
@@ -243,7 +243,7 @@ function MetricCard({
         >
           {value}
         </p>
-        <p className="text-xs text-text-muted">Requires analytics backend</p>
+        <p className="text-xs text-text-muted">Requires event control center backend</p>
       </CardContent>
     </Card>
   );
@@ -305,7 +305,7 @@ function StandPerformanceRow({ stand }: { stand: Stand }) {
       </div>
       <div className="mt-3 flex items-center gap-2 text-xs text-text-muted">
         <WarningTriangleIcon className="h-4 w-4" />
-        Queue length and alert state require analytics data.
+        Queue length and alert state require event control center data.
       </div>
     </div>
   );

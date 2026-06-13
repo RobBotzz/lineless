@@ -237,9 +237,9 @@ export default function EventConfiguration() {
           </div>
           <Link
             className={[buttonVariants({ variant: 'secondary', size: 'lg' }), 'w-full'].join(' ')}
-            to={paths.organizer.eventAnalytics(event._id)}
+            to={paths.organizer.eventControlCenter(event._id)}
           >
-            Analytics Dashboard
+            Event Control Center
           </Link>
         </CardContent>
       </Card>
