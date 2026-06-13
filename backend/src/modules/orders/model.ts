@@ -20,7 +20,7 @@ export interface OrderDoc {
   tabId: string | null;
   sessionId: string | null;
   orderNumber: string;
-  orderCode: string;
+  pickupCode: string;
   customerEmail: string | null;
   paidAt: Date | null;
   items: OrderItemDoc[];
@@ -48,7 +48,7 @@ const orderSchema = new Schema<OrderDoc>(
     tabId: { type: String, default: null, index: true },
     sessionId: { type: String, default: null, index: true },
     orderNumber: { type: String, required: true },
-    orderCode: { type: String, required: true, index: true },
+    pickupCode: { type: String, required: true, index: true },
     customerEmail: { type: String, default: null },
     paidAt: { type: Date, default: null },
     items: [orderItemSchema],
