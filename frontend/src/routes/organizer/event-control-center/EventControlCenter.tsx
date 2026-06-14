@@ -1284,30 +1284,43 @@ function ProductPauseTile({
   standId: string;
 }) {
   const [isSaving, setIsSaving] = useState(false);
+  const isLive = product.productStatus === 'LIVE';
   const isPaused = product.productStatus === 'PAUSED';
+  const isTerminated = product.productStatus === 'TERMINATED';
+  const availabilityText = isTerminated
+    ? 'terminated product'
+    : isPaused
+      ? 'hidden from new orders'
+      : 'available for new orders';
 
-  async function handleChange(paused: boolean) {
+  async function handleAvailabilityChange(checked: boolean) {
+    if (isTerminated) return;
     setIsSaving(true);
     try {
-      await onPauseChange(standId, product, paused);
+      await onPauseChange(standId, product, !checked);
     } finally {
       setIsSaving(false);
     }
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-3">
+    <div
+      className={[
+        'flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-3',
+        isTerminated ? 'opacity-70' : '',
+      ].join(' ')}
+    >
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-text">{product.productName}</p>
-        <p className="mt-0.5 text-xs text-text-muted">
-          EUR {formatMoney(product.priceIncludingTax)} · {product.productStatus}
+        <p className="mt-1 text-xs text-text-muted">
+          EUR {formatMoney(product.priceIncludingTax)} · {availabilityText}
         </p>
       </div>
       <Toggle
-        checked={isPaused}
-        disabled={isSaving || product.productStatus === 'TERMINATED'}
-        label={`Pause ${product.productName}`}
-        onChange={(checked) => void handleChange(checked)}
+        checked={isLive}
+        disabled={isSaving || isTerminated}
+        label={`${product.productName} available for orders`}
+        onChange={(checked) => void handleAvailabilityChange(checked)}
       />
     </div>
   );
