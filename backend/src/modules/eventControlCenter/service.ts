@@ -17,6 +17,28 @@ import type {
   StandRevenueSeries,
 } from "./types";
 
+type EventControlCenterContext = {
+  event: { createdAt: Date; startedAt?: Date };
+  standIds: string[];
+};
+
+type ProductSnapshot = {
+  _id: string;
+  standId: string;
+  productName: string;
+};
+type ProductLookup = Map<string, ProductSnapshot>;
+type RevenueBucketsByStand = Map<string, Map<number, number>>;
+type QueueStatsByStand = Map<
+  string,
+  { queueLength: number; totalWaitMinutes: number }
+>;
+type AnalyticsAggregation = {
+  eventRevenueBuckets: Map<number, number>;
+  standRevenueBucketsByStand: RevenueBucketsByStand;
+  queueStatsByStand: QueueStatsByStand;
+};
+
 function elapsedMinutesSince(baseDate: Date, date: Date): number {
   return Math.max(0, Math.floor((date.getTime() - baseDate.getTime()) / 60000));
 }
@@ -63,55 +85,165 @@ function orderStatus(items: LiveOrderItem[]): LiveOrder["status"] {
   return "IN_LINE";
 }
 
-export async function getEventControlCenter(
+async function loadEventControlCenterContext(
   eventId: string,
-  accountId: string,
-  options: EventControlCenterQuery
-): Promise<EventControlCenterData> {
+  accountId: string
+): Promise<EventControlCenterContext> {
   await verifyEventOwnership(eventId, accountId);
 
-  const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
-  if (!event) throw new EventNotFoundError();
-
-  const [stands, orders, activeGuests] = await Promise.all([
+  const [event, stands] = await Promise.all([
+    Event.findOne({ _id: eventId, deletedAt: null })
+      .select("createdAt startedAt")
+      .lean(),
     Stand.find({ eventId, deletedAt: null }).select("_id").lean(),
-    Order.find({ eventId }).lean(),
-    AttendeeSession.countDocuments({
-      eventId,
-      status: "active",
-      expiresAt: { $gt: new Date() },
-    }),
   ]);
 
-  const standIds = stands.map((stand) => stand._id);
-  const standIdSet = new Set(standIds);
+  if (!event) throw new EventNotFoundError();
+
+  return {
+    event,
+    standIds: stands.map((stand) => stand._id),
+  };
+}
+
+async function loadProductsByStand(standIds: string[]): Promise<ProductLookup> {
   const products = await Product.find({
     standId: { $in: standIds },
     deletedAt: null,
   })
-    .select("_id standId")
+    .select("_id standId productName")
     .lean();
-  const productStandById = new Map(
+  const standIdSet = new Set(standIds);
+
+  return new Map(
     products
       .filter((product) => standIdSet.has(product.standId))
-      .map((product) => [product._id, product.standId])
+      .map((product) => [product._id, product])
   );
+}
 
-  const baseDate = event.startedAt
-    ? new Date(event.startedAt)
-    : new Date(event.createdAt);
-  const eventRevenueBuckets = new Map<number, number>();
-  const standRevenueBucketsByStand = new Map<string, Map<number, number>>();
-  const queueStatsByStand = new Map<
-    string,
-    { queueLength: number; totalWaitMinutes: number }
-  >();
+function mapByStand<T>(standIds: string[], factory: () => T): Map<string, T> {
+  return new Map(standIds.map((standId) => [standId, factory()]));
+}
 
-  for (const standId of standIds) {
-    standRevenueBucketsByStand.set(standId, new Map());
-    queueStatsByStand.set(standId, { queueLength: 0, totalWaitMinutes: 0 });
-  }
+function createAnalyticsAggregation(standIds: string[]): AnalyticsAggregation {
+  return {
+    eventRevenueBuckets: new Map<number, number>(),
+    standRevenueBucketsByStand: mapByStand(
+      standIds,
+      () => new Map<number, number>()
+    ),
+    queueStatsByStand: mapByStand(standIds, () => ({
+      queueLength: 0,
+      totalWaitMinutes: 0,
+    })),
+  };
+}
 
+function buildStandQueueMetrics(
+  standIds: string[],
+  queueStatsByStand: QueueStatsByStand,
+  options: EventControlCenterQuery
+): StandQueueMetric[] {
+  return standIds.map((standId) => {
+    const stats = queueStatsByStand.get(standId) ?? {
+      queueLength: 0,
+      totalWaitMinutes: 0,
+    };
+    const averageWaitMinutes =
+      stats.queueLength > 0
+        ? Math.round(stats.totalWaitMinutes / stats.queueLength)
+        : 0;
+
+    return {
+      standId,
+      queueLength: stats.queueLength,
+      averageWaitMinutes,
+      alert:
+        stats.queueLength >= options.queueLengthAlertThreshold ||
+        averageWaitMinutes >= options.averageWaitAlertThresholdMinutes,
+    };
+  });
+}
+
+function findMaxBottleneckStandId(
+  standQueues: StandQueueMetric[]
+): string | null {
+  const bottleneck = standQueues
+    .filter((queue) => queue.queueLength > 0)
+    .sort((left, right) => {
+      if (right.queueLength !== left.queueLength) {
+        return right.queueLength - left.queueLength;
+      }
+      return right.averageWaitMinutes - left.averageWaitMinutes;
+    })[0];
+
+  return bottleneck?.standId ?? null;
+}
+
+function toLiveOrder(
+  order: OrderDoc,
+  productById: ProductLookup,
+  standIdFilter?: string
+): LiveOrder | null {
+  const liveItems = order.items
+    .filter((item) => isOpenItem(item))
+    .map((item): (LiveOrderItem & { standId: string }) | null => {
+      const product = productById.get(item.productId);
+      if (!product) return null;
+      if (standIdFilter && product.standId !== standIdFilter) return null;
+
+      return {
+        itemId: item._id,
+        productId: item.productId,
+        productName: product.productName,
+        status: itemStatus(item),
+        customerComment: item.customerComment,
+        unitPriceIncludingTax: item.priceIncludingTaxAtPurchase,
+        standId: product.standId,
+      };
+    })
+    .filter((item): item is LiveOrderItem & { standId: string } =>
+      Boolean(item)
+    );
+
+  if (liveItems.length === 0) return null;
+
+  const standIds = [...new Set(liveItems.map((item) => item.standId))];
+  const items = liveItems.map((item) => ({
+    itemId: item.itemId,
+    productId: item.productId,
+    productName: item.productName,
+    status: item.status,
+    customerComment: item.customerComment,
+    unitPriceIncludingTax: item.unitPriceIncludingTax,
+  }));
+
+  return {
+    _id: order._id,
+    eventId: order.eventId,
+    orderNumber: order.orderNumber,
+    pickupCode: order.pickupCode,
+    customerEmail: order.customerEmail,
+    status: orderStatus(items),
+    standIds,
+    createdAt: order.createdAt,
+    paidAt: order.paidAt,
+    items,
+    totalPriceIncludingTax: items.reduce(
+      (total, item) => total + item.unitPriceIncludingTax,
+      0
+    ),
+  };
+}
+
+function collectAnalytics(
+  orders: OrderDoc[],
+  productById: ProductLookup,
+  standIds: string[],
+  baseDate: Date
+): AnalyticsAggregation {
+  const aggregation = createAnalyticsAggregation(standIds);
   const now = new Date();
 
   for (const order of orders) {
@@ -122,24 +254,24 @@ export async function getEventControlCenter(
     const waitMinutes = elapsedMinutesSince(orderCreatedAtDate(order), now);
 
     for (const item of order.items) {
-      const standId = productStandById.get(item.productId);
+      const standId = productById.get(item.productId)?.standId;
       if (!standId) continue;
 
       if (paidElapsedMinutes !== null && !item.cancelledAt) {
         addRevenuePoint(
-          eventRevenueBuckets,
+          aggregation.eventRevenueBuckets,
           paidElapsedMinutes,
           item.priceIncludingTaxAtPurchase
         );
         addRevenuePoint(
-          standRevenueBucketsByStand.get(standId)!,
+          aggregation.standRevenueBucketsByStand.get(standId)!,
           paidElapsedMinutes,
           item.priceIncludingTaxAtPurchase
         );
       }
 
       if (paidAt && isOpenItem(item)) {
-        const stats = queueStatsByStand.get(standId);
+        const stats = aggregation.queueStatsByStand.get(standId);
         if (!stats) continue;
         stats.queueLength += 1;
         stats.totalWaitMinutes += waitMinutes;
@@ -147,46 +279,40 @@ export async function getEventControlCenter(
     }
   }
 
-  const standQueues: StandQueueMetric[] = standIds.map((standId) => {
-    const stats = queueStatsByStand.get(standId) ?? {
-      queueLength: 0,
-      totalWaitMinutes: 0,
-    };
-    const averageWaitMinutes =
-      stats.queueLength > 0
-        ? Math.round(stats.totalWaitMinutes / stats.queueLength)
-        : 0;
-    return {
-      standId,
-      queueLength: stats.queueLength,
-      averageWaitMinutes,
-      alert:
-        stats.queueLength >= options.queueLengthAlertThreshold ||
-        averageWaitMinutes >= options.averageWaitAlertThresholdMinutes,
-    };
-  });
+  return aggregation;
+}
 
-  const maxBottleneckStandId = standQueues.reduce<string | null>(
-    (currentStandId, queue) => {
-      if (!currentStandId && queue.queueLength === 0) return null;
-      if (!currentStandId) return queue.standId;
-
-      const current = standQueues.find(
-        (candidate) => candidate.standId === currentStandId
-      );
-      if (!current) return queue.standId;
-      if (queue.queueLength > current.queueLength) return queue.standId;
-      if (
-        queue.queueLength === current.queueLength &&
-        queue.averageWaitMinutes > current.averageWaitMinutes
-      ) {
-        return queue.standId;
-      }
-      return currentStandId;
-    },
-    null
+export async function getEventControlCenter(
+  eventId: string,
+  accountId: string,
+  options: EventControlCenterQuery
+): Promise<EventControlCenterData> {
+  const { event, standIds } = await loadEventControlCenterContext(
+    eventId,
+    accountId
   );
 
+  const [orders, activeGuests, productById] = await Promise.all([
+    Order.find({ eventId }).lean(),
+    AttendeeSession.countDocuments({
+      eventId,
+      status: "active",
+      expiresAt: { $gt: new Date() },
+    }),
+    loadProductsByStand(standIds),
+  ]);
+
+  const baseDate = event.startedAt
+    ? new Date(event.startedAt)
+    : new Date(event.createdAt);
+  const { eventRevenueBuckets, queueStatsByStand, standRevenueBucketsByStand } =
+    collectAnalytics(orders, productById, standIds, baseDate);
+
+  const standQueues = buildStandQueueMetrics(
+    standIds,
+    queueStatsByStand,
+    options
+  );
   const eventRevenue = cumulativePoints(eventRevenueBuckets);
   const totalRevenueCents =
     eventRevenue.length > 0
@@ -200,7 +326,7 @@ export async function getEventControlCenter(
   return {
     totalRevenueCents,
     activeGuests,
-    maxBottleneckStandId,
+    maxBottleneckStandId: findMaxBottleneckStandId(standQueues),
     eventRevenue,
     standRevenue,
     standQueues,
@@ -212,88 +338,21 @@ export async function listLiveOrdersForEventControlCenter(
   accountId: string,
   options: LiveOrdersQuery
 ): Promise<LiveOrder[]> {
-  await verifyEventOwnership(eventId, accountId);
-
-  const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
-  if (!event) throw new EventNotFoundError();
-
-  const stands = await Stand.find({ eventId, deletedAt: null })
-    .select("_id")
-    .lean();
-  const standIds = stands.map((stand) => stand._id);
+  const { standIds } = await loadEventControlCenterContext(eventId, accountId);
   const standIdSet = new Set(standIds);
 
   if (options.standId && !standIdSet.has(options.standId)) {
     throw new StandNotFoundError();
   }
 
-  const products = await Product.find({
-    standId: { $in: standIds },
-    deletedAt: null,
-  })
-    .select("_id standId productName")
-    .lean();
-  const productById = new Map(
-    products.map((product) => [product._id, product])
-  );
-
-  const orders = await Order.find({ eventId, paidAt: { $ne: null } })
-    .sort({ createdAt: 1 })
-    .lean();
+  const [orders, productById] = await Promise.all([
+    Order.find({ eventId, paidAt: { $ne: null } })
+      .sort({ createdAt: 1 })
+      .lean(),
+    loadProductsByStand(standIds),
+  ]);
 
   return orders
-    .map((order): LiveOrder | null => {
-      const liveItems = order.items
-        .filter((item) => isOpenItem(item))
-        .map((item): (LiveOrderItem & { standId: string }) | null => {
-          const product = productById.get(item.productId);
-          if (!product) return null;
-          if (options.standId && product.standId !== options.standId) {
-            return null;
-          }
-
-          return {
-            itemId: item._id,
-            productId: item.productId,
-            productName: product.productName,
-            status: itemStatus(item),
-            customerComment: item.customerComment,
-            unitPriceIncludingTax: item.priceIncludingTaxAtPurchase,
-            standId: product.standId,
-          };
-        })
-        .filter((item): item is LiveOrderItem & { standId: string } =>
-          Boolean(item)
-        );
-
-      if (liveItems.length === 0) return null;
-
-      const orderStandIds = [...new Set(liveItems.map((item) => item.standId))];
-      const items = liveItems.map((item) => ({
-        itemId: item.itemId,
-        productId: item.productId,
-        productName: item.productName,
-        status: item.status,
-        customerComment: item.customerComment,
-        unitPriceIncludingTax: item.unitPriceIncludingTax,
-      }));
-
-      return {
-        _id: order._id,
-        eventId: order.eventId,
-        orderNumber: order.orderNumber,
-        pickupCode: order.pickupCode,
-        customerEmail: order.customerEmail,
-        status: orderStatus(items),
-        standIds: orderStandIds,
-        createdAt: order.createdAt,
-        paidAt: order.paidAt,
-        items,
-        totalPriceIncludingTax: items.reduce(
-          (total, item) => total + item.unitPriceIncludingTax,
-          0
-        ),
-      };
-    })
+    .map((order) => toLiveOrder(order, productById, options.standId))
     .filter((order): order is LiveOrder => Boolean(order));
 }

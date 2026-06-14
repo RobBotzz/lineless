@@ -20,6 +20,15 @@ export type EventControlCenterQuery = z.infer<
 >;
 export type LiveOrdersQuery = z.infer<typeof liveOrdersQuerySchema>;
 
+export interface EventControlCenterData {
+  totalRevenueCents: number;
+  activeGuests: number;
+  maxBottleneckStandId: string | null;
+  eventRevenue: RevenuePoint[];
+  standRevenue: StandRevenueSeries[];
+  standQueues: StandQueueMetric[];
+}
+
 export interface RevenuePoint {
   elapsedMinutes: number;
   revenueCents: number;
@@ -37,25 +46,7 @@ export interface StandQueueMetric {
   alert: boolean;
 }
 
-export interface EventControlCenterData {
-  totalRevenueCents: number;
-  activeGuests: number;
-  maxBottleneckStandId: string | null;
-  eventRevenue: RevenuePoint[];
-  standRevenue: StandRevenueSeries[];
-  standQueues: StandQueueMetric[];
-}
-
 export type LiveOrderStatus = "IN_LINE" | "PREPARING" | "READY";
-
-export interface LiveOrderItem {
-  itemId: string;
-  productId: string;
-  productName: string;
-  status: LiveOrderStatus;
-  customerComment: string | null;
-  unitPriceIncludingTax: number;
-}
 
 export interface LiveOrder {
   _id: string;
@@ -69,4 +60,13 @@ export interface LiveOrder {
   paidAt: Date | null;
   items: LiveOrderItem[];
   totalPriceIncludingTax: number;
+}
+
+export interface LiveOrderItem {
+  itemId: string;
+  productId: string;
+  productName: string;
+  status: LiveOrderStatus;
+  customerComment: string | null;
+  unitPriceIncludingTax: number;
 }

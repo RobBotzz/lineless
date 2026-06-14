@@ -1,4 +1,10 @@
-import { Router, type Request, type Response } from "express";
+import {
+  Router,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from "express";
+import { z } from "zod";
 import { validateBody } from "../../middleware/validate";
 import { authOrganizer } from "../../middleware/auth/guards";
 import { EventNotFoundError } from "../events/errors";
@@ -43,6 +49,48 @@ function productId(req: Request): string {
   return req.params["productId"] as string;
 }
 
+function accountId(req: Request): string {
+  return req.organizer!.accountId;
+}
+
+function route(handler: RequestHandler): RequestHandler {
+  return async (req, res, next) => {
+    try {
+      await handler(req, res, next);
+    } catch (err) {
+      handleError(err, res);
+    }
+  };
+}
+
+function parseQuery<S extends z.ZodType>(
+  schema: S,
+  req: Request,
+  res: Response
+): z.infer<S> | null {
+  const query = schema.safeParse(req.query);
+  if (!query.success) {
+    res
+      .status(400)
+      .json({ error: "Validation failed", details: query.error.issues });
+    return null;
+  }
+  return query.data;
+}
+
+function validateBodyRoute<S extends z.ZodType>(
+  schema: S,
+  handler: (req: Request, res: Response, data: z.infer<S>) => Promise<void>
+): RequestHandler {
+  return validateBody(schema, async (req, res, data) => {
+    try {
+      await handler(req, res, data);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+}
+
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError) {
     return res.status(404).json({ error: err.message });
@@ -73,43 +121,35 @@ export const eventControlCenterRouter = Router({ mergeParams: true });
 
 // GET /events/:eventId/event-control-center — organizer-only event control center data.
 // TODO SSE: expose this snapshot through shared SSE infrastructure once it exists.
-eventControlCenterRouter.get("/", authOrganizer, async (req, res) => {
-  try {
-    const query = eventControlCenterQuerySchema.safeParse(req.query);
-    if (!query.success) {
-      return res
-        .status(400)
-        .json({ error: "Validation failed", details: query.error.issues });
-    }
+eventControlCenterRouter.get(
+  "/",
+  authOrganizer,
+  route(async (req, res) => {
+    const query = parseQuery(eventControlCenterQuerySchema, req, res);
+    if (!query) return;
 
-    const eventControlCenter = await getEventControlCenter(
+    const snapshot = await getEventControlCenter(
       eventId(req),
-      req.organizer!.accountId,
-      query.data
+      accountId(req),
+      query
     );
-    return res.status(200).json(eventControlCenter);
-  } catch (err) {
-    return handleError(err, res);
-  }
-});
+    res.status(200).json(snapshot);
+  })
+);
 
 // POST /events/:eventId/event-control-center/orders/:orderId/cancel
 // TODO SSE: publish order-list and analytics updates after cancellation.
 eventControlCenterRouter.post(
   "/orders/:orderId/cancel",
   authOrganizer,
-  async (req: Request, res: Response) => {
-    try {
-      const order = await cancelOrderForOrganizer(
-        eventId(req),
-        orderId(req),
-        req.organizer!.accountId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  route(async (req, res) => {
+    const order = await cancelOrderForOrganizer(
+      eventId(req),
+      orderId(req),
+      accountId(req)
+    );
+    res.status(200).json(order);
+  })
 );
 
 // POST /events/:eventId/event-control-center/orders/:orderId/items/cancel
@@ -117,18 +157,14 @@ eventControlCenterRouter.post(
 eventControlCenterRouter.post(
   "/orders/:orderId/items/cancel",
   authOrganizer,
-  validateBody(cancelOrderItemsSchema, async (req, res, data) => {
-    try {
-      const order = await cancelOrderItemsForOrganizer(
-        eventId(req),
-        orderId(req),
-        data.itemIds,
-        req.organizer!.accountId
-      );
-      return res.status(200).json(order);
-    } catch (err) {
-      return handleError(err, res);
-    }
+  validateBodyRoute(cancelOrderItemsSchema, async (req, res, data) => {
+    const order = await cancelOrderItemsForOrganizer(
+      eventId(req),
+      orderId(req),
+      data.itemIds,
+      accountId(req)
+    );
+    res.status(200).json(order);
   })
 );
 
@@ -137,25 +173,17 @@ eventControlCenterRouter.post(
 eventControlCenterRouter.get(
   "/orders",
   authOrganizer,
-  async (req: Request, res: Response) => {
-    try {
-      const query = liveOrdersQuerySchema.safeParse(req.query);
-      if (!query.success) {
-        return res
-          .status(400)
-          .json({ error: "Validation failed", details: query.error.issues });
-      }
+  route(async (req, res) => {
+    const query = parseQuery(liveOrdersQuerySchema, req, res);
+    if (!query) return;
 
-      const orders = await listLiveOrdersForEventControlCenter(
-        eventId(req),
-        req.organizer!.accountId,
-        query.data
-      );
-      return res.status(200).json(orders);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+    const orders = await listLiveOrdersForEventControlCenter(
+      eventId(req),
+      accountId(req),
+      query
+    );
+    res.status(200).json(orders);
+  })
 );
 
 // POST /events/:eventId/event-control-center/stands/:standId/products/:productId/pause
@@ -163,19 +191,15 @@ eventControlCenterRouter.get(
 eventControlCenterRouter.post(
   "/stands/:standId/products/:productId/pause",
   authOrganizer,
-  async (req: Request, res: Response) => {
-    try {
-      const product = await pauseProductForEventControlCenter(
-        eventId(req),
-        standId(req),
-        productId(req),
-        req.organizer!.accountId
-      );
-      return res.status(200).json(product);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  route(async (req, res) => {
+    const product = await pauseProductForEventControlCenter(
+      eventId(req),
+      standId(req),
+      productId(req),
+      accountId(req)
+    );
+    res.status(200).json(product);
+  })
 );
 
 // POST /events/:eventId/event-control-center/stands/:standId/products/:productId/resume
@@ -183,17 +207,13 @@ eventControlCenterRouter.post(
 eventControlCenterRouter.post(
   "/stands/:standId/products/:productId/resume",
   authOrganizer,
-  async (req: Request, res: Response) => {
-    try {
-      const product = await resumeProductForEventControlCenter(
-        eventId(req),
-        standId(req),
-        productId(req),
-        req.organizer!.accountId
-      );
-      return res.status(200).json(product);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
+  route(async (req, res) => {
+    const product = await resumeProductForEventControlCenter(
+      eventId(req),
+      standId(req),
+      productId(req),
+      accountId(req)
+    );
+    res.status(200).json(product);
+  })
 );
