@@ -7,14 +7,37 @@ import { paths } from '../../paths';
 export default function OrganizerLayout() {
   const { logout } = useOrganizerAuth();
   const { pathname } = useLocation();
-  const isEventControlCenterRoute = /^\/organizer\/events\/[^/]+\/event-control-center\/?$/.test(
-    pathname,
+  const eventControlCenterMatch = pathname.match(
+    /^\/organizer\/events\/([^/]+)\/event-control-center(?:\/(analytics|management))?\/?$/,
   );
+  const eventControlCenterEventId = eventControlCenterMatch?.[1];
+  const eventControlCenterSection = eventControlCenterMatch?.[2] ?? 'analytics';
+  const isEventControlCenterRoute = Boolean(eventControlCenterMatch);
+  const eventControlCenterLinks = eventControlCenterEventId
+    ? [
+        {
+          label: 'Analytics',
+          to: paths.organizer.eventControlCenterAnalytics(eventControlCenterEventId),
+        },
+        {
+          label: 'Management',
+          to: paths.organizer.eventControlCenterManagement(eventControlCenterEventId),
+        },
+      ]
+    : [];
+  const activeEventControlCenterLinkTo =
+    eventControlCenterEventId && eventControlCenterSection === 'management'
+      ? paths.organizer.eventControlCenterManagement(eventControlCenterEventId)
+      : eventControlCenterEventId
+        ? paths.organizer.eventControlCenterAnalytics(eventControlCenterEventId)
+        : undefined;
 
   return (
     <OrganizerRequireAuth>
       <div className="min-h-screen bg-background">
         <OrganizerNavbar
+          activeCenterLinkTo={activeEventControlCenterLinkTo}
+          centerLinks={eventControlCenterLinks}
           right={<AccountMenu isAuthenticated={true} onSignOut={() => logout(paths.home)} />}
           widthClassName={
             isEventControlCenterRoute

@@ -323,7 +323,7 @@ export default function EventConfiguration() {
                 className={[buttonVariants({ variant: 'secondary', size: 'lg' }), 'w-full'].join(
                   ' ',
                 )}
-                to={paths.organizer.eventControlCenter(event._id)}
+                to={paths.organizer.eventControlCenterAnalytics(event._id)}
               >
                 Event Control Center
               </Link>

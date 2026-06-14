@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useLoaderData, useRouteError } from 'react-router';
+import { Navigate, useLoaderData, useParams, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
 import { WarningTriangleIcon } from '@/components/icons';
@@ -8,14 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Toggle } from '@/components/ui/toggle';
 import { paths } from '@/paths';
+import type {
+  EventControlCenterData,
+  RevenuePoint,
+  StandQueueMetric,
+  StandRevenueSeries,
+} from '@/api/eventControlCenter';
 import type { Product } from '@/types/product';
 import { formatMoney } from '@/types/product';
 import type { Stand } from '@/types/stand';
 import type { EventControlCenterLoaderData } from './data';
-
-type DashboardTab = 'metrics' | 'management';
-
-const BACKEND_PENDING = 'Backend endpoint pending';
 
 export function EventControlCenterError() {
   const error = useRouteError();
@@ -32,14 +34,20 @@ export function EventControlCenterError() {
 }
 
 export default function EventControlCenter() {
-  const { event, stands, productsByStand } = useLoaderData() as EventControlCenterLoaderData;
-  const [activeTab, setActiveTab] = useState<DashboardTab>('metrics');
+  const { analytics, event, stands, productsByStand } =
+    useLoaderData() as EventControlCenterLoaderData;
+  const { section } = useParams();
   const [selectedStandId, setSelectedStandId] = useState<string>(() => stands[0]?._id ?? 'all');
+  const activeSection = section === 'management' ? 'management' : 'analytics';
 
   const selectedStand =
     selectedStandId === 'all'
       ? null
       : (stands.find((stand) => stand._id === selectedStandId) ?? null);
+
+  if (section !== undefined && section !== 'analytics' && section !== 'management') {
+    return <Navigate replace to={paths.organizer.eventControlCenterAnalytics(event._id)} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -47,26 +55,20 @@ export default function EventControlCenter() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <CardTitle className="text-2xl font-bold">
-                  {event.name || 'Untitled Event'}
-                </CardTitle>
-                <EventStatusBadge status={event.status} />
-              </div>
-              <p className="mt-2 text-sm text-text-muted">
-                Event Control Center for live metrics and operational controls.
-              </p>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <CardTitle className="text-2xl font-bold">{event.name || 'Untitled Event'}</CardTitle>
+              <EventStatusBadge status={event.status} />
             </div>
-
-            <TabNavigation activeTab={activeTab} onChange={setActiveTab} />
+            <p className="mt-2 text-sm text-text-muted">
+              Event Control Center for live metrics and operational controls.
+            </p>
           </div>
         </CardHeader>
       </Card>
 
-      {activeTab === 'metrics' ? (
-        <MetricsTab stands={stands} />
+      {activeSection === 'analytics' ? (
+        <MetricsTab analytics={analytics} stands={stands} />
       ) : (
         <ManagementTab
           productsByStand={productsByStand}
@@ -102,49 +104,28 @@ function EventStatusBadge({ status }: { status: EventControlCenterLoaderData['ev
   );
 }
 
-function TabNavigation({
-  activeTab,
-  onChange,
-}: {
-  activeTab: DashboardTab;
-  onChange: (tab: DashboardTab) => void;
-}) {
-  const tabs: { id: DashboardTab; label: string }[] = [
-    { id: 'metrics', label: 'Analytics' },
-    { id: 'management', label: 'Management' },
-  ];
-
-  return (
-    <div className="inline-flex w-full rounded-lg border border-border bg-surface p-1 shadow-sm sm:w-auto">
-      {tabs.map((tab) => {
-        const isActive = activeTab === tab.id;
-        return (
-          <button
-            className={[
-              'h-9 flex-1 rounded-md px-4 text-sm font-semibold transition-colors sm:flex-none',
-              isActive
-                ? 'bg-accent text-[var(--color-button-text)]'
-                : 'text-text-muted hover:bg-surface-muted hover:text-text',
-            ].join(' ')}
-            key={tab.id}
-            onClick={() => onChange(tab.id)}
-            type="button"
-          >
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
+function MetricsTab({ analytics, stands }: { analytics: EventControlCenterData; stands: Stand[] }) {
+  const standNameById = useMemo(
+    () => new Map(stands.map((stand) => [stand._id, stand.standName])),
+    [stands],
   );
-}
+  const queueByStandId = useMemo(
+    () => new Map(analytics.standQueues.map((queue) => [queue.standId, queue])),
+    [analytics.standQueues],
+  );
+  const maxBottleneckName = analytics.maxBottleneckStandId
+    ? (standNameById.get(analytics.maxBottleneckStandId) ?? 'Unknown stand')
+    : 'None';
 
-function MetricsTab({ stands }: { stands: Stand[] }) {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
-        <MetricCard label="Total Revenue" value="--" />
-        <MetricCard label="Active Guests" value="--" />
-        <MetricCard label="Max Queue Bottleneck" value={BACKEND_PENDING} compact />
+        <MetricCard
+          label="Total Revenue"
+          value={`EUR ${formatMoney(analytics.totalRevenueCents)}`}
+        />
+        <MetricCard label="Active Guests" value={analytics.activeGuests.toString()} />
+        <MetricCard label="Max Queue Bottleneck" value={maxBottleneckName} compact />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.7fr)]">
@@ -153,10 +134,7 @@ function MetricsTab({ stands }: { stands: Stand[] }) {
             <CardTitle>Event-Wide Revenue</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartPendingState
-              title="Waiting for GET /events/:eventId/event-control-center"
-              message="The chart will render cumulative event revenue over elapsed event time once the backend returns revenue points."
-            />
+            <RevenueChart points={analytics.eventRevenue} />
           </CardContent>
         </Card>
 
@@ -168,23 +146,17 @@ function MetricsTab({ stands }: { stands: Stand[] }) {
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
               {stands.length > 0 ? (
                 stands.map((stand) => (
-                  <label
-                    className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-muted"
+                  <StandRevenueSummary
                     key={stand._id}
-                  >
-                    <input checked disabled readOnly type="checkbox" />
-                    <span className="min-w-0 truncate">{stand.standName}</span>
-                  </label>
+                    series={analytics.standRevenue.find((series) => series.standId === stand._id)}
+                    stand={stand}
+                  />
                 ))
               ) : (
                 <p className="text-sm text-text-muted">No stands configured for this event.</p>
               )}
             </div>
-            <ChartPendingState
-              title="Stand comparison pending"
-              message="Stand-specific revenue series will be shown here after event control center data exists."
-              short
-            />
+            <StandRevenueList series={analytics.standRevenue} standNameById={standNameById} />
           </CardContent>
         </Card>
       </div>
@@ -197,7 +169,11 @@ function MetricsTab({ stands }: { stands: Stand[] }) {
           {stands.length > 0 ? (
             <div className="grid gap-3 lg:grid-cols-2">
               {stands.map((stand) => (
-                <StandPerformanceRow key={stand._id} stand={stand} />
+                <StandPerformanceRow
+                  key={stand._id}
+                  queue={queueByStandId.get(stand._id)}
+                  stand={stand}
+                />
               ))}
             </div>
           ) : (
@@ -214,11 +190,7 @@ function MetricsTab({ stands }: { stands: Stand[] }) {
           <CardTitle>Intelligent Alerts</CardTitle>
         </CardHeader>
         <CardContent>
-          <EmptyState
-            icon
-            title="Alert engine waiting for queue metrics"
-            message="Average wait thresholds, flashing stand warnings, and critical queue alerts require GET /events/:eventId/event-control-center."
-          />
+          <AlertsSummary standNameById={standNameById} standQueues={analytics.standQueues} />
         </CardContent>
       </Card>
     </div>
@@ -243,70 +215,177 @@ function MetricCard({
         >
           {value}
         </p>
-        <p className="text-xs text-text-muted">Requires event control center backend</p>
+        <p className="text-xs text-text-muted">Live control center snapshot</p>
       </CardContent>
     </Card>
   );
 }
 
-function ChartPendingState({
-  title,
-  message,
-  short = false,
-}: {
-  title: string;
-  message: string;
-  short?: boolean;
-}) {
+function RevenueChart({ points }: { points: RevenuePoint[] }) {
+  if (points.length === 0) {
+    return (
+      <EmptyState
+        title="No revenue yet"
+        message="Paid, non-cancelled order items will appear here as cumulative event revenue."
+      />
+    );
+  }
+
+  const maxMinutes = Math.max(...points.map((point) => point.elapsedMinutes), 1);
+  const maxRevenue = Math.max(...points.map((point) => point.revenueCents), 1);
+  const path = points
+    .map((point, index) => {
+      const x = 12 + (point.elapsedMinutes / maxMinutes) * 296;
+      const y = 108 - (point.revenueCents / maxRevenue) * 92;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
+  const latestPoint = points[points.length - 1]!;
+
   return (
-    <div
-      className={[
-        'flex flex-col justify-between rounded-lg border border-dashed border-border bg-background p-4',
-        short ? 'min-h-44' : 'min-h-72',
-      ].join(' ')}
-    >
+    <div className="flex min-h-72 flex-col justify-between rounded-lg border border-border bg-background p-4">
       <div>
-        <p className="text-sm font-semibold text-text">{title}</p>
-        <p className="mt-1 max-w-xl text-sm text-text-muted">{message}</p>
+        <p className="text-sm font-semibold text-text">
+          EUR {formatMoney(latestPoint.revenueCents)}
+        </p>
+        <p className="mt-1 max-w-xl text-sm text-text-muted">
+          Cumulative paid revenue after {latestPoint.elapsedMinutes} minutes.
+        </p>
       </div>
       <svg
         aria-hidden="true"
-        className="mt-6 h-28 w-full text-border"
+        className="mt-6 h-36 w-full"
         preserveAspectRatio="none"
         viewBox="0 0 320 120"
       >
-        <path d="M12 12v96h296" fill="none" stroke="currentColor" strokeWidth="2" />
-        <path
-          d="M24 92 C72 72 84 84 124 56 S198 60 236 32 282 36 300 20"
-          fill="none"
-          stroke="currentColor"
-          strokeDasharray="6 6"
-          strokeWidth="3"
-        />
+        <path d="M12 12v96h296" fill="none" stroke="var(--color-border)" strokeWidth="2" />
+        <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth="3" />
       </svg>
     </div>
   );
 }
 
-function StandPerformanceRow({ stand }: { stand: Stand }) {
+function StandRevenueSummary({ stand, series }: { stand: Stand; series?: StandRevenueSeries }) {
+  const totalRevenueCents = series?.points.at(-1)?.revenueCents ?? 0;
+
+  return (
+    <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate font-medium text-text">{stand.standName}</span>
+        <span className="shrink-0 text-text-muted">EUR {formatMoney(totalRevenueCents)}</span>
+      </div>
+    </div>
+  );
+}
+
+function StandRevenueList({
+  series,
+  standNameById,
+}: {
+  series: StandRevenueSeries[];
+  standNameById: Map<string, string>;
+}) {
+  const rankedSeries = [...series]
+    .map((entry) => ({
+      ...entry,
+      totalRevenueCents: entry.points.at(-1)?.revenueCents ?? 0,
+    }))
+    .sort((left, right) => right.totalRevenueCents - left.totalRevenueCents)
+    .filter((entry) => entry.totalRevenueCents > 0);
+
+  if (rankedSeries.length === 0) {
+    return (
+      <EmptyState
+        title="No stand revenue yet"
+        message="Paid order items are grouped by the product's stand at purchase time."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-background p-3">
+      {rankedSeries.map((entry) => (
+        <div className="flex items-center justify-between gap-3 text-sm" key={entry.standId}>
+          <span className="min-w-0 truncate text-text-muted">
+            {standNameById.get(entry.standId) ?? 'Unknown stand'}
+          </span>
+          <span className="font-semibold text-text">
+            EUR {formatMoney(entry.totalRevenueCents)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StandPerformanceRow({ stand, queue }: { stand: Stand; queue?: StandQueueMetric }) {
+  const queueLength = queue?.queueLength ?? 0;
+  const averageWaitMinutes = queue?.averageWaitMinutes ?? 0;
+  const waitWidth = `${Math.min(100, averageWaitMinutes * 5)}%`;
+
   return (
     <div className="rounded-lg border border-border bg-background p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate font-semibold text-text">{stand.standName}</h3>
-          <p className="mt-1 text-xs text-text-muted">{BACKEND_PENDING}</p>
+          <p className="mt-1 text-xs text-text-muted">{queueLength} open paid item(s)</p>
         </div>
-        <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text-muted">
-          Wait --
+        <span
+          className={[
+            'rounded-full border px-2.5 py-1 text-xs font-semibold',
+            queue?.alert
+              ? 'border-danger/30 bg-danger/10 text-danger'
+              : 'border-border bg-surface text-text-muted',
+          ].join(' ')}
+        >
+          Wait {averageWaitMinutes}m
         </span>
       </div>
       <div className="mt-4 h-3 overflow-hidden rounded-full bg-surface-muted">
-        <div className="h-full w-0 bg-success" />
+        <div
+          className={['h-full', queue?.alert ? 'bg-danger' : 'bg-success'].join(' ')}
+          style={{ width: waitWidth }}
+        />
       </div>
       <div className="mt-3 flex items-center gap-2 text-xs text-text-muted">
         <WarningTriangleIcon className="h-4 w-4" />
-        Queue length and alert state require event control center data.
+        {queue?.alert ? 'Alert threshold reached.' : 'No active queue alert.'}
       </div>
+    </div>
+  );
+}
+
+function AlertsSummary({
+  standNameById,
+  standQueues,
+}: {
+  standNameById: Map<string, string>;
+  standQueues: StandQueueMetric[];
+}) {
+  const alertQueues = standQueues.filter((queue) => queue.alert);
+
+  if (alertQueues.length === 0) {
+    return (
+      <EmptyState
+        icon
+        title="No critical queues"
+        message="Average wait and queue length are below the configured alert thresholds."
+      />
+    );
+  }
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-2">
+      {alertQueues.map((queue) => (
+        <div className="rounded-lg border border-danger/30 bg-danger/5 p-4" key={queue.standId}>
+          <p className="font-semibold text-text">
+            {standNameById.get(queue.standId) ?? 'Unknown stand'}
+          </p>
+          <p className="mt-1 text-sm text-text-muted">
+            {queue.queueLength} open paid item(s), {queue.averageWaitMinutes}m average wait.
+          </p>
+        </div>
+      ))}
     </div>
   );
 }

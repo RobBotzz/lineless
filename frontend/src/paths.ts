@@ -12,6 +12,10 @@ export const paths = {
     settings: '/organizer/settings',
     event: (eventId: string) => `/organizer/events/${eventId}`,
     eventControlCenter: (eventId: string) => `/organizer/events/${eventId}/event-control-center`,
+    eventControlCenterAnalytics: (eventId: string) =>
+      `/organizer/events/${eventId}/event-control-center/analytics`,
+    eventControlCenterManagement: (eventId: string) =>
+      `/organizer/events/${eventId}/event-control-center/management`,
   },
   attendee: {
     event: (eventId: string) => `/event/${eventId}`,

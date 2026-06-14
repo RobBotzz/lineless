@@ -67,10 +67,6 @@ export type CancelOrderInput =
     };
 
 export function getEventControlCenter(eventId: string): Promise<EventControlCenterData> {
-  // TODO frontend: render GET /events/:eventId/event-control-center data.
-  // It must return total revenue, active guests, max bottleneck stand,
-  // event revenue timeline, stand revenue timelines, queue lengths,
-  // average wait times, and alert states for organizer-owned events.
   return apiFetch<EventControlCenterData>(`/events/${eventId}/event-control-center`, {
     auth: 'organizer',
   });
