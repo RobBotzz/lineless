@@ -9,6 +9,9 @@ import { Stand } from "../stands/model";
 import type {
   EventControlCenterData,
   EventControlCenterQuery,
+  LiveOrder,
+  LiveOrderItem,
+  LiveOrdersQuery,
   RevenuePoint,
   StandQueueMetric,
   StandRevenueSeries,
@@ -46,6 +49,18 @@ function paidAtDate(order: OrderDoc): Date | null {
 
 function orderCreatedAtDate(order: OrderDoc): Date {
   return new Date(order.createdAt);
+}
+
+function itemStatus(item: OrderItemDoc): LiveOrderItem["status"] {
+  if (item.readyAt) return "READY";
+  if (item.startedAt) return "PREPARING";
+  return "IN_LINE";
+}
+
+function orderStatus(items: LiveOrderItem[]): LiveOrder["status"] {
+  if (items.every((item) => item.status === "READY")) return "READY";
+  if (items.some((item) => item.status === "PREPARING")) return "PREPARING";
+  return "IN_LINE";
 }
 
 export async function getEventControlCenter(
@@ -192,13 +207,93 @@ export async function getEventControlCenter(
   };
 }
 
-export async function verifyStandPausePreconditions(
+export async function listLiveOrdersForEventControlCenter(
   eventId: string,
-  standId: string,
-  accountId: string
-): Promise<void> {
+  accountId: string,
+  options: LiveOrdersQuery
+): Promise<LiveOrder[]> {
   await verifyEventOwnership(eventId, accountId);
 
-  const stand = await Stand.findOne({ _id: standId, eventId, deletedAt: null });
-  if (!stand) throw new StandNotFoundError();
+  const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
+  if (!event) throw new EventNotFoundError();
+
+  const stands = await Stand.find({ eventId, deletedAt: null })
+    .select("_id")
+    .lean();
+  const standIds = stands.map((stand) => stand._id);
+  const standIdSet = new Set(standIds);
+
+  if (options.standId && !standIdSet.has(options.standId)) {
+    throw new StandNotFoundError();
+  }
+
+  const products = await Product.find({
+    standId: { $in: standIds },
+    deletedAt: null,
+  })
+    .select("_id standId productName")
+    .lean();
+  const productById = new Map(
+    products.map((product) => [product._id, product])
+  );
+
+  const orders = await Order.find({ eventId, paidAt: { $ne: null } })
+    .sort({ createdAt: 1 })
+    .lean();
+
+  return orders
+    .map((order): LiveOrder | null => {
+      const liveItems = order.items
+        .filter((item) => isOpenItem(item))
+        .map((item): (LiveOrderItem & { standId: string }) | null => {
+          const product = productById.get(item.productId);
+          if (!product) return null;
+          if (options.standId && product.standId !== options.standId) {
+            return null;
+          }
+
+          return {
+            itemId: item._id,
+            productId: item.productId,
+            productName: product.productName,
+            status: itemStatus(item),
+            customerComment: item.customerComment,
+            unitPriceIncludingTax: item.priceIncludingTaxAtPurchase,
+            standId: product.standId,
+          };
+        })
+        .filter((item): item is LiveOrderItem & { standId: string } =>
+          Boolean(item)
+        );
+
+      if (liveItems.length === 0) return null;
+
+      const orderStandIds = [...new Set(liveItems.map((item) => item.standId))];
+      const items = liveItems.map((item) => ({
+        itemId: item.itemId,
+        productId: item.productId,
+        productName: item.productName,
+        status: item.status,
+        customerComment: item.customerComment,
+        unitPriceIncludingTax: item.unitPriceIncludingTax,
+      }));
+
+      return {
+        _id: order._id,
+        eventId: order.eventId,
+        orderNumber: order.orderNumber,
+        pickupCode: order.pickupCode,
+        customerEmail: order.customerEmail,
+        status: orderStatus(items),
+        standIds: orderStandIds,
+        createdAt: order.createdAt,
+        paidAt: order.paidAt,
+        items,
+        totalPriceIncludingTax: items.reduce(
+          (total, item) => total + item.unitPriceIncludingTax,
+          0
+        ),
+      };
+    })
+    .filter((order): order is LiveOrder => Boolean(order));
 }

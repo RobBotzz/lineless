@@ -119,6 +119,12 @@ function assertProductCanPause(product: ProductDoc): void {
   }
 }
 
+function assertProductCanResume(product: ProductDoc): void {
+  if (product.productStatus === "TERMINATED") {
+    throw new ProductStateError("Terminated products cannot be resumed");
+  }
+}
+
 export async function pauseProduct(
   productId: string,
   auth:
@@ -163,6 +169,31 @@ export async function pauseProductForEventControlCenter(
   product.productStatus = "PAUSED";
   await product.save();
   // TODO SSE: publish product/stand availability after shared SSE infrastructure exists.
+  return product;
+}
+
+export async function resumeProductForEventControlCenter(
+  eventId: string,
+  standId: string,
+  productId: string,
+  accountId: string
+): Promise<ProductDoc> {
+  await verifyEventOwnership(eventId, accountId);
+
+  const stand = await Stand.findOne({ _id: standId, eventId, deletedAt: null });
+  if (!stand) throw new StandNotFoundError();
+
+  const product = await Product.findOne({
+    _id: productId,
+    standId,
+    deletedAt: null,
+  });
+  if (!product) throw new ProductNotFoundError();
+
+  assertProductCanResume(product);
+  product.productStatus = "LIVE";
+  await product.save();
+  // TODO SSE: publish product availability after shared SSE infrastructure exists.
   return product;
 }
 

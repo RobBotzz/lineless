@@ -7,6 +7,10 @@ export const eventControlCenterQuerySchema = z.object({
   averageWaitAlertThresholdMinutes: alertThreshold.default(15),
 });
 
+export const liveOrdersQuerySchema = z.object({
+  standId: z.uuid().optional(),
+});
+
 export const cancelOrderItemsSchema = z.object({
   itemIds: z.array(z.uuid()).min(1),
 });
@@ -14,7 +18,7 @@ export const cancelOrderItemsSchema = z.object({
 export type EventControlCenterQuery = z.infer<
   typeof eventControlCenterQuerySchema
 >;
-export type CancelOrderItemsInput = z.infer<typeof cancelOrderItemsSchema>;
+export type LiveOrdersQuery = z.infer<typeof liveOrdersQuerySchema>;
 
 export interface RevenuePoint {
   elapsedMinutes: number;
@@ -40,4 +44,29 @@ export interface EventControlCenterData {
   eventRevenue: RevenuePoint[];
   standRevenue: StandRevenueSeries[];
   standQueues: StandQueueMetric[];
+}
+
+export type LiveOrderStatus = "IN_LINE" | "PREPARING" | "READY";
+
+export interface LiveOrderItem {
+  itemId: string;
+  productId: string;
+  productName: string;
+  status: LiveOrderStatus;
+  customerComment: string | null;
+  unitPriceIncludingTax: number;
+}
+
+export interface LiveOrder {
+  _id: string;
+  eventId: string;
+  orderNumber: string;
+  pickupCode: string;
+  customerEmail: string | null;
+  status: LiveOrderStatus;
+  standIds: string[];
+  createdAt: Date;
+  paidAt: Date | null;
+  items: LiveOrderItem[];
+  totalPriceIncludingTax: number;
 }
