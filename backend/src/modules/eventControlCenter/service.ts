@@ -123,7 +123,7 @@ export async function getEventControlCenter(
         );
       }
 
-      if (isOpenItem(item)) {
+      if (paidAt && isOpenItem(item)) {
         const stats = queueStatsByStand.get(standId);
         if (!stats) continue;
         stats.queueLength += 1;
