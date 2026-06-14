@@ -1,19 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLoaderData, useParams, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
+import {
+  cancelOrder,
+  getEventControlCenter,
+  getEventOrders,
+  pauseProduct,
+  resumeProduct,
+  type EventControlCenterData,
+  type LiveOrder,
+  type RevenuePoint,
+  type StandQueueMetric,
+  type StandRevenueSeries,
+} from '@/api/eventControlCenter';
 import { LockIcon, UnlockIcon, WarningTriangleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Toggle } from '@/components/ui/toggle';
 import { paths } from '@/paths';
-import type {
-  EventControlCenterData,
-  RevenuePoint,
-  StandQueueMetric,
-  StandRevenueSeries,
-} from '@/api/eventControlCenter';
 import type { Product } from '@/types/product';
 import { formatMoney } from '@/types/product';
 import type { Stand } from '@/types/stand';
@@ -34,8 +40,17 @@ export function EventControlCenterError() {
 }
 
 export default function EventControlCenter() {
-  const { analytics, event, stands, productsByStand } =
-    useLoaderData() as EventControlCenterLoaderData;
+  const {
+    analytics: initialAnalytics,
+    event,
+    liveOrders: initialLiveOrders,
+    productsByStand: initialProductsByStand,
+    stands,
+  } = useLoaderData() as EventControlCenterLoaderData;
+  const [analytics, setAnalytics] = useState(initialAnalytics);
+  const [liveOrders, setLiveOrders] = useState(initialLiveOrders);
+  const [productsByStand, setProductsByStand] = useState(initialProductsByStand);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(() => new Date());
   const { section } = useParams();
   const [selectedStandId, setSelectedStandId] = useState<string>(() => stands[0]?._id ?? 'all');
   const activeSection = section === 'management' ? 'management' : 'analytics';
@@ -45,7 +60,67 @@ export default function EventControlCenter() {
       ? null
       : (stands.find((stand) => stand._id === selectedStandId) ?? null);
 
-  if (section !== undefined && section !== 'analytics' && section !== 'management') {
+  const hasInvalidSection =
+    section !== undefined && section !== 'analytics' && section !== 'management';
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshControlCenter() {
+      const [nextAnalytics, nextLiveOrders] = await Promise.all([
+        getEventControlCenter(event._id),
+        getEventOrders(event._id),
+      ]);
+      if (cancelled) return;
+      setAnalytics(nextAnalytics);
+      setLiveOrders(nextLiveOrders);
+      setLastUpdatedAt(new Date());
+    }
+
+    // TODO SSE: replace polling with the shared event-control-center SSE stream.
+    const interval = window.setInterval(() => {
+      void refreshControlCenter().catch(() => {});
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [event._id]);
+
+  async function refreshSnapshot() {
+    const [nextAnalytics, nextLiveOrders] = await Promise.all([
+      getEventControlCenter(event._id),
+      getEventOrders(event._id),
+    ]);
+    setAnalytics(nextAnalytics);
+    setLiveOrders(nextLiveOrders);
+    setLastUpdatedAt(new Date());
+  }
+
+  async function handleCancelOrder(orderId: string) {
+    await cancelOrder(event._id, orderId);
+    await refreshSnapshot();
+  }
+
+  async function handleProductPauseChange(standId: string, product: Product, paused: boolean) {
+    if (paused) {
+      await pauseProduct(event._id, standId, product._id);
+    } else {
+      await resumeProduct(event._id, standId, product._id);
+    }
+
+    setProductsByStand((current) => ({
+      ...current,
+      [standId]: (current[standId] ?? []).map((candidate) =>
+        candidate._id === product._id
+          ? { ...candidate, productStatus: paused ? 'PAUSED' : 'LIVE' }
+          : candidate,
+      ),
+    }));
+  }
+
+  if (hasInvalidSection) {
     return <Navigate replace to={paths.organizer.eventControlCenterAnalytics(event._id)} />;
   }
 
@@ -55,14 +130,23 @@ export default function EventControlCenter() {
 
       <Card>
         <CardHeader>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
-              <CardTitle className="text-2xl font-bold">{event.name || 'Untitled Event'}</CardTitle>
-              <EventStatusBadge status={event.status} />
+          <div className="flex items-start justify-between gap-6">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <CardTitle className="text-2xl font-bold">
+                  {event.name || 'Untitled Event'}
+                </CardTitle>
+                <EventStatusBadge status={event.status} />
+              </div>
+              <p className="mt-2 text-sm text-text-muted">
+                Event Control Center for live metrics and operational controls.
+              </p>
             </div>
-            <p className="mt-2 text-sm text-text-muted">
-              Event Control Center for live metrics and operational controls.
-            </p>
+            <ControlCenterSnapshot
+              analytics={analytics}
+              lastUpdatedAt={lastUpdatedAt}
+              stands={stands}
+            />
           </div>
         </CardHeader>
       </Card>
@@ -71,10 +155,13 @@ export default function EventControlCenter() {
         <MetricsTab analytics={analytics} stands={stands} />
       ) : (
         <ManagementTab
+          liveOrders={liveOrders}
           productsByStand={productsByStand}
           selectedStand={selectedStand}
           selectedStandId={selectedStandId}
           stands={stands}
+          onCancelOrder={handleCancelOrder}
+          onProductPauseChange={handleProductPauseChange}
           onSelectStand={setSelectedStandId}
         />
       )}
@@ -101,6 +188,52 @@ function EventStatusBadge({ status }: { status: EventControlCenterLoaderData['ev
     >
       {label}
     </span>
+  );
+}
+
+function ControlCenterSnapshot({
+  analytics,
+  lastUpdatedAt,
+  stands,
+}: {
+  analytics: EventControlCenterData;
+  lastUpdatedAt: Date;
+  stands: Stand[];
+}) {
+  const alertCount = analytics.standQueues.filter((queue) => queue.alert).length;
+
+  return (
+    <div className="grid min-w-[28rem] grid-cols-4 gap-2 rounded-lg border border-border bg-background p-2 text-xs">
+      <SnapshotItem
+        label="Updated"
+        value={lastUpdatedAt.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}
+      />
+      <SnapshotItem label="Guests" value={analytics.activeGuests.toString()} />
+      <SnapshotItem label="Stands" value={stands.length.toString()} />
+      <SnapshotItem label="Alerts" value={alertCount.toString()} alert={alertCount > 0} />
+    </div>
+  );
+}
+
+function SnapshotItem({
+  alert = false,
+  label,
+  value,
+}: {
+  alert?: boolean;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-md bg-surface px-3 py-2">
+      <p className="font-medium text-text-muted">{label}</p>
+      <p className={['mt-1 text-sm font-semibold', alert ? 'text-danger' : 'text-text'].join(' ')}>
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -391,22 +524,35 @@ function AlertsSummary({
 }
 
 function ManagementTab({
-  stands,
-  productsByStand,
+  liveOrders,
+  onCancelOrder,
+  onProductPauseChange,
+  onSelectStand,
   selectedStandId,
   selectedStand,
-  onSelectStand,
+  productsByStand,
+  stands,
 }: {
+  liveOrders: LiveOrder[];
+  onCancelOrder: (orderId: string) => Promise<void>;
+  onProductPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
+  onSelectStand: (standId: string) => void;
   stands: Stand[];
   productsByStand: Record<string, Product[]>;
   selectedStandId: string;
   selectedStand: Stand | null;
-  onSelectStand: (standId: string) => void;
 }) {
   const visibleStands = useMemo(
     () =>
       selectedStandId === 'all' ? stands : stands.filter((stand) => stand._id === selectedStandId),
     [selectedStandId, stands],
+  );
+  const visibleOrders = useMemo(
+    () =>
+      selectedStandId === 'all'
+        ? liveOrders
+        : liveOrders.filter((order) => order.standIds.includes(selectedStandId)),
+    [liveOrders, selectedStandId],
   );
 
   return (
@@ -455,7 +601,7 @@ function ManagementTab({
             <CardTitle>Live Orders {selectedStand ? `- ${selectedStand.standName}` : ''}</CardTitle>
           </CardHeader>
           <CardContent>
-            <OrdersPendingTable />
+            <LiveOrdersTable orders={visibleOrders} onCancelOrder={onCancelOrder} />
           </CardContent>
         </Card>
 
@@ -469,6 +615,7 @@ function ManagementTab({
                 {visibleStands.map((stand) => (
                   <StandPausePanel
                     key={stand._id}
+                    onProductPauseChange={onProductPauseChange}
                     products={productsByStand[stand._id] ?? []}
                     stand={stand}
                   />
@@ -512,29 +659,108 @@ function StandFilterButton({
   );
 }
 
-function OrdersPendingTable() {
+function LiveOrdersTable({
+  orders,
+  onCancelOrder,
+}: {
+  orders: LiveOrder[];
+  onCancelOrder: (orderId: string) => Promise<void>;
+}) {
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+
+  async function cancel(orderId: string) {
+    setCancellingOrderId(orderId);
+    try {
+      await onCancelOrder(orderId);
+    } finally {
+      setCancellingOrderId(null);
+    }
+  }
+
+  if (orders.length === 0) {
+    return (
+      <EmptyState title="No live orders" message="Paid orders with open items will appear here." />
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border border-border">
-      <div className="grid grid-cols-[1fr_7rem_8rem] bg-surface-muted px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">
+      <div className="grid grid-cols-[8rem_1fr_8rem_8rem] bg-surface-muted px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">
         <span>Order</span>
+        <span>Items</span>
         <span>Status</span>
         <span className="text-right">Action</span>
       </div>
-      <div className="px-4 py-10 text-center">
-        <p className="font-semibold text-text">No live orders loaded</p>
-        <p className="mx-auto mt-2 max-w-xl text-sm text-text-muted">
-          This table will call GET /events/:eventId/orders when the backend endpoint exists. The
-          cancellation workflow is disabled until orders can be returned by the API.
-        </p>
-        <Button className="mt-4" disabled variant="outline">
-          Cancellation endpoint pending
-        </Button>
+      <div className="divide-y divide-border">
+        {orders.map((order) => (
+          <div
+            className="grid grid-cols-[8rem_1fr_8rem_8rem] items-center gap-4 px-4 py-3"
+            key={order._id}
+          >
+            <div>
+              <p className="font-semibold text-text">#{order.orderNumber}</p>
+              <p className="text-xs text-text-muted">{order.pickupCode}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm text-text">
+                {order.items.map((item) => item.productName).join(', ')}
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                EUR {formatMoney(order.totalPriceIncludingTax)} ·{' '}
+                {new Date(order.createdAt).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
+            <OrderStatusBadge status={order.status} />
+            <div className="text-right">
+              <Button
+                disabled={cancellingOrderId === order._id}
+                onClick={() => void cancel(order._id)}
+                size="sm"
+                variant="outline"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function StandPausePanel({ stand, products }: { stand: Stand; products: Product[] }) {
+function OrderStatusBadge({ status }: { status: LiveOrder['status'] }) {
+  const label = status === 'READY' ? 'Ready' : status === 'PREPARING' ? 'Preparing' : 'In line';
+  const className =
+    status === 'READY'
+      ? 'border-success/30 bg-success/10 text-success'
+      : status === 'PREPARING'
+        ? 'border-accent/30 bg-accent-soft text-accent'
+        : 'border-border bg-surface text-text-muted';
+
+  return (
+    <span
+      className={[
+        'inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-semibold',
+        className,
+      ].join(' ')}
+    >
+      {label}
+    </span>
+  );
+}
+
+function StandPausePanel({
+  onProductPauseChange,
+  products,
+  stand,
+}: {
+  onProductPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
+  products: Product[];
+  stand: Stand;
+}) {
   return (
     <section className="rounded-lg border border-border bg-background">
       <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -549,7 +775,14 @@ function StandPausePanel({ stand, products }: { stand: Stand; products: Product[
 
       <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
         {products.length > 0 ? (
-          products.map((product) => <ProductPauseTile key={product._id} product={product} />)
+          products.map((product) => (
+            <ProductPauseTile
+              key={product._id}
+              product={product}
+              standId={stand._id}
+              onPauseChange={onProductPauseChange}
+            />
+          ))
         ) : (
           <p className="text-sm text-text-muted">No products configured for this stand.</p>
         )}
@@ -562,7 +795,7 @@ function StandAvailabilityControl({ standName }: { standName: string }) {
   return (
     <div className="flex flex-col gap-1.5 sm:items-end">
       <button
-        aria-label={`${standName} is open. Closing stands is not available yet.`}
+        aria-label={`${standName} is open and accepting orders.`}
         className="relative h-11 w-full cursor-not-allowed rounded-full border border-border bg-surface p-1 text-sm shadow-sm transition-colors sm:w-64"
         disabled
         type="button"
@@ -587,7 +820,27 @@ function StandAvailabilityControl({ standName }: { standName: string }) {
   );
 }
 
-function ProductPauseTile({ product }: { product: Product }) {
+function ProductPauseTile({
+  onPauseChange,
+  product,
+  standId,
+}: {
+  onPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
+  product: Product;
+  standId: string;
+}) {
+  const [isSaving, setIsSaving] = useState(false);
+  const isPaused = product.productStatus === 'PAUSED';
+
+  async function handleChange(paused: boolean) {
+    setIsSaving(true);
+    try {
+      await onPauseChange(standId, product, paused);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-3">
       <div className="min-w-0">
@@ -597,10 +850,10 @@ function ProductPauseTile({ product }: { product: Product }) {
         </p>
       </div>
       <Toggle
-        checked={product.productStatus === 'PAUSED'}
-        disabled
+        checked={isPaused}
+        disabled={isSaving || product.productStatus === 'TERMINATED'}
         label={`Pause ${product.productName}`}
-        onChange={() => {}}
+        onChange={(checked) => void handleChange(checked)}
       />
     </div>
   );

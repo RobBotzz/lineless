@@ -29,42 +29,27 @@ export type EventControlCenterData = {
 export type LiveOrderStatus = 'IN_LINE' | 'PREPARING' | 'READY';
 
 export type LiveOrderItem = {
+  itemId: string;
   productId: string;
   productName: string;
-  quantity: number;
+  status: LiveOrderStatus;
+  customerComment: string | null;
   unitPriceIncludingTax: number;
 };
 
 export type LiveOrder = {
   _id: string;
   eventId: string;
-  standId: string;
   orderNumber: string;
+  pickupCode: string;
+  customerEmail: string | null;
   status: LiveOrderStatus;
+  standIds: string[];
   createdAt: string;
+  paidAt: string | null;
   items: LiveOrderItem[];
   totalPriceIncludingTax: number;
 };
-
-export type CancellationReasonPreset =
-  | 'CUSTOMER_CHANGE_OF_MIND'
-  | 'PRODUCT_OUT_OF_STOCK'
-  | 'DUPLICATE_ORDER'
-  | 'OPERATOR_ERROR'
-  | 'OTHER';
-
-export type CancelOrderInput =
-  | {
-      mode: 'FULL';
-      reasonPreset: CancellationReasonPreset;
-      customReason?: string;
-    }
-  | {
-      mode: 'PARTIAL';
-      itemProductIds: string[];
-      reasonPreset: CancellationReasonPreset;
-      customReason?: string;
-    };
 
 export function getEventControlCenter(eventId: string): Promise<EventControlCenterData> {
   return apiFetch<EventControlCenterData>(`/events/${eventId}/event-control-center`, {
@@ -73,60 +58,35 @@ export function getEventControlCenter(eventId: string): Promise<EventControlCent
 }
 
 export function getEventOrders(eventId: string, standId?: string): Promise<LiveOrder[]> {
-  // TODO backend: implement GET /events/:eventId/orders?standId=...
-  // It must return active orders grouped/filterable by stand with status,
-  // created time, line items, quantities, and prices.
   const params = standId ? `?standId=${encodeURIComponent(standId)}` : '';
-  return apiFetch<LiveOrder[]>(`/events/${eventId}/orders${params}`, { auth: 'organizer' });
-}
-
-export function cancelOrder(orderId: string, payload: CancelOrderInput): Promise<LiveOrder> {
-  // TODO backend: implement POST /orders/:orderId/cancel.
-  // It must support full cancellation, partial item cancellation, preset
-  // reason, custom reason, and return the updated order state.
-  return apiFetch<LiveOrder>(`/orders/${orderId}/cancel`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
+  return apiFetch<LiveOrder[]>(`/events/${eventId}/event-control-center/orders${params}`, {
     auth: 'organizer',
   });
 }
 
-export function pauseStand(standId: string): Promise<void> {
-  // TODO backend: implement POST /stands/:standId/pause.
-  // It must block incoming attendee orders for the stand and expose the
-  // temporary closed state to attendee menus in real time.
-  return apiFetch<void>(`/stands/${standId}/pause`, {
+export function cancelOrder(eventId: string, orderId: string): Promise<unknown> {
+  return apiFetch<unknown>(`/events/${eventId}/event-control-center/orders/${orderId}/cancel`, {
     method: 'POST',
     auth: 'organizer',
   });
 }
 
-export function resumeStand(standId: string): Promise<void> {
-  // TODO backend: implement POST /stands/:standId/resume.
-  // It must reopen incoming attendee orders for the stand and clear the
-  // temporary closed state from attendee menus.
-  return apiFetch<void>(`/stands/${standId}/resume`, {
-    method: 'POST',
-    auth: 'organizer',
-  });
+export function pauseProduct(eventId: string, standId: string, productId: string): Promise<void> {
+  return apiFetch<void>(
+    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/pause`,
+    {
+      method: 'POST',
+      auth: 'organizer',
+    },
+  );
 }
 
-export function pauseProduct(productId: string): Promise<void> {
-  // TODO backend: complete POST /products/:productId/pause.
-  // The route exists but currently returns 501. It must transition products
-  // from LIVE to PAUSED and hide or disable them in attendee ordering.
-  return apiFetch<void>(`/products/${productId}/pause`, {
-    method: 'POST',
-    auth: 'organizer',
-  });
-}
-
-export function resumeProduct(productId: string): Promise<void> {
-  // TODO backend: implement POST /products/:productId/resume.
-  // It must transition PAUSED products back to LIVE and make them available
-  // in attendee ordering when the parent stand is open.
-  return apiFetch<void>(`/products/${productId}/resume`, {
-    method: 'POST',
-    auth: 'organizer',
-  });
+export function resumeProduct(eventId: string, standId: string, productId: string): Promise<void> {
+  return apiFetch<void>(
+    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/resume`,
+    {
+      method: 'POST',
+      auth: 'organizer',
+    },
+  );
 }

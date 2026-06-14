@@ -68,12 +68,6 @@ export const router = createBrowserRouter(
           errorElement={<SettingsError />}
         />
         <Route
-          path="events/:eventId/event-control-center"
-          element={<OrganizerEventControlCenter />}
-          loader={eventControlCenterLoader}
-          errorElement={<EventControlCenterError />}
-        />
-        <Route
           path="events/:eventId/event-control-center/:section"
           element={<OrganizerEventControlCenter />}
           loader={eventControlCenterLoader}

@@ -8,10 +8,10 @@ export default function OrganizerLayout() {
   const { logout } = useOrganizerAuth();
   const { pathname } = useLocation();
   const eventControlCenterMatch = pathname.match(
-    /^\/organizer\/events\/([^/]+)\/event-control-center(?:\/(analytics|management))?\/?$/,
+    /^\/organizer\/events\/([^/]+)\/event-control-center\/([^/]+)\/?$/,
   );
   const eventControlCenterEventId = eventControlCenterMatch?.[1];
-  const eventControlCenterSection = eventControlCenterMatch?.[2] ?? 'analytics';
+  const eventControlCenterSection = eventControlCenterMatch?.[2];
   const isEventControlCenterRoute = Boolean(eventControlCenterMatch);
   const eventControlCenterLinks = eventControlCenterEventId
     ? [
