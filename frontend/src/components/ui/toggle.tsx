@@ -15,10 +15,12 @@ export function Toggle({ checked, onChange, label, id, disabled }: ToggleProps) 
       aria-checked={checked}
       aria-label={typeof label === 'string' ? label : undefined}
       className={[
-        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors',
+        'relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border p-0.5 transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'bg-accent' : 'bg-surface-muted',
+        'disabled:cursor-not-allowed disabled:opacity-70',
+        checked
+          ? 'border-accent bg-accent shadow-sm'
+          : 'border-border bg-surface-muted hover:bg-accent-soft',
       ].join(' ')}
       disabled={disabled}
       id={id}
@@ -28,8 +30,8 @@ export function Toggle({ checked, onChange, label, id, disabled }: ToggleProps) 
     >
       <span
         className={[
-          'inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform',
-          checked ? 'translate-x-5' : 'translate-x-0.5',
+          'inline-block h-5 w-5 transform rounded-full border border-border/60 bg-surface shadow-sm transition-transform',
+          checked ? 'translate-x-5' : 'translate-x-0',
         ].join(' ')}
       />
     </button>

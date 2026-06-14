@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Navigate, useLoaderData, useParams, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { WarningTriangleIcon } from '@/components/icons';
+import { LockIcon, UnlockIcon, WarningTriangleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -544,10 +544,7 @@ function StandPausePanel({ stand, products }: { stand: Stand; products: Product[
             Station pause requires POST /stands/:standId/pause and /resume.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-text-muted">Temporarily Closed</span>
-          <Toggle checked={false} disabled label={`Pause ${stand.standName}`} onChange={() => {}} />
-        </div>
+        <StandAvailabilityControl standName={stand.standName} />
       </div>
 
       <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
@@ -558,6 +555,35 @@ function StandPausePanel({ stand, products }: { stand: Stand; products: Product[
         )}
       </div>
     </section>
+  );
+}
+
+function StandAvailabilityControl({ standName }: { standName: string }) {
+  return (
+    <div className="flex flex-col gap-1.5 sm:items-end">
+      <button
+        aria-label={`${standName} is open. Closing stands is not available yet.`}
+        className="relative h-11 w-full cursor-not-allowed rounded-full border border-border bg-surface p-1 text-sm shadow-sm transition-colors sm:w-64"
+        disabled
+        type="button"
+      >
+        <span className="grid h-full grid-cols-2 items-center rounded-full bg-surface-muted">
+          <span className="flex items-center justify-center gap-1.5 font-semibold text-accent">
+            <UnlockIcon className="h-4 w-4" />
+            Open
+          </span>
+          <span className="flex items-center justify-center gap-1.5 font-semibold text-text-muted">
+            <LockIcon className="h-4 w-4" />
+            Closed
+          </span>
+        </span>
+        <span className="absolute inset-y-1 left-1 flex w-[calc(50%-0.25rem)] items-center justify-center gap-1.5 rounded-full bg-accent px-3 font-semibold text-[var(--color-button-text)] shadow-sm">
+          <UnlockIcon className="h-4 w-4" />
+          Open
+        </span>
+      </button>
+      <span className="text-xs text-text-muted">Stand is accepting orders.</span>
+    </div>
   );
 }
 

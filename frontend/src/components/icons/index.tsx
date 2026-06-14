@@ -68,6 +68,15 @@ export function LockIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
+export function UnlockIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <rect height="11" rx="2" width="16" x="4" y="11" />
+      <path d="M8 11V7a4 4 0 0 1 7.5-2" />
+    </svg>
+  );
+}
+
 export function PinIcon({ className = 'h-5 w-5' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>
