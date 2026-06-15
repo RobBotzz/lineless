@@ -4,7 +4,8 @@ const emailSchema = z.email("Invalid email format");
 
 const passwordSchema = z
   .string()
-  .regex(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/, "Invalid password format");
+  .max(128)
+  .regex(/^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7E]{8,}$/, "Invalid password format");
 
 export const signupSchema = z.object({
   email: emailSchema,
