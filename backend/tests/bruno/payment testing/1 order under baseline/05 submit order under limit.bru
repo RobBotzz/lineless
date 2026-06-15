@@ -1,7 +1,7 @@
 meta {
-  name: 05 submit order under limit
+  name: 08 submit order under limit
   type: http
-  seq: 5
+  seq: 8
 }
 
 post {
@@ -26,10 +26,13 @@ body:json {
 
 script:post-response {
   if (res.status === 201 && res.body.order) {
+    const order = res.body.order;
     const total = res.body.order.items.reduce(
       (sum, i) => sum + i.priceIncludingTaxAtPurchase,
       0
     );
+    bru.setVar("orderId", order._id);
+    bru.setVar("itemId", order.items[0]._id);
     bru.setVar("consumedExpected", total);
   }
 }

@@ -1,27 +1,26 @@
 meta {
-  name: 06 checkout tab
+  name: 10 organizer checkout tabs
   type: http
-  seq: 6
+  seq: 10
 }
 
 post {
-  url: http://{{host}}:{{port}}/api/tabs/{{tabId}}/checkout
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/tabs/checkout
   body: none
   auth: none
 }
 
 headers {
-  X-Attendee-Session-ID: {{paySessionId}}
+  Authorization: Bearer {{organizerToken}}
 }
 
 tests {
-  // Only the consumed amount is captured (not the full 1000-cent baseline hold);
-  // the rest of the hold is released on Stripe.
-  test("checkout captures only what was ordered and marks tab PAID", function () {
+  test("organizer checkout captures ready tab and marks it PAID", function () {
     expect(res.status).to.equal(200);
-    expect(res.body.status).to.equal("PAID");
-    expect(res.body.capturedTotal).to.equal(Number(bru.getVar("consumedExpected")));
-    expect(res.body.capturedTotal).to.be.below(1000);
+    const result = res.body.results.find(r => r.tabId === bru.getVar("tabId"));
+    expect(result.status).to.equal("PAID");
+    expect(result.capturedTotal).to.equal(Number(bru.getVar("consumedExpected")));
+    expect(result.capturedTotal).to.be.below(1000);
   });
 }
 

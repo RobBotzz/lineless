@@ -1,25 +1,25 @@
 meta {
-  name: 07 checkout tab
+  name: 08 organizer checkout skips failed overage
   type: http
-  seq: 7
+  seq: 8
 }
 
 post {
-  url: http://{{host}}:{{port}}/api/tabs/{{tabId}}/checkout
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/tabs/checkout
   body: none
   auth: none
 }
 
 headers {
-  X-Attendee-Session-ID: {{paySessionId}}
+  Authorization: Bearer {{organizerToken}}
 }
 
 tests {
-  // The overage failed, so the authorized holds do not cover the tab total.
-  // Checkout must not mark the tab paid.
-  test("checkout is rejected when holds do not cover the tab", function () {
-    expect(res.status).to.equal(409);
-    expect(res.body.error).to.equal("Authorized holds do not cover the tab total");
+  test("organizer checkout skips tab with failed unready overage order", function () {
+    expect(res.status).to.equal(200);
+    const result = res.body.results.find(r => r.tabId === bru.getVar("tabId"));
+    expect(result.status).to.equal("SKIPPED");
+    expect(result.reason).to.equal("Tab has non-cancelled items that are not ready");
   });
 }
 

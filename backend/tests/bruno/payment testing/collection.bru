@@ -6,9 +6,10 @@ docs {
   # Payment testing collection
 
   Three self-contained scenarios for the tab / Stripe authorize-then-capture
-  flow. Each subfolder creates its own attendee session + tab, so any folder can
-  be run on its own. Run with the Bruno runner; requests within a folder reuse
-  runtime vars (`bru.setVar`) set by earlier ones.
+  flow. Each subfolder logs in the organizer, creates its own attendee session
+  + tab, and uses organizer checkout, so any folder can be run on its own. Run
+  with the Bruno runner; requests within a folder reuse runtime vars
+  (`bru.setVar`) set by earlier ones.
 
   IMPORTANT: select the **Dev** environment first, otherwise `{{host}}` /
   `{{port}}` are empty and URLs are invalid.
@@ -24,14 +25,18 @@ docs {
   Prerequisites:
   - Dev env: `eventId` is an ACTIVE event with `standId` / `productId` under it;
     product price well below the EUR 10.00 (1000 cents) baseline hold.
+  - Dev env organizer credentials own `eventId`; operator password logs into
+    `standId`.
   - `stripeSecretKey` (Dev env) is the project's Stripe TEST secret key.
   - Backend runs in dev so /webhooks/stripe accepts unsigned JSON.
 
   ## Folders
-  1. order under baseline   — one item within the hold; checkout captures only
-     the consumed amount.
-  2. over threshold succeeds — under-order, then an order over the hold whose
-     overage hold is authorized; checkout captures baseline + overage.
-  3. payment fails           — order over the hold whose overage payment fails;
-     tab reopens; checkout captures the baseline only (1000).
+  1. order under baseline — one item within the hold; operator marks it ready;
+     organizer checkout captures only the ready item amount.
+  2. over threshold skips unready — under-order, then an order over the hold
+     whose overage hold is authorized; organizer checkout skips the tab because
+     the overage items are not ready.
+  3. payment fails — order over the hold whose overage payment fails; organizer
+     checkout skips the tab because the failed order still has non-cancelled
+     items that are not ready.
 }

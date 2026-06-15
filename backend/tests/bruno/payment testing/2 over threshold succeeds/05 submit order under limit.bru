@@ -1,7 +1,7 @@
 meta {
-  name: 05 submit order under limit
+  name: 08 submit order under limit
   type: http
-  seq: 5
+  seq: 8
 }
 
 post {
@@ -21,6 +21,14 @@ body:json {
     "items": [
       { "productId": "{{productId}}" }
     ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.order) {
+    const order = res.body.order;
+    bru.setVar("firstOrderId", order._id);
+    bru.setVar("firstItemId", order.items[0]._id);
   }
 }
 
