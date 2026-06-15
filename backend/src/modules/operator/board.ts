@@ -1,6 +1,6 @@
 import { Order } from "../orders/model";
 import { getItemState } from "../orders/service";
-import { Product } from "../products/model";
+import { Product, type ProductStatus } from "../products/model";
 
 export type BoardItemState = "PENDING" | "PREPARING" | "READY";
 
@@ -21,8 +21,13 @@ export interface BoardItem {
 export interface BoardProduct {
   productId: string;
   productName: string;
+  productDescription: string | null;
+  priceIncludingTax: number;
+  taxRate: number;
+  productImageUrl: string | null;
+  instantProduct: boolean;
   productStock: number;
-  paused: boolean;
+  productStatus: ProductStatus;
   openToDo: number;
 }
 
@@ -43,8 +48,9 @@ export async function getStandProductIds(
 }
 
 // Active board for a stand: every non-terminal item of the stand's products,
-// plus a per-product summary (open To-Do count, stock, paused). FULFILLED and
-// CANCELLED items leave the board.
+// plus the full product list (all product attributes the dashboard renders, with
+// stock, status and the open To-Do count). FULFILLED and CANCELLED items leave
+// the board.
 export async function buildOperatorBoard(
   standId: string
 ): Promise<OperatorBoard> {
@@ -82,15 +88,20 @@ export async function buildOperatorBoard(
     }
   }
 
-  const productSummary: BoardProduct[] = products.map((p) => ({
+  const boardProducts: BoardProduct[] = products.map((p) => ({
     productId: p._id,
     productName: p.productName,
+    productDescription: p.productDescription,
+    priceIncludingTax: p.priceIncludingTax,
+    taxRate: p.taxRate,
+    productImageUrl: p.productImageUrl,
+    instantProduct: p.instantProduct,
     productStock: p.productStock,
-    paused: p.productStatus !== "LIVE",
+    productStatus: p.productStatus,
     openToDo: items.filter(
       (i) => i.productId === p._id && i.state === "PENDING"
     ).length,
   }));
 
-  return { standId, items, products: productSummary };
+  return { standId, items, products: boardProducts };
 }
