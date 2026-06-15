@@ -196,9 +196,9 @@ export default function EventControlCenter() {
 
   async function handleProductPauseChange(standId: string, product: Product, paused: boolean) {
     if (paused) {
-      await pauseProduct(event._id, standId, product._id);
+      await pauseProduct(product._id);
     } else {
-      await resumeProduct(event._id, standId, product._id);
+      await resumeProduct(product._id);
     }
 
     setProductsByStand((current) => ({

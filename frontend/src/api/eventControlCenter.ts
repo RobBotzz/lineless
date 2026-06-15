@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
 
 export type RevenuePoint = {
@@ -105,24 +106,18 @@ export function cancelOrderItems(
   );
 }
 
-export function pauseProduct(eventId: string, standId: string, productId: string): Promise<void> {
-  return apiFetch<void>(
-    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/pause`,
-    {
-      method: 'POST',
-      auth: 'organizer',
-    },
-  );
+export function pauseProduct(productId: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${productId}/pause`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
 }
 
-export function resumeProduct(eventId: string, standId: string, productId: string): Promise<void> {
-  return apiFetch<void>(
-    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/resume`,
-    {
-      method: 'POST',
-      auth: 'organizer',
-    },
-  );
+export function resumeProduct(productId: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${productId}/resume`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
 }
 
 export function pauseStand(eventId: string, standId: string): Promise<Stand> {
