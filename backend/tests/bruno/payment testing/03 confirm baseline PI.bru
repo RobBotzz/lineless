@@ -1,0 +1,29 @@
+meta {
+  name: 03 confirm baseline PI
+  type: http
+  seq: 3
+}
+
+post {
+  url: https://api.stripe.com/v1/payment_intents/{{baselinePI}}/confirm?payment_method=pm_card_visa&return_url=https://example.com/return
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{stripeSecretKey}}
+}
+
+tests {
+  // Confirms the real PaymentIntent with a Stripe test card so it reaches
+  // requires_capture. Without this, checkout's real capture() call 500s because
+  // the hold was never actually authorized on Stripe's side.
+  test("baseline hold is now capturable", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.status).to.equal("requires_capture");
+  });
+}
+
+settings {
+  encodeUrl: true
+}

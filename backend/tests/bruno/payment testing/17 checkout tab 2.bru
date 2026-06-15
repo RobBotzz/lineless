@@ -1,0 +1,29 @@
+meta {
+  name: 17 checkout tab 2
+  type: http
+  seq: 17
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/tabs/{{tabId2}}/checkout
+  body: none
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{paySessionId}}
+}
+
+tests {
+  // Only the baseline hold (1000 cents) was confirmed + authorized; the overage
+  // failed, so checkout must capture exactly the baseline and nothing more.
+  test("checkout captures baseline only", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.status).to.equal("PAID");
+    expect(res.body.capturedTotal).to.equal(1000);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

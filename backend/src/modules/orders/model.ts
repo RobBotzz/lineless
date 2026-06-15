@@ -9,7 +9,7 @@ export interface OrderItemDoc {
   readyAt: Date | null;
   fulfilledAt: Date | null;
   cancelledAt: Date | null;
-  priceExclTaxAtPurchase: number;
+  priceInclTaxAtPurchase: number;
   taxRateAtPurchase: number;
 }
 
@@ -54,7 +54,7 @@ const OrderItemSchema = new Schema<OrderItemDoc>({
   readyAt: { type: Date, default: null },
   fulfilledAt: { type: Date, default: null },
   cancelledAt: { type: Date, default: null },
-  priceExclTaxAtPurchase: { type: Number, required: true },
+  priceInclTaxAtPurchase: { type: Number, required: true },
   taxRateAtPurchase: { type: Number, required: true },
 });
 

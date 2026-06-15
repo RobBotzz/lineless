@@ -11,8 +11,10 @@ export type TabPaymentStatus =
 export interface TabPaymentDoc {
   _id: string;
   tabId: string;
+  /** Order this hold funds. Null for the baseline hold placed at tab creation. */
+  orderId: string | null;
   stripePaymentIntentId: string;
-  /** Stripe event id used as an idempotency key — set once on first webhook. */
+  /** Stripe event id of the webhook that authorized this payment. */
   stripeEventId: string | null;
   tabPaymentStatus: TabPaymentStatus;
   /** Amount in integer cents that was authorized by Stripe. */
@@ -28,6 +30,7 @@ const TabPaymentSchema = new Schema<TabPaymentDoc>(
   {
     _id: { type: String, default: () => uuidv4() },
     tabId: { type: String, required: true, index: true },
+    orderId: { type: String, default: null, index: true },
     stripePaymentIntentId: { type: String, required: true },
     stripeEventId: { type: String, default: null },
     tabPaymentStatus: {

@@ -61,7 +61,10 @@ export async function checkoutTab(tabId: string, sessionId: string) {
         dbSession
       );
       if (!tab) throw new TabNotFoundError();
-      if (tab.status !== "OPEN") throw new TabStateError();
+      // Allow CHECKOUT_PENDING too, so a checkout interrupted mid-capture can be
+      // safely retried — the loop below only captures still-AUTHORIZED holds.
+      if (tab.status !== "OPEN" && tab.status !== "CHECKOUT_PENDING")
+        throw new TabStateError();
 
       tab.status = "CHECKOUT_PENDING";
       await tab.save({ session: dbSession });

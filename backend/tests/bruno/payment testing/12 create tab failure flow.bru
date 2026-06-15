@@ -1,0 +1,39 @@
+meta {
+  name: 12 create tab failure flow
+  type: http
+  seq: 12
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/tabs
+  body: json
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{paySessionId}}
+}
+
+body:json {
+  {
+    "eventId": "{{eventId}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("tabId2", res.body.tabId);
+    bru.setVar("baselinePI2", res.body.stripePaymentIntentId);
+  }
+}
+
+tests {
+  test("second tab created", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.tabId).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

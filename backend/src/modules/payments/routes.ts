@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import { config } from "../../config/config";
-import { handleAmountCapturableUpdated } from "./service";
+import { handleAmountCapturableUpdated, handlePaymentFailed } from "./service";
 
 const stripeWebhookRouter = Router();
 const stripe = new Stripe(config.stripe.secretKey);
@@ -29,8 +29,9 @@ stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
 
   try {
     if (event.type === "payment_intent.amount_capturable_updated") {
-      const paymentIntent = event.data.object;
-      await handleAmountCapturableUpdated(paymentIntent.id, event.id);
+      await handleAmountCapturableUpdated(event.data.object.id, event.id);
+    } else if (event.type === "payment_intent.payment_failed") {
+      await handlePaymentFailed(event.data.object.id, event.id);
     }
     return res.status(200).json({ received: true });
   } catch {

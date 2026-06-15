@@ -1,0 +1,34 @@
+meta {
+  name: 14 webhook authorize baseline 2
+  type: http
+  seq: 14
+}
+
+post {
+  url: http://{{host}}:{{port}}/webhooks/stripe
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "id": "evt_auth_baseline2_{{baselinePI2}}",
+    "type": "payment_intent.amount_capturable_updated",
+    "data": {
+      "object": {
+        "id": "{{baselinePI2}}"
+      }
+    }
+  }
+}
+
+tests {
+  test("webhook accepted", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.received).to.equal(true);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

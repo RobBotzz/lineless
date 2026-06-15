@@ -1,0 +1,58 @@
+meta {
+  name: payment testing
+}
+
+docs {
+  # Payment testing collection
+
+  Standalone, end-to-end test of the tab / Stripe authorize-then-capture flow.
+  Run with the Bruno runner in `seq` order (or fire requests top to bottom);
+  later requests reuse runtime vars (`bru.setVar`) set by earlier ones.
+
+  IMPORTANT: select the **Dev** environment before running, otherwise
+  `{{host}}` / `{{port}}` are empty and the URLs are invalid.
+
+  ## Why the Stripe "confirm" steps exist
+  Checkout calls the real `stripe.paymentIntents.capture()`. Simulating our own
+  webhook only flips the TabPayment to AUTHORIZED in our DB; on Stripe's side the
+  PaymentIntent is still unconfirmed and not capturable, so checkout would 500.
+  Each hold that gets captured is therefore first confirmed against the real
+  Stripe test API with `pm_card_visa` (requests 03, 07, 13), which drives it to
+  `requires_capture`. The webhook simulation is still needed to update our DB,
+  because Stripe cannot reach localhost without the Stripe CLI.
+
+  Prerequisites:
+  - Dev env: `eventId` is an ACTIVE event with `standId` / `productId` under it;
+    product price well below the EUR 10.00 (1000 cents) baseline hold.
+  - `stripeSecretKey` (Dev env) is the project's Stripe TEST secret key.
+  - Backend runs in dev (`nodeEnv !== "production"`) so /webhooks/stripe accepts
+    unsigned JSON.
+
+  ## Happy path (seq 1-11)
+  1  create attendee session
+  2  create tab                   -> baseline hold (PENDING)
+  3  confirm baseline PI (Stripe) -> requires_capture
+  4  webhook authorize baseline   -> DB AUTHORIZED, tab OPEN
+  5  order under limit            -> 201, items released (proves baseline auth)
+  6  order over limit             -> 402, overage hold created, items gated
+  7  confirm overage PI (Stripe)  -> requires_capture
+  8  webhook authorize overage    -> DB AUTHORIZED, gated items released
+  9  webhook replay baseline      -> idempotency no-op (still 200)
+  10 checkout tab                 -> captures baseline + overage, tab PAID
+  11 cancel paid order            -> 409 (guard: paid order cannot be cancelled)
+
+  ## Failure path (seq 12-17)
+  12 create tab (failure flow)
+  13 confirm baseline 2 PI (Stripe)
+  14 webhook authorize baseline 2
+  15 order over limit 2           -> 402 (overage left UNconfirmed on Stripe)
+  16 webhook payment_failed       -> overage hold FAILED, tab reopened
+  17 checkout tab 2               -> captures baseline ONLY (1000 cents), proving
+     the failed overage was never captured
+
+  ## Known gap
+  The positive cancel case (200 + gated items cancelled) is not covered: the 402
+  response does not return the gated order id and there is no list-orders
+  endpoint, so the test cannot address the gated order. Request 11 exercises only
+  the guard.
+}

@@ -1,6 +1,6 @@
 export class TabNotFoundError extends Error {
-  constructor(message = "Tab not found") {
-    super(message);
+  constructor() {
+    super("Tab not found");
     this.name = "TabNotFoundError";
   }
 }

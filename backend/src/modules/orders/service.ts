@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Stripe from "stripe";
 import crypto from "crypto";
+import { v4 as uuidv4 } from "uuid";
 import { config } from "../../config/config";
 import { Order, type OrderDoc, type OrderItemDoc } from "./model";
 import { Tab } from "../tabs/model";
@@ -89,7 +90,7 @@ export async function submitOrder(
     return Array.from({ length: item.quantity }).map(() => ({
       productId: item.productId,
       customerComment: item.customerComment ?? null,
-      priceExclTaxAtPurchase: product.priceIncludingTax,
+      priceInclTaxAtPurchase: product.priceIncludingTax,
       taxRateAtPurchase: product.taxRate,
       startedAt: null as Date | null,
     }));
@@ -139,16 +140,20 @@ export async function submitOrder(
   const existingOrders = await Order.find({ tabId });
   const consumedCents = existingOrders
     .flatMap((o) => o.items)
-    .reduce((sum, i) => sum + i.priceExclTaxAtPurchase, 0);
+    .reduce((sum, i) => sum + i.priceInclTaxAtPurchase, 0);
 
   if (consumedCents + totalCents > authorizedCents) {
     const overage = consumedCents + totalCents - authorizedCents;
+
+    // Pre-generate the order id so the hold can reference the order it funds;
+    // the failure/cancel paths rely on that link.
+    const newOrderId = uuidv4();
 
     const pi = await stripe.paymentIntents.create({
       amount: overage,
       currency: "eur",
       capture_method: "manual",
-      metadata: { tabId },
+      metadata: { tabId, orderId: newOrderId },
     });
 
     const dbSession = await mongoose.startSession();
@@ -157,6 +162,7 @@ export async function submitOrder(
         [
           {
             tabId,
+            orderId: newOrderId,
             stripePaymentIntentId: pi.id,
             tabPaymentStatus: "PENDING",
             authorizedCentsAmount: overage,
@@ -172,6 +178,7 @@ export async function submitOrder(
       await Order.create(
         [
           {
+            _id: newOrderId,
             standId,
             eventId,
             tabId,
@@ -245,8 +252,7 @@ export async function issueCashRefund(
   if (!order?.cashPayment) throw new CashPaymentNotFoundError();
 
   const orderTotal = order.items.reduce(
-    (sum, i) =>
-      sum + Math.round(i.priceExclTaxAtPurchase * (1 + i.taxRateAtPurchase)),
+    (sum, i) => sum + i.priceInclTaxAtPurchase,
     0
   );
   const alreadyRefunded = order.cashRefunds.reduce(
@@ -265,6 +271,81 @@ export async function issueCashRefund(
   await order.save();
 
   return order.cashRefunds[order.cashRefunds.length - 1];
+}
+
+/**
+ * Attendee abandons an order still awaiting authorization. Cancels its gated
+ * items, releases any backing Stripe hold, and lets the tab become orderable
+ * again. Only orders with un-started (gated) items can be cancelled this way.
+ */
+export async function cancelPendingOrder(
+  orderId: string,
+  sessionId: string
+): Promise<OrderDoc> {
+  const order = await Order.findById(orderId);
+  if (!order || order.sessionId !== sessionId) throw new OrderNotFoundError();
+  if (order.paidAt) throw new OrderAlreadyPaidError();
+
+  const hasGatedItems = order.items.some((i) => !i.startedAt && !i.cancelledAt);
+  if (!hasGatedItems) {
+    throw new OrderItemStateError("Order has no pending items to cancel");
+  }
+
+  // Release the Stripe holds outside the transaction (Stripe is not
+  // transactional). Best-effort: a hold already resolved by Stripe just errors.
+  const holds = await TabPayment.find({
+    orderId,
+    tabPaymentStatus: { $in: ["PENDING", "FAILED"] },
+  });
+  for (const hold of holds) {
+    if (hold.tabPaymentStatus === "PENDING") {
+      try {
+        await stripe.paymentIntents.cancel(hold.stripePaymentIntentId);
+      } catch {
+        // Already canceled/expired on Stripe's side — nothing to release.
+      }
+    }
+  }
+
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      const fresh = await Order.findById(orderId).session(dbSession);
+      if (!fresh) throw new OrderNotFoundError();
+
+      const now = new Date();
+      fresh.items.forEach((item) => {
+        if (!item.startedAt && !item.cancelledAt) item.cancelledAt = now;
+      });
+      await fresh.save({ session: dbSession });
+
+      await TabPayment.updateMany(
+        { orderId, tabPaymentStatus: { $in: ["PENDING", "FAILED"] } },
+        { tabPaymentStatus: "RELEASED" },
+        { session: dbSession }
+      );
+
+      if (fresh.tabId) {
+        const pending = await TabPayment.countDocuments({
+          tabId: fresh.tabId,
+          tabPaymentStatus: "PENDING",
+        }).session(dbSession);
+        if (pending === 0) {
+          await Tab.updateOne(
+            { _id: fresh.tabId, status: "PENDING_AUTHORIZATION" },
+            { status: "OPEN" },
+            { session: dbSession }
+          );
+        }
+      }
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+
+  const updated = await Order.findById(orderId).lean();
+  if (!updated) throw new OrderNotFoundError();
+  return updated;
 }
 
 export async function getOrderForAttendee(

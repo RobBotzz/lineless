@@ -1,0 +1,28 @@
+meta {
+  name: 13 confirm baseline 2 PI
+  type: http
+  seq: 13
+}
+
+post {
+  url: https://api.stripe.com/v1/payment_intents/{{baselinePI2}}/confirm?payment_method=pm_card_visa&return_url=https://example.com/return
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{stripeSecretKey}}
+}
+
+tests {
+  // Only this baseline hold is confirmed; the overage in request 15 is left
+  // unconfirmed and then failed, so checkout (request 17) captures 1000 only.
+  test("baseline 2 hold is now capturable", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.status).to.equal("requires_capture");
+  });
+}
+
+settings {
+  encodeUrl: true
+}

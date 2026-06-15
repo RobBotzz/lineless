@@ -1,0 +1,45 @@
+meta {
+  name: 05 submit order under limit
+  type: http
+  seq: 5
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders
+  body: json
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{paySessionId}}
+}
+
+body:json {
+  {
+    "standId": "{{standId}}",
+    "tabId": "{{tabId}}",
+    "items": [
+      { "productId": "{{productId}}", "quantity": 1 }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.order) {
+    bru.setVar("paidOrderId", res.body.order._id);
+  }
+}
+
+tests {
+  test("order within hold is accepted and released", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.order).to.be.an("object");
+    expect(res.body.order.items).to.be.an("array").and.not.empty;
+    // Baseline is authorized and the order fits the hold => items start now.
+    expect(res.body.order.items[0].startedAt).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

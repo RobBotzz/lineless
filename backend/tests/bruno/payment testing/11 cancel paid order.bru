@@ -1,0 +1,27 @@
+meta {
+  name: 11 cancel paid order
+  type: http
+  seq: 11
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{paidOrderId}}/cancel
+  body: none
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{paySessionId}}
+}
+
+tests {
+  // The order from request 5 was captured at checkout (paidAt set), so the
+  // cancel guard must reject it.
+  test("a paid order cannot be cancelled", function () {
+    expect(res.status).to.equal(409);
+  });
+}
+
+settings {
+  encodeUrl: true
+}
