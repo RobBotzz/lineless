@@ -209,12 +209,22 @@ export function ImageIcon({ className = 'h-6 w-6' }: IconProps) {
   );
 }
 
-export function CartIcon({ className = 'h-5 w-5' }: IconProps) {
+export function CartIcon({ className = 'h-6 w-6' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>
-      <circle cx="9" cy="20" r="1.4" />
-      <circle cx="18" cy="20" r="1.4" />
-      <path d="M2.5 3h2l2.2 11.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L21 7H6" />
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+    </svg>
+  );
+}
+
+export function CreditCardIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <rect height="14" rx="2" width="20" x="2" y="5" />
+      <path d="M2 10h20" />
+      <path d="M6 15h3" />
     </svg>
   );
 }
@@ -245,10 +255,28 @@ export function MinusIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
+export function SearchIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  );
+}
+
 export function ChatIcon({ className = 'h-4 w-4' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>
       <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+    </svg>
+  );
+}
+
+export function CheckCircleIcon({ className = 'h-6 w-6' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m9 12 2 2 4-4" />
     </svg>
   );
 }
@@ -259,6 +287,14 @@ export function InfoIcon({ className = 'h-4 w-4' }: IconProps) {
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5" />
       <path d="M12 7.5h.01" />
+    </svg>
+  );
+}
+
+export function CommentIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }
@@ -279,16 +315,6 @@ export function DashboardIcon({ className = 'h-4 w-4' }: IconProps) {
       <rect height="7" rx="1.5" width="7" x="14" y="3" />
       <rect height="7" rx="1.5" width="7" x="3" y="14" />
       <rect height="7" rx="1.5" width="7" x="14" y="14" />
-    </svg>
-  );
-}
-
-export function CreditCardIcon({ className = 'h-4 w-4' }: IconProps) {
-  return (
-    <svg className={className} {...strokeProps}>
-      <rect height="14" rx="2" width="20" x="2" y="5" />
-      <path d="M2 10h20" />
-      <path d="M6 15h3" />
     </svg>
   );
 }
