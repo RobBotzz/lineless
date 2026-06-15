@@ -1,20 +1,19 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { ApiError } from '@/api/client';
-import {
-  OPERATOR_BOARD_EVENT,
-  OPERATOR_BOARD_STREAM_PATH,
-  fulfillBoardItem,
-  readyBoardItem,
-  startBoardItem,
-} from '@/api/operatorBoard';
+import { OPERATOR_BOARD_EVENT, OPERATOR_BOARD_STREAM_PATH } from '@/api/operatorBoard';
+import { fulfillOrderItem, readyOrderItem, startOrderItem } from '@/api/orders';
+import { pauseProductAsOperator, resumeProductAsOperator } from '@/api/products';
 import { useSSE, type SseStatus } from '@/hooks/useSSE';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
 import type { BoardItem, BoardItemState, BoardProduct, OperatorBoard } from '@/types/operatorBoard';
 import { BackButton } from '@/components/shared';
+import { InfoIcon, PauseIcon, PlayIcon } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { operatorStandQueryOptions } from '../operatorQueries';
 
 // Each board column maps a state to the transition that advances an item out of it.
@@ -32,27 +31,28 @@ const COLUMNS: ColumnConfig[] = [
   {
     state: 'PENDING',
     title: 'To Do',
-    action: startBoardItem,
+    action: startOrderItem,
     actionLabel: 'Start',
     dotClassName: 'bg-text-muted',
   },
   {
     state: 'PREPARING',
     title: 'In Progress',
-    action: readyBoardItem,
+    action: readyOrderItem,
     actionLabel: 'Report ready',
     dotClassName: 'bg-accent',
   },
   {
     state: 'READY',
     title: 'Ready',
-    action: fulfillBoardItem,
+    action: fulfillOrderItem,
     actionLabel: 'Pick up',
     dotClassName: 'bg-success',
   },
 ];
 
 const ACTION_ERROR = 'Could not update the item. It may have moved already — try again.';
+const PAUSE_ERROR = 'Could not change the product. Please try again.';
 
 export default function OperatorDashboard() {
   const { eventId, standId } = useParams();
@@ -62,6 +62,11 @@ export default function OperatorDashboard() {
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
   const [filter, setFilter] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // The item awaiting pickup-code confirmation before it is handed over.
+  const [confirmItem, setConfirmItem] = useState<BoardItem | null>(null);
+  // The product whose pause/resume dialog is open — UI state only; the request's
+  // in-flight + error state lives in pauseMutation below.
+  const [pauseTarget, setPauseTarget] = useState<BoardProduct | null>(null);
 
   // The stream pushes a fresh full board on every change (and as its first frame),
   // so we just replace local state — no client-side merging of transition responses.
@@ -76,12 +81,9 @@ export default function OperatorDashboard() {
     onMessage: handleMessage,
   });
 
-  const advance = useCallback(
-    (item: BoardItem) => {
-      if (!standId || pending.has(item.itemId)) return;
-      const column = COLUMNS.find((c) => c.state === item.state);
-      if (!column) return;
-
+  const runTransition = useCallback(
+    (item: BoardItem, column: ColumnConfig) => {
+      if (!standId) return;
       setPending((prev) => new Set(prev).add(item.itemId));
       setActionError(null);
       column
@@ -97,14 +99,70 @@ export default function OperatorDashboard() {
           }),
         );
     },
-    [pending, standId],
+    [standId],
   );
+
+  const advance = useCallback(
+    (item: BoardItem) => {
+      if (!standId || pending.has(item.itemId)) return;
+      const column = COLUMNS.find((c) => c.state === item.state);
+      if (!column) return;
+      // Handing an item to the customer requires confirming the pickup code first.
+      if (item.state === 'READY') {
+        setConfirmItem(item);
+        return;
+      }
+      runTransition(item, column);
+    },
+    [pending, runTransition, standId],
+  );
+
+  const confirmFulfill = useCallback(() => {
+    if (!confirmItem) return;
+    const column = COLUMNS.find((c) => c.state === confirmItem.state);
+    if (column) runTransition(confirmItem, column);
+    setConfirmItem(null);
+  }, [confirmItem, runTransition]);
+
+  // Both the top chips and the products overview drive this single filter.
+  const toggleFilter = useCallback((productId: string) => {
+    setFilter((current) => (current === productId ? null : productId));
+  }, []);
+
+  // Only one pause/resume runs at a time (it's a modal), so a single mutation
+  // owns the in-flight + error state. The board itself updates over the SSE stream
+  // (the backend re-pushes on every product change), so onSuccess only closes the
+  // dialog — no client-side board write to keep in sync.
+  const pauseMutation = useMutation({
+    mutationFn: ({ product, standId }: { product: BoardProduct; standId: string }) => {
+      const action =
+        product.productStatus === 'LIVE' ? pauseProductAsOperator : resumeProductAsOperator;
+      return action(product.productId, standId);
+    },
+    onSuccess: () => setPauseTarget(null),
+  });
+
+  const confirmPauseToggle = useCallback(() => {
+    if (!standId || !pauseTarget || pauseMutation.isPending) return;
+    pauseMutation.mutate({ product: pauseTarget, standId });
+  }, [pauseMutation, pauseTarget, standId]);
+
+  const closePauseDialog = useCallback(() => {
+    if (pauseMutation.isPending) return;
+    setPauseTarget(null);
+    pauseMutation.reset();
+  }, [pauseMutation]);
 
   const items = board?.items ?? [];
   const products = board?.products ?? [];
   const visibleItems = filter ? items.filter((item) => item.productId === filter) : items;
   const openCount = products.reduce((sum, product) => sum + product.openToDo, 0);
   const standName = standQuery.data?.standName;
+  const pauseError = pauseMutation.error
+    ? pauseMutation.error instanceof ApiError
+      ? pauseMutation.error.message
+      : PAUSE_ERROR
+    : null;
 
   // First connect, nothing to show yet.
   if (!board) {
@@ -136,7 +194,7 @@ export default function OperatorDashboard() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold tracking-tight text-text">
-                {standName ? `${standName} · Live Board` : 'Live Board'}
+                {standName ?? 'Stand'}
               </h1>
               <ConnectionBadge status={status} />
             </div>
@@ -154,11 +212,7 @@ export default function OperatorDashboard() {
                   product={product}
                   count={items.filter((item) => item.productId === product.productId).length}
                   active={filter === product.productId}
-                  onToggle={() =>
-                    setFilter((current) =>
-                      current === product.productId ? null : product.productId,
-                    )
-                  }
+                  onToggle={() => toggleFilter(product.productId)}
                 />
               ))}
             </div>
@@ -185,9 +239,36 @@ export default function OperatorDashboard() {
             />
           ))}
 
-          <ProductsOverview products={products} openCount={openCount} />
+          <ProductsOverview
+            products={products}
+            openCount={openCount}
+            activeFilter={filter}
+            onToggleFilter={toggleFilter}
+            onRequestPause={(product) => {
+              pauseMutation.reset();
+              setPauseTarget(product);
+            }}
+          />
         </div>
       </div>
+
+      {confirmItem && (
+        <FulfillDialog
+          item={confirmItem}
+          onConfirm={confirmFulfill}
+          onCancel={() => setConfirmItem(null)}
+        />
+      )}
+
+      {pauseTarget && (
+        <PauseProductDialog
+          product={pauseTarget}
+          pending={pauseMutation.isPending}
+          error={pauseError}
+          onConfirm={confirmPauseToggle}
+          onCancel={closePauseDialog}
+        />
+      )}
     </div>
   );
 }
@@ -248,40 +329,256 @@ function BoardItemCard({
   onAdvance: () => void;
 }) {
   const color = productColor(item.productId);
+  const comment = item.customerComment?.trim() || null;
+  const [showComment, setShowComment] = useState(false);
 
   return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={onAdvance}
+    <div
       style={{ borderLeftColor: color }}
-      className="group rounded-md border border-border border-l-4 bg-surface p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 disabled:translate-y-0 disabled:cursor-wait disabled:opacity-60"
+      className={cn(
+        'group relative rounded-md border border-border border-l-4 bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-1',
+        pending && 'opacity-60',
+      )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-sm font-semibold text-text">{item.productName}</span>
-        <span className="shrink-0 text-xs font-medium text-text-muted">#{item.orderNumber}</span>
+      {/* Stretched advance button sits behind the content so the whole card is
+          tappable, while the note trigger stays independently clickable. */}
+      <button
+        type="button"
+        disabled={pending}
+        onClick={onAdvance}
+        aria-label={`Order ${item.orderNumber} — ${actionLabel}`}
+        className="absolute inset-0 z-0 rounded-md focus:outline-none disabled:cursor-wait"
+      />
+
+      <div className="pointer-events-none relative z-10 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-xl font-bold tracking-tight text-text">#{item.orderNumber}</span>
+
+          {comment && (
+            <button
+              type="button"
+              onClick={() => setShowComment(true)}
+              aria-label="Show customer note"
+              className="pointer-events-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warning/60 text-text transition hover:bg-warning focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <InfoIcon className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+
+        <span className="mt-4 block text-right text-sm font-semibold text-accent">
+          {pending ? 'Saving…' : `${actionLabel} →`}
+        </span>
       </div>
 
-      {item.customerComment && (
-        <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-warning/60 px-2 py-0.5 text-xs font-medium text-text">
-          <span className="h-1.5 w-1.5 rounded-full bg-text/50" />
-          {item.customerComment}
-        </span>
+      {showComment && comment && (
+        <CommentPopover
+          comment={comment}
+          orderNumber={item.orderNumber}
+          onClose={() => setShowComment(false)}
+        />
       )}
+    </div>
+  );
+}
 
-      <span className="mt-3 block text-right text-xs font-semibold text-accent">
-        {pending ? 'Saving…' : `${actionLabel} →`}
-      </span>
-    </button>
+// Shared modal scaffold. Rendered through a portal to document.body so the fixed
+// overlay can never be trapped by an ancestor's transform — a board card uses a
+// hover translate, and on touch that hover state sticks, which previously pinned
+// the overlay inside the card so taps outside it (and re-taps) failed to close it.
+function ModalOverlay({
+  onClose,
+  labelledBy,
+  dismissable = true,
+  className,
+  children,
+}: {
+  onClose: () => void;
+  labelledBy: string;
+  dismissable?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 px-4 py-8"
+      role="presentation"
+      onClick={dismissable ? onClose : undefined}
+    >
+      <section
+        aria-labelledby={labelledBy}
+        aria-modal="true"
+        role="dialog"
+        className={cn(
+          'w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(31,41,55,0.2)]',
+          className,
+        )}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {children}
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
+function CommentPopover({
+  comment,
+  orderNumber,
+  onClose,
+}: {
+  comment: string;
+  orderNumber: string;
+  onClose: () => void;
+}) {
+  return (
+    <ModalOverlay onClose={onClose} labelledBy="comment-popover-title">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-soft text-accent">
+          <InfoIcon className="h-5 w-5" />
+        </span>
+        <div>
+          <h2 id="comment-popover-title" className="text-sm font-semibold text-text">
+            Customer note
+          </h2>
+          <p className="text-xs text-text-muted">Order #{orderNumber}</p>
+        </div>
+      </div>
+
+      <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-text">{comment}</p>
+
+      <div className="mt-6 flex justify-end">
+        <Button onClick={onClose} variant="secondary" size="lg">
+          Close
+        </Button>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+function FulfillDialog({
+  item,
+  onConfirm,
+  onCancel,
+}: {
+  item: BoardItem;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <ModalOverlay onClose={onCancel} labelledBy="fulfill-dialog-title">
+      <div className="text-center">
+        <h2 id="fulfill-dialog-title" className="text-xl font-semibold text-text">
+          Confirm handoff
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-text-muted">
+          Match this code with the customer before handing over order #{item.orderNumber}.
+        </p>
+
+        <div className="mt-5 rounded-lg border border-border bg-background py-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+            Pickup code
+          </p>
+          <p className="mt-1 font-mono text-3xl font-bold tracking-[0.3em] text-text">
+            {item.pickupCode || '—'}
+          </p>
+        </div>
+
+        <div className="mt-6 flex gap-3">
+          <Button className="flex-1" onClick={onCancel} size="lg" variant="secondary">
+            Cancel
+          </Button>
+          <Button className="flex-1" onClick={onConfirm} size="lg">
+            Confirm
+          </Button>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+function PauseProductDialog({
+  product,
+  pending,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  product: BoardProduct;
+  pending: boolean;
+  error: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const resuming = product.productStatus === 'PAUSED';
+  return (
+    <ModalOverlay onClose={onCancel} labelledBy="pause-dialog-title" dismissable={!pending}>
+      <div className="text-center">
+        <span
+          className={cn(
+            'mx-auto flex h-12 w-12 items-center justify-center rounded-full',
+            resuming ? 'bg-success/15 text-success' : 'bg-warning/20 text-text',
+          )}
+        >
+          {resuming ? <PlayIcon className="h-6 w-6" /> : <PauseIcon className="h-6 w-6" />}
+        </span>
+        <h2 id="pause-dialog-title" className="mt-4 text-xl font-semibold text-text">
+          {resuming ? 'Resume' : 'Pause'} {product.productName}?
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-text-muted">
+          {resuming
+            ? `${product.productName} will be available to order again.`
+            : `Customers won’t be able to order ${product.productName} until you resume it. Items already in progress are not affected.`}
+        </p>
+
+        {error && (
+          <div
+            className="mt-4 rounded-md border border-danger/40 bg-danger/5 px-3 py-2 text-sm font-medium text-danger"
+            role="alert"
+          >
+            {error}
+          </div>
+        )}
+
+        <div className="mt-6 flex gap-3">
+          <Button
+            className="flex-1"
+            onClick={onCancel}
+            size="lg"
+            variant="secondary"
+            disabled={pending}
+          >
+            Cancel
+          </Button>
+          <Button className="flex-1" onClick={onConfirm} size="lg" disabled={pending}>
+            {pending ? (resuming ? 'Resuming…' : 'Pausing…') : resuming ? 'Resume' : 'Pause'}
+          </Button>
+        </div>
+      </div>
+    </ModalOverlay>
   );
 }
 
 function ProductsOverview({
   products,
   openCount,
+  activeFilter,
+  onToggleFilter,
+  onRequestPause,
 }: {
   products: BoardProduct[];
   openCount: number;
+  activeFilter: string | null;
+  onToggleFilter: (productId: string) => void;
+  onRequestPause: (product: BoardProduct) => void;
 }) {
   return (
     <section className="flex flex-col rounded-lg border border-border bg-surface p-4 shadow-sm">
@@ -296,7 +593,15 @@ function ProductsOverview({
 
       <div className="flex flex-1 flex-col gap-2">
         {products.length > 0 ? (
-          products.map((product) => <ProductSummaryRow key={product.productId} product={product} />)
+          products.map((product) => (
+            <ProductSummaryRow
+              key={product.productId}
+              product={product}
+              active={activeFilter === product.productId}
+              onToggleFilter={() => onToggleFilter(product.productId)}
+              onRequestPause={() => onRequestPause(product)}
+            />
+          ))
         ) : (
           <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-text-muted">
             No products configured.
@@ -307,40 +612,83 @@ function ProductsOverview({
   );
 }
 
-function ProductSummaryRow({ product }: { product: BoardProduct }) {
+function ProductSummaryRow({
+  product,
+  active,
+  onToggleFilter,
+  onRequestPause,
+}: {
+  product: BoardProduct;
+  active: boolean;
+  onToggleFilter: () => void;
+  onRequestPause: () => void;
+}) {
+  const paused = product.productStatus === 'PAUSED';
+  const terminated = product.productStatus === 'TERMINATED';
+
   return (
     <div
       className={cn(
-        'rounded-md border border-border bg-background p-3',
-        product.paused && 'opacity-70',
+        'relative rounded-lg border transition',
+        active ? 'border-accent bg-accent-soft' : 'border-border bg-background',
+        product.productStatus !== 'LIVE' && 'opacity-80',
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: productColor(product.productId) }}
-          />
-          <span className="text-sm font-semibold text-text">{product.productName}</span>
-        </div>
-        {/* Pause toggle is intentionally read-only: the backend pause endpoint is a
-            501 placeholder (POST /products/:id/pause). Wire this up once it lands. */}
+      {/* Stretched filter button sits behind the content so the whole row filters
+          the board, while the pause/resume control stays independently tappable. */}
+      <button
+        type="button"
+        onClick={onToggleFilter}
+        aria-pressed={active}
+        aria-label={`Filter board by ${product.productName}`}
+        className="absolute inset-0 z-0 rounded-lg focus:outline-none"
+      />
+
+      <div className="pointer-events-none relative z-10 flex items-center gap-3 p-3">
         <span
-          className={cn(
-            'rounded-full px-2 py-0.5 text-[11px] font-semibold',
-            product.paused ? 'bg-warning/60 text-text' : 'bg-success/10 text-success',
-          )}
-        >
-          {product.paused ? 'Paused' : 'Live'}
-        </span>
-      </div>
-      <div className="mt-2 flex items-center gap-2 text-xs text-text-muted">
-        <span className="rounded bg-surface-muted px-1.5 py-0.5 font-semibold text-text">
-          {product.openToDo}
-        </span>
-        <span>To Do</span>
-        <span className="text-border">·</span>
-        <span>Stock {product.productStock}</span>
+          className="h-3 w-3 shrink-0 rounded-full"
+          style={{ backgroundColor: productColor(product.productId) }}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-semibold text-text">{product.productName}</span>
+            {paused && (
+              <span className="shrink-0 rounded-full bg-warning/60 px-2 py-0.5 text-[11px] font-semibold text-text">
+                Paused
+              </span>
+            )}
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
+            <span className="rounded bg-surface-muted px-1.5 py-0.5 font-semibold text-text">
+              {product.openToDo}
+            </span>
+            <span>To Do</span>
+            <span className="text-border">·</span>
+            <span>Stock {product.productStock}</span>
+          </div>
+        </div>
+
+        {/* Terminated is a terminal state — no pause/resume action, just a label. */}
+        {terminated ? (
+          <span className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-border px-3 text-sm font-semibold text-text-muted">
+            Terminated
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onRequestPause}
+            aria-label={paused ? `Resume ${product.productName}` : `Pause ${product.productName}`}
+            className={cn(
+              'pointer-events-auto inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              paused
+                ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
+                : 'border-warning/50 bg-warning/20 text-text hover:bg-warning/40',
+            )}
+          >
+            {paused ? <PlayIcon className="h-4 w-4" /> : <PauseIcon className="h-4 w-4" />}
+            {paused ? 'Resume' : 'Pause'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -363,14 +711,14 @@ function ProductFilterChip({
       onClick={onToggle}
       aria-pressed={active}
       className={cn(
-        'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition',
+        'inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
         active
           ? 'border-accent bg-accent-soft text-accent'
           : 'border-border bg-surface text-text hover:bg-surface-muted',
       )}
     >
       <span
-        className="h-2 w-2 rounded-full"
+        className="h-2.5 w-2.5 rounded-full"
         style={{ backgroundColor: productColor(product.productId) }}
       />
       {product.productName}
