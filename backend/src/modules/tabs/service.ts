@@ -90,6 +90,15 @@ export async function checkoutTab(tabId: string, sessionId: string) {
     // Spread the consumed amount across the holds (baseline first): capture each
     // hold only up to what is still owed, letting Stripe release the rest, and
     // cancel any hold that is not needed at all.
+    const authorizedTotal = paymentsToCapture.reduce(
+      (sum, payment) => sum + payment.authorizedCentsAmount,
+      0
+    );
+    if (authorizedTotal < consumedCents) {
+      await Tab.updateOne({ _id: tabId }, { status: "OPEN" });
+      throw new TabStateError("Authorized holds do not cover the tab total");
+    }
+
     let remaining = consumedCents;
     let totalCaptured = 0;
     for (const payment of paymentsToCapture) {

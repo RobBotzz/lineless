@@ -15,12 +15,11 @@ headers {
 }
 
 tests {
-  // Only the baseline (1000) was authorized; the overage failed, so checkout
-  // captures exactly the baseline.
-  test("checkout captures baseline only", function () {
-    expect(res.status).to.equal(200);
-    expect(res.body.status).to.equal("PAID");
-    expect(res.body.capturedTotal).to.equal(1000);
+  // The overage failed, so the authorized holds do not cover the tab total.
+  // Checkout must not mark the tab paid.
+  test("checkout is rejected when holds do not cover the tab", function () {
+    expect(res.status).to.equal(409);
+    expect(res.body.error).to.equal("Authorized holds do not cover the tab total");
   });
 }
 
