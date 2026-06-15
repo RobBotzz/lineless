@@ -3,15 +3,12 @@ import type { Location } from './location';
 export type StandType = 'PRODUCT' | 'CASHIER';
 export type StandStatus = 'LIVE' | 'PAUSED';
 
-export type StandType = 'PRODUCT' | 'CASHIER';
-
 export interface Stand {
   _id: string;
   eventId: string;
   standName: string;
   standType: StandType;
   standStatus: StandStatus;
-  standType: StandType;
   requiresPassword: boolean;
   location: Location;
   createdAt: string;
