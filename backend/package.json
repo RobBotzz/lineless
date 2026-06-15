@@ -10,6 +10,8 @@
     "lint": "eslint src",
     "format": "prettier --write .",
     "email:preview": "ts-node src/lib/email/preview.ts",
+    "db:up": "docker compose up -d --wait mongo",
+    "db:down": "docker compose stop mongo",
     "prepare": "husky"
   },
   "lint-staged": {

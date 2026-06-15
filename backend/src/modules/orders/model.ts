@@ -35,7 +35,7 @@ export interface OrderDoc {
   tabId: string | null;
   /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
   sessionId: string | null;
-  orderNumber: number;
+  orderNumber: string;
   authCode: string;
   customerEmail: string | null;
   paidAt: Date | null;
@@ -80,7 +80,7 @@ const OrderSchema = new Schema<OrderDoc>(
     eventId: { type: String, required: true, index: true },
     tabId: { type: String, default: null, index: true },
     sessionId: { type: String, default: null, index: true },
-    orderNumber: { type: Number, required: true },
+    orderNumber: { type: String, required: true },
     authCode: { type: String, required: true },
     customerEmail: { type: String, default: null },
     paidAt: { type: Date, default: null },

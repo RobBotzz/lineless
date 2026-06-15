@@ -30,6 +30,21 @@ function generateAuthCode(): string {
   return crypto.randomBytes(3).toString("hex").toUpperCase();
 }
 
+export type ItemState =
+  | "PENDING"
+  | "PREPARING"
+  | "READY"
+  | "FULFILLED"
+  | "CANCELLED";
+
+export function getItemState(item: OrderItemDoc): ItemState {
+  if (item.cancelledAt) return "CANCELLED";
+  if (item.fulfilledAt) return "FULFILLED";
+  if (item.readyAt) return "READY";
+  if (item.startedAt) return "PREPARING";
+  return "PENDING";
+}
+
 export async function submitOrder(
   /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
   sessionId: string | null,
@@ -81,7 +96,7 @@ export async function submitOrder(
   });
 
   const orderCount = await Order.countDocuments({ eventId });
-  const orderNumber = orderCount + 1;
+  const orderNumber = String(orderCount + 1);
   const authCode = generateAuthCode();
 
   if (!tabId) {
@@ -269,16 +284,6 @@ export async function getOrderForOrganizer(
   if (!order) throw new OrderNotFoundError();
   await verifyEventOwnership(order.eventId, accountId);
   return order;
-}
-
-type ItemState = "PENDING" | "PREPARING" | "READY" | "FULFILLED" | "CANCELLED";
-
-function getItemState(item: OrderItemDoc): ItemState {
-  if (item.cancelledAt) return "CANCELLED";
-  if (item.fulfilledAt) return "FULFILLED";
-  if (item.readyAt) return "READY";
-  if (item.startedAt) return "PREPARING";
-  return "PENDING";
 }
 
 export async function advanceOrderItem(
