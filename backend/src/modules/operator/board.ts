@@ -76,7 +76,7 @@ export async function buildOperatorBoard(
         orderId: order._id,
         itemId: item._id,
         orderNumber: order.orderNumber,
-        pickupCode: order.authCode,
+        pickupCode: order.pickupCode,
         productId: item.productId,
         productName: product.productName,
         state,

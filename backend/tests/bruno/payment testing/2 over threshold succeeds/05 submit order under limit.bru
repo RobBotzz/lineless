@@ -1,0 +1,36 @@
+meta {
+  name: 05 submit order under limit
+  type: http
+  seq: 5
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders
+  body: json
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{paySessionId}}
+}
+
+body:json {
+  {
+    "eventId": "{{eventId}}",
+    "tabId": "{{tabId}}",
+    "items": [
+      { "productId": "{{productId}}" }
+    ]
+  }
+}
+
+tests {
+  test("first order within hold is accepted and released", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.order.items[0].startedAt).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,7 +1,7 @@
 meta {
-  name: 12 create tab failure flow
+  name: 02 create tab
   type: http
-  seq: 12
+  seq: 2
 }
 
 post {
@@ -22,15 +22,16 @@ body:json {
 
 script:post-response {
   if (res.status === 201) {
-    bru.setVar("tabId2", res.body.tabId);
-    bru.setVar("baselinePI2", res.body.stripePaymentIntentId);
+    bru.setVar("tabId", res.body.tabId);
+    bru.setVar("baselinePI", res.body.stripePaymentIntentId);
   }
 }
 
 tests {
-  test("second tab created", function () {
+  test("tab created with baseline hold", function () {
     expect(res.status).to.equal(201);
     expect(res.body.tabId).to.be.a("string").and.not.empty;
+    expect(res.body.stripePaymentIntentId).to.be.a("string").and.not.empty;
   });
 }
 

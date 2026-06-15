@@ -1,0 +1,11 @@
+meta {
+  name: 2 over threshold succeeds
+  seq: 2
+}
+
+docs {
+  Attendee orders one item within the baseline hold, then a larger order that
+  exceeds it. The overage hold is created (402), confirmed on Stripe, and
+  authorized via webhook, releasing the gated items. Checkout captures the
+  baseline plus the overage.
+}

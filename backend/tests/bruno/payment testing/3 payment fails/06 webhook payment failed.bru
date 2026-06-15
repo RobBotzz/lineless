@@ -1,7 +1,7 @@
 meta {
-  name: 16 webhook payment failed
+  name: 06 webhook payment failed
   type: http
-  seq: 16
+  seq: 6
 }
 
 post {
@@ -12,11 +12,11 @@ post {
 
 body:json {
   {
-    "id": "evt_failed_{{overagePI2}}",
+    "id": "evt_failed_{{overagePI}}",
     "type": "payment_intent.payment_failed",
     "data": {
       "object": {
-        "id": "{{overagePI2}}"
+        "id": "{{overagePI}}"
       }
     }
   }
@@ -24,7 +24,7 @@ body:json {
 
 tests {
   // Marks the overage TabPayment FAILED and reopens the tab (no PENDING holds
-  // left). The captured total in request 17 confirms it was never charged.
+  // left). The captured total in the next request confirms it was never charged.
   test("payment_failed accepted", function () {
     expect(res.status).to.equal(200);
     expect(res.body.received).to.equal(true);

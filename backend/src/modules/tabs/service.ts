@@ -54,6 +54,7 @@ export async function createTab(sessionId: string, eventId: string) {
 export async function checkoutTab(tabId: string, sessionId: string) {
   const dbSession = await mongoose.startSession();
   let paymentsToCapture: Awaited<ReturnType<typeof TabPayment.find>> = [];
+  let consumedCents = 0;
 
   try {
     await dbSession.withTransaction(async () => {
@@ -69,24 +70,55 @@ export async function checkoutTab(tabId: string, sessionId: string) {
       tab.status = "CHECKOUT_PENDING";
       await tab.save({ session: dbSession });
 
+      // Charge only what was actually ordered (non-cancelled items), not the
+      // full authorized hold.
+      const orders = await Order.find({ tabId }).session(dbSession);
+      consumedCents = orders
+        .flatMap((o) => o.items)
+        .filter((i) => !i.cancelledAt)
+        .reduce((sum, i) => sum + i.priceIncludingTaxAtPurchase, 0);
+
       paymentsToCapture = await TabPayment.find({
         tabId,
         tabPaymentStatus: "AUTHORIZED",
-      }).session(dbSession);
+      })
+        .sort({ createdAt: 1 })
+        .session(dbSession);
     });
 
     // Capture outside the transaction — Stripe calls cannot be rolled back.
+    // Spread the consumed amount across the holds (baseline first): capture each
+    // hold only up to what is still owed, letting Stripe release the rest, and
+    // cancel any hold that is not needed at all.
+    let remaining = consumedCents;
     let totalCaptured = 0;
     for (const payment of paymentsToCapture) {
-      await stripe.paymentIntents.capture(payment.stripePaymentIntentId);
-      totalCaptured += payment.authorizedCentsAmount;
-      await TabPayment.updateOne(
-        { _id: payment._id },
-        {
-          tabPaymentStatus: "CAPTURED",
-          capturedCentsAmount: payment.authorizedCentsAmount,
+      const captureAmount = Math.min(remaining, payment.authorizedCentsAmount);
+      if (captureAmount > 0) {
+        await stripe.paymentIntents.capture(payment.stripePaymentIntentId, {
+          amount_to_capture: captureAmount,
+        });
+        await TabPayment.updateOne(
+          { _id: payment._id },
+          {
+            tabPaymentStatus: "CAPTURED",
+            capturedCentsAmount: captureAmount,
+          }
+        );
+        totalCaptured += captureAmount;
+        remaining -= captureAmount;
+      } else {
+        // Nothing left to charge against this hold — release it.
+        try {
+          await stripe.paymentIntents.cancel(payment.stripePaymentIntentId);
+        } catch {
+          // Already resolved on Stripe's side; nothing to release.
         }
-      );
+        await TabPayment.updateOne(
+          { _id: payment._id },
+          { tabPaymentStatus: "RELEASED", capturedCentsAmount: 0 }
+        );
+      }
     }
 
     await dbSession.withTransaction(async () => {

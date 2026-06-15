@@ -1,7 +1,7 @@
 meta {
-  name: 14 webhook authorize baseline 2
+  name: 04 webhook authorize baseline
   type: http
-  seq: 14
+  seq: 4
 }
 
 post {
@@ -12,11 +12,11 @@ post {
 
 body:json {
   {
-    "id": "evt_auth_baseline2_{{baselinePI2}}",
+    "id": "evt_auth_baseline_{{baselinePI}}",
     "type": "payment_intent.amount_capturable_updated",
     "data": {
       "object": {
-        "id": "{{baselinePI2}}"
+        "id": "{{baselinePI}}"
       }
     }
   }

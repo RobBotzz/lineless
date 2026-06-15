@@ -9,7 +9,7 @@ info:
 
 http:
   method: POST
-  url: http://{{host}}:{{port}}/orders
+  url: http://{{host}}:{{port}}/api/orders
   headers:
     - name: Authorization
       value: Bearer {{authToken}}
@@ -17,11 +17,11 @@ http:
     type: json
     data: |-
       {
+        "eventId": "{{eventId}}",
         "tabId": "{{tabId}}",
         "items": [
           {
-            "productId": "{{productId}}",
-            "quantity": 1
+            "productId": "{{productId}}"
           }
         ]
       }

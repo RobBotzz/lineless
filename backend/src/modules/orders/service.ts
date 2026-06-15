@@ -20,15 +20,14 @@ import {
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
-  StandNotFoundError,
   OrderValidationError,
 } from "./errors";
 import type { CreateOrderInput, IssueCashRefundInput } from "./types";
 
 const stripe = new Stripe(config.stripe.secretKey);
 
-function generateAuthCode(): string {
-  return crypto.randomBytes(3).toString("hex").toUpperCase();
+function generatePickupCode(): string {
+  return crypto.randomBytes(2).toString("hex").toUpperCase();
 }
 
 export type ItemState =
@@ -51,54 +50,66 @@ export async function submitOrder(
   sessionId: string | null,
   input: CreateOrderInput
 ) {
-  const { standId, tabId, items } = input;
+  const { eventId, tabId, customerEmail, items } = input;
 
-  const stand = await Stand.findOne({ _id: standId, deletedAt: null });
-  if (!stand) throw new StandNotFoundError();
-  const { eventId } = stand;
-
-  const event = await Event.findOne({ _id: eventId, deletedAt: null });
+  const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
   if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
 
   if (!tabId && !event.offlineOrdersEnabled)
     throw new OfflineOrdersDisabledError();
 
   if (tabId) {
-    const tab = await Tab.findById(tabId);
+    const tab = await Tab.findOne({
+      _id: tabId,
+      eventId,
+      ...(sessionId ? { sessionId } : {}),
+    }).lean();
     if (!tab || tab.status !== "OPEN") {
       throw new OrderValidationError("Tab is not OPEN or does not exist.");
     }
   }
 
-  const productIds = items.map((item) => item.productId);
+  const eventStands = await Stand.find({ eventId, deletedAt: null })
+    .select("_id")
+    .lean();
+  const eventStandIds = eventStands.map((s) => s._id);
+
+  const productIds = [...new Set(items.map((item) => item.productId))];
   const products = await Product.find({
     _id: { $in: productIds },
-    standId,
+    standId: { $in: eventStandIds },
     deletedAt: null,
-  });
+  }).lean();
   const productById = new Map(products.map((p) => [p._id, p]));
 
   let totalCents = 0;
-  const processedItems = items.flatMap((item) => {
+  const processedItems = items.map((item) => {
     const product = productById.get(item.productId);
     if (!product || product.productStatus !== "LIVE") {
       throw new OrderValidationError(
         `Product ${item.productId} is not available for ordering.`
       );
     }
-    totalCents += product.priceIncludingTax * item.quantity;
-    return Array.from({ length: item.quantity }).map(() => ({
+    totalCents += product.priceIncludingTax;
+    return {
+      _id: uuidv4(),
       productId: item.productId,
       customerComment: item.customerComment ?? null,
-      priceInclTaxAtPurchase: product.priceIncludingTax,
+      priceIncludingTaxAtPurchase: product.priceIncludingTax,
       taxRateAtPurchase: product.taxRate,
       startedAt: null as Date | null,
-    }));
+      readyAt: null as Date | null,
+      fulfilledAt: null as Date | null,
+      cancelledAt: null as Date | null,
+    };
   });
 
   const orderCount = await Order.countDocuments({ eventId });
-  const orderNumber = String(orderCount + 1);
-  const authCode = generateAuthCode();
+  const letterIndex = Math.floor(orderCount / 1000) % 26;
+  const letter = String.fromCharCode(65 + letterIndex);
+  const numberPart = (orderCount % 1000).toString().padStart(3, "0");
+  const orderNumber = `${letter}${numberPart}`;
+  const pickupCode = generatePickupCode();
 
   if (!tabId) {
     if (!event.cashierEnabled && sessionId === null) {
@@ -111,12 +122,12 @@ export async function submitOrder(
       const orders = await Order.create(
         [
           {
-            standId,
             eventId,
             tabId: null,
             sessionId,
             orderNumber,
-            authCode,
+            pickupCode,
+            customerEmail: customerEmail ?? null,
             items: processedItems,
           },
         ],
@@ -140,7 +151,7 @@ export async function submitOrder(
   const existingOrders = await Order.find({ tabId });
   const consumedCents = existingOrders
     .flatMap((o) => o.items)
-    .reduce((sum, i) => sum + i.priceInclTaxAtPurchase, 0);
+    .reduce((sum, i) => sum + i.priceIncludingTaxAtPurchase, 0);
 
   if (consumedCents + totalCents > authorizedCents) {
     const overage = consumedCents + totalCents - authorizedCents;
@@ -179,12 +190,12 @@ export async function submitOrder(
         [
           {
             _id: newOrderId,
-            standId,
             eventId,
             tabId,
             sessionId,
             orderNumber,
-            authCode,
+            pickupCode,
+            customerEmail: customerEmail ?? null,
             items: processedItems,
           },
         ],
@@ -204,12 +215,12 @@ export async function submitOrder(
     const orders = await Order.create(
       [
         {
-          standId,
           eventId,
           tabId,
           sessionId,
           orderNumber,
-          authCode,
+          pickupCode,
+          customerEmail: customerEmail ?? null,
           items: processedItems,
         },
       ],
@@ -252,7 +263,7 @@ export async function issueCashRefund(
   if (!order?.cashPayment) throw new CashPaymentNotFoundError();
 
   const orderTotal = order.items.reduce(
-    (sum, i) => sum + i.priceInclTaxAtPurchase,
+    (sum, i) => sum + i.priceIncludingTaxAtPurchase,
     0
   );
   const alreadyRefunded = order.cashRefunds.reduce(

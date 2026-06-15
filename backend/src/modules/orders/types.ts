@@ -1,15 +1,15 @@
 import { z } from "zod";
 
 export const OrderItemInputSchema = z.object({
-  productId: z.string().uuid(),
-  quantity: z.number().int().positive(),
+  productId: z.uuid(),
   customerComment: z.string().optional(),
 });
 
 export const CreateOrderSchema = z.object({
-  standId: z.string().uuid(),
+  eventId: z.uuid(),
   /** Present for Stripe (tab) orders; absent for cash orders. */
-  tabId: z.string().uuid().optional(),
+  tabId: z.uuid().optional(),
+  customerEmail: z.email().optional(),
   items: z.array(OrderItemInputSchema).min(1),
 });
 

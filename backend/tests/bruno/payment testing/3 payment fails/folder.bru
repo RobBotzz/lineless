@@ -1,0 +1,11 @@
+meta {
+  name: 3 payment fails
+  seq: 3
+}
+
+docs {
+  Attendee places an order that exceeds the baseline hold, creating an overage
+  hold (402). That overage is never confirmed; a payment_failed webhook marks it
+  FAILED and reopens the tab. Checkout then captures the baseline ONLY (1000),
+  proving the failed overage was never charged.
+}

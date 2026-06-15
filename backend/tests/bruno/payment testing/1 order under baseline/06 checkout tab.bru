@@ -1,0 +1,30 @@
+meta {
+  name: 06 checkout tab
+  type: http
+  seq: 6
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/tabs/{{tabId}}/checkout
+  body: none
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{paySessionId}}
+}
+
+tests {
+  // Only the consumed amount is captured (not the full 1000-cent baseline hold);
+  // the rest of the hold is released on Stripe.
+  test("checkout captures only what was ordered and marks tab PAID", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.status).to.equal("PAID");
+    expect(res.body.capturedTotal).to.equal(Number(bru.getVar("consumedExpected")));
+    expect(res.body.capturedTotal).to.be.below(1000);
+  });
+}
+
+settings {
+  encodeUrl: true
+}
