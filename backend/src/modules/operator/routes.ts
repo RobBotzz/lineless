@@ -39,7 +39,7 @@ operatorRouter.get(
       const sse = new SseConnection(res);
       sse.send("board", initial);
 
-      const unsubscribe = subscribe("order.changed", (order) => {
+      const unsubOrder = subscribe("order.changed", (order) => {
         const affectsStand = order.items.some((i) =>
           standProductIds.has(i.productId)
         );
@@ -49,7 +49,17 @@ operatorRouter.get(
           .catch((err) => console.error("Operator board stream error:", err));
       });
 
-      sse.onClose(unsubscribe);
+      const unsubProduct = subscribe("product.changed", (product) => {
+        if (product.standId !== standId) return;
+        buildOperatorBoard(standId)
+          .then((board) => sse.send("board", board))
+          .catch((err) => console.error("Operator board stream error:", err));
+      });
+
+      sse.onClose(() => {
+        unsubOrder();
+        unsubProduct();
+      });
     } catch (err) {
       console.error("Operator board stream error:", err);
       res.status(500).json({ error: "Internal server error" });
