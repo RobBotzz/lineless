@@ -20,9 +20,14 @@ function generatePickupCode(): string {
   return crypto.randomBytes(2).toString("hex").toUpperCase();
 }
 
-type ItemState = "PENDING" | "PREPARING" | "READY" | "FULFILLED" | "CANCELLED";
+export type ItemState =
+  | "PENDING"
+  | "PREPARING"
+  | "READY"
+  | "FULFILLED"
+  | "CANCELLED";
 
-function getItemState(item: OrderItemDoc): ItemState {
+export function getItemState(item: OrderItemDoc): ItemState {
   if (item.cancelledAt) return "CANCELLED";
   if (item.fulfilledAt) return "FULFILLED";
   if (item.readyAt) return "READY";
