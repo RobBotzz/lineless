@@ -3,7 +3,9 @@ import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
   getOrderForAttendee,
+  getOrderForCashier,
   getOrderForOrganizer,
+  listUnpaidOrdersForCashier,
   submitOrder,
 } from "./service";
 import {
@@ -18,7 +20,7 @@ import {
 import { createOrderSchema } from "./types";
 import {
   authOperator,
-  authOrganizerOrAttendee,
+  authOrganizerOrOperatorOrAttendee,
   authOperatorOrAttendee,
 } from "../../middleware/auth/guards";
 
@@ -69,15 +71,18 @@ ordersRouter.post(
   })
 );
 
-// GET /orders/:orderId — fetch a single order by ID (organizer or attendee only).
+// GET /orders/:orderId — fetch a single order by ID (organizer, attendee, or a
+// cashier operator collecting a cash payment for an order in its event).
 ordersRouter.get(
   "/:orderId",
-  authOrganizerOrAttendee,
+  authOrganizerOrOperatorOrAttendee,
   async (req: Request, res: Response) => {
     try {
       const order = req.organizer
         ? await getOrderForOrganizer(orderId(req), req.organizer.accountId)
-        : await getOrderForAttendee(orderId(req), req.attendee!.sessionId);
+        : req.operator
+          ? await getOrderForCashier(orderId(req), req.operator.standId)
+          : await getOrderForAttendee(orderId(req), req.attendee!.sessionId);
       return res.status(200).json(order);
     } catch (err) {
       return handleError(err, res);
@@ -122,4 +127,19 @@ ordersRouter.post(
   "/:orderId/items/:itemId/cancel",
   authOperator,
   itemTransition("cancel")
+);
+
+// GET /orders/cashier — unpaid orders for the cashier's event, derived from the
+// operator token (consistent with all other operator routes).
+ordersRouter.get(
+  "/cashier",
+  authOperator,
+  async (req: Request, res: Response) => {
+    try {
+      const orders = await listUnpaidOrdersForCashier(req.operator!.standId);
+      return res.status(200).json(orders);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  }
 );

@@ -4,7 +4,11 @@ import accountRouter from "./modules/accounts/routes";
 import eventsRouter from "./modules/events/routes";
 import sessionsRouter from "./modules/sessions/routes";
 import { eventStandsRouter, standsRouter } from "./modules/stands/routes";
-import { standProductsRouter, productsRouter } from "./modules/products/routes";
+import {
+  standProductsRouter,
+  productsRouter,
+  eventProductsRouter,
+} from "./modules/products/routes";
 import { ordersRouter } from "./modules/orders/routes";
 import { operatorRouter } from "./modules/operator/routes";
 import { eventControlCenterRouter } from "./modules/eventControlCenter/routes";
@@ -28,6 +32,7 @@ app.use("/api/sessions", sessionsRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/events/:eventId/event-control-center", eventControlCenterRouter);
 app.use("/api/events/:eventId/stands", eventStandsRouter);
+app.use("/api/events/:eventId/products", eventProductsRouter);
 app.use("/api/stands/:standId/products", standProductsRouter);
 app.use("/api/stands", standsRouter);
 app.use("/api/products", productsRouter);
