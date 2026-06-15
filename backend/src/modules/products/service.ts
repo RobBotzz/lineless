@@ -1,5 +1,5 @@
 import { Product, type ProductDoc } from "./model";
-import { ProductNotFoundError } from "./errors";
+import { ProductNotFoundError, ProductStateError } from "./errors";
 import type { CreateProductInput, UpdateProductInput } from "./types";
 import { verifyStandOwnership } from "../stands/ownership";
 import { Stand } from "../stands/model";
@@ -138,19 +138,62 @@ export async function getProductForOrganizer(
   return product;
 }
 
-export async function verifyProductControlAccess(
+// Both an organizer (owning the stand's event) and a stand-scoped operator may
+// control a product. Resolved by the route and threaded into the transitions.
+export type ProductControlAuth =
+  | { type: "organizer"; accountId: string }
+  | { type: "operator"; standId: string };
+
+// Loads the mutable product document and authorizes the caller — the single
+// place product-control access lives. Status transitions save the returned doc.
+async function findControllableProduct(
   productId: string,
-  auth:
-    | { type: "organizer"; accountId: string }
-    | { type: "operator"; standId: string }
-): Promise<void> {
-  const product = await getExistingProduct(productId);
+  auth: ProductControlAuth
+) {
+  const product = await Product.findOne({ _id: productId, deletedAt: null });
+  if (!product) throw new ProductNotFoundError();
   if (auth.type === "organizer") {
     await verifyStandOwnership(product.standId, auth.accountId);
-    return;
+  } else {
+    await verifyStandAccessForOperator(product.standId, auth.standId);
   }
+  return product;
+}
 
-  await verifyStandAccessForOperator(product.standId, auth.standId);
+// LIVE -> PAUSED. An explicit, validated transition (no going through PATCH):
+// TERMINATED is terminal and an already-paused product is a no-op error.
+export async function pauseProduct(
+  productId: string,
+  auth: ProductControlAuth
+): Promise<ProductDoc> {
+  const product = await findControllableProduct(productId, auth);
+  if (product.productStatus === "TERMINATED") {
+    throw new ProductStateError("A terminated product cannot be paused");
+  }
+  if (product.productStatus === "PAUSED") {
+    throw new ProductStateError("Product is already paused");
+  }
+  product.productStatus = "PAUSED";
+  await product.save();
+  return product;
+}
+
+// PAUSED -> LIVE. Mirror of pauseProduct: TERMINATED is terminal and an
+// already-live product is a no-op error.
+export async function resumeProduct(
+  productId: string,
+  auth: ProductControlAuth
+): Promise<ProductDoc> {
+  const product = await findControllableProduct(productId, auth);
+  if (product.productStatus === "TERMINATED") {
+    throw new ProductStateError("A terminated product cannot be resumed");
+  }
+  if (product.productStatus === "LIVE") {
+    throw new ProductStateError("Product is already live");
+  }
+  product.productStatus = "LIVE";
+  await product.save();
+  return product;
 }
 
 export async function updateProduct(

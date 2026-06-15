@@ -4,3 +4,10 @@ export class ProductNotFoundError extends Error {
     this.name = "ProductNotFoundError";
   }
 }
+
+export class ProductStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProductStateError";
+  }
+}
