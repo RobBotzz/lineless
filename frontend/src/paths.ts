@@ -17,8 +17,6 @@ export const paths = {
     cart: (eventId: string) => `/event/${eventId}/cart`,
     checkout: (eventId: string) => `/event/${eventId}/checkout`,
     orders: (eventId: string) => `/event/${eventId}/orders`,
-    review: (eventId: string, orderId: string, productId: string) =>
-      `/event/${eventId}/orders/${orderId}/products/${productId}/review`,
   },
   operator: {
     root: (eventId: string) => `/operator/${eventId}`,

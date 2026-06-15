@@ -28,11 +28,7 @@ import AttendeeProductSelection, {
 import { productSelectionLoader } from './routes/attendee/product-selection/data';
 import AttendeeCart from './routes/attendee/cart/Cart';
 import AttendeeCheckout from './routes/attendee/checkout/Checkout';
-import AttendeeOrderHistory, {
-  OrderHistoryError,
-} from './routes/attendee/order-history/OrderHistory';
-import { orderHistoryLoader } from './routes/attendee/order-history/data';
-import AttendeeReviewProduct from './routes/attendee/review/ReviewProduct';
+import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
 import OperatorLinkEntry from './routes/operator/OperatorLinkEntry';
@@ -95,16 +91,7 @@ export const router = createBrowserRouter(
         />
         <Route path="cart" element={<AttendeeCart />} />
         <Route path="checkout" element={<AttendeeCheckout />} />
-        <Route
-          path="orders"
-          element={<AttendeeOrderHistory />}
-          loader={orderHistoryLoader}
-          errorElement={<OrderHistoryError />}
-        />
-        <Route
-          path="orders/:orderId/products/:productId/review"
-          element={<AttendeeReviewProduct />}
-        />
+        <Route path="orders" element={<AttendeeOrderHistory />} />
       </Route>
 
       <Route path="operator" element={<OperatorLayout />} handle={{ title: 'Operator' }}>
@@ -124,11 +111,7 @@ export const router = createBrowserRouter(
           handle={{ title: 'Pick Up' }}
         />
         {/* Static "cashier" out-ranks the dynamic :standId route in v7. */}
-        <Route
-          path=":eventId/cashier"
-          element={<CashierLayout />}
-          handle={{ title: 'Cashier Stand' }}
-        >
+        <Route path=":eventId/cashier" element={<CashierLayout />} handle={{ title: 'Cashier Stand' }}>
           <Route index element={<CashierHome />} />
           <Route path="order" element={<CashierManualOrder />} handle={{ title: 'Manual Order' }} />
           <Route path="payment" element={<CashierPayment />} handle={{ title: 'Payment' }} />

@@ -81,7 +81,3 @@ export function getUnpaidOrders(standId: string): Promise<Order[]> {
 export function confirmCashPayment(_orderId: string): Promise<void> {
   return Promise.resolve();
 }
-
-export function getAttendeeOrders(eventId: string): Promise<Order[]> {
-  return apiFetch<Order[]>('/orders', { auth: 'attendee', eventId });
-}
