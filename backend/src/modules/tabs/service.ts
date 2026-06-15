@@ -92,10 +92,7 @@ export async function createTab(
   }
 }
 
-async function settleTab(
-  tabId: string,
-  filters: { sessionId?: string; eventId?: string }
-) {
+async function settleTab(tabId: string, filters: { eventId?: string }) {
   const dbSession = await mongoose.startSession();
   let paymentsToCapture: Awaited<ReturnType<typeof TabPayment.find>> = [];
   let consumedCents = 0;
