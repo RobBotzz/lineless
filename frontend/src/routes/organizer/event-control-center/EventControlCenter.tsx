@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type PointerEvent } from 'react';
 import { Navigate, useLoaderData, useParams, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
 import {
   cancelOrder,
+  cancelOrderItems,
   getEventControlCenter,
   getEventOrders,
   pauseProduct,
@@ -11,15 +12,19 @@ import {
   resumeProduct,
   resumeStand,
   type EventControlCenterData,
+  type EventControlCenterSettings,
   type LiveOrder,
+  type LiveOrderItem,
   type RevenuePoint,
   type StandQueueMetric,
   type StandRevenueSeries,
 } from '@/api/eventControlCenter';
-import { LockIcon, UnlockIcon, WarningTriangleIcon } from '@/components/icons';
+import { AlertDialog } from '@/components/feedback';
+import { ChevronDownIcon, LockIcon, UnlockIcon, WarningTriangleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import { paths } from '@/paths';
 import type { Product } from '@/types/product';
@@ -28,6 +33,53 @@ import type { Stand } from '@/types/stand';
 import type { EventControlCenterLoaderData } from './data';
 
 type StandDisplay = Pick<Stand, '_id' | 'standName'>;
+
+const defaultControlCenterSettings: EventControlCenterSettings = {
+  queueLengthAlertThreshold: 10,
+  averageWaitAlertThresholdMinutes: 15,
+};
+
+function controlCenterSettingsKey(eventId: string): string {
+  return `lineless.event-control-center.${eventId}.settings`;
+}
+
+function readControlCenterSettings(eventId: string): EventControlCenterSettings {
+  if (typeof window === 'undefined') return defaultControlCenterSettings;
+
+  try {
+    const raw = window.localStorage.getItem(controlCenterSettingsKey(eventId));
+    if (!raw) return defaultControlCenterSettings;
+    const parsed = JSON.parse(raw) as Partial<EventControlCenterSettings>;
+    return normalizeControlCenterSettings(parsed);
+  } catch {
+    return defaultControlCenterSettings;
+  }
+}
+
+function writeControlCenterSettings(eventId: string, settings: EventControlCenterSettings) {
+  window.localStorage.setItem(controlCenterSettingsKey(eventId), JSON.stringify(settings));
+}
+
+function normalizeControlCenterSettings(
+  settings: Partial<EventControlCenterSettings>,
+): EventControlCenterSettings {
+  return {
+    queueLengthAlertThreshold: normalizeThreshold(
+      settings.queueLengthAlertThreshold,
+      defaultControlCenterSettings.queueLengthAlertThreshold,
+    ),
+    averageWaitAlertThresholdMinutes: normalizeThreshold(
+      settings.averageWaitAlertThresholdMinutes,
+      defaultControlCenterSettings.averageWaitAlertThresholdMinutes,
+    ),
+  };
+}
+
+function normalizeThreshold(value: unknown, fallback: number): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.round(numeric));
+}
 
 export function EventControlCenterError() {
   const error = useRouteError();
@@ -56,11 +108,19 @@ export default function EventControlCenter() {
   const [productsByStand, setProductsByStand] = useState(initialProductsByStand);
   const [stands, setStands] = useState(initialStands);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(() => new Date());
+  const [controlCenterSettingsState, setControlCenterSettingsState] = useState<{
+    eventId: string;
+    settings: EventControlCenterSettings;
+  }>(() => ({
+    eventId: event._id,
+    settings: readControlCenterSettings(event._id),
+  }));
   const { section } = useParams();
   const [selectedStandId, setSelectedStandId] = useState<string>(
     () => initialStands[0]?._id ?? 'all',
   );
-  const activeSection = section === 'management' ? 'management' : 'analytics';
+  const activeSection =
+    section === 'management' ? 'management' : section === 'settings' ? 'settings' : 'analytics';
 
   const selectedStand =
     selectedStandId === 'all'
@@ -68,14 +128,25 @@ export default function EventControlCenter() {
       : (stands.find((stand) => stand._id === selectedStandId) ?? null);
 
   const hasInvalidSection =
-    section !== undefined && section !== 'analytics' && section !== 'management';
+    section !== undefined &&
+    section !== 'analytics' &&
+    section !== 'management' &&
+    section !== 'settings';
+
+  const controlCenterSettings = useMemo(
+    () =>
+      controlCenterSettingsState.eventId === event._id
+        ? controlCenterSettingsState.settings
+        : readControlCenterSettings(event._id),
+    [controlCenterSettingsState, event._id],
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     async function refreshControlCenter() {
       const [nextAnalytics, nextLiveOrders] = await Promise.all([
-        getEventControlCenter(event._id),
+        getEventControlCenter(event._id, controlCenterSettings),
         getEventOrders(event._id),
       ]);
       if (cancelled) return;
@@ -85,6 +156,7 @@ export default function EventControlCenter() {
     }
 
     // TODO SSE: replace polling with the shared event-control-center SSE stream.
+    void refreshControlCenter().catch(() => {});
     const interval = window.setInterval(() => {
       void refreshControlCenter().catch(() => {});
     }, 10000);
@@ -93,11 +165,11 @@ export default function EventControlCenter() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [event._id]);
+  }, [controlCenterSettings, event._id]);
 
   async function refreshSnapshot() {
     const [nextAnalytics, nextLiveOrders] = await Promise.all([
-      getEventControlCenter(event._id),
+      getEventControlCenter(event._id, controlCenterSettings),
       getEventOrders(event._id),
     ]);
     setAnalytics(nextAnalytics);
@@ -108,6 +180,17 @@ export default function EventControlCenter() {
   async function handleCancelOrder(orderId: string) {
     await cancelOrder(event._id, orderId);
     await refreshSnapshot();
+  }
+
+  async function handleCancelOrderItems(orderId: string, itemIds: string[]) {
+    await cancelOrderItems(event._id, orderId, itemIds);
+    await refreshSnapshot();
+  }
+
+  function handleControlCenterSettingsChange(settings: EventControlCenterSettings) {
+    const normalizedSettings = normalizeControlCenterSettings(settings);
+    writeControlCenterSettings(event._id, normalizedSettings);
+    setControlCenterSettingsState({ eventId: event._id, settings: normalizedSettings });
   }
 
   async function handleProductPauseChange(standId: string, product: Product, paused: boolean) {
@@ -170,6 +253,12 @@ export default function EventControlCenter() {
 
       {activeSection === 'analytics' ? (
         <MetricsTab analytics={analytics} stands={stands} />
+      ) : activeSection === 'settings' ? (
+        <SettingsTab
+          key={`${event._id}-${controlCenterSettings.queueLengthAlertThreshold}-${controlCenterSettings.averageWaitAlertThresholdMinutes}`}
+          settings={controlCenterSettings}
+          onChange={handleControlCenterSettingsChange}
+        />
       ) : (
         <ManagementTab
           liveOrders={liveOrders}
@@ -178,6 +267,7 @@ export default function EventControlCenter() {
           selectedStandId={selectedStandId}
           stands={stands}
           onCancelOrder={handleCancelOrder}
+          onCancelOrderItems={handleCancelOrderItems}
           onProductPauseChange={handleProductPauseChange}
           onStandPauseChange={handleStandPauseChange}
           onSelectStand={setSelectedStandId}
@@ -300,6 +390,8 @@ function MetricsTab({ analytics, stands }: { analytics: EventControlCenterData; 
             <RevenueChart
               totalRevenueCents={analytics.totalRevenueCents}
               points={analytics.eventRevenue}
+              standNameById={standNameById}
+              standRevenue={analytics.standRevenue}
             />
           </CardContent>
         </Card>
@@ -418,264 +510,644 @@ function MetricCard({
 
 function RevenueChart({
   points,
+  standNameById,
+  standRevenue,
   totalRevenueCents,
 }: {
   points: RevenuePoint[];
+  standNameById: Map<string, string>;
+  standRevenue: StandRevenueSeries[];
   totalRevenueCents: number;
 }) {
-  const hasPoints = points.length > 0;
-  const maxMinutes = Math.max(...points.map((point) => point.elapsedMinutes), 90);
+  const model = createRevenueChartModel(points, totalRevenueCents, standRevenue, standNameById);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const latestPoint = model.points.at(-1);
+  const hasPoints = model.points.length > 0;
+  const activeIndex = hoveredIndex ?? (hasPoints ? model.points.length - 1 : null);
+  const activePoint = activeIndex === null ? null : model.points[activeIndex];
+  const activeCoordinates = activeIndex === null ? null : model.coordinates[activeIndex];
+  const activeBreakdown = activeIndex === null ? [] : model.breakdownByIndex[activeIndex]!;
+  const leadingStand = activeBreakdown.find((entry) => entry.revenueCents > 0);
+  const stepPath = createStepRevenuePath(model.lineCoordinates);
+  const areaPath = createAreaPath(stepPath, model.lineCoordinates, model.baselineY);
+
+  function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
+    if (!hasPoints) return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const pointerX = ((event.clientX - bounds.left) / bounds.width) * REVENUE_CHART_WIDTH;
+    setHoveredIndex(findNearestRevenuePointIndex(model.coordinates, pointerX));
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-background">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="p-4 pb-0">
+          <p className="text-3xl font-bold text-text">EUR {formatMoney(totalRevenueCents)}</p>
+          <p className="mt-2 max-w-xl text-sm text-text-muted">
+            {latestPoint
+              ? `Cumulative paid revenue after ${latestPoint.elapsedMinutes} minutes, split by stand on hover.`
+              : 'The chart is ready for the first paid order.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 p-4 pb-0">
+          <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text-muted">
+            Step curve
+          </span>
+          <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text-muted">
+            Scale EUR {formatMoney(model.maxRevenue)}
+          </span>
+          <ChartPill label={hasPoints ? 'Live' : 'Empty'} />
+        </div>
+      </div>
+
+      <div className="relative px-2 pt-3">
+        <svg
+          aria-label="Cumulative event revenue by minute"
+          className="h-[22rem] w-full touch-none"
+          role="img"
+          viewBox={`0 0 ${REVENUE_CHART_WIDTH} ${REVENUE_CHART_HEIGHT}`}
+          onPointerLeave={() => setHoveredIndex(null)}
+          onPointerMove={handlePointerMove}
+        >
+          <RevenueChartDefinitions />
+          <RevenueChartSurface model={model} />
+          {hasPoints ? (
+            <>
+              <path d={areaPath} fill="url(#eventRevenueArea)" />
+              <path
+                d={stepPath}
+                fill="none"
+                stroke="var(--color-accent)"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="5"
+                style={{
+                  filter:
+                    'drop-shadow(0 10px 18px color-mix(in srgb, var(--color-accent) 22%, transparent))',
+                }}
+              />
+              <path
+                d={stepPath}
+                fill="none"
+                opacity="0.22"
+                stroke="white"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+              />
+              {model.coordinates.map((point, index) => (
+                <circle
+                  className="transition-all duration-200"
+                  cx={point.x}
+                  cy={point.y}
+                  fill={index === activeIndex ? 'var(--color-accent)' : 'var(--color-surface)'}
+                  key={`${model.points[index]!.elapsedMinutes}-${model.points[index]!.revenueCents}`}
+                  r={index === activeIndex ? '7' : '4'}
+                  stroke="var(--color-accent)"
+                  strokeWidth={index === activeIndex ? '3' : '2'}
+                />
+              ))}
+              {activeCoordinates && activePoint && (
+                <g className="transition-opacity duration-200">
+                  <line
+                    stroke="var(--color-text)"
+                    strokeDasharray="5 7"
+                    strokeOpacity="0.34"
+                    x1={activeCoordinates.x}
+                    x2={activeCoordinates.x}
+                    y1={model.plot.top}
+                    y2={model.baselineY}
+                  />
+                  <circle
+                    className="animate-ping"
+                    cx={activeCoordinates.x}
+                    cy={activeCoordinates.y}
+                    fill="var(--color-accent)"
+                    opacity="0.18"
+                    r="15"
+                  />
+                  <circle
+                    cx={activeCoordinates.x}
+                    cy={activeCoordinates.y}
+                    fill="var(--color-surface)"
+                    r="8"
+                    stroke="var(--color-accent)"
+                    strokeWidth="3"
+                  />
+                  <text
+                    fill="var(--color-text)"
+                    fontSize="13"
+                    fontWeight="800"
+                    textAnchor={activeCoordinates.x > REVENUE_CHART_WIDTH - 170 ? 'end' : 'start'}
+                    x={
+                      activeCoordinates.x > REVENUE_CHART_WIDTH - 170
+                        ? activeCoordinates.x - 14
+                        : activeCoordinates.x + 14
+                    }
+                    y={Math.max(model.plot.top + 16, activeCoordinates.y - 16)}
+                  >
+                    EUR {formatMoney(activePoint.revenueCents)}
+                  </text>
+                </g>
+              )}
+            </>
+          ) : (
+            <RevenueEmptyState model={model} />
+          )}
+          <RevenueXAxis model={model} />
+        </svg>
+
+        {activePoint && activeCoordinates && (
+          <RevenueHoverTooltip
+            breakdown={activeBreakdown}
+            elapsedMinutes={activePoint.elapsedMinutes}
+            leadingStand={leadingStand}
+            revenueCents={activePoint.revenueCents}
+            xPercent={(activeCoordinates.x / REVENUE_CHART_WIDTH) * 100}
+            yPercent={(activeCoordinates.y / REVENUE_CHART_HEIGHT) * 100}
+          />
+        )}
+      </div>
+
+      <div className="border-t border-border bg-surface/70 p-4">
+        {hasPoints ? (
+          <RevenueStandMix
+            breakdown={activeBreakdown}
+            totalRevenueCents={activePoint?.revenueCents ?? 0}
+          />
+        ) : (
+          <p className="text-sm text-text-muted">
+            Stand contribution will appear as soon as paid orders arrive.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RevenueHoverTooltip({
+  breakdown,
+  elapsedMinutes,
+  leadingStand,
+  revenueCents,
+  xPercent,
+  yPercent,
+}: {
+  breakdown: StandRevenueBreakdown[];
+  elapsedMinutes: number;
+  leadingStand?: StandRevenueBreakdown;
+  revenueCents: number;
+  xPercent: number;
+  yPercent: number;
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute z-10 w-72 rounded-lg border border-border bg-surface/95 p-3 text-sm shadow-xl backdrop-blur transition-all duration-200"
+      style={{
+        left: `${Math.min(82, Math.max(18, xPercent))}%`,
+        top: `${Math.min(70, Math.max(20, yPercent))}%`,
+        transform: 'translate(-50%, -62%)',
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+            Minute {elapsedMinutes}
+          </p>
+          <p className="mt-1 text-xl font-bold text-text">EUR {formatMoney(revenueCents)}</p>
+        </div>
+        {leadingStand && (
+          <span
+            className="rounded-full px-2.5 py-1 text-xs font-semibold text-white"
+            style={{ backgroundColor: leadingStand.color }}
+          >
+            {Math.round(leadingStand.share)}%
+          </span>
+        )}
+      </div>
+      <div className="mt-3 space-y-2">
+        {breakdown.map((entry) => (
+          <div className="space-y-1" key={entry.standId}>
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="truncate font-medium text-text">{entry.standName}</span>
+              </span>
+              <span className="shrink-0 font-semibold text-text">
+                EUR {formatMoney(entry.revenueCents)}
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  backgroundColor: entry.color,
+                  width: `${Math.min(100, entry.share)}%`,
+                }}
+              />
+            </div>
+          </div>
+        ))}
+        {breakdown.every((entry) => entry.revenueCents === 0) && (
+          <p className="text-xs text-text-muted">All stands are still at EUR 0.00 here.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RevenueStandMix({
+  breakdown,
+  totalRevenueCents,
+}: {
+  breakdown: StandRevenueBreakdown[];
+  totalRevenueCents: number;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-text">Stand mix at selected step</p>
+        <p className="text-xs font-medium text-text-muted">
+          EUR {formatMoney(totalRevenueCents)} cumulative
+        </p>
+      </div>
+      <div className="flex h-3 overflow-hidden rounded-full bg-surface-muted">
+        {breakdown.map((entry) => (
+          <div
+            className="h-full transition-all duration-300"
+            key={entry.standId}
+            style={{
+              backgroundColor: entry.color,
+              width: `${Math.min(100, entry.share)}%`,
+            }}
+          />
+        ))}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {breakdown.map((entry) => (
+          <div
+            className="rounded-md border border-border bg-background px-3 py-2"
+            key={entry.standId}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-text">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="truncate">{entry.standName}</span>
+              </span>
+              <span className="shrink-0 text-xs font-semibold text-text-muted">
+                {Math.round(entry.share)}%
+              </span>
+            </div>
+            <p className="mt-1 text-sm font-semibold text-text">
+              EUR {formatMoney(entry.revenueCents)}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RevenueChartDefinitions() {
+  return (
+    <defs>
+      <linearGradient id="eventRevenueArea" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.28" />
+        <stop offset="52%" stopColor="#0f766e" stopOpacity="0.12" />
+        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.02" />
+      </linearGradient>
+      <linearGradient id="emptyChartSurface" x1="0" x2="1" y1="0" y2="1">
+        <stop offset="0%" stopColor="#020887" stopOpacity="0.08" />
+        <stop offset="44%" stopColor="var(--color-surface)" stopOpacity="0.9" />
+        <stop offset="100%" stopColor="#0f766e" stopOpacity="0.08" />
+      </linearGradient>
+    </defs>
+  );
+}
+
+function RevenueChartSurface({
+  model,
+  subtle = false,
+}: {
+  model: RevenueChartModel;
+  subtle?: boolean;
+}) {
+  return (
+    <>
+      <rect
+        fill="url(#emptyChartSurface)"
+        height={model.plot.height + 38}
+        opacity={subtle ? '0.72' : '1'}
+        rx="18"
+        width={REVENUE_CHART_WIDTH - 28}
+        x="14"
+        y="12"
+      />
+      {model.yTicks.map((tick) => {
+        const y = model.yForRevenue(tick);
+
+        return (
+          <g key={tick}>
+            <text
+              fill="var(--color-text-muted)"
+              fontSize="8"
+              fontWeight="600"
+              textAnchor="end"
+              x={model.plot.left - 10}
+              y={y + 3}
+            >
+              {tick === 0 ? 'EUR 0' : `${Math.round(tick / 100) / 10}k`}
+            </text>
+            <line
+              stroke="var(--color-border)"
+              strokeDasharray={tick === 0 ? '0' : '4 7'}
+              strokeOpacity={tick === 0 ? '0.9' : '0.62'}
+              strokeWidth={tick === 0 ? '1.5' : '1'}
+              x1={model.plot.left}
+              x2={model.plot.left + model.plot.width}
+              y1={y}
+              y2={y}
+            />
+          </g>
+        );
+      })}
+      {[0, 0.25, 0.5, 0.75, 1].map((position) => {
+        const x = model.plot.left + position * model.plot.width;
+
+        return (
+          <line
+            key={position}
+            stroke="var(--color-border)"
+            strokeOpacity="0.28"
+            x1={x}
+            x2={x}
+            y1={model.plot.top}
+            y2={model.baselineY}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function RevenueXAxis({ model }: { model: RevenueChartModel }) {
+  return (
+    <>
+      <text
+        fill="var(--color-text-muted)"
+        fontSize="8"
+        fontWeight="600"
+        x={model.plot.left}
+        y={model.baselineY + 38}
+      >
+        0m
+      </text>
+      <text
+        fill="var(--color-text-muted)"
+        fontSize="8"
+        fontWeight="600"
+        textAnchor="middle"
+        x={model.plot.left + model.plot.width / 2}
+        y={model.baselineY + 38}
+      >
+        {Math.round(model.maxMinutes / 2)}m
+      </text>
+      <text
+        fill="var(--color-text-muted)"
+        fontSize="8"
+        fontWeight="600"
+        textAnchor="end"
+        x={model.plot.left + model.plot.width}
+        y={model.baselineY + 38}
+      >
+        {model.maxMinutes}m
+      </text>
+    </>
+  );
+}
+
+function RevenueEmptyState({ model }: { model: RevenueChartModel }) {
+  return (
+    <g>
+      <path
+        d={`M ${model.plot.left} ${model.baselineY} C 120 ${model.baselineY - 6}, 225 ${
+          model.baselineY - 6
+        }, ${model.plot.left + model.plot.width} ${model.baselineY}`}
+        fill="none"
+        stroke="var(--color-accent)"
+        strokeDasharray="5 7"
+        strokeLinecap="round"
+        strokeOpacity="0.38"
+        strokeWidth="2.5"
+      />
+      <circle
+        cx={model.plot.left + model.plot.width / 2}
+        cy={model.baselineY - 5}
+        fill="var(--color-surface)"
+        r="5"
+        stroke="var(--color-accent)"
+        strokeOpacity="0.55"
+        strokeWidth="2"
+      />
+      <text
+        fill="var(--color-text)"
+        fontSize="16"
+        fontWeight="800"
+        textAnchor="middle"
+        x="360"
+        y="132"
+      >
+        Awaiting first paid order
+      </text>
+      <text
+        fill="var(--color-text-muted)"
+        fontSize="12"
+        fontWeight="500"
+        textAnchor="middle"
+        x="360"
+        y="154"
+      >
+        Revenue will draw in from left to right
+      </text>
+    </g>
+  );
+}
+
+const REVENUE_CHART_WIDTH = 720;
+const REVENUE_CHART_HEIGHT = 320;
+const REVENUE_STAND_COLORS = [
+  '#020887',
+  '#0f766e',
+  '#f59e0b',
+  '#dc2626',
+  '#7c3aed',
+  '#0891b2',
+  '#65a30d',
+  '#be123c',
+];
+
+type StandRevenueBreakdown = {
+  color: string;
+  revenueCents: number;
+  share: number;
+  standId: string;
+  standName: string;
+};
+
+type RevenueChartModel = {
+  baselineY: number;
+  breakdownByIndex: StandRevenueBreakdown[][];
+  coordinates: { x: number; y: number }[];
+  lineCoordinates: { x: number; y: number }[];
+  maxMinutes: number;
+  maxRevenue: number;
+  plot: {
+    bottom: number;
+    height: number;
+    left: number;
+    right: number;
+    top: number;
+    width: number;
+  };
+  points: RevenuePoint[];
+  xForMinute: (elapsedMinutes: number) => number;
+  yForRevenue: (revenueCents: number) => number;
+  yTicks: number[];
+};
+
+function createRevenueChartModel(
+  points: RevenuePoint[],
+  totalRevenueCents: number,
+  standRevenue: StandRevenueSeries[],
+  standNameById: Map<string, string>,
+): RevenueChartModel {
+  const sortedPoints = [...points].sort(
+    (left, right) => left.elapsedMinutes - right.elapsedMinutes,
+  );
+  const standRevenueById = new Map(standRevenue.map((series) => [series.standId, series]));
+  const rankedStandEntries = [
+    ...Array.from(standNameById.entries()).map(([standId, standName]) => ({
+      standId,
+      standName,
+    })),
+    ...standRevenue
+      .filter((series) => !standNameById.has(series.standId))
+      .map((series) => ({ standId: series.standId, standName: 'Unknown stand' })),
+  ].sort(
+    (left, right) =>
+      (standRevenueById.get(right.standId)?.points.at(-1)?.revenueCents ?? 0) -
+      (standRevenueById.get(left.standId)?.points.at(-1)?.revenueCents ?? 0),
+  );
+  const maxMinutes = Math.max(...sortedPoints.map((point) => point.elapsedMinutes), 90);
   const rawMaxRevenue = Math.max(
-    ...points.map((point) => point.revenueCents),
+    ...sortedPoints.map((point) => point.revenueCents),
     totalRevenueCents,
     100,
   );
   const maxRevenue = Math.ceil(rawMaxRevenue / 1000) * 1000;
   const plot = {
-    left: 44,
-    right: 22,
-    top: 18,
-    bottom: 30,
-    width: 294,
-    height: 118,
+    left: 78,
+    right: 34,
+    top: 34,
+    bottom: 52,
+    width: 586,
+    height: 210,
   };
-  const pointToCoordinates = (point: RevenuePoint) => {
-    const x = plot.left + (point.elapsedMinutes / maxMinutes) * plot.width;
-    const y = plot.top + (1 - point.revenueCents / maxRevenue) * plot.height;
-    return { x, y };
-  };
-  const coordinates = points.map(pointToCoordinates);
-  const path = createSmoothRevenuePath(coordinates);
-  const baselineY = plot.top + plot.height;
-  const areaPath =
-    hasPoints && coordinates.length > 0
-      ? `${path} L ${coordinates.at(-1)!.x.toFixed(1)} ${baselineY} L ${coordinates[0]!.x.toFixed(
-          1,
-        )} ${baselineY} Z`
-      : '';
-  const latestPoint = points.at(-1);
-  const latestCoordinates = latestPoint ? pointToCoordinates(latestPoint) : null;
-  const yTicks = [maxRevenue, Math.round(maxRevenue / 2), 0];
+  const xForMinute = (elapsedMinutes: number) =>
+    plot.left + (elapsedMinutes / maxMinutes) * plot.width;
+  const yForRevenue = (revenueCents: number) =>
+    plot.top + (1 - revenueCents / maxRevenue) * plot.height;
+  const coordinates = sortedPoints.map((point) => ({
+    x: xForMinute(point.elapsedMinutes),
+    y: yForRevenue(point.revenueCents),
+  }));
+  const linePoints =
+    sortedPoints[0]?.elapsedMinutes === 0
+      ? sortedPoints
+      : [{ elapsedMinutes: 0, revenueCents: 0 }, ...sortedPoints];
+  const lineCoordinates = linePoints.map((point) => ({
+    x: xForMinute(point.elapsedMinutes),
+    y: yForRevenue(point.revenueCents),
+  }));
+  const breakdownByIndex = sortedPoints.map((point) =>
+    rankedStandEntries
+      .map((stand, index) => {
+        const series = standRevenueById.get(stand.standId);
+        const revenueCents = getStandRevenueAtMinute(series, point.elapsedMinutes);
 
-  return (
-    <div className="flex min-h-80 flex-col justify-between overflow-hidden rounded-lg border border-border bg-background p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-text">EUR {formatMoney(totalRevenueCents)}</p>
-          <p className="mt-1 max-w-xl text-sm text-text-muted">
-            {latestPoint
-              ? `Cumulative paid revenue after ${latestPoint.elapsedMinutes} minutes.`
-              : 'The chart is ready for the first paid order.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text-muted">
-            Peak EUR {formatMoney(maxRevenue)}
-          </span>
-          <ChartPill label={hasPoints ? 'Live' : 'Empty'} />
-        </div>
-      </div>
-      <svg aria-hidden="true" className="mt-6 h-56 w-full" viewBox="0 0 360 176">
-        <defs>
-          <linearGradient id="eventRevenueArea" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.34" />
-            <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.02" />
-          </linearGradient>
-          <linearGradient id="emptyChartSurface" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.08" />
-            <stop offset="55%" stopColor="var(--color-surface)" stopOpacity="0.72" />
-            <stop offset="100%" stopColor="var(--color-surface-muted)" stopOpacity="0.55" />
-          </linearGradient>
-          <filter id="revenueLineGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <rect fill="url(#emptyChartSurface)" height="146" rx="14" width="336" x="12" y="8" />
-        {yTicks.map((tick) => {
-          const y = plot.top + (1 - tick / maxRevenue) * plot.height;
-
-          return (
-            <g key={tick}>
-              <text
-                fill="var(--color-text-muted)"
-                fontSize="8"
-                fontWeight="600"
-                textAnchor="end"
-                x="36"
-                y={y + 3}
-              >
-                {tick === 0 ? 'EUR 0' : `${Math.round(tick / 100) / 10}k`}
-              </text>
-              <line
-                stroke="var(--color-border)"
-                strokeDasharray={tick === 0 ? '0' : '4 7'}
-                strokeOpacity={tick === 0 ? '0.9' : '0.62'}
-                strokeWidth={tick === 0 ? '1.5' : '1'}
-                x1={plot.left}
-                x2={plot.left + plot.width}
-                y1={y}
-                y2={y}
-              />
-            </g>
-          );
-        })}
-        {[0, 0.25, 0.5, 0.75, 1].map((position) => {
-          const x = plot.left + position * plot.width;
-
-          return (
-            <line
-              key={position}
-              stroke="var(--color-border)"
-              strokeOpacity="0.28"
-              x1={x}
-              x2={x}
-              y1={plot.top}
-              y2={baselineY}
-            />
-          );
-        })}
-        {hasPoints && <path d={areaPath} fill="url(#eventRevenueArea)" />}
-        {hasPoints ? (
-          <>
-            <path
-              d={path}
-              fill="none"
-              filter="url(#revenueLineGlow)"
-              opacity="0.24"
-              stroke="var(--color-accent)"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="8"
-            />
-            <path
-              d={path}
-              fill="none"
-              stroke="var(--color-accent)"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="3.5"
-            />
-            {coordinates.map(({ x, y }, index) => (
-              <circle
-                cx={x}
-                cy={y}
-                fill="var(--color-surface)"
-                key={`${points[index]!.elapsedMinutes}-${points[index]!.revenueCents}`}
-                r={index === coordinates.length - 1 ? '4.8' : '3'}
-                stroke="var(--color-accent)"
-                strokeWidth={index === coordinates.length - 1 ? '2.5' : '2'}
-              />
-            ))}
-            {latestCoordinates && latestPoint && (
-              <g>
-                <line
-                  stroke="var(--color-accent)"
-                  strokeDasharray="3 5"
-                  strokeOpacity="0.42"
-                  x1={latestCoordinates.x}
-                  x2={latestCoordinates.x}
-                  y1={plot.top}
-                  y2={baselineY}
-                />
-                <rect
-                  fill="var(--color-surface)"
-                  height="23"
-                  rx="11.5"
-                  stroke="var(--color-border)"
-                  width="78"
-                  x={Math.min(latestCoordinates.x + 8, 260)}
-                  y={Math.max(latestCoordinates.y - 34, 12)}
-                />
-                <text
-                  fill="var(--color-text)"
-                  fontSize="8"
-                  fontWeight="700"
-                  x={Math.min(latestCoordinates.x + 47, 299)}
-                  y={Math.max(latestCoordinates.y - 19, 27)}
-                  textAnchor="middle"
-                >
-                  EUR {formatMoney(latestPoint.revenueCents)}
-                </text>
-              </g>
-            )}
-          </>
-        ) : (
-          <g>
-            <path
-              d={`M ${plot.left} ${baselineY} C 120 ${baselineY - 6}, 225 ${baselineY - 6}, ${
-                plot.left + plot.width
-              } ${baselineY}`}
-              fill="none"
-              stroke="var(--color-accent)"
-              strokeDasharray="5 7"
-              strokeLinecap="round"
-              strokeOpacity="0.38"
-              strokeWidth="2.5"
-            />
-            <circle
-              cx={plot.left + plot.width / 2}
-              cy={baselineY - 5}
-              fill="var(--color-surface)"
-              r="5"
-              stroke="var(--color-accent)"
-              strokeOpacity="0.55"
-              strokeWidth="2"
-            />
-            <text
-              fill="var(--color-text)"
-              fontSize="10"
-              fontWeight="700"
-              textAnchor="middle"
-              x="191"
-              y="72"
-            >
-              Awaiting first paid order
-            </text>
-            <text
-              fill="var(--color-text-muted)"
-              fontSize="8"
-              fontWeight="500"
-              textAnchor="middle"
-              x="191"
-              y="86"
-            >
-              Revenue will draw in from left to right
-            </text>
-          </g>
-        )}
-        <text fill="var(--color-text-muted)" fontSize="8" fontWeight="600" x={plot.left} y="164">
-          0m
-        </text>
-        <text
-          fill="var(--color-text-muted)"
-          fontSize="8"
-          fontWeight="600"
-          textAnchor="middle"
-          x={plot.left + plot.width / 2}
-          y="164"
-        >
-          {Math.round(maxMinutes / 2)}m
-        </text>
-        <text
-          fill="var(--color-text-muted)"
-          fontSize="8"
-          fontWeight="600"
-          textAnchor="end"
-          x={plot.left + plot.width}
-          y="164"
-        >
-          {maxMinutes}m
-        </text>
-      </svg>
-    </div>
+        return {
+          color: REVENUE_STAND_COLORS[index % REVENUE_STAND_COLORS.length]!,
+          revenueCents,
+          share: point.revenueCents > 0 ? (revenueCents / point.revenueCents) * 100 : 0,
+          standId: stand.standId,
+          standName: stand.standName,
+        };
+      })
+      .sort((left, right) => right.revenueCents - left.revenueCents),
   );
+
+  return {
+    baselineY: plot.top + plot.height,
+    breakdownByIndex,
+    coordinates,
+    lineCoordinates,
+    maxMinutes,
+    maxRevenue,
+    plot,
+    points: sortedPoints,
+    xForMinute,
+    yForRevenue,
+    yTicks: [maxRevenue, Math.round(maxRevenue / 2), 0],
+  };
 }
 
-function createSmoothRevenuePath(points: { x: number; y: number }[]) {
+function getStandRevenueAtMinute(
+  series: StandRevenueSeries | undefined,
+  elapsedMinutes: number,
+): number {
+  if (!series) return 0;
+
+  const sortedPoints = [...series.points].sort(
+    (left, right) => left.elapsedMinutes - right.elapsedMinutes,
+  );
+  let revenueCents = 0;
+
+  for (const point of sortedPoints) {
+    if (point.elapsedMinutes > elapsedMinutes) break;
+    revenueCents = point.revenueCents;
+  }
+
+  return revenueCents;
+}
+
+function createAreaPath(
+  path: string,
+  points: { x: number; y: number }[],
+  baselineY: number,
+): string {
+  if (!path || points.length === 0) return '';
+
+  return `${path} L ${points.at(-1)!.x.toFixed(1)} ${baselineY} L ${points[0]!.x.toFixed(
+    1,
+  )} ${baselineY} Z`;
+}
+
+function findNearestRevenuePointIndex(points: { x: number; y: number }[], pointerX: number) {
+  return points.reduce((nearestIndex, point, index) => {
+    const nearest = points[nearestIndex]!;
+
+    return Math.abs(point.x - pointerX) < Math.abs(nearest.x - pointerX) ? index : nearestIndex;
+  }, 0);
+}
+
+function createStepRevenuePath(points: { x: number; y: number }[]) {
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0]!.x.toFixed(1)} ${points[0]!.y.toFixed(1)}`;
 
@@ -684,12 +1156,7 @@ function createSmoothRevenuePath(points: { x: number; y: number }[]) {
       return `M ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
     }
 
-    const previous = points[index - 1]!;
-    const controlX = (previous.x + point.x) / 2;
-
-    return `${path} C ${controlX.toFixed(1)} ${previous.y.toFixed(1)}, ${controlX.toFixed(
-      1,
-    )} ${point.y.toFixed(1)}, ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    return `${path} H ${point.x.toFixed(1)} V ${point.y.toFixed(1)}`;
   }, '');
 }
 
@@ -993,9 +1460,100 @@ function AlertsSummary({
   );
 }
 
+function SettingsTab({
+  onChange,
+  settings,
+}: {
+  onChange: (settings: EventControlCenterSettings) => void;
+  settings: EventControlCenterSettings;
+}) {
+  const [form, setForm] = useState<EventControlCenterSettings>(settings);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+
+  const hasChanges =
+    form.queueLengthAlertThreshold !== settings.queueLengthAlertThreshold ||
+    form.averageWaitAlertThresholdMinutes !== settings.averageWaitAlertThresholdMinutes;
+
+  function updateField<K extends keyof EventControlCenterSettings>(
+    key: K,
+    value: EventControlCenterSettings[K],
+  ) {
+    setSavedMessage(null);
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function saveSettings() {
+    const normalizedSettings = normalizeControlCenterSettings(form);
+    setForm(normalizedSettings);
+    onChange(normalizedSettings);
+    setSavedMessage('Settings saved. Analytics will refresh with these thresholds.');
+  }
+
+  function resetSettings() {
+    setForm(defaultControlCenterSettings);
+    onChange(defaultControlCenterSettings);
+    setSavedMessage('Settings reset to defaults.');
+  }
+
+  return (
+    <div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Alert Thresholds</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-5 md:grid-cols-2">
+            <TextField
+              helperText="A stand is flagged when its open queue reaches this number."
+              id="queue-length-alert-threshold"
+              label="Queue length"
+              min={0}
+              onChange={(event) =>
+                updateField('queueLengthAlertThreshold', Number(event.target.value))
+              }
+              step={1}
+              type="number"
+              value={form.queueLengthAlertThreshold}
+            />
+
+            <TextField
+              helperText="A stand is flagged when its average open-item wait reaches this duration."
+              id="average-wait-alert-threshold"
+              label="Average wait in minutes"
+              min={0}
+              onChange={(event) =>
+                updateField('averageWaitAlertThresholdMinutes', Number(event.target.value))
+              }
+              step={1}
+              type="number"
+              value={form.averageWaitAlertThresholdMinutes}
+            />
+          </div>
+
+          <div className="mt-6 flex justify-end gap-2">
+            <Button onClick={resetSettings} size="sm" variant="secondary">
+              Reset defaults
+            </Button>
+            <Button disabled={!hasChanges} onClick={saveSettings} size="sm">
+              Save settings
+            </Button>
+          </div>
+
+          {savedMessage ? (
+            <p className="mt-4 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">
+              {savedMessage}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ManagementTab({
   liveOrders,
   onCancelOrder,
+  onCancelOrderItems,
   onProductPauseChange,
   onStandPauseChange,
   onSelectStand,
@@ -1006,6 +1564,7 @@ function ManagementTab({
 }: {
   liveOrders: LiveOrder[];
   onCancelOrder: (orderId: string) => Promise<void>;
+  onCancelOrderItems: (orderId: string, itemIds: string[]) => Promise<void>;
   onProductPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
   onStandPauseChange: (stand: Stand, paused: boolean) => Promise<void>;
   onSelectStand: (standId: string) => void;
@@ -1073,7 +1632,12 @@ function ManagementTab({
             <CardTitle>Live Orders {selectedStand ? `- ${selectedStand.standName}` : ''}</CardTitle>
           </CardHeader>
           <CardContent>
-            <LiveOrdersTable orders={visibleOrders} onCancelOrder={onCancelOrder} />
+            <LiveOrdersTable
+              orders={visibleOrders}
+              stands={stands}
+              onCancelOrder={onCancelOrder}
+              onCancelOrderItems={onCancelOrderItems}
+            />
           </CardContent>
         </Card>
 
@@ -1134,19 +1698,94 @@ function StandFilterButton({
 
 function LiveOrdersTable({
   orders,
+  stands,
   onCancelOrder,
+  onCancelOrderItems,
 }: {
   orders: LiveOrder[];
+  stands: Stand[];
   onCancelOrder: (orderId: string) => Promise<void>;
+  onCancelOrderItems: (orderId: string, itemIds: string[]) => Promise<void>;
 }) {
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(() => new Set());
+  const [selectedItemIdsByOrder, setSelectedItemIdsByOrder] = useState<Record<string, string[]>>(
+    {},
+  );
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [cancellingItemOrderId, setCancellingItemOrderId] = useState<string | null>(null);
+  const [pendingCancellation, setPendingCancellation] = useState<
+    | { type: 'order'; order: LiveOrder }
+    | { type: 'items'; order: LiveOrder; itemIds: string[] }
+    | null
+  >(null);
+  const standNameById = useMemo(
+    () => new Map(stands.map((stand) => [stand._id, stand.standName])),
+    [stands],
+  );
 
-  async function cancel(orderId: string) {
-    setCancellingOrderId(orderId);
+  function toggleExpanded(orderId: string) {
+    const willCollapse = expandedOrderIds.has(orderId);
+    setExpandedOrderIds((current) => {
+      const next = new Set(current);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+
+    if (willCollapse) {
+      setSelectedItemIdsByOrder((selected) => {
+        const next = { ...selected };
+        delete next[orderId];
+        return next;
+      });
+    }
+  }
+
+  function toggleItemSelection(orderId: string, itemId: string) {
+    setSelectedItemIdsByOrder((current) => {
+      const selected = current[orderId] ?? [];
+      const nextSelected = selected.includes(itemId)
+        ? selected.filter((selectedItemId) => selectedItemId !== itemId)
+        : [...selected, itemId];
+
+      return {
+        ...current,
+        [orderId]: nextSelected,
+      };
+    });
+  }
+
+  function toggleAllItems(order: LiveOrder, checked: boolean) {
+    setSelectedItemIdsByOrder((current) => ({
+      ...current,
+      [order._id]: checked ? order.items.map((item) => item.itemId) : [],
+    }));
+  }
+
+  async function confirmCancellation() {
+    const cancellation = pendingCancellation;
+    if (!cancellation) return;
+
+    setPendingCancellation(null);
+    if (cancellation.type === 'order') {
+      setCancellingOrderId(cancellation.order._id);
+      try {
+        await onCancelOrder(cancellation.order._id);
+      } finally {
+        setCancellingOrderId(null);
+      }
+      return;
+    }
+
+    setCancellingItemOrderId(cancellation.order._id);
     try {
-      await onCancelOrder(orderId);
+      await onCancelOrderItems(cancellation.order._id, cancellation.itemIds);
+      setSelectedItemIdsByOrder((current) => ({
+        ...current,
+        [cancellation.order._id]: [],
+      }));
     } finally {
-      setCancellingOrderId(null);
+      setCancellingItemOrderId(null);
     }
   }
 
@@ -1157,50 +1796,203 @@ function LiveOrdersTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      <div className="grid grid-cols-[8rem_1fr_8rem_8rem] bg-surface-muted px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted">
-        <span>Order</span>
-        <span>Items</span>
-        <span>Status</span>
-        <span className="text-right">Action</span>
-      </div>
-      <div className="divide-y divide-border">
+    <>
+      <div className="overflow-hidden rounded-lg border border-border">
+        <div className="hidden grid-cols-[8rem_minmax(0,1fr)_8rem_8rem_2rem] gap-4 bg-surface-muted px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted md:grid">
+          <span>Order</span>
+          <span>Stands</span>
+          <span>Status</span>
+          <span>Total</span>
+          <span className="sr-only">Details</span>
+        </div>
         {orders.map((order) => (
-          <div
-            className="grid grid-cols-[8rem_1fr_8rem_8rem] items-center gap-4 px-4 py-3"
+          <LiveOrderRow
+            cancellingItemOrderId={cancellingItemOrderId}
+            cancellingOrderId={cancellingOrderId}
+            expanded={expandedOrderIds.has(order._id)}
             key={order._id}
-          >
-            <div>
-              <p className="font-semibold text-text">#{order.orderNumber}</p>
-              <p className="text-xs text-text-muted">{order.pickupCode}</p>
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm text-text">
-                {order.items.map((item) => item.productName).join(', ')}
-              </p>
-              <p className="mt-1 text-xs text-text-muted">
-                EUR {formatMoney(order.totalPriceIncludingTax)} ·{' '}
-                {new Date(order.createdAt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </p>
-            </div>
-            <OrderStatusBadge status={order.status} />
-            <div className="text-right">
+            onCancelItems={(itemIds) => setPendingCancellation({ type: 'items', order, itemIds })}
+            onCancelOrder={() => setPendingCancellation({ type: 'order', order })}
+            onToggleAllItems={(checked) => toggleAllItems(order, checked)}
+            onToggleExpanded={() => toggleExpanded(order._id)}
+            onToggleItem={(itemId) => toggleItemSelection(order._id, itemId)}
+            order={order}
+            selectedItemIds={selectedItemIdsByOrder[order._id] ?? []}
+            standNameById={standNameById}
+          />
+        ))}
+      </div>
+
+      <AlertDialog
+        acknowledgeLabel="Cancel order"
+        cancelLabel="Keep order"
+        message={
+          pendingCancellation?.type === 'order'
+            ? `All open items in order #${pendingCancellation.order.orderNumber} will be cancelled.`
+            : null
+        }
+        onAcknowledge={() => void confirmCancellation()}
+        onCancel={() => setPendingCancellation(null)}
+        title="Cancel order?"
+      />
+
+      <AlertDialog
+        acknowledgeLabel="Cancel items"
+        cancelLabel="Keep items"
+        message={
+          pendingCancellation?.type === 'items'
+            ? `${pendingCancellation.itemIds.length} selected item${
+                pendingCancellation.itemIds.length === 1 ? '' : 's'
+              } in order #${pendingCancellation.order.orderNumber} will be cancelled.`
+            : null
+        }
+        onAcknowledge={() => void confirmCancellation()}
+        onCancel={() => setPendingCancellation(null)}
+        title="Cancel selected items?"
+      />
+    </>
+  );
+}
+
+function LiveOrderRow({
+  cancellingItemOrderId,
+  cancellingOrderId,
+  expanded,
+  onCancelItems,
+  onCancelOrder,
+  onToggleAllItems,
+  onToggleExpanded,
+  onToggleItem,
+  order,
+  selectedItemIds,
+  standNameById,
+}: {
+  cancellingItemOrderId: string | null;
+  cancellingOrderId: string | null;
+  expanded: boolean;
+  onCancelItems: (itemIds: string[]) => void;
+  onCancelOrder: () => void;
+  onToggleAllItems: (checked: boolean) => void;
+  onToggleExpanded: () => void;
+  onToggleItem: (itemId: string) => void;
+  order: LiveOrder;
+  selectedItemIds: string[];
+  standNameById: Map<string, string>;
+}) {
+  const allItemsSelected = order.items.length > 0 && selectedItemIds.length === order.items.length;
+  const someItemsSelected = selectedItemIds.length > 0;
+  const standNames = order.standIds.map((standId) => standNameById.get(standId) ?? 'Unknown stand');
+  const standSummary = standNames.join(', ');
+
+  return (
+    <div className="border-t border-border first:border-t-0">
+      <button
+        aria-expanded={expanded}
+        className="grid w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-muted/50 md:grid-cols-[8rem_minmax(0,1fr)_8rem_8rem_2rem] md:items-center md:gap-4"
+        onClick={onToggleExpanded}
+        type="button"
+      >
+        <span>
+          <span className="block font-semibold text-text">#{order.orderNumber}</span>
+          <span className="block text-xs text-text-muted">{order.pickupCode}</span>
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm text-text">{standSummary}</span>
+          <span className="mt-1 block text-xs text-text-muted">
+            {order.items.length} item{order.items.length === 1 ? '' : 's'} across{' '}
+            {standNames.length} stand{standNames.length === 1 ? '' : 's'} ·{' '}
+            {new Date(order.createdAt).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+        </span>
+        <OrderStatusBadge status={order.status} />
+        <span className="text-sm font-medium text-text">
+          EUR {formatMoney(order.totalPriceIncludingTax)}
+        </span>
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted md:justify-self-end">
+          <ChevronDownIcon
+            className={['transition-transform', expanded ? 'rotate-180' : ''].join(' ')}
+          />
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border bg-surface-muted/40 px-4 py-4">
+          <div className="divide-y divide-border rounded-md border border-border bg-surface">
+            <div className="flex flex-col gap-3 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-text">
+                <input
+                  checked={allItemsSelected}
+                  className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+                  onChange={(event) => onToggleAllItems(event.target.checked)}
+                  type="checkbox"
+                />
+                Select all visible items
+              </label>
               <Button
-                disabled={cancellingOrderId === order._id}
-                onClick={() => void cancel(order._id)}
+                className="w-full whitespace-nowrap border-danger/30 text-danger hover:bg-danger/10 hover:text-danger sm:w-auto"
+                disabled={
+                  someItemsSelected
+                    ? cancellingItemOrderId === order._id
+                    : cancellingOrderId === order._id
+                }
+                onClick={() => {
+                  if (someItemsSelected) onCancelItems(selectedItemIds);
+                  else onCancelOrder();
+                }}
                 size="sm"
                 variant="outline"
               >
-                Cancel
+                {someItemsSelected
+                  ? `Cancel selected items (${selectedItemIds.length})`
+                  : 'Cancel order'}
               </Button>
             </div>
+            {order.items.map((item) => (
+              <LiveOrderItemRow
+                checked={selectedItemIds.includes(item.itemId)}
+                item={item}
+                key={item.itemId}
+                onToggle={() => onToggleItem(item.itemId)}
+              />
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function LiveOrderItemRow({
+  checked,
+  item,
+  onToggle,
+}: {
+  checked: boolean;
+  item: LiveOrderItem;
+  onToggle: () => void;
+}) {
+  return (
+    <label className="grid cursor-pointer gap-3 px-3 py-3 hover:bg-surface-muted sm:grid-cols-[1.5rem_minmax(0,1fr)_7rem_6rem] sm:items-center">
+      <input
+        checked={checked}
+        className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+        onChange={onToggle}
+        type="checkbox"
+      />
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-text">{item.productName}</p>
+        {item.customerComment && (
+          <p className="mt-1 truncate text-xs text-text-muted">{item.customerComment}</p>
+        )}
+      </div>
+      <OrderStatusBadge status={item.status} />
+      <p className="text-sm font-medium text-text sm:text-right">
+        EUR {formatMoney(item.unitPriceIncludingTax)}
+      </p>
+    </label>
   );
 }
 

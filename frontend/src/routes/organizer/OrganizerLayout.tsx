@@ -23,14 +23,20 @@ export default function OrganizerLayout() {
           label: 'Management',
           to: paths.organizer.eventControlCenterManagement(eventControlCenterEventId),
         },
+        {
+          label: 'Settings',
+          to: paths.organizer.eventControlCenterSettings(eventControlCenterEventId),
+        },
       ]
     : [];
   const activeEventControlCenterLinkTo =
     eventControlCenterEventId && eventControlCenterSection === 'management'
       ? paths.organizer.eventControlCenterManagement(eventControlCenterEventId)
-      : eventControlCenterEventId
-        ? paths.organizer.eventControlCenterAnalytics(eventControlCenterEventId)
-        : undefined;
+      : eventControlCenterEventId && eventControlCenterSection === 'settings'
+        ? paths.organizer.eventControlCenterSettings(eventControlCenterEventId)
+        : eventControlCenterEventId && eventControlCenterSection !== 'settings'
+          ? paths.organizer.eventControlCenterAnalytics(eventControlCenterEventId)
+          : undefined;
 
   return (
     <OrganizerRequireAuth>

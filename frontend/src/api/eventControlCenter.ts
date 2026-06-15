@@ -27,6 +27,11 @@ export type EventControlCenterData = {
   standQueues: StandQueueMetric[];
 };
 
+export type EventControlCenterSettings = {
+  queueLengthAlertThreshold: number;
+  averageWaitAlertThresholdMinutes: number;
+};
+
 export type LiveOrderStatus = 'IN_LINE' | 'PREPARING' | 'READY';
 
 export type LiveOrderItem = {
@@ -52,8 +57,19 @@ export type LiveOrder = {
   totalPriceIncludingTax: number;
 };
 
-export function getEventControlCenter(eventId: string): Promise<EventControlCenterData> {
-  return apiFetch<EventControlCenterData>(`/events/${eventId}/event-control-center`, {
+export function getEventControlCenter(
+  eventId: string,
+  settings?: EventControlCenterSettings,
+): Promise<EventControlCenterData> {
+  const params = settings
+    ? `?queueLengthAlertThreshold=${encodeURIComponent(
+        settings.queueLengthAlertThreshold,
+      )}&averageWaitAlertThresholdMinutes=${encodeURIComponent(
+        settings.averageWaitAlertThresholdMinutes,
+      )}`
+    : '';
+
+  return apiFetch<EventControlCenterData>(`/events/${eventId}/event-control-center${params}`, {
     auth: 'organizer',
   });
 }
@@ -70,6 +86,21 @@ export function cancelOrder(eventId: string, orderId: string): Promise<unknown> 
     method: 'POST',
     auth: 'organizer',
   });
+}
+
+export function cancelOrderItems(
+  eventId: string,
+  orderId: string,
+  itemIds: string[],
+): Promise<unknown> {
+  return apiFetch<unknown>(
+    `/events/${eventId}/event-control-center/orders/${orderId}/items/cancel`,
+    {
+      method: 'POST',
+      auth: 'organizer',
+      body: JSON.stringify({ itemIds }),
+    },
+  );
 }
 
 export function pauseProduct(eventId: string, standId: string, productId: string): Promise<void> {
