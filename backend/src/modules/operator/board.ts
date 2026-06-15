@@ -8,6 +8,7 @@ export interface BoardItem {
   orderId: string;
   itemId: string;
   orderNumber: string;
+  pickupCode: string;
   productId: string;
   productName: string;
   state: BoardItemState;
@@ -69,6 +70,7 @@ export async function buildOperatorBoard(
         orderId: order._id,
         itemId: item._id,
         orderNumber: order.orderNumber,
+        pickupCode: order.pickupCode,
         productId: item.productId,
         productName: product.productName,
         state,
