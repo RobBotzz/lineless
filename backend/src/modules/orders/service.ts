@@ -112,6 +112,16 @@ export async function getOrderForAttendee(
   return order;
 }
 
+// An attendee's own paid orders — the source for the order-status / review entry
+// point. Items carry fulfilledAt so the client decides review eligibility.
+export async function listOrdersForAttendee(
+  sessionId: string
+): Promise<OrderDoc[]> {
+  return Order.find({ sessionId, paidAt: { $ne: null } })
+    .sort({ createdAt: -1 })
+    .lean();
+}
+
 export async function getOrderForOrganizer(
   orderId: string,
   accountId: string
