@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
 import type { BoardItem, BoardItemState, BoardProduct, OperatorBoard } from '@/types/operatorBoard';
 import { BackButton } from '@/components/shared';
-import { InfoIcon, PauseIcon, PlayIcon } from '@/components/icons';
+import { ChatIcon, ChevronDownIcon, PauseIcon, PlayIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { operatorStandQueryOptions } from '../operatorQueries';
 
@@ -64,9 +64,6 @@ export default function OperatorDashboard() {
   const [actionError, setActionError] = useState<string | null>(null);
   // The item awaiting pickup-code confirmation before it is handed over.
   const [confirmItem, setConfirmItem] = useState<BoardItem | null>(null);
-  // The item whose customer note is shown — opened by the info icon or auto-opened
-  // when an item is started. Dashboard-level so it survives the item changing column.
-  const [commentItem, setCommentItem] = useState<BoardItem | null>(null);
   // The product whose pause/resume dialog is open — UI state only; the request's
   // in-flight + error state lives in pauseMutation below.
   const [pauseTarget, setPauseTarget] = useState<BoardProduct | null>(null);
@@ -116,11 +113,6 @@ export default function OperatorDashboard() {
         return;
       }
       runTransition(item, column);
-      // Starting an item (To Do -> In Progress): surface the customer note so the
-      // operator sees any special request while preparing it.
-      if (item.state === 'PENDING' && item.customerComment?.trim()) {
-        setCommentItem(item);
-      }
     },
     [pending, runTransition, standId],
   );
@@ -253,7 +245,6 @@ export default function OperatorDashboard() {
               items={visibleItems.filter((item) => item.state === column.state)}
               pending={pending}
               onAdvance={advance}
-              onShowComment={setCommentItem}
               colorOf={colorOf}
             />
           ))}
@@ -280,14 +271,6 @@ export default function OperatorDashboard() {
         />
       )}
 
-      {commentItem?.customerComment?.trim() && (
-        <CommentPopover
-          comment={commentItem.customerComment.trim()}
-          orderNumber={commentItem.orderNumber}
-          onClose={() => setCommentItem(null)}
-        />
-      )}
-
       {pauseTarget && (
         <PauseProductDialog
           product={pauseTarget}
@@ -306,14 +289,12 @@ function BoardColumn({
   items,
   pending,
   onAdvance,
-  onShowComment,
   colorOf,
 }: {
   column: ColumnConfig;
   items: BoardItem[];
   pending: ReadonlySet<string>;
   onAdvance: (item: BoardItem) => void;
-  onShowComment: (item: BoardItem) => void;
   colorOf: (productId: string) => string;
 }) {
   return (
@@ -338,7 +319,6 @@ function BoardColumn({
               color={colorOf(item.productId)}
               pending={pending.has(item.itemId)}
               onAdvance={() => onAdvance(item)}
-              onShowComment={() => onShowComment(item)}
             />
           ))
         ) : (
@@ -357,53 +337,63 @@ function BoardItemCard({
   color,
   pending,
   onAdvance,
-  onShowComment,
 }: {
   item: BoardItem;
   actionLabel: string;
   color: string;
   pending: boolean;
   onAdvance: () => void;
-  onShowComment: () => void;
 }) {
   const comment = item.customerComment?.trim() || null;
+  const [commentOpen, setCommentOpen] = useState(false);
 
   return (
     <div
       style={{ borderLeftColor: color }}
       className={cn(
-        'group relative rounded-md border border-border border-l-4 bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-1',
+        'group relative rounded-md border border-border border-l-4 bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-md',
         pending && 'opacity-60',
       )}
     >
       {/* Stretched advance button sits behind the content so the whole card is
-          tappable, while the note trigger stays independently clickable. */}
+          tappable, while the comment row stays independently clickable. */}
       <button
         type="button"
         disabled={pending}
         onClick={onAdvance}
         aria-label={`Order ${item.orderNumber} — ${actionLabel}`}
-        className="absolute inset-0 z-0 rounded-md focus:outline-none disabled:cursor-wait"
+        className="absolute inset-0 z-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent disabled:cursor-wait"
       />
 
       <div className="pointer-events-none relative z-10 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <span className="text-lg font-bold leading-tight text-text">{item.productName}</span>
-
-          {comment && (
-            <button
-              type="button"
-              onClick={onShowComment}
-              aria-label="Show customer note"
-              className="pointer-events-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warning/60 text-text transition hover:bg-warning focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              <InfoIcon className="h-5 w-5" />
-            </button>
-          )}
-        </div>
-
+        <span className="block text-lg font-bold leading-tight text-text">{item.productName}</span>
         <span className="mt-3 block text-xs font-medium text-text-muted">#{item.orderNumber}</span>
       </div>
+
+      {/* Collapsible customer comment, like the cart's note row. Lives above the
+          stretched advance button (pointer-events-auto) so tapping it toggles the
+          note instead of advancing the item. */}
+      {comment && (
+        <div className="pointer-events-auto relative z-10 border-t border-border">
+          <button
+            type="button"
+            onClick={() => setCommentOpen((open) => !open)}
+            aria-expanded={commentOpen}
+            className="flex w-full items-center gap-2 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <ChatIcon className="h-3.5 w-3.5 shrink-0" />
+            <span>Customer comment</span>
+            <ChevronDownIcon
+              className={cn('ml-auto h-4 w-4 transition-transform', commentOpen && 'rotate-180')}
+            />
+          </button>
+          {commentOpen && (
+            <p className="whitespace-pre-wrap break-words px-4 pb-3 text-sm leading-6 text-text">
+              {comment}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -453,40 +443,6 @@ function ModalOverlay({
       </section>
     </div>,
     document.body,
-  );
-}
-
-function CommentPopover({
-  comment,
-  orderNumber,
-  onClose,
-}: {
-  comment: string;
-  orderNumber: string;
-  onClose: () => void;
-}) {
-  return (
-    <ModalOverlay onClose={onClose} labelledBy="comment-popover-title">
-      <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-soft text-accent">
-          <InfoIcon className="h-5 w-5" />
-        </span>
-        <div>
-          <h2 id="comment-popover-title" className="text-sm font-semibold text-text">
-            Customer note
-          </h2>
-          <p className="text-xs text-text-muted">Order #{orderNumber}</p>
-        </div>
-      </div>
-
-      <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-text">{comment}</p>
-
-      <div className="mt-6 flex justify-end">
-        <Button onClick={onClose} variant="secondary" size="lg">
-          Close
-        </Button>
-      </div>
-    </ModalOverlay>
   );
 }
 
