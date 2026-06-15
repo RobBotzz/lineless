@@ -31,11 +31,16 @@ import AttendeeCheckout from './routes/attendee/checkout/Checkout';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
-import OperatorCashierDashboard from './routes/operator/CashierDashboard';
 import OperatorLinkEntry from './routes/operator/OperatorLinkEntry';
 import OperatorPickupDashboard from './routes/operator/PickupDashboard';
 import OperatorStandDashboard from './routes/operator/Queue';
 import OperatorStandSelection from './routes/operator/StandSelection';
+import CashierLayout from './routes/operator/cashier/CashierLayout';
+import CashierHome from './routes/operator/cashier/CashierHome';
+import CashierManualOrder from './routes/operator/cashier/CashierManualOrder';
+import CashierPayment from './routes/operator/cashier/CashierPayment';
+import CashierPaymentDetails from './routes/operator/cashier/CashierPaymentDetails';
+import CashierPaymentConfirmed from './routes/operator/cashier/CashierPaymentConfirmed';
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -105,11 +110,22 @@ export const router = createBrowserRouter(
           element={<OperatorPickupDashboard />}
           handle={{ title: 'Pick Up' }}
         />
-        <Route
-          path=":eventId/cashier"
-          element={<OperatorCashierDashboard />}
-          handle={{ title: 'Cashier' }}
-        />
+        {/* Static "cashier" out-ranks the dynamic :standId route in v7. */}
+        <Route path=":eventId/cashier" element={<CashierLayout />} handle={{ title: 'Cashier Stand' }}>
+          <Route index element={<CashierHome />} />
+          <Route path="order" element={<CashierManualOrder />} handle={{ title: 'Manual Order' }} />
+          <Route path="payment" element={<CashierPayment />} handle={{ title: 'Payment' }} />
+          <Route
+            path="payment/:orderId"
+            element={<CashierPaymentDetails />}
+            handle={{ title: 'Payment' }}
+          />
+          <Route
+            path="payment/:orderId/confirmed"
+            element={<CashierPaymentConfirmed />}
+            handle={{ title: 'Payment Confirmed' }}
+          />
+        </Route>
         <Route
           path=":eventId/:standId"
           element={<OperatorStandDashboard />}

@@ -9,6 +9,16 @@ export function getAttendeeStandProducts(eventId: string, standId: string): Prom
   return apiFetch<Product[]>(`/stands/${standId}/products`, { auth: 'attendee', eventId });
 }
 
+export function getOperatorStandProducts(standId: string): Promise<Product[]> {
+  return apiFetch<Product[]>(`/stands/${standId}/products`, { auth: 'operator', standId });
+}
+
+// Event-wide LIVE catalog for the cashier (its operator token is stand-scoped,
+// so standId selects the credential while eventId scopes the catalog).
+export function getOperatorEventProducts(eventId: string, standId: string): Promise<Product[]> {
+  return apiFetch<Product[]>(`/events/${eventId}/products`, { auth: 'operator', standId });
+}
+
 export function createProduct(standId: string, patch: CreateProductInput): Promise<void> {
   return apiFetch<void>(`/stands/${standId}/products`, {
     method: 'POST',
