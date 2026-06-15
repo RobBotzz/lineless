@@ -28,7 +28,11 @@ import AttendeeProductSelection, {
 import { productSelectionLoader } from './routes/attendee/product-selection/data';
 import AttendeeCart from './routes/attendee/cart/Cart';
 import AttendeeCheckout from './routes/attendee/checkout/Checkout';
-import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
+import AttendeeOrderHistory, {
+  OrderHistoryError,
+} from './routes/attendee/order-history/OrderHistory';
+import { orderHistoryLoader } from './routes/attendee/order-history/data';
+import AttendeeReviewProduct from './routes/attendee/review/ReviewProduct';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
 import OperatorCashierDashboard from './routes/operator/CashierDashboard';
@@ -86,7 +90,16 @@ export const router = createBrowserRouter(
         />
         <Route path="cart" element={<AttendeeCart />} />
         <Route path="checkout" element={<AttendeeCheckout />} />
-        <Route path="orders" element={<AttendeeOrderHistory />} />
+        <Route
+          path="orders"
+          element={<AttendeeOrderHistory />}
+          loader={orderHistoryLoader}
+          errorElement={<OrderHistoryError />}
+        />
+        <Route
+          path="orders/:orderId/products/:productId/review"
+          element={<AttendeeReviewProduct />}
+        />
       </Route>
 
       <Route path="operator" element={<OperatorLayout />} handle={{ title: 'Operator' }}>
