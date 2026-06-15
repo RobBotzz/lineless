@@ -4,11 +4,7 @@ import type { CreateProductInput, UpdateProductInput } from "./types";
 import { verifyStandOwnership } from "../stands/ownership";
 import { Stand } from "../stands/model";
 import { StandNotFoundError } from "../stands/errors";
-import {
-  verifyActiveEvent,
-  verifyEventOwnership,
-  verifyEventOwnership,
-} from "../events/ownership";
+import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
 import { Event } from "../events/model";
 
 async function productsForStand(standId: string): Promise<ProductDoc[]> {
@@ -203,6 +199,48 @@ export async function resumeProduct(
   product.productStatus = "LIVE";
   await product.save();
   return product;
+}
+
+async function assertProductBelongsToEventStand(
+  eventId: string,
+  standId: string,
+  productId: string
+): Promise<void> {
+  const stand = await Stand.findOne({ _id: standId, eventId, deletedAt: null })
+    .select("_id")
+    .lean();
+  if (!stand) throw new StandNotFoundError();
+
+  const product = await Product.findOne({
+    _id: productId,
+    standId,
+    deletedAt: null,
+  })
+    .select("_id")
+    .lean();
+  if (!product) throw new ProductNotFoundError();
+}
+
+export async function pauseProductForEventControlCenter(
+  eventId: string,
+  standId: string,
+  productId: string,
+  accountId: string
+): Promise<ProductDoc> {
+  await verifyEventOwnership(eventId, accountId);
+  await assertProductBelongsToEventStand(eventId, standId, productId);
+  return pauseProduct(productId, { type: "organizer", accountId });
+}
+
+export async function resumeProductForEventControlCenter(
+  eventId: string,
+  standId: string,
+  productId: string,
+  accountId: string
+): Promise<ProductDoc> {
+  await verifyEventOwnership(eventId, accountId);
+  await assertProductBelongsToEventStand(eventId, standId, productId);
+  return resumeProduct(productId, { type: "organizer", accountId });
 }
 
 export async function updateProduct(
