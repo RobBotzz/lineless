@@ -3,6 +3,8 @@ import type { Stand } from '@/types/stand';
 
 export type RevenuePoint = {
   elapsedMinutes: number;
+  intervalRevenueCents: number;
+  orderCount: number;
   revenueCents: number;
 };
 
