@@ -39,7 +39,7 @@ operatorRouter.get(
       const sse = new SseConnection(res);
       sse.send("board", initial);
 
-      const unsubscribe = subscribe("order.changed", (order) => {
+      const unsubOrder = subscribe("order.changed", (order) => {
         const affectsStand = order.items.some((i) =>
           standProductIds.has(i.productId)
         );
@@ -57,7 +57,7 @@ operatorRouter.get(
       });
 
       sse.onClose(() => {
-        unsubscribe();
+        unsubOrder();
         unsubProduct();
       });
     } catch (err) {
