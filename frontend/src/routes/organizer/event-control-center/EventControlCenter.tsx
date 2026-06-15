@@ -7,7 +7,9 @@ import {
   getEventControlCenter,
   getEventOrders,
   pauseProduct,
+  pauseStand,
   resumeProduct,
+  resumeStand,
   type EventControlCenterData,
   type LiveOrder,
   type RevenuePoint,
@@ -47,14 +49,17 @@ export default function EventControlCenter() {
     event,
     liveOrders: initialLiveOrders,
     productsByStand: initialProductsByStand,
-    stands,
+    stands: initialStands,
   } = useLoaderData() as EventControlCenterLoaderData;
   const [analytics, setAnalytics] = useState(initialAnalytics);
   const [liveOrders, setLiveOrders] = useState(initialLiveOrders);
   const [productsByStand, setProductsByStand] = useState(initialProductsByStand);
+  const [stands, setStands] = useState(initialStands);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(() => new Date());
   const { section } = useParams();
-  const [selectedStandId, setSelectedStandId] = useState<string>(() => stands[0]?._id ?? 'all');
+  const [selectedStandId, setSelectedStandId] = useState<string>(
+    () => initialStands[0]?._id ?? 'all',
+  );
   const activeSection = section === 'management' ? 'management' : 'analytics';
 
   const selectedStand =
@@ -122,6 +127,16 @@ export default function EventControlCenter() {
     }));
   }
 
+  async function handleStandPauseChange(stand: Stand, paused: boolean) {
+    const updatedStand = paused
+      ? await pauseStand(event._id, stand._id)
+      : await resumeStand(event._id, stand._id);
+
+    setStands((current) =>
+      current.map((candidate) => (candidate._id === stand._id ? updatedStand : candidate)),
+    );
+  }
+
   if (hasInvalidSection) {
     return <Navigate replace to={paths.organizer.eventControlCenterAnalytics(event._id)} />;
   }
@@ -164,6 +179,7 @@ export default function EventControlCenter() {
           stands={stands}
           onCancelOrder={handleCancelOrder}
           onProductPauseChange={handleProductPauseChange}
+          onStandPauseChange={handleStandPauseChange}
           onSelectStand={setSelectedStandId}
         />
       )}
@@ -981,6 +997,7 @@ function ManagementTab({
   liveOrders,
   onCancelOrder,
   onProductPauseChange,
+  onStandPauseChange,
   onSelectStand,
   selectedStandId,
   selectedStand,
@@ -990,6 +1007,7 @@ function ManagementTab({
   liveOrders: LiveOrder[];
   onCancelOrder: (orderId: string) => Promise<void>;
   onProductPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
+  onStandPauseChange: (stand: Stand, paused: boolean) => Promise<void>;
   onSelectStand: (standId: string) => void;
   stands: Stand[];
   productsByStand: Record<string, Product[]>;
@@ -1070,6 +1088,7 @@ function ManagementTab({
                   <StandPausePanel
                     key={stand._id}
                     onProductPauseChange={onProductPauseChange}
+                    onStandPauseChange={onStandPauseChange}
                     products={productsByStand[stand._id] ?? []}
                     stand={stand}
                   />
@@ -1208,10 +1227,12 @@ function OrderStatusBadge({ status }: { status: LiveOrder['status'] }) {
 
 function StandPausePanel({
   onProductPauseChange,
+  onStandPauseChange,
   products,
   stand,
 }: {
   onProductPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
+  onStandPauseChange: (stand: Stand, paused: boolean) => Promise<void>;
   products: Product[];
   stand: Stand;
 }) {
@@ -1221,10 +1242,10 @@ function StandPausePanel({
         <div>
           <h3 className="font-semibold text-text">{stand.standName}</h3>
           <p className="mt-1 text-xs text-text-muted">
-            Station pause requires POST /stands/:standId/pause and /resume.
+            Stand pause blocks new orders while existing orders stay visible.
           </p>
         </div>
-        <StandAvailabilityControl standName={stand.standName} />
+        <StandAvailabilityControl onPauseChange={onStandPauseChange} stand={stand} />
       </div>
 
       <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1245,31 +1266,70 @@ function StandPausePanel({
   );
 }
 
-function StandAvailabilityControl({ standName }: { standName: string }) {
+function StandAvailabilityControl({
+  onPauseChange,
+  stand,
+}: {
+  onPauseChange: (stand: Stand, paused: boolean) => Promise<void>;
+  stand: Stand;
+}) {
+  const [isSaving, setIsSaving] = useState(false);
+  const isLive = stand.standStatus === 'LIVE';
+
+  async function handleToggle() {
+    setIsSaving(true);
+    try {
+      await onPauseChange(stand, isLive);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-1.5 sm:items-end">
       <button
-        aria-label={`${standName} is open and accepting orders.`}
-        className="relative h-11 w-full cursor-not-allowed rounded-full border border-border bg-surface p-1 text-sm shadow-sm transition-colors sm:w-64"
-        disabled
+        aria-label={`${stand.standName} is ${isLive ? 'open and accepting new orders' : 'paused for new orders'}.`}
+        className={[
+          'relative h-11 w-full rounded-full border border-border bg-surface p-1 text-sm shadow-sm transition-colors sm:w-64',
+          isSaving ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
+        ].join(' ')}
+        disabled={isSaving}
+        onClick={() => void handleToggle()}
         type="button"
       >
         <span className="grid h-full grid-cols-2 items-center rounded-full bg-surface-muted">
-          <span className="flex items-center justify-center gap-1.5 font-semibold text-accent">
+          <span
+            className={[
+              'flex items-center justify-center gap-1.5 font-semibold',
+              isLive ? 'text-accent' : 'text-text-muted',
+            ].join(' ')}
+          >
             <UnlockIcon className="h-4 w-4" />
             Open
           </span>
-          <span className="flex items-center justify-center gap-1.5 font-semibold text-text-muted">
+          <span
+            className={[
+              'flex items-center justify-center gap-1.5 font-semibold',
+              isLive ? 'text-text-muted' : 'text-danger',
+            ].join(' ')}
+          >
             <LockIcon className="h-4 w-4" />
-            Closed
+            Paused
           </span>
         </span>
-        <span className="absolute inset-y-1 left-1 flex w-[calc(50%-0.25rem)] items-center justify-center gap-1.5 rounded-full bg-accent px-3 font-semibold text-[var(--color-button-text)] shadow-sm">
-          <UnlockIcon className="h-4 w-4" />
-          Open
+        <span
+          className={[
+            'absolute inset-y-1 flex w-[calc(50%-0.25rem)] items-center justify-center gap-1.5 rounded-full px-3 font-semibold text-[var(--color-button-text)] shadow-sm transition-[left,right,background-color]',
+            isLive ? 'left-1 bg-accent' : 'right-1 bg-danger',
+          ].join(' ')}
+        >
+          {isLive ? <UnlockIcon className="h-4 w-4" /> : <LockIcon className="h-4 w-4" />}
+          {isLive ? 'Open' : 'Paused'}
         </span>
       </button>
-      <span className="text-xs text-text-muted">Stand is accepting orders.</span>
+      <span className="text-xs text-text-muted">
+        {isLive ? 'Stand is accepting new orders.' : 'Stand is paused for new orders.'}
+      </span>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { Stand } from '@/types/stand';
 
 export type RevenuePoint = {
   elapsedMinutes: number;
@@ -89,4 +90,18 @@ export function resumeProduct(eventId: string, standId: string, productId: strin
       auth: 'organizer',
     },
   );
+}
+
+export function pauseStand(eventId: string, standId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/events/${eventId}/event-control-center/stands/${standId}/pause`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+export function resumeStand(eventId: string, standId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/events/${eventId}/event-control-center/stands/${standId}/resume`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
 }
