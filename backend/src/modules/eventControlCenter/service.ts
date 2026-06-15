@@ -35,6 +35,7 @@ type QueueStatsByStand = Map<
 >;
 type RevenueBucketAggregationRow = {
   elapsedMinutes: number;
+  orderCount: number;
   revenueCents: number;
 };
 type StandRevenueBucketAggregationRow = RevenueBucketAggregationRow & {
@@ -51,13 +52,23 @@ type EventControlCenterAnalyticsAggregation = {
   queueStats: QueueStatsAggregationRow[];
 };
 
-function cumulativePoints(buckets: Map<number, number>): RevenuePoint[] {
+type RevenueBucket = {
+  orderCount: number;
+  revenueCents: number;
+};
+
+function cumulativePoints(buckets: Map<number, RevenueBucket>): RevenuePoint[] {
   let runningTotal = 0;
   return [...buckets.entries()]
     .sort(([left], [right]) => left - right)
-    .map(([elapsedMinutes, amount]) => {
-      runningTotal += amount;
-      return { elapsedMinutes, revenueCents: runningTotal };
+    .map(([elapsedMinutes, bucket]) => {
+      runningTotal += bucket.revenueCents;
+      return {
+        elapsedMinutes,
+        intervalRevenueCents: bucket.revenueCents,
+        orderCount: bucket.orderCount,
+        revenueCents: runningTotal,
+      };
     });
 }
 
@@ -257,10 +268,18 @@ async function loadEventControlCenterAnalytics(
           {
             $group: {
               _id: elapsedPaidMinutesExpression,
+              orderIds: { $addToSet: "$_id" },
               revenueCents: { $sum: "$items.priceIncludingTaxAtPurchase" },
             },
           },
-          { $project: { _id: 0, elapsedMinutes: "$_id", revenueCents: 1 } },
+          {
+            $project: {
+              _id: 0,
+              elapsedMinutes: "$_id",
+              orderCount: { $size: "$orderIds" },
+              revenueCents: 1,
+            },
+          },
           { $sort: { elapsedMinutes: 1 } },
         ],
         standRevenue: [
@@ -270,6 +289,7 @@ async function loadEventControlCenterAnalytics(
                 standId: "$product.standId",
                 elapsedMinutes: elapsedPaidMinutesExpression,
               },
+              orderIds: { $addToSet: "$_id" },
               revenueCents: { $sum: "$items.priceIncludingTaxAtPurchase" },
             },
           },
@@ -278,6 +298,7 @@ async function loadEventControlCenterAnalytics(
               _id: 0,
               standId: "$_id.standId",
               elapsedMinutes: "$_id.elapsedMinutes",
+              orderCount: { $size: "$orderIds" },
               revenueCents: 1,
             },
           },
@@ -340,16 +361,20 @@ export async function getEventControlCenter(
   const eventRevenueBuckets = new Map(
     analytics.eventRevenue.map((point) => [
       point.elapsedMinutes,
-      point.revenueCents,
+      {
+        orderCount: point.orderCount,
+        revenueCents: point.revenueCents,
+      },
     ])
   );
   const standRevenueBucketsByStand = new Map(
-    standIds.map((standId) => [standId, new Map<number, number>()])
+    standIds.map((standId) => [standId, new Map<number, RevenueBucket>()])
   );
   for (const point of analytics.standRevenue) {
-    standRevenueBucketsByStand
-      .get(point.standId)
-      ?.set(point.elapsedMinutes, point.revenueCents);
+    standRevenueBucketsByStand.get(point.standId)?.set(point.elapsedMinutes, {
+      orderCount: point.orderCount,
+      revenueCents: point.revenueCents,
+    });
   }
   const queueStatsByStand: QueueStatsByStand = new Map(
     analytics.queueStats.map((stats) => [
@@ -374,7 +399,8 @@ export async function getEventControlCenter(
   const standRevenue: StandRevenueSeries[] = standIds.map((standId) => ({
     standId,
     points: cumulativePoints(
-      standRevenueBucketsByStand.get(standId) ?? new Map<number, number>()
+      standRevenueBucketsByStand.get(standId) ??
+        new Map<number, RevenueBucket>()
     ),
   }));
 

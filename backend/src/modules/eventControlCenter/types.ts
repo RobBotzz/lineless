@@ -31,6 +31,8 @@ export interface EventControlCenterData {
 
 export interface RevenuePoint {
   elapsedMinutes: number;
+  intervalRevenueCents: number;
+  orderCount: number;
   revenueCents: number;
 }
 
