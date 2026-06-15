@@ -33,6 +33,7 @@ import type { Stand } from '@/types/stand';
 import type { EventControlCenterLoaderData } from './data';
 
 type StandDisplay = Pick<Stand, '_id' | 'standName'>;
+const LIVE_ORDERS_PER_PAGE = 5;
 
 const defaultControlCenterSettings: EventControlCenterSettings = {
   queueLengthAlertThreshold: 10,
@@ -236,7 +237,6 @@ export default function EventControlCenter() {
                 <CardTitle className="text-2xl font-bold">
                   {event.name || 'Untitled Event'}
                 </CardTitle>
-                <EventStatusBadge status={event.status} />
               </div>
               <p className="mt-2 text-sm text-text-muted">
                 Event Control Center for live metrics and operational controls.
@@ -252,7 +252,11 @@ export default function EventControlCenter() {
       </Card>
 
       {activeSection === 'analytics' ? (
-        <MetricsTab analytics={analytics} stands={stands} />
+        <MetricsTab
+          analytics={analytics}
+          eventStartAt={event.startedAt ?? event.createdAt}
+          stands={stands}
+        />
       ) : activeSection === 'settings' ? (
         <SettingsTab
           key={`${event._id}-${controlCenterSettings.queueLengthAlertThreshold}-${controlCenterSettings.averageWaitAlertThresholdMinutes}`}
@@ -274,28 +278,6 @@ export default function EventControlCenter() {
         />
       )}
     </div>
-  );
-}
-
-function EventStatusBadge({ status }: { status: EventControlCenterLoaderData['event']['status'] }) {
-  const label =
-    status === 'ACTIVE' ? 'Live' : status === 'DRAFT' ? 'Draft event' : 'Completed event';
-  const className =
-    status === 'ACTIVE'
-      ? 'border-success/30 bg-success/10 text-success'
-      : status === 'DRAFT'
-        ? 'border-border bg-surface-muted text-text-muted'
-        : 'border-danger/30 bg-danger/10 text-danger';
-
-  return (
-    <span
-      className={[
-        'inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide',
-        className,
-      ].join(' ')}
-    >
-      {label}
-    </span>
   );
 }
 
@@ -345,7 +327,15 @@ function SnapshotItem({
   );
 }
 
-function MetricsTab({ analytics, stands }: { analytics: EventControlCenterData; stands: Stand[] }) {
+function MetricsTab({
+  analytics,
+  eventStartAt,
+  stands,
+}: {
+  analytics: EventControlCenterData;
+  eventStartAt: string;
+  stands: Stand[];
+}) {
   const standNameById = useMemo(
     () => new Map(stands.map((stand) => [stand._id, stand.standName])),
     [stands],
@@ -388,6 +378,7 @@ function MetricsTab({ analytics, stands }: { analytics: EventControlCenterData; 
           </CardHeader>
           <CardContent>
             <RevenueChart
+              eventStartAt={eventStartAt}
               totalRevenueCents={analytics.totalRevenueCents}
               points={analytics.eventRevenue}
               standNameById={standNameById}
@@ -475,7 +466,19 @@ function MetricsTab({ analytics, stands }: { analytics: EventControlCenterData; 
           <AlertsSummary standNameById={standNameById} standQueues={analytics.standQueues} />
         </CardContent>
       </Card>
+
+      <ProductRatingsSection />
     </div>
+  );
+}
+
+function ProductRatingsSection() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Product Ratings</CardTitle>
+      </CardHeader>
+    </Card>
   );
 }
 
@@ -509,25 +512,30 @@ function MetricCard({
 }
 
 function RevenueChart({
+  eventStartAt,
   points,
   standNameById,
   standRevenue,
   totalRevenueCents,
 }: {
+  eventStartAt: string;
   points: RevenuePoint[];
   standNameById: Map<string, string>;
   standRevenue: StandRevenueSeries[];
   totalRevenueCents: number;
 }) {
-  const model = createRevenueChartModel(points, totalRevenueCents, standRevenue, standNameById);
+  const model = createRevenueChartModel(
+    points,
+    totalRevenueCents,
+    standRevenue,
+    standNameById,
+    eventStartAt,
+  );
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const latestPoint = model.points.at(-1);
   const hasPoints = model.points.length > 0;
-  const activeIndex = hoveredIndex ?? (hasPoints ? model.points.length - 1 : null);
-  const activePoint = activeIndex === null ? null : model.points[activeIndex];
+  const activeIndex = hoveredIndex;
   const activeCoordinates = activeIndex === null ? null : model.coordinates[activeIndex];
-  const activeBreakdown = activeIndex === null ? [] : model.breakdownByIndex[activeIndex]!;
-  const leadingStand = activeBreakdown.find((entry) => entry.revenueCents > 0);
   const stepPath = createStepRevenuePath(model.lineCoordinates);
   const areaPath = createAreaPath(stepPath, model.lineCoordinates, model.baselineY);
 
@@ -546,18 +554,9 @@ function RevenueChart({
           <p className="text-3xl font-bold text-text">EUR {formatMoney(totalRevenueCents)}</p>
           <p className="mt-2 max-w-xl text-sm text-text-muted">
             {latestPoint
-              ? `Cumulative paid revenue after ${latestPoint.elapsedMinutes} minutes, split by stand on hover.`
+              ? `Cumulative paid revenue since ${formatChartTime(model.eventStartAt)}.`
               : 'The chart is ready for the first paid order.'}
           </p>
-        </div>
-        <div className="flex items-center gap-2 p-4 pb-0">
-          <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text-muted">
-            Step curve
-          </span>
-          <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text-muted">
-            Scale EUR {formatMoney(model.maxRevenue)}
-          </span>
-          <ChartPill label={hasPoints ? 'Live' : 'Empty'} />
         </div>
       </div>
 
@@ -598,7 +597,6 @@ function RevenueChart({
               />
               {model.coordinates.map((point, index) => (
                 <circle
-                  className="transition-all duration-200"
                   cx={point.x}
                   cy={point.y}
                   fill={index === activeIndex ? 'var(--color-accent)' : 'var(--color-surface)'}
@@ -608,8 +606,8 @@ function RevenueChart({
                   strokeWidth={index === activeIndex ? '3' : '2'}
                 />
               ))}
-              {activeCoordinates && activePoint && (
-                <g className="transition-opacity duration-200">
+              {activeCoordinates && (
+                <g>
                   <line
                     stroke="var(--color-text)"
                     strokeDasharray="5 7"
@@ -620,14 +618,6 @@ function RevenueChart({
                     y2={model.baselineY}
                   />
                   <circle
-                    className="animate-ping"
-                    cx={activeCoordinates.x}
-                    cy={activeCoordinates.y}
-                    fill="var(--color-accent)"
-                    opacity="0.18"
-                    r="15"
-                  />
-                  <circle
                     cx={activeCoordinates.x}
                     cy={activeCoordinates.y}
                     fill="var(--color-surface)"
@@ -635,20 +625,6 @@ function RevenueChart({
                     stroke="var(--color-accent)"
                     strokeWidth="3"
                   />
-                  <text
-                    fill="var(--color-text)"
-                    fontSize="13"
-                    fontWeight="800"
-                    textAnchor={activeCoordinates.x > REVENUE_CHART_WIDTH - 170 ? 'end' : 'start'}
-                    x={
-                      activeCoordinates.x > REVENUE_CHART_WIDTH - 170
-                        ? activeCoordinates.x - 14
-                        : activeCoordinates.x + 14
-                    }
-                    y={Math.max(model.plot.top + 16, activeCoordinates.y - 16)}
-                  >
-                    EUR {formatMoney(activePoint.revenueCents)}
-                  </text>
                 </g>
               )}
             </>
@@ -657,25 +633,11 @@ function RevenueChart({
           )}
           <RevenueXAxis model={model} />
         </svg>
-
-        {activePoint && activeCoordinates && (
-          <RevenueHoverTooltip
-            breakdown={activeBreakdown}
-            elapsedMinutes={activePoint.elapsedMinutes}
-            leadingStand={leadingStand}
-            revenueCents={activePoint.revenueCents}
-            xPercent={(activeCoordinates.x / REVENUE_CHART_WIDTH) * 100}
-            yPercent={(activeCoordinates.y / REVENUE_CHART_HEIGHT) * 100}
-          />
-        )}
       </div>
 
       <div className="border-t border-border bg-surface/70 p-4">
         {hasPoints ? (
-          <RevenueStandMix
-            breakdown={activeBreakdown}
-            totalRevenueCents={activePoint?.revenueCents ?? 0}
-          />
+          <RevenueStandMix breakdown={model.totalBreakdown} />
         ) : (
           <p className="text-sm text-text-muted">
             Stand contribution will appear as soon as paid orders arrive.
@@ -686,99 +648,17 @@ function RevenueChart({
   );
 }
 
-function RevenueHoverTooltip({
-  breakdown,
-  elapsedMinutes,
-  leadingStand,
-  revenueCents,
-  xPercent,
-  yPercent,
-}: {
-  breakdown: StandRevenueBreakdown[];
-  elapsedMinutes: number;
-  leadingStand?: StandRevenueBreakdown;
-  revenueCents: number;
-  xPercent: number;
-  yPercent: number;
-}) {
-  return (
-    <div
-      className="pointer-events-none absolute z-10 w-72 rounded-lg border border-border bg-surface/95 p-3 text-sm shadow-xl backdrop-blur transition-all duration-200"
-      style={{
-        left: `${Math.min(82, Math.max(18, xPercent))}%`,
-        top: `${Math.min(70, Math.max(20, yPercent))}%`,
-        transform: 'translate(-50%, -62%)',
-      }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-            Minute {elapsedMinutes}
-          </p>
-          <p className="mt-1 text-xl font-bold text-text">EUR {formatMoney(revenueCents)}</p>
-        </div>
-        {leadingStand && (
-          <span
-            className="rounded-full px-2.5 py-1 text-xs font-semibold text-white"
-            style={{ backgroundColor: leadingStand.color }}
-          >
-            {Math.round(leadingStand.share)}%
-          </span>
-        )}
-      </div>
-      <div className="mt-3 space-y-2">
-        {breakdown.map((entry) => (
-          <div className="space-y-1" key={entry.standId}>
-            <div className="flex items-center justify-between gap-3">
-              <span className="flex min-w-0 items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: entry.color }}
-                />
-                <span className="truncate font-medium text-text">{entry.standName}</span>
-              </span>
-              <span className="shrink-0 font-semibold text-text">
-                EUR {formatMoney(entry.revenueCents)}
-              </span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{
-                  backgroundColor: entry.color,
-                  width: `${Math.min(100, entry.share)}%`,
-                }}
-              />
-            </div>
-          </div>
-        ))}
-        {breakdown.every((entry) => entry.revenueCents === 0) && (
-          <p className="text-xs text-text-muted">All stands are still at EUR 0.00 here.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RevenueStandMix({
-  breakdown,
-  totalRevenueCents,
-}: {
-  breakdown: StandRevenueBreakdown[];
-  totalRevenueCents: number;
-}) {
+function RevenueStandMix({ breakdown }: { breakdown: StandRevenueBreakdown[] }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-text">Stand mix at selected step</p>
-        <p className="text-xs font-medium text-text-muted">
-          EUR {formatMoney(totalRevenueCents)} cumulative
-        </p>
+        <p className="text-sm font-semibold text-text">Booth mix across full event</p>
+        <p className="text-xs font-medium text-text-muted">Share of total paid revenue</p>
       </div>
       <div className="flex h-3 overflow-hidden rounded-full bg-surface-muted">
         {breakdown.map((entry) => (
           <div
-            className="h-full transition-all duration-300"
+            className="h-full"
             key={entry.standId}
             style={{
               backgroundColor: entry.color,
@@ -819,32 +699,19 @@ function RevenueChartDefinitions() {
   return (
     <defs>
       <linearGradient id="eventRevenueArea" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.28" />
-        <stop offset="52%" stopColor="#0f766e" stopOpacity="0.12" />
-        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.02" />
-      </linearGradient>
-      <linearGradient id="emptyChartSurface" x1="0" x2="1" y1="0" y2="1">
-        <stop offset="0%" stopColor="#020887" stopOpacity="0.08" />
-        <stop offset="44%" stopColor="var(--color-surface)" stopOpacity="0.9" />
-        <stop offset="100%" stopColor="#0f766e" stopOpacity="0.08" />
+        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.18" />
+        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.03" />
       </linearGradient>
     </defs>
   );
 }
 
-function RevenueChartSurface({
-  model,
-  subtle = false,
-}: {
-  model: RevenueChartModel;
-  subtle?: boolean;
-}) {
+function RevenueChartSurface({ model }: { model: RevenueChartModel }) {
   return (
     <>
       <rect
-        fill="url(#emptyChartSurface)"
+        fill="var(--color-surface)"
         height={model.plot.height + 38}
-        opacity={subtle ? '0.72' : '1'}
         rx="18"
         width={REVENUE_CHART_WIDTH - 28}
         x="14"
@@ -863,7 +730,7 @@ function RevenueChartSurface({
               x={model.plot.left - 10}
               y={y + 3}
             >
-              {tick === 0 ? 'EUR 0' : `${Math.round(tick / 100) / 10}k`}
+              {formatAxisMoney(tick)}
             </text>
             <line
               stroke="var(--color-border)"
@@ -907,7 +774,7 @@ function RevenueXAxis({ model }: { model: RevenueChartModel }) {
         x={model.plot.left}
         y={model.baselineY + 38}
       >
-        0m
+        {formatChartTime(model.eventStartAt)}
       </text>
       <text
         fill="var(--color-text-muted)"
@@ -917,7 +784,7 @@ function RevenueXAxis({ model }: { model: RevenueChartModel }) {
         x={model.plot.left + model.plot.width / 2}
         y={model.baselineY + 38}
       >
-        {Math.round(model.maxMinutes / 2)}m
+        {formatChartTime(addMinutes(model.eventStartAt, model.maxMinutes / 2))}
       </text>
       <text
         fill="var(--color-text-muted)"
@@ -927,7 +794,7 @@ function RevenueXAxis({ model }: { model: RevenueChartModel }) {
         x={model.plot.left + model.plot.width}
         y={model.baselineY + 38}
       >
-        {model.maxMinutes}m
+        {formatChartTime(addMinutes(model.eventStartAt, model.maxMinutes))}
       </text>
     </>
   );
@@ -1003,8 +870,8 @@ type StandRevenueBreakdown = {
 
 type RevenueChartModel = {
   baselineY: number;
-  breakdownByIndex: StandRevenueBreakdown[][];
   coordinates: { x: number; y: number }[];
+  eventStartAt: Date;
   lineCoordinates: { x: number; y: number }[];
   maxMinutes: number;
   maxRevenue: number;
@@ -1017,6 +884,7 @@ type RevenueChartModel = {
     width: number;
   };
   points: RevenuePoint[];
+  totalBreakdown: StandRevenueBreakdown[];
   xForMinute: (elapsedMinutes: number) => number;
   yForRevenue: (revenueCents: number) => number;
   yTicks: number[];
@@ -1027,10 +895,15 @@ function createRevenueChartModel(
   totalRevenueCents: number,
   standRevenue: StandRevenueSeries[],
   standNameById: Map<string, string>,
+  eventStartAt: string,
 ): RevenueChartModel {
   const sortedPoints = [...points].sort(
     (left, right) => left.elapsedMinutes - right.elapsedMinutes,
   );
+  const parsedEventStartAt = new Date(eventStartAt);
+  const safeEventStartAt = Number.isNaN(parsedEventStartAt.getTime())
+    ? new Date()
+    : parsedEventStartAt;
   const standRevenueById = new Map(standRevenue.map((series) => [series.standId, series]));
   const rankedStandEntries = [
     ...Array.from(standNameById.entries()).map(([standId, standName]) => ({
@@ -1051,7 +924,7 @@ function createRevenueChartModel(
     totalRevenueCents,
     100,
   );
-  const maxRevenue = Math.ceil(rawMaxRevenue / 1000) * 1000;
+  const maxRevenue = getNiceRevenueCeiling(rawMaxRevenue);
   const plot = {
     left: 78,
     right: 34,
@@ -1076,55 +949,59 @@ function createRevenueChartModel(
     x: xForMinute(point.elapsedMinutes),
     y: yForRevenue(point.revenueCents),
   }));
-  const breakdownByIndex = sortedPoints.map((point) =>
-    rankedStandEntries
-      .map((stand, index) => {
-        const series = standRevenueById.get(stand.standId);
-        const revenueCents = getStandRevenueAtMinute(series, point.elapsedMinutes);
+  const totalBreakdown = rankedStandEntries
+    .map((stand, index) => {
+      const revenueCents = standRevenueById.get(stand.standId)?.points.at(-1)?.revenueCents ?? 0;
 
-        return {
-          color: REVENUE_STAND_COLORS[index % REVENUE_STAND_COLORS.length]!,
-          revenueCents,
-          share: point.revenueCents > 0 ? (revenueCents / point.revenueCents) * 100 : 0,
-          standId: stand.standId,
-          standName: stand.standName,
-        };
-      })
-      .sort((left, right) => right.revenueCents - left.revenueCents),
-  );
+      return {
+        color: REVENUE_STAND_COLORS[index % REVENUE_STAND_COLORS.length]!,
+        revenueCents,
+        share: totalRevenueCents > 0 ? (revenueCents / totalRevenueCents) * 100 : 0,
+        standId: stand.standId,
+        standName: stand.standName,
+      };
+    })
+    .sort((left, right) => right.revenueCents - left.revenueCents);
 
   return {
     baselineY: plot.top + plot.height,
-    breakdownByIndex,
     coordinates,
+    eventStartAt: safeEventStartAt,
     lineCoordinates,
     maxMinutes,
     maxRevenue,
     plot,
     points: sortedPoints,
+    totalBreakdown,
     xForMinute,
     yForRevenue,
     yTicks: [maxRevenue, Math.round(maxRevenue / 2), 0],
   };
 }
 
-function getStandRevenueAtMinute(
-  series: StandRevenueSeries | undefined,
-  elapsedMinutes: number,
-): number {
-  if (!series) return 0;
+function getNiceRevenueCeiling(value: number): number {
+  if (value <= 0) return 100;
 
-  const sortedPoints = [...series.points].sort(
-    (left, right) => left.elapsedMinutes - right.elapsedMinutes,
-  );
-  let revenueCents = 0;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const normalized = value / magnitude;
+  const niceMultiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
 
-  for (const point of sortedPoints) {
-    if (point.elapsedMinutes > elapsedMinutes) break;
-    revenueCents = point.revenueCents;
-  }
+  return niceMultiplier * magnitude;
+}
 
-  return revenueCents;
+function formatAxisMoney(valueCents: number): string {
+  return `EUR ${formatMoney(valueCents)}`;
+}
+
+function addMinutes(date: Date, minutes: number): Date {
+  return new Date(date.getTime() + minutes * 60_000);
+}
+
+function formatChartTime(date: Date): string {
+  return new Intl.DateTimeFormat('en', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 }
 
 function createAreaPath(
@@ -1713,6 +1590,7 @@ function LiveOrdersTable({
   );
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [cancellingItemOrderId, setCancellingItemOrderId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [pendingCancellation, setPendingCancellation] = useState<
     | { type: 'order'; order: LiveOrder }
     | { type: 'items'; order: LiveOrder; itemIds: string[] }
@@ -1721,6 +1599,12 @@ function LiveOrdersTable({
   const standNameById = useMemo(
     () => new Map(stands.map((stand) => [stand._id, stand.standName])),
     [stands],
+  );
+  const totalPages = Math.max(1, Math.ceil(orders.length / LIVE_ORDERS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageOrders = orders.slice(
+    (safeCurrentPage - 1) * LIVE_ORDERS_PER_PAGE,
+    safeCurrentPage * LIVE_ORDERS_PER_PAGE,
   );
 
   function toggleExpanded(orderId: string) {
@@ -1805,7 +1689,7 @@ function LiveOrdersTable({
           <span>Total</span>
           <span className="sr-only">Details</span>
         </div>
-        {orders.map((order) => (
+        {pageOrders.map((order) => (
           <LiveOrderRow
             cancellingItemOrderId={cancellingItemOrderId}
             cancellingOrderId={cancellingOrderId}
@@ -1822,6 +1706,31 @@ function LiveOrdersTable({
           />
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => {
+            const isActive = page === safeCurrentPage;
+
+            return (
+              <button
+                aria-current={isActive ? 'page' : undefined}
+                className={[
+                  'h-8 min-w-8 rounded-md border px-3 text-sm font-semibold transition-colors',
+                  isActive
+                    ? 'border-accent bg-accent text-[var(--color-button-text)]'
+                    : 'border-border bg-surface text-text-muted hover:bg-surface-muted hover:text-text',
+                ].join(' ')}
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                type="button"
+              >
+                {page}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <AlertDialog
         acknowledgeLabel="Cancel order"
