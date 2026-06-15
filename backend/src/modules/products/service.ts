@@ -143,7 +143,7 @@ export async function pauseProduct(
   assertProductCanPause(product);
   product.productStatus = "PAUSED";
   await product.save();
-  // TODO SSE: publish product availability after shared SSE infrastructure exists.
+  // TODO SSE: add product availability streams if clients need live menu status.
   return product;
 }
 
@@ -168,7 +168,7 @@ export async function pauseProductForEventControlCenter(
   assertProductCanPause(product);
   product.productStatus = "PAUSED";
   await product.save();
-  // TODO SSE: publish product/stand availability after shared SSE infrastructure exists.
+  // TODO SSE: add product availability streams if clients need live menu status.
   return product;
 }
 
@@ -193,7 +193,7 @@ export async function resumeProductForEventControlCenter(
   assertProductCanResume(product);
   product.productStatus = "LIVE";
   await product.save();
-  // TODO SSE: publish product availability after shared SSE infrastructure exists.
+  // TODO SSE: add product availability streams if clients need live menu status.
   return product;
 }
 

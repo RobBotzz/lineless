@@ -44,17 +44,21 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Event Control Center
 
-| Method | URL                                      | Description                                      |
-| ------ | ---------------------------------------- | ------------------------------------------------ |
-| GET    | `/events/{eventId}/event-control-center` | Event control center data – live KPIs and queues |
+| Method | URL                                                    | Description                                          |
+| ------ | ------------------------------------------------------ | ---------------------------------------------------- |
+| GET    | `/events/{eventId}/event-control-center`               | Event control center data – live KPIs and queues     |
+| GET    | `/events/{eventId}/event-control-center/stream`        | Event control center data stream (SSE)               |
+| GET    | `/events/{eventId}/event-control-center/orders`        | Live paid, unfulfilled orders for the control center |
+| GET    | `/events/{eventId}/event-control-center/orders/stream` | Live order list stream (SSE)                         |
 
 ### Operational control (event control center)
 
-| Method                      | URL                        | Description                         |
-| --------------------------- | -------------------------- | ----------------------------------- | --------------------------- |
-| POST                        | `/stands/{standId}/pause`  | Pause a stand's queue               |
-| POST                        | `/stands/{standId}/resume` | Resume a stand's queue              |
-| UNSURE - PLEASE DISCUSS/ -> | POST                       | `/order-items/{orderItemId}/cancel` | Cancel a pending order item |
+| Method | URL                                                                                   | Description                 |
+| ------ | ------------------------------------------------------------------------------------- | --------------------------- |
+| POST   | `/events/{eventId}/event-control-center/orders/{orderId}/cancel`                      | Cancel all open order items |
+| POST   | `/events/{eventId}/event-control-center/orders/{orderId}/items/cancel`                | Cancel selected order items |
+| POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/pause`  | Pause a product             |
+| POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/resume` | Resume a product            |
 
 ### Account / Payments
 

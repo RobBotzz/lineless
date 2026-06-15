@@ -159,7 +159,6 @@ export async function cancelOrderForOrganizer(
   }
 
   await order.save();
-  // TODO SSE: publish an order update after shared SSE infrastructure exists.
   return order;
 }
 
@@ -192,7 +191,6 @@ export async function cancelOrderItemsForOrganizer(
   }
 
   await order.save();
-  // TODO SSE: publish an order update after shared SSE infrastructure exists.
   return order;
 }
 

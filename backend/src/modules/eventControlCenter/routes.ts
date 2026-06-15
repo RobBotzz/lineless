@@ -1,6 +1,8 @@
 import { Router, type Request } from "express";
 import { validateBody, validateQuery } from "../../middleware/validate";
 import { authOrganizer } from "../../middleware/auth/guards";
+import { subscribe } from "../../lib/realtimeBus";
+import { SseConnection } from "../../lib/sse";
 import {
   getEventControlCenter,
   listLiveOrdersForEventControlCenter,
@@ -39,10 +41,49 @@ function accountId(req: Request): string {
   return req.organizer!.accountId;
 }
 
+function createQueuedSnapshotSender<T>(
+  loadSnapshot: () => Promise<T>,
+  sendSnapshot: (snapshot: T) => void,
+  logLabel: string
+): { send: () => void; close: () => void } {
+  let inFlight = false;
+  let queued = false;
+  let closed = false;
+
+  const send = (): void => {
+    if (closed) return;
+    if (inFlight) {
+      queued = true;
+      return;
+    }
+
+    inFlight = true;
+    void loadSnapshot()
+      .then((snapshot) => {
+        if (!closed) sendSnapshot(snapshot);
+      })
+      .catch((err) => console.error(`${logLabel} stream error:`, err))
+      .finally(() => {
+        inFlight = false;
+        if (!closed && queued) {
+          queued = false;
+          send();
+        }
+      });
+  };
+
+  return {
+    send,
+    close: () => {
+      closed = true;
+      queued = false;
+    },
+  };
+}
+
 export const eventControlCenterRouter = Router({ mergeParams: true });
 
 // GET /events/:eventId/event-control-center — organizer-only event control center data.
-// TODO SSE: expose this snapshot through shared SSE infrastructure once it exists.
 eventControlCenterRouter.get(
   "/",
   authOrganizer,
@@ -56,8 +97,47 @@ eventControlCenterRouter.get(
   })
 );
 
+// GET /events/:eventId/event-control-center/stream — same snapshot over SSE.
+eventControlCenterRouter.get(
+  "/stream",
+  authOrganizer,
+  validateQuery(eventControlCenterQuerySchema, async (req, res, query) => {
+    const targetEventId = eventId(req);
+    const organizerAccountId = accountId(req);
+
+    try {
+      const loadSnapshot = () =>
+        getEventControlCenter(targetEventId, organizerAccountId, query);
+      const initial = await loadSnapshot();
+
+      const sse = new SseConnection(res);
+      sse.send("control-center", initial);
+
+      const sendLatest = createQueuedSnapshotSender(
+        loadSnapshot,
+        (snapshot) => sse.send("control-center", snapshot),
+        "Event control center"
+      );
+      const unsubscribe = subscribe("order.changed", (order) => {
+        if (order.eventId !== targetEventId) return;
+        sendLatest.send();
+      });
+      const refreshInterval = setInterval(sendLatest.send, 60_000);
+
+      sse.onClose(() => {
+        sendLatest.close();
+        clearInterval(refreshInterval);
+        unsubscribe();
+      });
+    } catch (err) {
+      console.error("Event control center stream error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  })
+);
+
 // POST /events/:eventId/event-control-center/orders/:orderId/cancel
-// TODO SSE: publish order-list and analytics updates after cancellation.
+// Order change streams publish the resulting order update to SSE subscribers.
 eventControlCenterRouter.post(
   "/orders/:orderId/cancel",
   authOrganizer,
@@ -72,7 +152,7 @@ eventControlCenterRouter.post(
 );
 
 // POST /events/:eventId/event-control-center/orders/:orderId/items/cancel
-// TODO SSE: publish order-list and analytics updates after partial cancellation.
+// Order change streams publish the resulting order update to SSE subscribers.
 eventControlCenterRouter.post(
   "/orders/:orderId/items/cancel",
   authOrganizer,
@@ -88,7 +168,6 @@ eventControlCenterRouter.post(
 );
 
 // GET /events/:eventId/event-control-center/orders — live, paid, unfulfilled orders.
-// TODO SSE: expose this order list through shared SSE infrastructure once it exists.
 eventControlCenterRouter.get(
   "/orders",
   authOrganizer,
@@ -102,8 +181,49 @@ eventControlCenterRouter.get(
   })
 );
 
+// GET /events/:eventId/event-control-center/orders/stream — live orders over SSE.
+eventControlCenterRouter.get(
+  "/orders/stream",
+  authOrganizer,
+  validateQuery(liveOrdersQuerySchema, async (req, res, query) => {
+    const targetEventId = eventId(req);
+    const organizerAccountId = accountId(req);
+
+    try {
+      const loadSnapshot = () =>
+        listLiveOrdersForEventControlCenter(
+          targetEventId,
+          organizerAccountId,
+          query
+        );
+      const initial = await loadSnapshot();
+
+      const sse = new SseConnection(res);
+      sse.send("orders", initial);
+
+      const sendLatest = createQueuedSnapshotSender(
+        loadSnapshot,
+        (orders) => sse.send("orders", orders),
+        "Event control center orders"
+      );
+      const unsubscribe = subscribe("order.changed", (order) => {
+        if (order.eventId !== targetEventId) return;
+        sendLatest.send();
+      });
+
+      sse.onClose(() => {
+        sendLatest.close();
+        unsubscribe();
+      });
+    } catch (err) {
+      console.error("Event control center orders stream error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  })
+);
+
 // POST /events/:eventId/event-control-center/stands/:standId/products/:productId/pause
-// TODO SSE: publish product availability and analytics/order-list updates after pausing.
+// Product availability streams are intentionally separate from the order/KPI SSE surface.
 eventControlCenterRouter.post(
   "/stands/:standId/products/:productId/pause",
   authOrganizer,
@@ -119,7 +239,7 @@ eventControlCenterRouter.post(
 );
 
 // POST /events/:eventId/event-control-center/stands/:standId/products/:productId/resume
-// TODO SSE: publish product availability updates after resuming.
+// Product availability streams are intentionally separate from the order/KPI SSE surface.
 eventControlCenterRouter.post(
   "/stands/:standId/products/:productId/resume",
   authOrganizer,
