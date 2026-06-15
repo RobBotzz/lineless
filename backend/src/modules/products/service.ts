@@ -5,6 +5,7 @@ import { verifyStandOwnership } from "../stands/ownership";
 import { Stand } from "../stands/model";
 import { StandNotFoundError } from "../stands/errors";
 import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
+import { Event } from "../events/model";
 
 async function productsForStand(standId: string): Promise<ProductDoc[]> {
   return Product.find({ standId, deletedAt: null })
@@ -119,12 +120,12 @@ export async function listEventProductsForOperator(
   eventId: string,
   operatorStandId: string
 ): Promise<ProductDoc[]> {
-  const stand = await Stand.findOne({
-    _id: operatorStandId,
-    deletedAt: null,
-  }).lean();
-  if (!stand || stand.eventId !== eventId) throw new StandNotFoundError();
-  await verifyActiveEvent(eventId);
+  const stand = await Stand.findOne({ _id: operatorStandId, deletedAt: null }).lean();
+  if (!stand || stand.eventId !== eventId || stand.standType !== "CASHIER")
+    throw new StandNotFoundError();
+  const event = await Event.findById(eventId).lean();
+  if (!event || event.status !== "ACTIVE" || !event.cashierEnabled)
+    throw new StandNotFoundError();
   return liveProductsForEvent(eventId);
 }
 

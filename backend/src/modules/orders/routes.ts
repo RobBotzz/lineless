@@ -3,7 +3,7 @@ import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
   getOrderForAttendee,
-  getOrderForOperator,
+  getOrderForCashier,
   getOrderForOrganizer,
   listUnpaidOrdersForCashier,
   submitOrder,
@@ -32,9 +32,6 @@ function itemId(req: Request): string {
   return req.params["itemId"] as string;
 }
 
-function standId(req: Request): string {
-  return req.params["standId"] as string;
-}
 
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof OrderNotFoundError)
@@ -85,7 +82,7 @@ ordersRouter.get(
       const order = req.organizer
         ? await getOrderForOrganizer(orderId(req), req.organizer.accountId)
         : req.operator
-          ? await getOrderForOperator(orderId(req), req.operator.standId)
+          ? await getOrderForCashier(orderId(req), req.operator.standId)
           : await getOrderForAttendee(orderId(req), req.attendee!.sessionId);
       return res.status(200).json(order);
     } catch (err) {
@@ -133,21 +130,14 @@ ordersRouter.post(
   itemTransition("cancel")
 );
 
-// =============================================================================
-// Stand-scoped order routes — mounted at /api/stands/:standId/orders
-// =============================================================================
-export const standOrdersRouter = Router({ mergeParams: true });
-
-// GET /stands/:standId/orders — unpaid orders for the cashier stand's event.
-standOrdersRouter.get(
-  "/",
+// GET /orders/cashier — unpaid orders for the cashier's event, derived from the
+// operator token (consistent with all other operator routes).
+ordersRouter.get(
+  "/cashier",
   authOperator,
   async (req: Request, res: Response) => {
     try {
-      const orders = await listUnpaidOrdersForCashier(
-        standId(req),
-        req.operator!.standId
-      );
+      const orders = await listUnpaidOrdersForCashier(req.operator!.standId);
       return res.status(200).json(orders);
     } catch (err) {
       return handleError(err, res);
