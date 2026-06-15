@@ -1021,7 +1021,7 @@ function QueueStandPerformance({
         standName: standNameById.get(queue.standId) ?? 'Unknown booth',
       })),
   ];
-  const visibleEntries =
+  const visibleEntries = (
     entries.length > 0
       ? entries
       : stands.map((stand) => ({
@@ -1030,7 +1030,13 @@ function QueueStandPerformance({
           queueLength: 0,
           averageWaitMinutes: 0,
           alert: false,
-        }));
+        }))
+  ).sort((left, right) => {
+    if (right.queueLength !== left.queueLength) {
+      return right.queueLength - left.queueLength;
+    }
+    return right.averageWaitMinutes - left.averageWaitMinutes;
+  });
   const maxQueueLength = Math.max(...visibleEntries.map((entry) => entry.queueLength), 1);
 
   if (visibleEntries.length === 0) {
