@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -64,6 +64,9 @@ export default function OperatorDashboard() {
   const [actionError, setActionError] = useState<string | null>(null);
   // The item awaiting pickup-code confirmation before it is handed over.
   const [confirmItem, setConfirmItem] = useState<BoardItem | null>(null);
+  // The item whose customer note is shown — opened by the info icon or auto-opened
+  // when an item is started. Dashboard-level so it survives the item changing column.
+  const [commentItem, setCommentItem] = useState<BoardItem | null>(null);
   // The product whose pause/resume dialog is open — UI state only; the request's
   // in-flight + error state lives in pauseMutation below.
   const [pauseTarget, setPauseTarget] = useState<BoardProduct | null>(null);
@@ -113,6 +116,11 @@ export default function OperatorDashboard() {
         return;
       }
       runTransition(item, column);
+      // Starting an item (To Do -> In Progress): surface the customer note so the
+      // operator sees any special request while preparing it.
+      if (item.state === 'PENDING' && item.customerComment?.trim()) {
+        setCommentItem(item);
+      }
     },
     [pending, runTransition, standId],
   );
@@ -155,6 +163,18 @@ export default function OperatorDashboard() {
 
   const items = board?.items ?? [];
   const products = board?.products ?? [];
+  // Color products by their position in the board's product list (not a hash of
+  // the id), so the first PRODUCT_PALETTE.length products always get distinct
+  // colors instead of risking a hash collision.
+  const colorOf = useMemo(() => {
+    const byId = new Map(
+      (board?.products ?? []).map((p, i) => [
+        p.productId,
+        PRODUCT_PALETTE[i % PRODUCT_PALETTE.length],
+      ]),
+    );
+    return (productId: string) => byId.get(productId) ?? PRODUCT_PALETTE[0];
+  }, [board?.products]);
   const visibleItems = filter ? items.filter((item) => item.productId === filter) : items;
   const openCount = products.reduce((sum, product) => sum + product.openToDo, 0);
   const standName = standQuery.data?.standName;
@@ -190,26 +210,23 @@ export default function OperatorDashboard() {
           <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
         </div>
 
-        <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-text">
-                {standName ?? 'Stand'}
-              </h1>
-              <ConnectionBadge status={status} />
-            </div>
-            <p className="mt-1 text-sm text-text-muted">
-              Tap an item to move it one stage forward · {items.length} item
-              {items.length === 1 ? '' : 's'} active
-            </p>
+        <header className="mb-6">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
+            <ConnectionBadge status={status} />
           </div>
+          <p className="mt-1 text-sm text-text-muted">
+            Tap an item to move it one stage forward · {items.length} item
+            {items.length === 1 ? '' : 's'} active
+          </p>
 
           {products.length > 0 && (
-            <div className="flex flex-wrap gap-2 lg:max-w-xl lg:justify-end">
+            <div className="mt-3 flex flex-wrap gap-2">
               {products.map((product) => (
                 <ProductFilterChip
                   key={product.productId}
                   product={product}
+                  color={colorOf(product.productId)}
                   count={items.filter((item) => item.productId === product.productId).length}
                   active={filter === product.productId}
                   onToggle={() => toggleFilter(product.productId)}
@@ -236,6 +253,8 @@ export default function OperatorDashboard() {
               items={visibleItems.filter((item) => item.state === column.state)}
               pending={pending}
               onAdvance={advance}
+              onShowComment={setCommentItem}
+              colorOf={colorOf}
             />
           ))}
 
@@ -243,6 +262,7 @@ export default function OperatorDashboard() {
             products={products}
             openCount={openCount}
             activeFilter={filter}
+            colorOf={colorOf}
             onToggleFilter={toggleFilter}
             onRequestPause={(product) => {
               pauseMutation.reset();
@@ -257,6 +277,14 @@ export default function OperatorDashboard() {
           item={confirmItem}
           onConfirm={confirmFulfill}
           onCancel={() => setConfirmItem(null)}
+        />
+      )}
+
+      {commentItem?.customerComment?.trim() && (
+        <CommentPopover
+          comment={commentItem.customerComment.trim()}
+          orderNumber={commentItem.orderNumber}
+          onClose={() => setCommentItem(null)}
         />
       )}
 
@@ -278,11 +306,15 @@ function BoardColumn({
   items,
   pending,
   onAdvance,
+  onShowComment,
+  colorOf,
 }: {
   column: ColumnConfig;
   items: BoardItem[];
   pending: ReadonlySet<string>;
   onAdvance: (item: BoardItem) => void;
+  onShowComment: (item: BoardItem) => void;
+  colorOf: (productId: string) => string;
 }) {
   return (
     <section className="flex flex-col rounded-lg border border-border bg-surface p-4 shadow-sm">
@@ -303,8 +335,10 @@ function BoardColumn({
               key={item.itemId}
               item={item}
               actionLabel={column.actionLabel}
+              color={colorOf(item.productId)}
               pending={pending.has(item.itemId)}
               onAdvance={() => onAdvance(item)}
+              onShowComment={() => onShowComment(item)}
             />
           ))
         ) : (
@@ -320,17 +354,19 @@ function BoardColumn({
 function BoardItemCard({
   item,
   actionLabel,
+  color,
   pending,
   onAdvance,
+  onShowComment,
 }: {
   item: BoardItem;
   actionLabel: string;
+  color: string;
   pending: boolean;
   onAdvance: () => void;
+  onShowComment: () => void;
 }) {
-  const color = productColor(item.productId);
   const comment = item.customerComment?.trim() || null;
-  const [showComment, setShowComment] = useState(false);
 
   return (
     <div
@@ -352,12 +388,12 @@ function BoardItemCard({
 
       <div className="pointer-events-none relative z-10 p-4">
         <div className="flex items-start justify-between gap-2">
-          <span className="text-xl font-bold tracking-tight text-text">#{item.orderNumber}</span>
+          <span className="text-lg font-bold leading-tight text-text">{item.productName}</span>
 
           {comment && (
             <button
               type="button"
-              onClick={() => setShowComment(true)}
+              onClick={onShowComment}
               aria-label="Show customer note"
               className="pointer-events-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warning/60 text-text transition hover:bg-warning focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
@@ -366,18 +402,8 @@ function BoardItemCard({
           )}
         </div>
 
-        <span className="mt-4 block text-right text-sm font-semibold text-accent">
-          {pending ? 'Saving…' : `${actionLabel} →`}
-        </span>
+        <span className="mt-3 block text-xs font-medium text-text-muted">#{item.orderNumber}</span>
       </div>
-
-      {showComment && comment && (
-        <CommentPopover
-          comment={comment}
-          orderNumber={item.orderNumber}
-          onClose={() => setShowComment(false)}
-        />
-      )}
     </div>
   );
 }
@@ -571,12 +597,14 @@ function ProductsOverview({
   products,
   openCount,
   activeFilter,
+  colorOf,
   onToggleFilter,
   onRequestPause,
 }: {
   products: BoardProduct[];
   openCount: number;
   activeFilter: string | null;
+  colorOf: (productId: string) => string;
   onToggleFilter: (productId: string) => void;
   onRequestPause: (product: BoardProduct) => void;
 }) {
@@ -597,6 +625,7 @@ function ProductsOverview({
             <ProductSummaryRow
               key={product.productId}
               product={product}
+              color={colorOf(product.productId)}
               active={activeFilter === product.productId}
               onToggleFilter={() => onToggleFilter(product.productId)}
               onRequestPause={() => onRequestPause(product)}
@@ -614,11 +643,13 @@ function ProductsOverview({
 
 function ProductSummaryRow({
   product,
+  color,
   active,
   onToggleFilter,
   onRequestPause,
 }: {
   product: BoardProduct;
+  color: string;
   active: boolean;
   onToggleFilter: () => void;
   onRequestPause: () => void;
@@ -644,51 +675,57 @@ function ProductSummaryRow({
         className="absolute inset-0 z-0 rounded-lg focus:outline-none"
       />
 
-      <div className="pointer-events-none relative z-10 flex items-center gap-3 p-3">
-        <span
-          className="h-3 w-3 shrink-0 rounded-full"
-          style={{ backgroundColor: productColor(product.productId) }}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-text">{product.productName}</span>
-            {paused && (
-              <span className="shrink-0 rounded-full bg-warning/60 px-2 py-0.5 text-[11px] font-semibold text-text">
-                Paused
-              </span>
-            )}
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
+      <div className="pointer-events-none relative z-10 flex flex-col gap-1.5 p-3">
+        <div className="flex items-start gap-2">
+          <span
+            className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: color }}
+          />
+          <span className="text-sm font-semibold leading-tight text-text">
+            {product.productName}
+          </span>
+        </div>
+
+        {/* Meta and the action share one row to keep cards short when there are
+            many products. On a narrow column (e.g. a 1024px landscape tablet) the
+            meta wraps as whole units (min-w-0 + flex-wrap) so the shrink-0 button
+            never gets pushed out of the card. */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-text-muted">
             <span className="rounded bg-surface-muted px-1.5 py-0.5 font-semibold text-text">
               {product.openToDo}
             </span>
-            <span>To Do</span>
-            <span className="text-border">·</span>
-            <span>Stock {product.productStock}</span>
+            <span className="whitespace-nowrap">To Do</span>
+            <span className="whitespace-nowrap">· Stock {product.productStock}</span>
           </div>
-        </div>
 
-        {/* Terminated is a terminal state — no pause/resume action, just a label. */}
-        {terminated ? (
-          <span className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-border px-3 text-sm font-semibold text-text-muted">
-            Terminated
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={onRequestPause}
-            aria-label={paused ? `Resume ${product.productName}` : `Pause ${product.productName}`}
-            className={cn(
-              'pointer-events-auto inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-              paused
-                ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
-                : 'border-warning/50 bg-warning/20 text-text hover:bg-warning/40',
-            )}
-          >
-            {paused ? <PlayIcon className="h-4 w-4" /> : <PauseIcon className="h-4 w-4" />}
-            {paused ? 'Resume' : 'Pause'}
-          </button>
-        )}
+          {/* Terminated is terminal — no pause/resume action; show a status label
+              in the control's place instead of a button. */}
+          {terminated ? (
+            <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-dashed border-border px-2.5 text-xs font-semibold text-text-muted">
+              Terminated
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={onRequestPause}
+              aria-label={paused ? `Resume ${product.productName}` : `Pause ${product.productName}`}
+              className={cn(
+                'pointer-events-auto inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                paused
+                  ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
+                  : 'border-warning/50 bg-warning/20 text-text hover:bg-warning/40',
+              )}
+            >
+              {paused ? (
+                <PlayIcon className="h-3.5 w-3.5" />
+              ) : (
+                <PauseIcon className="h-3.5 w-3.5" />
+              )}
+              {paused ? 'Resume' : 'Pause'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -696,11 +733,13 @@ function ProductSummaryRow({
 
 function ProductFilterChip({
   product,
+  color,
   count,
   active,
   onToggle,
 }: {
   product: BoardProduct;
+  color: string;
   count: number;
   active: boolean;
   onToggle: () => void;
@@ -711,16 +750,15 @@ function ProductFilterChip({
       onClick={onToggle}
       aria-pressed={active}
       className={cn(
-        'inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        // Comfortable size on tablet and up; only slightly more compact on small
+        // mobile viewports (below the sm breakpoint).
+        'inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm',
         active
           ? 'border-accent bg-accent-soft text-accent'
           : 'border-border bg-surface text-text hover:bg-surface-muted',
       )}
     >
-      <span
-        className="h-2.5 w-2.5 rounded-full"
-        style={{ backgroundColor: productColor(product.productId) }}
-      />
+      <span className="h-2 w-2 rounded-full sm:h-2.5 sm:w-2.5" style={{ backgroundColor: color }} />
       {product.productName}
       <span className="text-text-muted">{count}</span>
     </button>
@@ -773,25 +811,20 @@ function StatePanel({ message, title }: { message: string; title: string }) {
   );
 }
 
-// Stable per-product accent color derived from the product id, so a product keeps
-// the same color across renders without the backend sending one.
+// Per-product accent colors, assigned by position in the board's product list
+// (see colorOf) so products always get distinct colors. Uses the D3 "category10"
+// categorical palette — engineered for maximally distinguishable categories
+// (varied hue AND lightness, plus brown/grey), which reads clearly even at the
+// small swatch sizes used here (dots and the 4px card border).
 const PRODUCT_PALETTE = [
-  '#eab308', // yellow
-  '#ec4899', // pink
-  '#a855f7', // purple
-  '#f97316', // orange
-  '#10b981', // emerald
-  '#3b82f6', // blue
-  '#06b6d4', // cyan
-  '#ef4444', // red
-  '#8b5cf6', // violet
-  '#14b8a6', // teal
+  '#1f77b4', // blue
+  '#ff7f0e', // orange
+  '#2ca02c', // green
+  '#d62728', // red
+  '#9467bd', // purple
+  '#8c564b', // brown
+  '#e377c2', // pink
+  '#17becf', // cyan
+  '#bcbd22', // olive
+  '#7f7f7f', // grey
 ];
-
-function productColor(productId: string): string {
-  let hash = 0;
-  for (let i = 0; i < productId.length; i += 1) {
-    hash = (hash * 31 + productId.charCodeAt(i)) | 0;
-  }
-  return PRODUCT_PALETTE[Math.abs(hash) % PRODUCT_PALETTE.length];
-}
