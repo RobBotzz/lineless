@@ -65,15 +65,21 @@ export async function submitOrder(
   const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
   if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
 
-  if (!tabId && !event.offlineOrdersEnabled)
+  // The offline-orders flag only gates attendee orders placed without a tab;
+  // cashier (operator) cash orders are governed separately by cashierEnabled.
+  if (!tabId && sessionId !== null && !event.offlineOrdersEnabled)
     throw new OfflineOrdersDisabledError();
 
   if (tabId) {
-    const tab = await Tab.findOne({
-      _id: tabId,
-      eventId,
-      ...(sessionId ? { sessionId } : {}),
-    }).lean();
+    // A tab is a customer's authorized payment vehicle. Only the attendee
+    // session that owns it may order against it; operators have no session and
+    // must not be able to charge an arbitrary customer's tab.
+    if (sessionId === null) {
+      throw new OrderValidationError(
+        "Operators cannot place orders against a customer tab."
+      );
+    }
+    const tab = await Tab.findOne({ _id: tabId, eventId, sessionId }).lean();
     if (!tab || tab.status !== "OPEN") {
       throw new OrderValidationError("Tab is not OPEN or does not exist.");
     }

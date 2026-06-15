@@ -6,8 +6,12 @@ import { TabPayment } from "../payments/model";
 import { Order } from "../orders/model";
 import { Event, DEFAULT_BASELINE_HOLD_CENTS } from "../events/model";
 import { TabNotFoundError, TabStateError } from "./errors";
+import { EventNotFoundError } from "../events/errors";
 import { TAB_AUTHORIZATION_WINDOW_MS } from "../payments/service";
-import { verifyEventOwnership } from "../events/ownership";
+import {
+  assertSessionOwnsEvent,
+  verifyEventOwnership,
+} from "../events/ownership";
 import {
   getReadyTabTotalCents,
   isTabReadyForCheckout,
@@ -31,12 +35,24 @@ export interface BulkTabCheckoutResult {
   results: TabCheckoutResult[];
 }
 
-export async function createTab(sessionId: string, eventId: string) {
-  const event = await Event.findOne({ _id: eventId, deletedAt: null })
+export async function createTab(
+  sessionId: string,
+  sessionEventId: string,
+  eventId: string
+) {
+  // The attendee session is bound to one event; never authorize a card for an
+  // event the session does not own or that is not currently accepting orders.
+  assertSessionOwnsEvent(eventId, sessionEventId);
+  const event = await Event.findOne({
+    _id: eventId,
+    status: "ACTIVE",
+    deletedAt: null,
+  })
     .select("baselineHoldCents")
     .lean();
+  if (!event) throw new EventNotFoundError();
   const baselineHoldCents =
-    event?.baselineHoldCents ?? DEFAULT_BASELINE_HOLD_CENTS;
+    event.baselineHoldCents ?? DEFAULT_BASELINE_HOLD_CENTS;
 
   const pi = await stripe.paymentIntents.create({
     amount: baselineHoldCents,

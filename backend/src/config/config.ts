@@ -74,8 +74,10 @@ export const config: Config = {
   },
   stripe: {
     secretKey:
+      process.env["STRIPE_SECRET_KEY"] ??
       "sk_test_REPLACE_WITH_YOUR_STRIPE_TEST_SECRET_KEY",
     webhookSecret:
+      process.env["STRIPE_WEBHOOK_SECRET"] ??
       "whsec_REPLACE_WITH_YOUR_STRIPE_WEBHOOK_SECRET",
   },
 };
