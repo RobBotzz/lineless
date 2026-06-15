@@ -1,0 +1,19 @@
+meta {
+  name: resume product
+  type: http
+  seq: 8
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/products/{{productId}}/resume
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+settings {
+  encodeUrl: true
+}

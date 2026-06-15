@@ -5,12 +5,16 @@ import {
   listProductsForOrganizer,
   listProductsForOperator,
   listProductsForAttendee,
+  listEventProductsForOrganizer,
+  listEventProductsForOperator,
   getProductForOrganizer,
   updateProduct,
   softDeleteProduct,
-  verifyProductControlAccess,
+  pauseProduct,
+  resumeProduct,
+  type ProductControlAuth,
 } from "./service";
-import { ProductNotFoundError } from "./errors";
+import { ProductNotFoundError, ProductStateError } from "./errors";
 import { StandNotFoundError } from "../stands/errors";
 import { EventNotFoundError } from "../events/errors";
 import { createProductSchema, updateProductSchema } from "./types";
@@ -24,8 +28,20 @@ function standId(req: Request): string {
   return req.params["standId"] as string;
 }
 
+function eventId(req: Request): string {
+  return req.params["eventId"] as string;
+}
+
 function productId(req: Request): string {
   return req.params["productId"] as string;
+}
+
+// Resolves the authenticated caller into the union the service expects. The
+// route is guarded by authOrganizerOrOperator, so exactly one is set.
+function controlAuth(req: Request): ProductControlAuth {
+  return req.organizer
+    ? { type: "organizer", accountId: req.organizer.accountId }
+    : { type: "operator", standId: req.operator!.standId };
 }
 
 function handleError(err: unknown, res: Response): unknown {
@@ -35,6 +51,8 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
+  if (err instanceof ProductStateError)
+    return res.status(409).json({ error: err.message });
   console.error("Products error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -81,6 +99,34 @@ standProductsRouter.get(
 );
 
 // =============================================================================
+// Event-scoped product routes — mounted at /events/:eventId/products
+// =============================================================================
+export const eventProductsRouter = Router({ mergeParams: true });
+
+// GET /events/:eventId/products — the event-wide LIVE catalog. Used by the
+// cashier (operator), whose token is stand-scoped, and the organizer.
+eventProductsRouter.get(
+  "/",
+  authOrganizerOrOperator,
+  async (req: Request, res: Response) => {
+    try {
+      const products = req.organizer
+        ? await listEventProductsForOrganizer(
+            eventId(req),
+            req.organizer.accountId
+          )
+        : await listEventProductsForOperator(
+            eventId(req),
+            req.operator!.standId
+          );
+      res.status(200).json(products);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// =============================================================================
 // Product-id routes — mounted at /products/:productId (no standId in the URL)
 // =============================================================================
 export const productsRouter = Router();
@@ -102,23 +148,29 @@ productsRouter.get(
   }
 );
 
-// POST /products/:productId/pause — placeholder for the LIVE -> PAUSED
-// transition. Status is intentionally NOT settable via PATCH; it gets its own
-// endpoint.
-// TODO: implement pauseProduct in the service as an explicit, validated state
-// transition (mirror the events start/stop pattern with a ProductStateError).
+// POST /products/:productId/pause — LIVE -> PAUSED. Status is intentionally NOT
+// settable via PATCH; it gets its own explicit, validated transition.
 productsRouter.post(
   "/:productId/pause",
   authOrganizerOrOperator,
   async (req: Request, res: Response) => {
     try {
-      await verifyProductControlAccess(
-        productId(req),
-        req.organizer
-          ? { type: "organizer", accountId: req.organizer.accountId }
-          : { type: "operator", standId: req.operator!.standId }
-      );
-      res.status(501).json({ error: "Not implemented" });
+      const product = await pauseProduct(productId(req), controlAuth(req));
+      res.status(200).json(product);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// POST /products/:productId/resume — PAUSED -> LIVE. Inverse of pause.
+productsRouter.post(
+  "/:productId/resume",
+  authOrganizerOrOperator,
+  async (req: Request, res: Response) => {
+    try {
+      const product = await resumeProduct(productId(req), controlAuth(req));
+      res.status(200).json(product);
     } catch (err) {
       handleError(err, res);
     }
@@ -133,18 +185,8 @@ productsRouter.post(
 productsRouter.post(
   "/:productId/terminate",
   authOrganizerOrOperator,
-  async (req: Request, res: Response) => {
-    try {
-      await verifyProductControlAccess(
-        productId(req),
-        req.organizer
-          ? { type: "organizer", accountId: req.organizer.accountId }
-          : { type: "operator", standId: req.operator!.standId }
-      );
-      res.status(501).json({ error: "Not implemented" });
-    } catch (err) {
-      handleError(err, res);
-    }
+  (_req: Request, res: Response) => {
+    res.status(501).json({ error: "Not implemented" });
   }
 );
 

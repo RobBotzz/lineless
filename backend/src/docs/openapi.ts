@@ -7,7 +7,7 @@ import {
   standProductsRouter,
   productsRouter,
 } from "../modules/products/routes";
-import ordersRouter from "../modules/orders/routes";
+import { ordersRouter } from "../modules/orders/routes";
 import sessionsRouter from "../modules/sessions/routes";
 import {
   authOrganizer,
