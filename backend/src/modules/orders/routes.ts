@@ -29,6 +29,7 @@ import {
   CreateOrderSchema,
   IssueCashRefundSchema,
 } from "./types";
+import { EventNotFoundError } from "../events/errors";
 import {
   authAttendee,
   authOperator,
@@ -47,6 +48,8 @@ function itemId(req: Request): string {
 
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof StandNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof OrderNotFoundError)
     return res.status(404).json({ error: err.message });
@@ -87,7 +90,9 @@ ordersRouter.post(
       const sessionId = req.attendee?.sessionId ?? null;
       const result = await submitOrder(sessionId, data);
       if (result.status === 402) {
-        return res.status(402).json({ clientSecret: result.clientSecret });
+        return res
+          .status(402)
+          .json({ clientSecret: result.clientSecret, orderId: result.orderId });
       }
       return res.status(201).json({ order: result.order });
     } catch (err) {
@@ -99,10 +104,15 @@ ordersRouter.post(
 // POST /orders/:orderId/cash-payment — operator/cashier confirms cash received.
 ordersRouter.post(
   "/:orderId/cash-payment",
-  authOrganizerOrOperatorOrAttendee,
+  authOrganizerOrOperator,
   validateBody(ConfirmCashPaymentSchema, async (req, res) => {
     try {
-      const order = await confirmCashPayment(orderId(req));
+      const order = await confirmCashPayment(
+        orderId(req),
+        req.organizer
+          ? { organizerAccountId: req.organizer.accountId }
+          : { operatorStandId: req.operator!.standId }
+      );
       return res.status(201).json(order);
     } catch (err) {
       return handleError(err, res);
@@ -212,7 +222,10 @@ cashPaymentsRouter.post(
     try {
       const refund = await issueCashRefund(
         req.params["cashPaymentId"] as string,
-        data
+        data,
+        req.organizer
+          ? { organizerAccountId: req.organizer.accountId }
+          : { operatorStandId: req.operator!.standId }
       );
       return res.status(201).json(refund);
     } catch (err) {

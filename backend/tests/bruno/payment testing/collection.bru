@@ -5,7 +5,7 @@ meta {
 docs {
   # Payment testing collection
 
-  Three self-contained scenarios for the tab / Stripe authorize-then-capture
+  Four self-contained scenarios for the tab / Stripe authorize-then-capture
   flow. Each subfolder logs in the organizer, creates its own attendee session
   + tab, and uses organizer checkout, so any folder can be run on its own. Run
   with the Bruno runner; requests within a folder reuse runtime vars
@@ -26,7 +26,7 @@ docs {
   - Dev env: `eventId` is an ACTIVE event with `standId` / `productId` under it;
     product price well below the EUR 10.00 (1000 cents) baseline hold.
   - Dev env organizer credentials own `eventId`; operator password logs into
-    `standId`.
+    `standId` and, if configured, the event's CASHIER stand.
   - `stripeSecretKey` (Dev env) is the project's Stripe TEST secret key.
   - Backend runs in dev so /webhooks/stripe accepts unsigned JSON.
 
@@ -39,4 +39,7 @@ docs {
   3. payment fails — order over the hold whose overage payment fails; organizer
      checkout skips the tab because the failed order still has non-cancelled
      items that are not ready.
+  4. cash payments — cashier creates a cash order; attendee confirmation is
+     rejected; organizer confirmation, duplicate rejection, cash refund,
+     over-refund rejection, and tab-order cash confirmation rejection are tested.
 }

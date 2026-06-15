@@ -1,0 +1,32 @@
+meta {
+  name: 16 get overage payment intent
+  type: http
+  seq: 16
+}
+
+get {
+  url: https://api.stripe.com/v1/payment_intents/{{overagePI}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{stripeSecretKey}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.metadata && res.body.metadata.orderId) {
+    bru.setVar("tabOrderId", res.body.metadata.orderId);
+  }
+}
+
+tests {
+  test("overage PaymentIntent references the tab order", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.metadata.orderId).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

@@ -50,6 +50,11 @@ export function getItemState(item: OrderItemDoc): ItemState {
   return "PENDING";
 }
 
+interface CashPaymentActor {
+  organizerAccountId?: string;
+  operatorStandId?: string;
+}
+
 export async function submitOrder(
   /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
   sessionId: string | null,
@@ -198,7 +203,11 @@ export async function submitOrder(
     });
     await dbSession.endSession();
 
-    return { status: 402 as const, clientSecret: pi.client_secret };
+    return {
+      status: 402 as const,
+      clientSecret: pi.client_secret as string,
+      orderId: newOrderId,
+    };
   }
 
   const now = new Date();
@@ -230,16 +239,55 @@ export async function submitOrder(
   return { status: 201 as const, order: createdOrder };
 }
 
-export async function confirmCashPayment(orderId: string) {
+async function verifyCashPaymentActor(
+  eventId: string,
+  actor: CashPaymentActor,
+  options: { requireActiveEvent: boolean }
+) {
+  if (actor.organizerAccountId) {
+    await verifyEventOwnership(eventId, actor.organizerAccountId);
+    const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
+    if (!event?.cashierEnabled) throw new CashierDisabledError();
+    if (options.requireActiveEvent && event.status !== "ACTIVE") {
+      throw new CashierDisabledError();
+    }
+    return;
+  }
+
+  if (actor.operatorStandId) {
+    const stand = await Stand.findOne({
+      _id: actor.operatorStandId,
+      standType: "CASHIER",
+      eventId,
+      deletedAt: null,
+    }).lean();
+    if (!stand) throw new OrderNotFoundError();
+
+    const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
+    if (!event?.cashierEnabled) throw new CashierDisabledError();
+    if (options.requireActiveEvent && event.status !== "ACTIVE") {
+      throw new CashierDisabledError();
+    }
+    return;
+  }
+
+  throw new OrderNotFoundError();
+}
+
+export async function confirmCashPayment(
+  orderId: string,
+  actor: CashPaymentActor
+) {
   const order = await Order.findById(orderId);
   if (!order) throw new OrderNotFoundError();
   if (order.paidAt) throw new OrderAlreadyPaidError();
+  if (order.tabId !== null) {
+    throw new OrderValidationError("Only cash orders can be paid in cash");
+  }
 
-  const event = await Event.findOne({
-    _id: order.eventId,
-    deletedAt: null,
+  await verifyCashPaymentActor(order.eventId, actor, {
+    requireActiveEvent: true,
   });
-  if (!event || !event.cashierEnabled) throw new CashierDisabledError();
 
   const now = new Date();
   order.cashPayment = { _id: crypto.randomUUID(), createdAt: now };
@@ -254,10 +302,16 @@ export async function confirmCashPayment(orderId: string) {
 
 export async function issueCashRefund(
   cashPaymentId: string,
-  input: IssueCashRefundInput
+  input: IssueCashRefundInput,
+  actor: CashPaymentActor
 ) {
   const order = await Order.findOne({ "cashPayment._id": cashPaymentId });
   if (!order?.cashPayment) throw new CashPaymentNotFoundError();
+  if (order.tabId !== null) throw new CashPaymentNotFoundError();
+
+  await verifyCashPaymentActor(order.eventId, actor, {
+    requireActiveEvent: false,
+  });
 
   const orderTotal = order.items.reduce(
     (sum, i) => sum + i.priceIncludingTaxAtPurchase,

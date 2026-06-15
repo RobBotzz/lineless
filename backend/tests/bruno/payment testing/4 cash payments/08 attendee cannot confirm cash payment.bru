@@ -1,0 +1,30 @@
+meta {
+  name: 08 attendee cannot confirm cash payment
+  type: http
+  seq: 8
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{cashOrderId}}/cash-payment
+  body: json
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{paySessionId}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("attendee cannot confirm cash payment", function () {
+    expect(res.status).to.equal(401);
+    expect(res.body.error).to.equal("Authentication required");
+  });
+}
+
+settings {
+  encodeUrl: true
+}

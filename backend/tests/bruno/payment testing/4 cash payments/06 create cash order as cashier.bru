@@ -1,0 +1,51 @@
+meta {
+  name: 06 create cash order as cashier
+  type: http
+  seq: 6
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{cashierToken}}
+}
+
+body:json {
+  {
+    "eventId": "{{eventId}}",
+    "items": [
+      { "productId": "{{productId}}" }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.order) {
+    const order = res.body.order;
+    const total = order.items.reduce(
+      (sum, i) => sum + i.priceIncludingTaxAtPurchase,
+      0
+    );
+    bru.setVar("cashOrderId", order._id);
+    bru.setVar("cashItemId", order.items[0]._id);
+    bru.setVar("cashOrderTotal", total);
+  }
+}
+
+tests {
+  test("cashier creates unpaid cash order", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.order._id).to.be.a("string").and.not.empty;
+    expect(res.body.order.tabId).to.equal(null);
+    expect(res.body.order.paidAt).to.equal(null);
+    expect(res.body.order.cashPayment).to.equal(null);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

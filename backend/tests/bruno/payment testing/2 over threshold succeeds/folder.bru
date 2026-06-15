@@ -1,11 +1,17 @@
 meta {
-  name: 2 over threshold skips unready
+  name: 2 over threshold succeeds
   seq: 2
 }
 
 docs {
   Attendee orders one item within the baseline hold, then a larger order that
   exceeds it. The overage hold is created (402), confirmed on Stripe, and
-  authorized via webhook. Because the overage items are not marked ready,
-  organizer checkout skips the tab and does not release the holds.
+  authorized via webhook. All items (first order + overage order) are then
+  marked ready and fulfilled. Organizer checkout captures the authorized holds
+  and the tab is PAID.
+
+  NOTE: The overage order uses 6 items. For a 402 to be triggered the product
+  must cost more than (1000 - firstItemPrice) / 6 cents (~167 cents / €1.67).
+  Increase the item count in "06 submit order over limit.bru" for cheaper
+  products and add matching ready/fulfill steps.
 }

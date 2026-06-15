@@ -1,7 +1,7 @@
 meta {
-  name: 13 organizer checkout skips unready overage
+  name: 27 organizer checkout captures all fulfilled items
   type: http
-  seq: 13
+  seq: 27
 }
 
 post {
@@ -15,11 +15,11 @@ headers {
 }
 
 tests {
-  test("organizer checkout skips tab with authorized but unready overage items", function () {
+  test("organizer checkout captures tab with all items fulfilled", function () {
     expect(res.status).to.equal(200);
     const result = res.body.results.find(r => r.tabId === bru.getVar("tabId"));
-    expect(result.status).to.equal("SKIPPED");
-    expect(result.reason).to.equal("Tab has non-cancelled items that are not ready");
+    expect(result.status).to.equal("PAID");
+    expect(result.capturedTotal).to.be.a("number").and.greaterThan(0);
   });
 }
 

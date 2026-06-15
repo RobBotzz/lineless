@@ -1,0 +1,30 @@
+meta {
+  name: 17 tab order cannot be confirmed as cash
+  type: http
+  seq: 17
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{tabOrderId}}/cash-payment
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("tab order cannot be confirmed as cash", function () {
+    expect(res.status).to.equal(400);
+    expect(res.body.error).to.equal("Only cash orders can be paid in cash");
+  });
+}
+
+settings {
+  encodeUrl: true
+}
