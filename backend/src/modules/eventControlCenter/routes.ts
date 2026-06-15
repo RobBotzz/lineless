@@ -16,6 +16,10 @@ import {
   resumeProductForEventControlCenter,
 } from "../products/service";
 import {
+  pauseStandForEventControlCenter,
+  resumeStandForEventControlCenter,
+} from "../stands/service";
+import {
   cancelOrderItemsSchema,
   eventControlCenterQuerySchema,
   liveOrdersQuerySchema,
@@ -235,6 +239,34 @@ eventControlCenterRouter.post(
       accountId(req)
     );
     res.status(200).json(product);
+  }
+);
+
+// POST /events/:eventId/event-control-center/stands/:standId/pause
+eventControlCenterRouter.post(
+  "/stands/:standId/pause",
+  authOrganizer,
+  async (req, res) => {
+    const stand = await pauseStandForEventControlCenter(
+      eventId(req),
+      standId(req),
+      accountId(req)
+    );
+    res.status(200).json(stand);
+  }
+);
+
+// POST /events/:eventId/event-control-center/stands/:standId/resume
+eventControlCenterRouter.post(
+  "/stands/:standId/resume",
+  authOrganizer,
+  async (req, res) => {
+    const stand = await resumeStandForEventControlCenter(
+      eventId(req),
+      standId(req),
+      accountId(req)
+    );
+    res.status(200).json(stand);
   }
 );
 

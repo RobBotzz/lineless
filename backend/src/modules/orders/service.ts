@@ -63,9 +63,12 @@ export async function submitOrder(
     throw new OfflineOrdersDisabledError();
 
   const eventStands = await Stand.find({ eventId, deletedAt: null })
-    .select("_id")
+    .select("_id standStatus")
     .lean();
   const eventStandIds = eventStands.map((s) => s._id);
+  const standStatusById = new Map(
+    eventStands.map((stand) => [stand._id, stand.standStatus ?? "LIVE"])
+  );
 
   const productIds = [...new Set(items.map((i) => i.productId))];
   const products = await Product.find({
@@ -77,7 +80,11 @@ export async function submitOrder(
 
   const processedItems = items.map((item) => {
     const product = productById.get(item.productId);
-    if (!product || product.productStatus !== "LIVE") {
+    if (
+      !product ||
+      product.productStatus !== "LIVE" ||
+      standStatusById.get(product.standId) === "PAUSED"
+    ) {
       throw new OrderValidationError(
         `Product ${item.productId} is not available for ordering`
       );

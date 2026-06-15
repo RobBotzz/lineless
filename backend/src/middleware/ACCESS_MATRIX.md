@@ -24,6 +24,8 @@
 | Events   | `GET /api/events/:eventId/event-control-center/orders/stream`                               | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/orders/:orderId/cancel`                     | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/orders/:orderId/items/cancel`               | no     | own event | no             | no            |
+| Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/pause`                      | no     | own event | no             | no            |
+| Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/resume`                     | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/products/:productId/pause`  | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/products/:productId/resume` | no     | own event | no             | no            |
 | Stands   | `POST /api/events/:eventId/stands`                                                          | no     | own event | no             | no            |

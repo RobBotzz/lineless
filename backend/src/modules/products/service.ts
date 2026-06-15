@@ -37,7 +37,7 @@ async function verifyStandAccessForOperator(
 async function verifyStandAccessForAttendee(
   standId: string,
   eventId: string
-): Promise<void> {
+): Promise<boolean> {
   const stand = await Stand.findOne({
     _id: standId,
     eventId,
@@ -45,6 +45,7 @@ async function verifyStandAccessForAttendee(
   }).lean();
   if (!stand) throw new StandNotFoundError();
   await verifyActiveEvent(eventId);
+  return (stand.standStatus ?? "LIVE") === "LIVE";
 }
 
 export async function createProduct(
@@ -85,7 +86,8 @@ export async function listProductsForAttendee(
   standId: string,
   eventId: string
 ): Promise<ProductDoc[]> {
-  await verifyStandAccessForAttendee(standId, eventId);
+  const standIsLive = await verifyStandAccessForAttendee(standId, eventId);
+  if (!standIsLive) return [];
   return productsForStand(standId);
 }
 

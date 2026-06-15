@@ -57,6 +57,8 @@ Admin dashboard, event configuration, event control center, payout management.
 | ------ | ------------------------------------------------------------------------------------- | --------------------------- |
 | POST   | `/events/{eventId}/event-control-center/orders/{orderId}/cancel`                      | Cancel all open order items |
 | POST   | `/events/{eventId}/event-control-center/orders/{orderId}/items/cancel`                | Cancel selected order items |
+| POST   | `/events/{eventId}/event-control-center/stands/{standId}/pause`                       | Pause a stand               |
+| POST   | `/events/{eventId}/event-control-center/stands/{standId}/resume`                      | Resume a stand              |
 | POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/pause`  | Pause a product             |
 | POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/resume` | Resume a product            |
 
