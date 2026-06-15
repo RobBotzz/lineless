@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import type { OrderDoc } from "../modules/orders/model";
+import type { ProductDoc } from "../modules/products/model";
 
 // In-process publish/subscribe for realtime domain events. Services publish after
 // a mutation; SSE endpoints subscribe and fan changes out to connected clients.
@@ -11,6 +12,7 @@ import type { OrderDoc } from "../modules/orders/model";
 // the same publish()/subscribe() API.
 interface RealtimeEvents {
   "order.changed": OrderDoc;
+  "product.changed": ProductDoc;
 }
 
 const emitter = new EventEmitter();

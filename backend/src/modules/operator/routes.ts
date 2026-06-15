@@ -49,7 +49,17 @@ operatorRouter.get(
           .catch((err) => console.error("Operator board stream error:", err));
       });
 
-      sse.onClose(unsubscribe);
+      const unsubProduct = subscribe("product.changed", (product) => {
+        if (product.standId !== standId) return;
+        buildOperatorBoard(standId)
+          .then((board) => sse.send("board", board))
+          .catch((err) => console.error("Operator board stream error:", err));
+      });
+
+      sse.onClose(() => {
+        unsubscribe();
+        unsubProduct();
+      });
     } catch (err) {
       console.error("Operator board stream error:", err);
       res.status(500).json({ error: "Internal server error" });
