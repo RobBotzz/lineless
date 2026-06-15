@@ -15,10 +15,6 @@ export interface ProductDoc {
   instantProduct: boolean;
   productStock: number;
   productStatus: ProductStatus;
-  // Running rating aggregate — atomically $inc'd on each new review so the
-  // average never has to be recomputed across all ratings.
-  ratingSum: number;
-  ratingCount: number;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -40,8 +36,6 @@ const productSchema = new Schema<ProductDoc>(
       enum: ["LIVE", "PAUSED", "TERMINATED"],
       default: "LIVE",
     },
-    ratingSum: { type: Number, default: 0 },
-    ratingCount: { type: Number, default: 0 },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

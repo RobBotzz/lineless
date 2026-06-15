@@ -5,7 +5,6 @@ import {
   getOrderForAttendee,
   getOrderForCashier,
   getOrderForOrganizer,
-  listOrdersForAttendee,
   listUnpaidOrdersForCashier,
   submitOrder,
 } from "./service";
@@ -20,7 +19,6 @@ import {
 } from "./errors";
 import { createOrderSchema } from "./types";
 import {
-  authAttendee,
   authOperator,
   authOrganizerOrOperatorOrAttendee,
   authOperatorOrAttendee,
@@ -33,6 +31,7 @@ function orderId(req: Request): string {
 function itemId(req: Request): string {
   return req.params["itemId"] as string;
 }
+
 
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof OrderNotFoundError)
@@ -72,16 +71,6 @@ ordersRouter.post(
     }
   })
 );
-
-// GET /orders — an attendee's own paid orders (order-status / review entry point).
-ordersRouter.get("/", authAttendee, async (req: Request, res: Response) => {
-  try {
-    const orders = await listOrdersForAttendee(req.attendee!.sessionId);
-    return res.status(200).json(orders);
-  } catch (err) {
-    return handleError(err, res);
-  }
-});
 
 // GET /orders/:orderId — fetch a single order by ID (organizer, attendee, or a
 // cashier operator collecting a cash payment for an order in its event).
