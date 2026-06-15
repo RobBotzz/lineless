@@ -69,9 +69,10 @@ export async function createManualOrder(
   });
 }
 
-// GET /api/stands/:standId/orders — unpaid orders for the cashier's event.
+// GET /api/orders/cashier — unpaid orders for the cashier's event.
+// The stand is derived from the operator token, so no standId needed in the URL.
 export function getUnpaidOrders(standId: string): Promise<Order[]> {
-  return apiFetch<Order[]>(`/stands/${standId}/orders`, { auth: 'operator', standId });
+  return apiFetch<Order[]>('/orders/cashier', { auth: 'operator', standId });
 }
 
 // Mocked: the real POST /api/orders/:orderId/cash-payment (mark paid + release
