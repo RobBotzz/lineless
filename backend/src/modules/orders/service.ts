@@ -8,7 +8,7 @@ import { Tab } from "../tabs/model";
 import { TabPayment } from "../payments/model";
 import { Product } from "../products/model";
 import { Stand } from "../stands/model";
-import { Event } from "../events/model";
+import { Event, DEFAULT_BASELINE_HOLD_CENTS } from "../events/model";
 import { verifyEventOwnership } from "../events/ownership";
 import {
   getActiveTabTotalCents,
@@ -153,7 +153,13 @@ export async function submitOrder(
   const consumedCents = await getActiveTabTotalCents(tabId);
 
   if (consumedCents + totalCents > authorizedCents) {
-    const overage = consumedCents + totalCents - authorizedCents;
+    // Top up the authorization in whole baseline increments rather than by the
+    // exact shortfall, so small follow-up orders reuse the headroom instead of
+    // each triggering another authorization round-trip. The unused remainder is
+    // released (never captured) at checkout.
+    const shortfall = consumedCents + totalCents - authorizedCents;
+    const baseline = event.baselineHoldCents ?? DEFAULT_BASELINE_HOLD_CENTS;
+    const overage = Math.ceil(shortfall / baseline) * baseline;
 
     // Pre-generate the order id so the hold can reference the order it funds;
     // the failure/cancel paths rely on that link.

@@ -17,10 +17,6 @@ body:json {
   }
 }
 
-vars:pre-request {
-  cashierStandId: f45a3a97-ebc4-4795-90df-4770c400c5ae
-}
-
 script:post-response {
   if (res.status === 200 && res.body.token) {
     bru.setVar("cashierToken", res.body.token);

@@ -24,6 +24,7 @@ export async function createEvent(
     ratingsEnabled: input.ratingsEnabled,
     cashierEnabled: input.cashierEnabled,
     offlineOrdersEnabled: input.offlineOrdersEnabled,
+    baselineHoldCents: input.baselineHoldCents,
     branding: input.branding,
     location: input.location,
   });
@@ -92,6 +93,9 @@ export async function updateEvent(
   }
   if (patch.offlineOrdersEnabled !== undefined) {
     event.offlineOrdersEnabled = patch.offlineOrdersEnabled;
+  }
+  if (patch.baselineHoldCents !== undefined) {
+    event.baselineHoldCents = patch.baselineHoldCents;
   }
   if (patch.branding) {
     if (patch.branding.primaryColor !== undefined) {

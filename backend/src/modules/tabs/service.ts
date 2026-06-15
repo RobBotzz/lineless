@@ -4,6 +4,7 @@ import { config } from "../../config/config";
 import { Tab } from "./model";
 import { TabPayment } from "../payments/model";
 import { Order } from "../orders/model";
+import { Event, DEFAULT_BASELINE_HOLD_CENTS } from "../events/model";
 import { TabNotFoundError, TabStateError } from "./errors";
 import { TAB_AUTHORIZATION_WINDOW_MS } from "../payments/service";
 import { verifyEventOwnership } from "../events/ownership";
@@ -13,10 +14,6 @@ import {
 } from "../orders/tabAuthorization";
 
 const stripe = new Stripe(config.stripe.secretKey);
-
-// Baseline hold in cents placed on every new tab (€10.00).
-// TODO: make this configurable per event.
-const BASELINE_HOLD_CENTS = 1000;
 
 export interface TabCheckoutResult {
   tabId: string;
@@ -35,8 +32,14 @@ export interface BulkTabCheckoutResult {
 }
 
 export async function createTab(sessionId: string, eventId: string) {
+  const event = await Event.findOne({ _id: eventId, deletedAt: null })
+    .select("baselineHoldCents")
+    .lean();
+  const baselineHoldCents =
+    event?.baselineHoldCents ?? DEFAULT_BASELINE_HOLD_CENTS;
+
   const pi = await stripe.paymentIntents.create({
-    amount: BASELINE_HOLD_CENTS,
+    amount: baselineHoldCents,
     currency: "eur",
     capture_method: "manual",
     metadata: { sessionId, eventId },
@@ -57,7 +60,7 @@ export async function createTab(sessionId: string, eventId: string) {
             tabId,
             stripePaymentIntentId: pi.id,
             tabPaymentStatus: "PENDING",
-            authorizedCentsAmount: BASELINE_HOLD_CENTS,
+            authorizedCentsAmount: baselineHoldCents,
           },
         ],
         { session: dbSession }
