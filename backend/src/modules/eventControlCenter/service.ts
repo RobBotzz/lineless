@@ -2,6 +2,7 @@ import { AttendeeSession } from "../sessions/model";
 import { Event } from "../events/model";
 import { EventNotFoundError } from "../events/errors";
 import { verifyEventOwnership } from "../events/ownership";
+import type { PipelineStage } from "mongoose";
 import { Order, type OrderDoc, type OrderItemDoc } from "../orders/model";
 import { Product } from "../products/model";
 import { StandNotFoundError } from "../stands/errors";
@@ -28,28 +29,27 @@ type ProductSnapshot = {
   productName: string;
 };
 type ProductLookup = Map<string, ProductSnapshot>;
-type RevenueBucketsByStand = Map<string, Map<number, number>>;
 type QueueStatsByStand = Map<
   string,
   { queueLength: number; totalWaitMinutes: number }
 >;
-type AnalyticsAggregation = {
-  eventRevenueBuckets: Map<number, number>;
-  standRevenueBucketsByStand: RevenueBucketsByStand;
-  queueStatsByStand: QueueStatsByStand;
+type RevenueBucketAggregationRow = {
+  elapsedMinutes: number;
+  revenueCents: number;
 };
-
-function elapsedMinutesSince(baseDate: Date, date: Date): number {
-  return Math.max(0, Math.floor((date.getTime() - baseDate.getTime()) / 60000));
-}
-
-function addRevenuePoint(
-  buckets: Map<number, number>,
-  elapsedMinutes: number,
-  amount: number
-) {
-  buckets.set(elapsedMinutes, (buckets.get(elapsedMinutes) ?? 0) + amount);
-}
+type StandRevenueBucketAggregationRow = RevenueBucketAggregationRow & {
+  standId: string;
+};
+type QueueStatsAggregationRow = {
+  standId: string;
+  queueLength: number;
+  totalWaitMinutes: number;
+};
+type EventControlCenterAnalyticsAggregation = {
+  eventRevenue: RevenueBucketAggregationRow[];
+  standRevenue: StandRevenueBucketAggregationRow[];
+  queueStats: QueueStatsAggregationRow[];
+};
 
 function cumulativePoints(buckets: Map<number, number>): RevenuePoint[] {
   let runningTotal = 0;
@@ -63,14 +63,6 @@ function cumulativePoints(buckets: Map<number, number>): RevenuePoint[] {
 
 function isOpenItem(item: OrderItemDoc): boolean {
   return !item.fulfilledAt && !item.cancelledAt;
-}
-
-function paidAtDate(order: OrderDoc): Date | null {
-  return order.paidAt ? new Date(order.paidAt) : null;
-}
-
-function orderCreatedAtDate(order: OrderDoc): Date {
-  return new Date(order.createdAt);
 }
 
 function itemStatus(item: OrderItemDoc): LiveOrderItem["status"] {
@@ -113,31 +105,8 @@ async function loadProductsByStand(standIds: string[]): Promise<ProductLookup> {
   })
     .select("_id standId productName")
     .lean();
-  const standIdSet = new Set(standIds);
 
-  return new Map(
-    products
-      .filter((product) => standIdSet.has(product.standId))
-      .map((product) => [product._id, product])
-  );
-}
-
-function mapByStand<T>(standIds: string[], factory: () => T): Map<string, T> {
-  return new Map(standIds.map((standId) => [standId, factory()]));
-}
-
-function createAnalyticsAggregation(standIds: string[]): AnalyticsAggregation {
-  return {
-    eventRevenueBuckets: new Map<number, number>(),
-    standRevenueBucketsByStand: mapByStand(
-      standIds,
-      () => new Map<number, number>()
-    ),
-    queueStatsByStand: mapByStand(standIds, () => ({
-      queueLength: 0,
-      totalWaitMinutes: 0,
-    })),
-  };
+  return new Map(products.map((product) => [product._id, product]));
 }
 
 function buildStandQueueMetrics(
@@ -237,49 +206,113 @@ function toLiveOrder(
   };
 }
 
-function collectAnalytics(
-  orders: OrderDoc[],
-  productById: ProductLookup,
+async function loadEventControlCenterAnalytics(
+  eventId: string,
   standIds: string[],
   baseDate: Date
-): AnalyticsAggregation {
-  const aggregation = createAnalyticsAggregation(standIds);
+): Promise<EventControlCenterAnalyticsAggregation> {
   const now = new Date();
+  const elapsedPaidMinutesExpression = {
+    $max: [
+      0,
+      {
+        $floor: {
+          $divide: [{ $subtract: ["$paidAt", baseDate] }, 60000],
+        },
+      },
+    ],
+  };
+  const waitMinutesExpression = {
+    $max: [
+      0,
+      {
+        $floor: {
+          $divide: [{ $subtract: [now, "$createdAt"] }, 60000],
+        },
+      },
+    ],
+  };
+  const pipeline: PipelineStage[] = [
+    { $match: { eventId, paidAt: { $ne: null } } },
+    { $unwind: "$items" },
+    { $match: { "items.cancelledAt": null } },
+    {
+      $lookup: {
+        from: Product.collection.name,
+        localField: "items.productId",
+        foreignField: "_id",
+        as: "product",
+      },
+    },
+    { $unwind: "$product" },
+    {
+      $match: {
+        "product.deletedAt": null,
+        "product.standId": { $in: standIds },
+      },
+    },
+    {
+      $facet: {
+        eventRevenue: [
+          {
+            $group: {
+              _id: elapsedPaidMinutesExpression,
+              revenueCents: { $sum: "$items.priceIncludingTaxAtPurchase" },
+            },
+          },
+          { $project: { _id: 0, elapsedMinutes: "$_id", revenueCents: 1 } },
+          { $sort: { elapsedMinutes: 1 } },
+        ],
+        standRevenue: [
+          {
+            $group: {
+              _id: {
+                standId: "$product.standId",
+                elapsedMinutes: elapsedPaidMinutesExpression,
+              },
+              revenueCents: { $sum: "$items.priceIncludingTaxAtPurchase" },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              standId: "$_id.standId",
+              elapsedMinutes: "$_id.elapsedMinutes",
+              revenueCents: 1,
+            },
+          },
+          { $sort: { standId: 1, elapsedMinutes: 1 } },
+        ],
+        queueStats: [
+          {
+            $match: {
+              "items.fulfilledAt": null,
+            },
+          },
+          {
+            $group: {
+              _id: "$product.standId",
+              queueLength: { $sum: 1 },
+              totalWaitMinutes: { $sum: waitMinutesExpression },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              standId: "$_id",
+              queueLength: 1,
+              totalWaitMinutes: 1,
+            },
+          },
+        ],
+      },
+    },
+  ];
 
-  for (const order of orders) {
-    const paidAt = paidAtDate(order);
-    const paidElapsedMinutes = paidAt
-      ? elapsedMinutesSince(baseDate, paidAt)
-      : null;
-    const waitMinutes = elapsedMinutesSince(orderCreatedAtDate(order), now);
+  const [analytics] =
+    await Order.aggregate<EventControlCenterAnalyticsAggregation>(pipeline);
 
-    for (const item of order.items) {
-      const standId = productById.get(item.productId)?.standId;
-      if (!standId) continue;
-
-      if (paidElapsedMinutes !== null && !item.cancelledAt) {
-        addRevenuePoint(
-          aggregation.eventRevenueBuckets,
-          paidElapsedMinutes,
-          item.priceIncludingTaxAtPurchase
-        );
-        addRevenuePoint(
-          aggregation.standRevenueBucketsByStand.get(standId)!,
-          paidElapsedMinutes,
-          item.priceIncludingTaxAtPurchase
-        );
-      }
-
-      if (paidAt && isOpenItem(item)) {
-        const stats = aggregation.queueStatsByStand.get(standId);
-        if (!stats) continue;
-        stats.queueLength += 1;
-        stats.totalWaitMinutes += waitMinutes;
-      }
-    }
-  }
-
-  return aggregation;
+  return analytics ?? { eventRevenue: [], standRevenue: [], queueStats: [] };
 }
 
 export async function getEventControlCenter(
@@ -292,21 +325,41 @@ export async function getEventControlCenter(
     accountId
   );
 
-  const [orders, activeGuests, productById] = await Promise.all([
-    Order.find({ eventId }).lean(),
+  const baseDate = event.startedAt
+    ? new Date(event.startedAt)
+    : new Date(event.createdAt);
+  const [analytics, activeGuests] = await Promise.all([
+    loadEventControlCenterAnalytics(eventId, standIds, baseDate),
     AttendeeSession.countDocuments({
       eventId,
       status: "active",
       expiresAt: { $gt: new Date() },
     }),
-    loadProductsByStand(standIds),
   ]);
 
-  const baseDate = event.startedAt
-    ? new Date(event.startedAt)
-    : new Date(event.createdAt);
-  const { eventRevenueBuckets, queueStatsByStand, standRevenueBucketsByStand } =
-    collectAnalytics(orders, productById, standIds, baseDate);
+  const eventRevenueBuckets = new Map(
+    analytics.eventRevenue.map((point) => [
+      point.elapsedMinutes,
+      point.revenueCents,
+    ])
+  );
+  const standRevenueBucketsByStand = new Map(
+    standIds.map((standId) => [standId, new Map<number, number>()])
+  );
+  for (const point of analytics.standRevenue) {
+    standRevenueBucketsByStand
+      .get(point.standId)
+      ?.set(point.elapsedMinutes, point.revenueCents);
+  }
+  const queueStatsByStand: QueueStatsByStand = new Map(
+    analytics.queueStats.map((stats) => [
+      stats.standId,
+      {
+        queueLength: stats.queueLength,
+        totalWaitMinutes: stats.totalWaitMinutes,
+      },
+    ])
+  );
 
   const standQueues = buildStandQueueMetrics(
     standIds,
@@ -320,7 +373,9 @@ export async function getEventControlCenter(
       : 0;
   const standRevenue: StandRevenueSeries[] = standIds.map((standId) => ({
     standId,
-    points: cumulativePoints(standRevenueBucketsByStand.get(standId)!),
+    points: cumulativePoints(
+      standRevenueBucketsByStand.get(standId) ?? new Map<number, number>()
+    ),
   }));
 
   return {
