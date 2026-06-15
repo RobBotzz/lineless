@@ -31,7 +31,7 @@ type ProductSnapshot = {
 type ProductLookup = Map<string, ProductSnapshot>;
 type QueueStatsByStand = Map<
   string,
-  { queueLength: number; totalWaitMinutes: number }
+  { queueLength: number; readyItemCount: number; totalWaitMinutes: number }
 >;
 type RevenueBucketAggregationRow = {
   elapsedMinutes: number;
@@ -44,6 +44,7 @@ type StandRevenueBucketAggregationRow = RevenueBucketAggregationRow & {
 type QueueStatsAggregationRow = {
   standId: string;
   queueLength: number;
+  readyItemCount: number;
   totalWaitMinutes: number;
 };
 type EventControlCenterAnalyticsAggregation = {
@@ -128,11 +129,12 @@ function buildStandQueueMetrics(
   return standIds.map((standId) => {
     const stats = queueStatsByStand.get(standId) ?? {
       queueLength: 0,
+      readyItemCount: 0,
       totalWaitMinutes: 0,
     };
     const averageWaitMinutes =
-      stats.queueLength > 0
-        ? Math.round(stats.totalWaitMinutes / stats.queueLength)
+      stats.readyItemCount > 0
+        ? Math.round(stats.totalWaitMinutes / stats.readyItemCount)
         : 0;
 
     return {
@@ -222,7 +224,6 @@ async function loadEventControlCenterAnalytics(
   standIds: string[],
   baseDate: Date
 ): Promise<EventControlCenterAnalyticsAggregation> {
-  const now = new Date();
   const elapsedPaidMinutesExpression = {
     $max: [
       0,
@@ -238,7 +239,7 @@ async function loadEventControlCenterAnalytics(
       0,
       {
         $floor: {
-          $divide: [{ $subtract: [now, "$createdAt"] }, 60000],
+          $divide: [{ $subtract: ["$items.readyAt", "$paidAt"] }, 60000],
         },
       },
     ],
@@ -306,15 +307,27 @@ async function loadEventControlCenterAnalytics(
         ],
         queueStats: [
           {
-            $match: {
-              "items.fulfilledAt": null,
-            },
-          },
-          {
             $group: {
               _id: "$product.standId",
-              queueLength: { $sum: 1 },
-              totalWaitMinutes: { $sum: waitMinutesExpression },
+              queueLength: {
+                $sum: {
+                  $cond: [{ $eq: ["$items.fulfilledAt", null] }, 1, 0],
+                },
+              },
+              readyItemCount: {
+                $sum: {
+                  $cond: [{ $ne: ["$items.readyAt", null] }, 1, 0],
+                },
+              },
+              totalWaitMinutes: {
+                $sum: {
+                  $cond: [
+                    { $ne: ["$items.readyAt", null] },
+                    waitMinutesExpression,
+                    0,
+                  ],
+                },
+              },
             },
           },
           {
@@ -322,6 +335,7 @@ async function loadEventControlCenterAnalytics(
               _id: 0,
               standId: "$_id",
               queueLength: 1,
+              readyItemCount: 1,
               totalWaitMinutes: 1,
             },
           },
@@ -381,6 +395,7 @@ export async function getEventControlCenter(
       stats.standId,
       {
         queueLength: stats.queueLength,
+        readyItemCount: stats.readyItemCount,
         totalWaitMinutes: stats.totalWaitMinutes,
       },
     ])
