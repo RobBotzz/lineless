@@ -1,13 +1,9 @@
-import { Router, type Request, type Response } from "express";
+import { Router, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
-import { createTab, checkoutTab } from "./service";
+import { createTab } from "./service";
 import { TabNotFoundError, TabStateError } from "./errors";
 import { authAttendee } from "../../middleware/auth/guards";
 import { CreateTabSchema } from "./types";
-
-function tabId(req: Request): string {
-  return req.params["tabId"] as string;
-}
 
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof TabNotFoundError)
@@ -31,19 +27,6 @@ tabsRouter.post(
       return handleError(err, res);
     }
   })
-);
-
-tabsRouter.post(
-  "/:tabId/checkout",
-  authAttendee,
-  async (req: Request, res: Response) => {
-    try {
-      const result = await checkoutTab(tabId(req), req.attendee!.sessionId);
-      return res.status(200).json(result);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
 );
 
 export default tabsRouter;

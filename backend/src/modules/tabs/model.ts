@@ -32,7 +32,7 @@ const TabSchema = new Schema<TabDoc>(
         "PAID",
         "FAILED",
       ],
-      default: "OPEN",
+      default: "PENDING_AUTHORIZATION",
     },
   },
   { timestamps: true }

@@ -13,6 +13,7 @@ import {
 } from "./service";
 import { EventNotFoundError, EventStateError } from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
+import { checkoutTabsForOrganizerEvent } from "../tabs/service";
 import {
   authOrganizer,
   authOrganizerOrAttendee,
@@ -110,6 +111,22 @@ eventsRouter.post(
     try {
       const event = await stopEvent(eventId(req), req.organizer!.accountId);
       res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+eventsRouter.post(
+  "/:eventId/tabs/checkout",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const result = await checkoutTabsForOrganizerEvent(
+        eventId(req),
+        req.organizer!.accountId
+      );
+      res.status(200).json(result);
     } catch (err) {
       handleError(err, res);
     }

@@ -11,6 +11,11 @@ import { Stand } from "../stands/model";
 import { Event } from "../events/model";
 import { verifyEventOwnership } from "../events/ownership";
 import {
+  getActiveTabTotalCents,
+  getAuthorizedTabCents,
+  markAuthorizedTabOrdersPaid,
+} from "./tabAuthorization";
+import {
   CashierDisabledError,
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
@@ -139,19 +144,8 @@ export async function submitOrder(
     return { status: 201 as const, order: createdOrder };
   }
 
-  const payments = await TabPayment.find({
-    tabId,
-    tabPaymentStatus: { $in: ["AUTHORIZED", "CAPTURED"] },
-  });
-  const authorizedCents = payments.reduce(
-    (sum, p) => sum + p.authorizedCentsAmount,
-    0
-  );
-
-  const existingOrders = await Order.find({ tabId });
-  const consumedCents = existingOrders
-    .flatMap((o) => o.items)
-    .reduce((sum, i) => sum + i.priceIncludingTaxAtPurchase, 0);
+  const authorizedCents = await getAuthorizedTabCents(tabId);
+  const consumedCents = await getActiveTabTotalCents(tabId);
 
   if (consumedCents + totalCents > authorizedCents) {
     const overage = consumedCents + totalCents - authorizedCents;
@@ -207,7 +201,8 @@ export async function submitOrder(
     return { status: 402 as const, clientSecret: pi.client_secret };
   }
 
-  processedItems.forEach((i) => (i.startedAt = new Date()));
+  const now = new Date();
+  processedItems.forEach((i) => (i.startedAt = now));
 
   const dbSession = await mongoose.startSession();
   let createdOrder;
@@ -221,12 +216,14 @@ export async function submitOrder(
           orderNumber,
           pickupCode,
           customerEmail: customerEmail ?? null,
+          paidAt: now,
           items: processedItems,
         },
       ],
       { session: dbSession }
     );
     createdOrder = orders[0];
+    await markAuthorizedTabOrdersPaid(tabId, dbSession, now);
   });
   await dbSession.endSession();
 

@@ -1,8 +1,10 @@
 import type { ClientSession } from "mongoose";
 import { TabPayment } from "./model";
 import { Tab } from "../tabs/model";
-import { Order } from "../orders/model";
 import { withProcessedEventGuard } from "./processedEvents";
+import { markAuthorizedTabOrdersPaid } from "../orders/tabAuthorization";
+
+export const TAB_AUTHORIZATION_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 /**
  * Reopens the tab to OPEN once it has no PENDING holds left, mirroring the
@@ -40,19 +42,13 @@ export async function handleAmountCapturableUpdated(
       }).session(session);
       if (!payment || payment.tabPaymentStatus !== "PENDING") return;
 
+      const now = new Date();
       payment.tabPaymentStatus = "AUTHORIZED";
       payment.stripeEventId = eventId;
+      payment.expiresAt = new Date(now.getTime() + TAB_AUTHORIZATION_WINDOW_MS);
       await payment.save({ session });
 
-      // Release only the items of the order this hold funds. The baseline hold
-      // (orderId null) funds no gated order — its orders were released inline.
-      if (payment.orderId) {
-        await Order.updateOne(
-          { _id: payment.orderId },
-          { $set: { "items.$[elem].startedAt": new Date() } },
-          { arrayFilters: [{ "elem.startedAt": null }], session }
-        );
-      }
+      await markAuthorizedTabOrdersPaid(payment.tabId, session, now);
 
       await reopenTabIfSettled(payment.tabId, session);
     }

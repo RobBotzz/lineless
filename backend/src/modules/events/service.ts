@@ -2,6 +2,7 @@ import { Event, generateOperatorAccessKey, type EventDoc } from "./model";
 import { EventNotFoundError, EventStateError } from "./errors";
 import { assertSessionOwnsEvent } from "./ownership";
 import { ensureCashierStand } from "../stands/service";
+import { checkoutTabsForEvent } from "../tabs/service";
 import type { CreateEventInput, UpdateEventInput } from "./types";
 
 type AttendeeEvent = Omit<EventDoc, "operatorAccessKey">;
@@ -140,6 +141,7 @@ export async function stopEvent(
   event.status = "STOPPED";
   event.stoppedAt = new Date();
   await event.save();
+  await checkoutTabsForEvent(event._id);
   return event;
 }
 
