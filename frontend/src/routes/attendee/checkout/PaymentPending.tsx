@@ -22,20 +22,26 @@ export default function PaymentPending() {
 
   if (!state) return <Navigate to={paths.attendee.cart(eventId)} replace />;
 
+  const isPaid = state.order.paidAt !== null;
+
   return (
     <div className="space-y-6">
       <OrderConfirmation
         order={state.order}
         items={state.items}
         total={computeTotal(state.order)}
-        title="Payment Pending"
-        subtitle="Please go to the cashier to pay for your order."
-        variant="pending"
-        afterMeta={<CashierLocationAccordion eventId={eventId} />}
+        title={isPaid ? 'Order Confirmed' : 'Payment Pending'}
+        subtitle={
+          isPaid ? 'Your order is in progress.' : 'Please go to the cashier to pay for your order.'
+        }
+        variant={isPaid ? 'success' : 'pending'}
+        afterMeta={isPaid ? undefined : <CashierLocationAccordion eventId={eventId} />}
       />
-      <Button className="w-full" onClick={() => navigate(paths.attendee.orders(eventId))}>
-        Track Order
-      </Button>
+      {isPaid && (
+        <Button className="w-full" onClick={() => navigate(paths.attendee.orders(eventId))}>
+          Track Order
+        </Button>
+      )}
     </div>
   );
 }
