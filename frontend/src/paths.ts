@@ -15,7 +15,10 @@ export const paths = {
   attendee: {
     event: (eventId: string) => `/event/${eventId}`,
     cart: (eventId: string) => `/event/${eventId}/cart`,
-    checkout: (eventId: string) => `/event/${eventId}/checkout`,
+    checkoutConfirmed: (eventId: string, orderId: string) =>
+      `/event/${eventId}/checkout/${orderId}/confirmed`,
+    checkoutPending: (eventId: string, orderId: string) =>
+      `/event/${eventId}/checkout/${orderId}/pending`,
     orders: (eventId: string) => `/event/${eventId}/orders`,
   },
   operator: {

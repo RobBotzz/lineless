@@ -48,24 +48,36 @@ export async function buildOrderViewItems(
   return [...groups.values()];
 }
 
-// POST /api/orders — creates a cashier order (operator auth, no attendee session).
-export async function createManualOrder(
-  input: { eventId: string; items: OrderItemView[] },
-  standId: string,
-): Promise<Order> {
-  // Each cart line becomes N individual items (one per unit), carrying its comment.
-  const flatItems = input.items.flatMap((view) =>
+// Each cart line becomes N individual items (one per unit), carrying its comment.
+function flattenOrderItems(items: OrderItemView[]) {
+  return items.flatMap((view) =>
     Array.from({ length: view.quantity }, (_, i) => ({
       productId: view.productId,
       ...(view.comments[i] ? { customerComment: view.comments[i] } : {}),
     })),
   );
+}
 
+// POST /api/orders — creates a cashier order (operator auth, no attendee session).
+export function createManualOrder(
+  input: { eventId: string; items: OrderItemView[] },
+  standId: string,
+): Promise<Order> {
   return apiFetch<Order>('/orders', {
     method: 'POST',
     auth: 'operator',
     standId,
-    body: JSON.stringify({ eventId: input.eventId, items: flatItems }),
+    body: JSON.stringify({ eventId: input.eventId, items: flattenOrderItems(input.items) }),
+  });
+}
+
+// POST /api/orders — creates an order for the attendee's own cart (attendee session auth).
+export function createOrder(eventId: string, items: OrderItemView[]): Promise<Order> {
+  return apiFetch<Order>('/orders', {
+    method: 'POST',
+    auth: 'attendee',
+    eventId,
+    body: JSON.stringify({ eventId, items: flattenOrderItems(items) }),
   });
 }
 
@@ -77,7 +89,6 @@ export function getUnpaidOrders(standId: string): Promise<Order[]> {
 
 // Mocked: the real POST /api/orders/:orderId/cash-payment (mark paid + release
 // instant items) lands in a follow-up MR — payments are out of scope here.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function confirmCashPayment(_orderId: string): Promise<void> {
   return Promise.resolve();
 }
