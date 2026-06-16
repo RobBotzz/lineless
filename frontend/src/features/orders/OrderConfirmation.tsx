@@ -13,8 +13,8 @@ interface OrderConfirmationProps {
   // Banner copy is passed in so each persona words it its own way.
   title: string;
   subtitle: string;
-  // 'success' = paid/confirmed (green); 'pending' = action required, pay at cashier (amber —
-  // matches the warning style used elsewhere, e.g. StandDialog's password-change notice).
+  // 'success' = paid/confirmed (green); 'pending' = action required, pay at cashier (the
+  // shared `warning` token, same as StandDialog's password-change notice).
   variant?: 'success' | 'pending';
   // Extra section rendered right after the order-number/pickup-code meta grid
   // and before the product summary (e.g. cashier stand location).
@@ -32,8 +32,8 @@ export function OrderConfirmation({
 }: OrderConfirmationProps) {
   const banner =
     variant === 'pending' ? (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 p-8 text-center">
-        <HourglassCircleIcon className="h-12 w-12 text-amber-600" />
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 p-8 text-center">
+        <HourglassCircleIcon className="h-12 w-12 text-warning" />
         <h2 className="text-xl font-semibold text-text">{title}</h2>
         <p className="text-sm text-text-muted">{subtitle}</p>
       </div>
