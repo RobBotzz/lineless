@@ -5,6 +5,7 @@ import { verifyEventOwnership } from "../events/ownership";
 import type { PipelineStage } from "mongoose";
 import { Order, type OrderDoc, type OrderItemDoc } from "../orders/model";
 import { Product } from "../products/model";
+import { Rating } from "../ratings/model";
 import { StandNotFoundError } from "../stands/errors";
 import { Stand } from "../stands/model";
 import type {
@@ -12,6 +13,7 @@ import type {
   EventControlCenterQuery,
   LiveOrder,
   LiveOrderItem,
+  ProductRating,
   LiveOrdersQuery,
   RevenuePoint,
   StandQueueMetric,
@@ -27,6 +29,9 @@ type ProductSnapshot = {
   _id: string;
   standId: string;
   productName: string;
+};
+type ProductRatingProductSnapshot = ProductSnapshot & {
+  productImageUrl: string | null;
 };
 type ProductLookup = Map<string, ProductSnapshot>;
 type QueueStatsByStand = Map<
@@ -57,6 +62,7 @@ type RevenueBucket = {
   orderCount: number;
   revenueCents: number;
 };
+const PRODUCT_RATINGS_LIMIT = 80;
 
 function cumulativePoints(buckets: Map<number, RevenueBucket>): RevenuePoint[] {
   let runningTotal = 0;
@@ -119,6 +125,66 @@ async function loadProductsByStand(standIds: string[]): Promise<ProductLookup> {
     .lean();
 
   return new Map(products.map((product) => [product._id, product]));
+}
+
+async function loadProductRatingsForEvent(
+  eventId: string,
+  standIds: string[]
+): Promise<ProductRating[]> {
+  const ratings = await Rating.find({ eventId })
+    .sort({ createdAt: -1 })
+    .limit(PRODUCT_RATINGS_LIMIT)
+    .select("_id productId stars comment createdAt")
+    .lean();
+
+  if (ratings.length === 0) return [];
+
+  const productIds = [...new Set(ratings.map((rating) => rating.productId))];
+  const products = await Product.find({
+    _id: { $in: productIds },
+    standId: { $in: standIds },
+    deletedAt: null,
+  })
+    .select("_id standId productName productImageUrl")
+    .lean<ProductRatingProductSnapshot[]>();
+  const productById = new Map(
+    products.map((product) => [product._id, product])
+  );
+
+  const ratingStandIds = [
+    ...new Set(products.map((product) => product.standId)),
+  ];
+  const stands = await Stand.find({
+    _id: { $in: ratingStandIds },
+    eventId,
+    deletedAt: null,
+  })
+    .select("_id standName")
+    .lean();
+  const standNameById = new Map(
+    stands.map((stand) => [stand._id, stand.standName])
+  );
+
+  return ratings
+    .map((rating): ProductRating | null => {
+      const product = productById.get(rating.productId);
+      if (!product) return null;
+      const standName = standNameById.get(product.standId);
+      if (!standName) return null;
+
+      return {
+        _id: rating._id,
+        productId: rating.productId,
+        productName: product.productName,
+        productImageUrl: product.productImageUrl,
+        standId: product.standId,
+        standName,
+        stars: rating.stars,
+        comment: rating.comment,
+        createdAt: rating.createdAt,
+      };
+    })
+    .filter((rating): rating is ProductRating => Boolean(rating));
 }
 
 function buildStandQueueMetrics(
@@ -354,13 +420,14 @@ export async function getEventControlCenter(
   const baseDate = event.startedAt
     ? new Date(event.startedAt)
     : new Date(event.createdAt);
-  const [analytics, activeGuests] = await Promise.all([
+  const [analytics, activeGuests, productRatings] = await Promise.all([
     loadEventControlCenterAnalytics(eventId, standIds, baseDate),
     AttendeeSession.countDocuments({
       eventId,
       status: "active",
       expiresAt: { $gt: new Date() },
     }),
+    loadProductRatingsForEvent(eventId, standIds),
   ]);
 
   const eventRevenueBuckets = new Map(
@@ -417,6 +484,7 @@ export async function getEventControlCenter(
     eventRevenue,
     standRevenue,
     standQueues,
+    productRatings,
   };
 }
 

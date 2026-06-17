@@ -126,12 +126,17 @@ eventControlCenterRouter.get(
         if (order.eventId !== targetEventId) return;
         sendLatest.send();
       });
+      const unsubscribeRatings = subscribe("rating.changed", (rating) => {
+        if (rating.eventId !== targetEventId) return;
+        sendLatest.send();
+      });
       const refreshInterval = setInterval(sendLatest.send, 60_000);
 
       sse.onClose(() => {
         sendLatest.close();
         clearInterval(refreshInterval);
         unsubscribe();
+        unsubscribeRatings();
       });
     } catch (err) {
       console.error("Event control center stream error:", err);

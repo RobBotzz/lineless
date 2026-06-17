@@ -10,6 +10,7 @@ import { getOrderForAttendee } from "../orders/service";
 import { Product } from "../products/model";
 import { ProductNotFoundError } from "../products/errors";
 import { Event } from "../events/model";
+import { publish } from "../../lib/realtimeBus";
 
 type ReviewResponse = Pick<
   RatingDoc,
@@ -48,9 +49,10 @@ export async function createReview(
   if (!product) throw new ProductNotFoundError();
 
   const dbSession = await mongoose.startSession();
+  let createdRating: RatingDoc | null = null;
   try {
     await dbSession.withTransaction(async () => {
-      await Rating.create(
+      const ratings = await Rating.create(
         [
           {
             orderId,
@@ -63,6 +65,7 @@ export async function createReview(
         ],
         { session: dbSession }
       );
+      createdRating = ratings[0]!.toObject();
       await Product.updateOne(
         { _id: productId },
         { $inc: { ratingSum: input.stars, ratingCount: 1 } },
@@ -75,6 +78,8 @@ export async function createReview(
   } finally {
     await dbSession.endSession();
   }
+
+  if (createdRating) publish("rating.changed", createdRating);
 }
 
 export async function listReviews(

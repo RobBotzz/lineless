@@ -43,6 +43,19 @@ export interface EventControlCenterData {
   eventRevenue: RevenuePoint[];
   standRevenue: StandRevenueSeries[];
   standQueues: StandQueueMetric[];
+  productRatings: ProductRating[];
+}
+
+export interface ProductRating {
+  _id: string;
+  productId: string;
+  productName: string;
+  productImageUrl: string | null;
+  standId: string;
+  standName: string;
+  stars: number;
+  comment: string | null;
+  createdAt: Date;
 }
 
 export interface RevenuePoint {
