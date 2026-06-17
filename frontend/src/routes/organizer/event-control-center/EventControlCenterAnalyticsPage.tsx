@@ -25,14 +25,8 @@ export function EventControlCenterAnalyticsPage({
     () => new Map(stands.map((stand) => [stand._id, stand.standName])),
     [stands],
   );
-  const maxBottleneckName = analytics.maxBottleneckStandId
-    ? (standNameById.get(analytics.maxBottleneckStandId) ?? 'Unknown stand')
-    : 'None';
-  const maxBottleneckQueue = analytics.maxBottleneckStandId
-    ? (analytics.standQueues.find((queue) => queue.standId === analytics.maxBottleneckStandId) ??
-      null)
-    : null;
-  const bottleneckHasAlert = maxBottleneckQueue?.alert ?? false;
+  const activeAlertCount =
+    analytics.activeAlertCount ?? analytics.standQueues.filter((queue) => queue.alert).length;
 
   return (
     <div className="space-y-6">
@@ -50,16 +44,16 @@ export function EventControlCenterAnalyticsPage({
           detail="Live session count"
         />
         <LivePulseMetric
-          alert={bottleneckHasAlert}
-          label="Max Bottleneck"
-          value={maxBottleneckName}
-          tone={bottleneckHasAlert ? 'danger' : 'neutral'}
+          alert={activeAlertCount > 0}
+          label="Active Alerts"
+          value={activeAlertCount.toString()}
+          tone={activeAlertCount > 0 ? 'danger' : 'neutral'}
           detail={
-            maxBottleneckQueue
-              ? `${maxBottleneckQueue.queueLength} open item${
-                  maxBottleneckQueue.queueLength === 1 ? '' : 's'
-                } (${maxBottleneckQueue.averageWaitMinutes}m wait)`
-              : 'No queue pressure'
+            activeAlertCount === 0
+              ? 'No active alerts'
+              : activeAlertCount === 1
+                ? '1 stand is over its threshold'
+                : `${activeAlertCount} stands are over their thresholds`
           }
         />
       </div>

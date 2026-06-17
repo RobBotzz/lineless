@@ -24,15 +24,19 @@ export type StandQueueMetric = {
 export type EventControlCenterData = {
   totalRevenueCents: number;
   activeGuests: number;
-  maxBottleneckStandId: string | null;
+  activeAlertCount: number;
   eventRevenue: RevenuePoint[];
   standRevenue: StandRevenueSeries[];
   standQueues: StandQueueMetric[];
 };
 
-export type EventControlCenterSettings = {
+export type StandAlertThreshold = {
   queueLengthAlertThreshold: number;
   averageWaitAlertThresholdMinutes: number;
+};
+
+export type EventControlCenterSettings = {
+  standAlertThresholds: Record<string, StandAlertThreshold>;
 };
 
 export type LiveOrderStatus = 'IN_LINE' | 'PREPARING' | 'READY';
@@ -42,6 +46,7 @@ export type LiveOrderItem = {
   productId: string;
   productName: string;
   status: LiveOrderStatus;
+  readyAt: string | null;
   customerComment: string | null;
   unitPriceIncludingTax: number;
 };
@@ -65,11 +70,7 @@ export function getEventControlCenter(
   settings?: EventControlCenterSettings,
 ): Promise<EventControlCenterData> {
   const params = settings
-    ? `?queueLengthAlertThreshold=${encodeURIComponent(
-        settings.queueLengthAlertThreshold,
-      )}&averageWaitAlertThresholdMinutes=${encodeURIComponent(
-        settings.averageWaitAlertThresholdMinutes,
-      )}`
+    ? `?standAlertThresholds=${encodeURIComponent(JSON.stringify(settings.standAlertThresholds))}`
     : '';
 
   return apiFetch<EventControlCenterData>(`/events/${eventId}/event-control-center${params}`, {

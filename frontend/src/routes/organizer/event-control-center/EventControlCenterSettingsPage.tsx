@@ -5,42 +5,58 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import {
+  createSettingsForStands,
   defaultControlCenterSettings,
+  defaultStandControlCenterThresholds,
   normalizeControlCenterSettings,
 } from './eventControlCenterSettingsStorage';
+import type { Stand } from '@/types/stand';
 
 export function EventControlCenterSettingsPage({
   onChange,
   settings,
+  stands,
 }: {
   onChange: (settings: EventControlCenterSettings) => void;
   settings: EventControlCenterSettings;
+  stands: Stand[];
 }) {
-  const [form, setForm] = useState<EventControlCenterSettings>(settings);
+  const [form, setForm] = useState<EventControlCenterSettings>(() =>
+    createSettingsForStands(settings, stands),
+  );
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
-  const hasChanges =
-    form.queueLengthAlertThreshold !== settings.queueLengthAlertThreshold ||
-    form.averageWaitAlertThresholdMinutes !== settings.averageWaitAlertThresholdMinutes;
+  const normalizedSettings = createSettingsForStands(settings, stands);
+  const hasChanges = JSON.stringify(form) !== JSON.stringify(normalizedSettings);
 
-  function updateField<K extends keyof EventControlCenterSettings>(
-    key: K,
-    value: EventControlCenterSettings[K],
+  function updateStandThreshold(
+    standId: string,
+    key: keyof EventControlCenterSettings['standAlertThresholds'][string],
+    value: number,
   ) {
     setSavedMessage(null);
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => ({
+      standAlertThresholds: {
+        ...current.standAlertThresholds,
+        [standId]: {
+          ...(current.standAlertThresholds[standId] ?? defaultStandControlCenterThresholds),
+          [key]: value,
+        },
+      },
+    }));
   }
 
   function saveSettings() {
-    const normalizedSettings = normalizeControlCenterSettings(form);
-    setForm(normalizedSettings);
-    onChange(normalizedSettings);
+    const nextSettings = createSettingsForStands(normalizeControlCenterSettings(form), stands);
+    setForm(nextSettings);
+    onChange(nextSettings);
     setSavedMessage('Settings saved. Analytics will refresh with these thresholds.');
   }
 
   function resetSettings() {
-    setForm(defaultControlCenterSettings);
-    onChange(defaultControlCenterSettings);
+    const nextSettings = createSettingsForStands(defaultControlCenterSettings, stands);
+    setForm(nextSettings);
+    onChange(nextSettings);
     setSavedMessage('Settings reset to defaults.');
   }
 
@@ -48,36 +64,65 @@ export function EventControlCenterSettingsPage({
     <div>
       <Card>
         <CardHeader>
-          <CardTitle>Alert Thresholds</CardTitle>
+          <CardTitle>Stand Alert Thresholds</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-5 md:grid-cols-2">
-            <TextField
-              helperText="A stand is flagged when its open queue reaches this number."
-              id="queue-length-alert-threshold"
-              label="Queue length"
-              min={0}
-              onChange={(event) =>
-                updateField('queueLengthAlertThreshold', Number(event.target.value))
-              }
-              step={1}
-              type="number"
-              value={form.queueLengthAlertThreshold}
-            />
+          {stands.length > 0 ? (
+            <div className="space-y-4">
+              {stands.map((stand) => {
+                const thresholds =
+                  form.standAlertThresholds[stand._id] ?? defaultStandControlCenterThresholds;
 
-            <TextField
-              helperText="A stand is flagged when its average open-item wait reaches this duration."
-              id="average-wait-alert-threshold"
-              label="Average wait in minutes"
-              min={0}
-              onChange={(event) =>
-                updateField('averageWaitAlertThresholdMinutes', Number(event.target.value))
-              }
-              step={1}
-              type="number"
-              value={form.averageWaitAlertThresholdMinutes}
-            />
-          </div>
+                return (
+                  <section
+                    className="rounded-lg border border-border bg-background px-4 py-4"
+                    key={stand._id}
+                  >
+                    <h3 className="font-semibold text-text">{stand.standName}</h3>
+                    <div className="mt-4 grid gap-5 md:grid-cols-2">
+                      <TextField
+                        helperText="This stand is flagged when its open queue reaches this number."
+                        id={`queue-length-alert-threshold-${stand._id}`}
+                        label="Queue length"
+                        min={0}
+                        onChange={(event) =>
+                          updateStandThreshold(
+                            stand._id,
+                            'queueLengthAlertThreshold',
+                            Number(event.target.value),
+                          )
+                        }
+                        step={1}
+                        type="number"
+                        value={thresholds.queueLengthAlertThreshold}
+                      />
+
+                      <TextField
+                        helperText="This stand is flagged when its average open-item wait reaches this duration."
+                        id={`average-wait-alert-threshold-${stand._id}`}
+                        label="Average wait in minutes"
+                        min={0}
+                        onChange={(event) =>
+                          updateStandThreshold(
+                            stand._id,
+                            'averageWaitAlertThresholdMinutes',
+                            Number(event.target.value),
+                          )
+                        }
+                        step={1}
+                        type="number"
+                        value={thresholds.averageWaitAlertThresholdMinutes}
+                      />
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center text-sm text-text-muted">
+              Create stands before alert thresholds can be configured.
+            </p>
+          )}
 
           <div className="mt-6 flex justify-end gap-2">
             <Button onClick={resetSettings} size="sm" variant="secondary">

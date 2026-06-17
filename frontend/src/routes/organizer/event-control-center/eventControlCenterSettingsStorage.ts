@@ -1,8 +1,13 @@
-import type { EventControlCenterSettings } from '@/api/eventControlCenter';
+import type { EventControlCenterSettings, StandAlertThreshold } from '@/api/eventControlCenter';
+import type { Stand } from '@/types/stand';
 
-export const defaultControlCenterSettings: EventControlCenterSettings = {
+export const defaultStandControlCenterThresholds: StandAlertThreshold = {
   queueLengthAlertThreshold: 10,
   averageWaitAlertThresholdMinutes: 15,
+};
+
+export const defaultControlCenterSettings: EventControlCenterSettings = {
+  standAlertThresholds: {},
 };
 
 function controlCenterSettingsKey(eventId: string): string {
@@ -27,16 +32,70 @@ export function writeControlCenterSettings(eventId: string, settings: EventContr
 }
 
 export function normalizeControlCenterSettings(
-  settings: Partial<EventControlCenterSettings>,
+  settings: Partial<EventControlCenterSettings> & {
+    queueLengthAlertThreshold?: unknown;
+    averageWaitAlertThresholdMinutes?: unknown;
+  },
 ): EventControlCenterSettings {
+  const legacyQueueLengthThreshold = settings.queueLengthAlertThreshold;
+  const legacyAverageWaitThreshold = settings.averageWaitAlertThresholdMinutes;
+  const standAlertThresholds: Record<string, StandAlertThreshold> = {};
+  const rawStandThresholds = settings.standAlertThresholds;
+
+  if (rawStandThresholds && typeof rawStandThresholds === 'object') {
+    for (const [standId, thresholds] of Object.entries(rawStandThresholds)) {
+      standAlertThresholds[standId] = normalizeStandAlertThreshold(thresholds);
+    }
+  }
+
+  return {
+    standAlertThresholds:
+      Object.keys(standAlertThresholds).length > 0
+        ? standAlertThresholds
+        : legacyQueueLengthThreshold !== undefined || legacyAverageWaitThreshold !== undefined
+          ? {
+              legacy: {
+                queueLengthAlertThreshold: normalizeThreshold(
+                  legacyQueueLengthThreshold,
+                  defaultStandControlCenterThresholds.queueLengthAlertThreshold,
+                ),
+                averageWaitAlertThresholdMinutes: normalizeThreshold(
+                  legacyAverageWaitThreshold,
+                  defaultStandControlCenterThresholds.averageWaitAlertThresholdMinutes,
+                ),
+              },
+            }
+          : {},
+  };
+}
+
+export function createSettingsForStands(
+  settings: EventControlCenterSettings,
+  stands: Pick<Stand, '_id'>[],
+): EventControlCenterSettings {
+  const legacyThresholds = settings.standAlertThresholds.legacy;
+  const standAlertThresholds: Record<string, StandAlertThreshold> = {};
+
+  for (const stand of stands) {
+    standAlertThresholds[stand._id] =
+      settings.standAlertThresholds[stand._id] ??
+      legacyThresholds ??
+      defaultStandControlCenterThresholds;
+  }
+
+  return { standAlertThresholds };
+}
+
+function normalizeStandAlertThreshold(value: unknown): StandAlertThreshold {
+  const thresholds = value as Partial<StandAlertThreshold> | null | undefined;
   return {
     queueLengthAlertThreshold: normalizeThreshold(
-      settings.queueLengthAlertThreshold,
-      defaultControlCenterSettings.queueLengthAlertThreshold,
+      thresholds?.queueLengthAlertThreshold,
+      defaultStandControlCenterThresholds.queueLengthAlertThreshold,
     ),
     averageWaitAlertThresholdMinutes: normalizeThreshold(
-      settings.averageWaitAlertThresholdMinutes,
-      defaultControlCenterSettings.averageWaitAlertThresholdMinutes,
+      thresholds?.averageWaitAlertThresholdMinutes,
+      defaultStandControlCenterThresholds.averageWaitAlertThresholdMinutes,
     ),
   };
 }

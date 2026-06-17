@@ -12,6 +12,11 @@ import type { Stand } from '@/types/stand';
 
 const LIVE_ORDERS_PER_PAGE = 5;
 
+type CancelItemsRequest = {
+  orderId: string;
+  itemIds: string[];
+};
+
 export function EventControlCenterManagementPage({
   liveOrders,
   onCancelOrder,
@@ -113,6 +118,8 @@ export function EventControlCenterManagementPage({
                 {visibleStands.map((stand) => (
                   <StandPausePanel
                     key={stand._id}
+                    liveOrders={liveOrders}
+                    onCancelOrderItems={onCancelOrderItems}
                     onProductPauseChange={onProductPauseChange}
                     onStandPauseChange={onStandPauseChange}
                     products={productsByStand[stand._id] ?? []}
@@ -225,9 +232,10 @@ function LiveOrdersTable({
   }
 
   function toggleAllItems(order: LiveOrder, checked: boolean) {
+    const cancellableItemIds = getCancellableOrderItems(order).map((item) => item.itemId);
     setSelectedItemIdsByOrder((current) => ({
       ...current,
-      [order._id]: checked ? order.items.map((item) => item.itemId) : [],
+      [order._id]: checked ? cancellableItemIds : [],
     }));
   }
 
@@ -322,7 +330,7 @@ function LiveOrdersTable({
         cancelLabel="Keep order"
         message={
           pendingCancellation?.type === 'order'
-            ? `All open items in order #${pendingCancellation.order.orderNumber} will be cancelled.`
+            ? `All not-ready items in order #${pendingCancellation.order.orderNumber} will be cancelled. Ready items stay active.`
             : null
         }
         onAcknowledge={() => void confirmCancellation()}
@@ -373,7 +381,9 @@ function LiveOrderRow({
   selectedItemIds: string[];
   standNameById: Map<string, string>;
 }) {
-  const allItemsSelected = order.items.length > 0 && selectedItemIds.length === order.items.length;
+  const cancellableItems = getCancellableOrderItems(order);
+  const allCancellableItemsSelected =
+    cancellableItems.length > 0 && selectedItemIds.length === cancellableItems.length;
   const someItemsSelected = selectedItemIds.length > 0;
   const standNames = order.standIds.map((standId) => standNameById.get(standId) ?? 'Unknown stand');
   const standSummary = standNames.join(', ');
@@ -418,19 +428,20 @@ function LiveOrderRow({
             <div className="flex flex-col gap-3 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
               <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-text">
                 <input
-                  checked={allItemsSelected}
+                  checked={allCancellableItemsSelected}
                   className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+                  disabled={cancellableItems.length === 0}
                   onChange={(event) => onToggleAllItems(event.target.checked)}
                   type="checkbox"
                 />
-                Select all visible items
+                Select cancellable items
               </label>
               <Button
                 className="w-full whitespace-nowrap border-danger/30 text-danger hover:bg-danger/10 hover:text-danger sm:w-auto"
                 disabled={
                   someItemsSelected
                     ? cancellingItemOrderId === order._id
-                    : cancellingOrderId === order._id
+                    : cancellingOrderId === order._id || cancellableItems.length === 0
                 }
                 onClick={() => {
                   if (someItemsSelected) onCancelItems(selectedItemIds);
@@ -449,7 +460,9 @@ function LiveOrderRow({
                 checked={selectedItemIds.includes(item.itemId)}
                 item={item}
                 key={item.itemId}
-                onToggle={() => onToggleItem(item.itemId)}
+                onToggle={() => {
+                  if (!item.readyAt) onToggleItem(item.itemId);
+                }}
               />
             ))}
           </div>
@@ -468,11 +481,18 @@ function LiveOrderItemRow({
   item: LiveOrderItem;
   onToggle: () => void;
 }) {
+  const isReady = Boolean(item.readyAt);
   return (
-    <label className="grid cursor-pointer gap-3 px-3 py-3 hover:bg-surface-muted sm:grid-cols-[1.5rem_minmax(0,1fr)_7rem_6rem] sm:items-center">
+    <label
+      className={[
+        'grid gap-3 px-3 py-3 hover:bg-surface-muted sm:grid-cols-[1.5rem_minmax(0,1fr)_7rem_6rem] sm:items-center',
+        isReady ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
+      ].join(' ')}
+    >
       <input
         checked={checked}
         className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+        disabled={isReady}
         onChange={onToggle}
         type="checkbox"
       />
@@ -512,43 +532,108 @@ function OrderStatusBadge({ status }: { status: LiveOrder['status'] }) {
 }
 
 function StandPausePanel({
+  liveOrders,
+  onCancelOrderItems,
   onProductPauseChange,
   onStandPauseChange,
   products,
   stand,
 }: {
+  liveOrders: LiveOrder[];
+  onCancelOrderItems: (orderId: string, itemIds: string[]) => Promise<void>;
   onProductPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
   onStandPauseChange: (stand: Stand, paused: boolean) => Promise<void>;
   products: Product[];
   stand: Stand;
 }) {
-  return (
-    <section className="rounded-lg border border-border bg-background">
-      <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="font-semibold text-text">{stand.standName}</h3>
-          <p className="mt-1 text-xs text-text-muted">
-            Stand pause blocks new orders while existing orders stay visible.
-          </p>
-        </div>
-        <StandAvailabilityControl onPauseChange={onStandPauseChange} stand={stand} />
-      </div>
+  const [isCancellingStand, setIsCancellingStand] = useState(false);
+  const [pendingBulkCancel, setPendingBulkCancel] = useState<{
+    label: string;
+    requests: CancelItemsRequest[];
+  } | null>(null);
+  const productIds = products.map((product) => product._id);
+  const standCancelRequests = getCancelRequestsForProducts(liveOrders, new Set(productIds));
+  const standCancellableItemCount = countCancelItems(standCancelRequests);
+  const isStandPaused = stand.standStatus === 'PAUSED';
 
-      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-        {products.length > 0 ? (
-          products.map((product) => (
-            <ProductPauseTile
-              key={product._id}
-              product={product}
-              standId={stand._id}
-              onPauseChange={onProductPauseChange}
-            />
-          ))
-        ) : (
-          <p className="text-sm text-text-muted">No products configured for this stand.</p>
-        )}
-      </div>
-    </section>
+  async function cancelRequests(requests: CancelItemsRequest[]) {
+    setIsCancellingStand(true);
+    try {
+      await Promise.all(
+        requests.map((request) => onCancelOrderItems(request.orderId, request.itemIds)),
+      );
+    } finally {
+      setIsCancellingStand(false);
+    }
+  }
+
+  return (
+    <>
+      <section className="rounded-lg border border-border bg-background">
+        <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-semibold text-text">{stand.standName}</h3>
+            <p className="mt-1 text-xs text-text-muted">
+              Stand pause blocks new orders while existing orders stay visible.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:items-end">
+            <StandAvailabilityControl onPauseChange={onStandPauseChange} stand={stand} />
+            {isStandPaused ? (
+              <Button
+                className="w-full whitespace-nowrap border-danger/30 text-danger hover:bg-danger/10 hover:text-danger sm:w-auto"
+                disabled={isCancellingStand || standCancellableItemCount === 0}
+                onClick={() =>
+                  setPendingBulkCancel({
+                    label: stand.standName,
+                    requests: standCancelRequests,
+                  })
+                }
+                size="sm"
+                variant="outline"
+              >
+                Cancel Everything ({standCancellableItemCount})
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+          {products.length > 0 ? (
+            products.map((product) => (
+              <ProductPauseTile
+                liveOrders={liveOrders}
+                key={product._id}
+                onCancelOrderItems={onCancelOrderItems}
+                product={product}
+                standId={stand._id}
+                onPauseChange={onProductPauseChange}
+              />
+            ))
+          ) : (
+            <p className="text-sm text-text-muted">No products configured for this stand.</p>
+          )}
+        </div>
+      </section>
+      <AlertDialog
+        acknowledgeLabel="Cancel everything"
+        cancelLabel="Keep items"
+        message={
+          pendingBulkCancel
+            ? `${countCancelItems(pendingBulkCancel.requests)} not-ready item${
+                countCancelItems(pendingBulkCancel.requests) === 1 ? '' : 's'
+              } for ${pendingBulkCancel.label} will be cancelled. Ready items stay active.`
+            : null
+        }
+        onAcknowledge={() => {
+          const cancellation = pendingBulkCancel;
+          setPendingBulkCancel(null);
+          if (cancellation) void cancelRequests(cancellation.requests);
+        }}
+        onCancel={() => setPendingBulkCancel(null)}
+        title="Cancel everything?"
+      />
+    </>
   );
 }
 
@@ -621,18 +706,26 @@ function StandAvailabilityControl({
 }
 
 function ProductPauseTile({
+  liveOrders,
+  onCancelOrderItems,
   onPauseChange,
   product,
   standId,
 }: {
+  liveOrders: LiveOrder[];
+  onCancelOrderItems: (orderId: string, itemIds: string[]) => Promise<void>;
   onPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
   product: Product;
   standId: string;
 }) {
   const [isSaving, setIsSaving] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [pendingCancel, setPendingCancel] = useState<CancelItemsRequest[] | null>(null);
   const isLive = product.productStatus === 'LIVE';
   const isPaused = product.productStatus === 'PAUSED';
   const isTerminated = product.productStatus === 'TERMINATED';
+  const cancelRequests = getCancelRequestsForProducts(liveOrders, new Set([product._id]));
+  const cancellableItemCount = countCancelItems(cancelRequests);
   const availabilityText = isTerminated
     ? 'terminated product'
     : isPaused
@@ -649,27 +742,91 @@ function ProductPauseTile({
     }
   }
 
+  async function handleCancelEverything(requests: CancelItemsRequest[]) {
+    setIsCancelling(true);
+    try {
+      await Promise.all(
+        requests.map((request) => onCancelOrderItems(request.orderId, request.itemIds)),
+      );
+    } finally {
+      setIsCancelling(false);
+    }
+  }
+
   return (
-    <div
-      className={[
-        'flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-3',
-        isTerminated ? 'opacity-70' : '',
-      ].join(' ')}
-    >
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-text">{product.productName}</p>
-        <p className="mt-1 text-xs text-text-muted">
-          EUR {formatMoney(product.priceIncludingTax)} · {availabilityText}
-        </p>
+    <>
+      <div
+        className={[
+          'flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-3',
+          isTerminated ? 'opacity-70' : '',
+        ].join(' ')}
+      >
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-text">{product.productName}</p>
+          <p className="mt-1 text-xs text-text-muted">
+            EUR {formatMoney(product.priceIncludingTax)} · {availabilityText}
+          </p>
+          {isPaused ? (
+            <Button
+              className="mt-3 whitespace-nowrap border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
+              disabled={isCancelling || cancellableItemCount === 0}
+              onClick={() => setPendingCancel(cancelRequests)}
+              size="sm"
+              variant="outline"
+            >
+              Cancel Everything ({cancellableItemCount})
+            </Button>
+          ) : null}
+        </div>
+        <Toggle
+          checked={isLive}
+          disabled={isSaving || isTerminated}
+          label={`${product.productName} available for orders`}
+          onChange={(checked) => void handleAvailabilityChange(checked)}
+        />
       </div>
-      <Toggle
-        checked={isLive}
-        disabled={isSaving || isTerminated}
-        label={`${product.productName} available for orders`}
-        onChange={(checked) => void handleAvailabilityChange(checked)}
+      <AlertDialog
+        acknowledgeLabel="Cancel everything"
+        cancelLabel="Keep items"
+        message={
+          pendingCancel
+            ? `${countCancelItems(pendingCancel)} not-ready item${
+                countCancelItems(pendingCancel) === 1 ? '' : 's'
+              } for ${product.productName} will be cancelled. Ready items stay active.`
+            : null
+        }
+        onAcknowledge={() => {
+          const cancellation = pendingCancel;
+          setPendingCancel(null);
+          if (cancellation) void handleCancelEverything(cancellation);
+        }}
+        onCancel={() => setPendingCancel(null)}
+        title="Cancel everything?"
       />
-    </div>
+    </>
   );
+}
+
+function getCancellableOrderItems(order: LiveOrder): LiveOrderItem[] {
+  return order.items.filter((item) => !item.readyAt);
+}
+
+function getCancelRequestsForProducts(
+  orders: LiveOrder[],
+  productIds: Set<string>,
+): CancelItemsRequest[] {
+  return orders
+    .map((order) => ({
+      orderId: order._id,
+      itemIds: order.items
+        .filter((item) => productIds.has(item.productId) && !item.readyAt)
+        .map((item) => item.itemId),
+    }))
+    .filter((request) => request.itemIds.length > 0);
+}
+
+function countCancelItems(requests: CancelItemsRequest[]): number {
+  return requests.reduce((total, request) => total + request.itemIds.length, 0);
 }
 
 function EmptyState({

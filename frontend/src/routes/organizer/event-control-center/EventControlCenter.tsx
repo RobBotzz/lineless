@@ -22,6 +22,7 @@ import { EventControlCenterAnalyticsPage } from './EventControlCenterAnalyticsPa
 import { EventControlCenterManagementPage } from './EventControlCenterManagementPage';
 import { EventControlCenterSettingsPage } from './EventControlCenterSettingsPage';
 import {
+  createSettingsForStands,
   normalizeControlCenterSettings,
   readControlCenterSettings,
   writeControlCenterSettings,
@@ -82,10 +83,13 @@ export default function EventControlCenter() {
 
   const controlCenterSettings = useMemo(
     () =>
-      controlCenterSettingsState.eventId === event._id
-        ? controlCenterSettingsState.settings
-        : readControlCenterSettings(event._id),
-    [controlCenterSettingsState, event._id],
+      createSettingsForStands(
+        controlCenterSettingsState.eventId === event._id
+          ? controlCenterSettingsState.settings
+          : readControlCenterSettings(event._id),
+        stands,
+      ),
+    [controlCenterSettingsState, event._id, stands],
   );
 
   useEffect(() => {
@@ -135,7 +139,10 @@ export default function EventControlCenter() {
   }
 
   function handleControlCenterSettingsChange(settings: EventControlCenterSettings) {
-    const normalizedSettings = normalizeControlCenterSettings(settings);
+    const normalizedSettings = createSettingsForStands(
+      normalizeControlCenterSettings(settings),
+      stands,
+    );
     writeControlCenterSettings(event._id, normalizedSettings);
     setControlCenterSettingsState({ eventId: event._id, settings: normalizedSettings });
   }
@@ -145,6 +152,34 @@ export default function EventControlCenter() {
       await pauseProduct(product._id);
     } else {
       await resumeProduct(product._id);
+    }
+
+    const currentStandProducts = productsByStand[standId] ?? [];
+    const nextStandProducts = currentStandProducts.map((candidate) =>
+      candidate._id === product._id
+        ? { ...candidate, productStatus: paused ? 'PAUSED' : 'LIVE' }
+        : candidate,
+    );
+
+    if (paused) {
+      const hasLiveProducts = nextStandProducts.some(
+        (candidate) => candidate.productStatus === 'LIVE',
+      );
+      const stand = stands.find((candidate) => candidate._id === standId);
+      if (!hasLiveProducts && stand?.standStatus === 'LIVE') {
+        const updatedStand = await pauseStand(event._id, standId);
+        setStands((current) =>
+          current.map((candidate) => (candidate._id === standId ? updatedStand : candidate)),
+        );
+      }
+    } else {
+      const stand = stands.find((candidate) => candidate._id === standId);
+      if (stand?.standStatus === 'PAUSED') {
+        const updatedStand = await resumeStand(event._id, standId);
+        setStands((current) =>
+          current.map((candidate) => (candidate._id === standId ? updatedStand : candidate)),
+        );
+      }
     }
 
     setProductsByStand((current) => ({
@@ -161,10 +196,28 @@ export default function EventControlCenter() {
     const updatedStand = paused
       ? await pauseStand(event._id, stand._id)
       : await resumeStand(event._id, stand._id);
+    const standProducts = productsByStand[stand._id] ?? [];
+    const productsToSync = standProducts.filter((product) =>
+      paused ? product.productStatus === 'LIVE' : product.productStatus === 'PAUSED',
+    );
+
+    await Promise.all(
+      productsToSync.map((product) =>
+        paused ? pauseProduct(product._id) : resumeProduct(product._id),
+      ),
+    );
 
     setStands((current) =>
       current.map((candidate) => (candidate._id === stand._id ? updatedStand : candidate)),
     );
+    setProductsByStand((current) => ({
+      ...current,
+      [stand._id]: (current[stand._id] ?? []).map((product) =>
+        product.productStatus === 'TERMINATED'
+          ? product
+          : { ...product, productStatus: paused ? 'PAUSED' : 'LIVE' },
+      ),
+    }));
   }
 
   if (hasInvalidSection) {
@@ -207,8 +260,9 @@ export default function EventControlCenter() {
         />
       ) : activeSection === 'settings' ? (
         <EventControlCenterSettingsPage
-          key={`${event._id}-${controlCenterSettings.queueLengthAlertThreshold}-${controlCenterSettings.averageWaitAlertThresholdMinutes}`}
+          key={`${event._id}-${JSON.stringify(controlCenterSettings.standAlertThresholds)}`}
           settings={controlCenterSettings}
+          stands={stands}
           onChange={handleControlCenterSettingsChange}
         />
       ) : (
@@ -218,8 +272,8 @@ export default function EventControlCenter() {
           selectedStand={selectedStand}
           selectedStandId={selectedStandId}
           stands={stands}
-          onCancelOrder={handleCancelOrder}
           onCancelOrderItems={handleCancelOrderItems}
+          onCancelOrder={handleCancelOrder}
           onProductPauseChange={handleProductPauseChange}
           onStandPauseChange={handleStandPauseChange}
           onSelectStand={setSelectedStandId}
