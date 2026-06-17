@@ -1,20 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Navigate, useLoaderData, useParams, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
 import {
+  EVENT_CONTROL_CENTER_STREAM_EVENT,
+  EVENT_ORDERS_STREAM_EVENT,
   cancelOrder,
   cancelOrderItems,
+  eventControlCenterStreamPath,
+  eventOrdersStreamPath,
   getEventControlCenter,
   getEventOrders,
   pauseProduct,
   pauseStand,
   resumeProduct,
   resumeStand,
+  type EventControlCenterData,
   type EventControlCenterSettings,
+  type LiveOrder,
 } from '@/api/eventControlCenter';
 import { BackButton } from '@/components/shared';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { useSSE, type SseStatus } from '@/hooks/useSSE';
 import { paths } from '@/paths';
 import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
@@ -92,31 +99,32 @@ export default function EventControlCenter() {
     [controlCenterSettingsState, event._id, stands],
   );
 
-  useEffect(() => {
-    let cancelled = false;
+  const analyticsStreamPath = useMemo(
+    () => eventControlCenterStreamPath(event._id, controlCenterSettings),
+    [controlCenterSettings, event._id],
+  );
+  const ordersStreamPath = useMemo(() => eventOrdersStreamPath(event._id), [event._id]);
 
-    async function refreshControlCenter() {
-      const [nextAnalytics, nextLiveOrders] = await Promise.all([
-        getEventControlCenter(event._id, controlCenterSettings),
-        getEventOrders(event._id),
-      ]);
-      if (cancelled) return;
-      setAnalytics(nextAnalytics);
-      setLiveOrders(nextLiveOrders);
+  const analyticsStream = useSSE({
+    auth: 'organizer',
+    path: analyticsStreamPath,
+    onMessage: (message) => {
+      if (message.event !== EVENT_CONTROL_CENTER_STREAM_EVENT) return;
+      setAnalytics(message.data as EventControlCenterData);
       setLastUpdatedAt(new Date());
-    }
-
-    // TODO SSE: replace polling with the shared event-control-center SSE stream.
-    void refreshControlCenter().catch(() => {});
-    const interval = window.setInterval(() => {
-      void refreshControlCenter().catch(() => {});
-    }, 10000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [controlCenterSettings, event._id]);
+    },
+  });
+  const ordersStream = useSSE({
+    auth: 'organizer',
+    path: ordersStreamPath,
+    onMessage: (message) => {
+      if (message.event !== EVENT_ORDERS_STREAM_EVENT) return;
+      setLiveOrders(message.data as LiveOrder[]);
+      setLastUpdatedAt(new Date());
+    },
+  });
+  const streamStatus = getCombinedStreamStatus(analyticsStream.status, ordersStream.status);
+  const streamError = analyticsStream.error ?? ordersStream.error;
 
   async function refreshSnapshot() {
     const [nextAnalytics, nextLiveOrders] = await Promise.all([
@@ -247,6 +255,8 @@ export default function EventControlCenter() {
                   })}
                 </span>
               </span>
+              <span className="hidden text-border sm:inline">•</span>
+              <ConnectionStatusBadge error={streamError} status={streamStatus} />
             </div>
           </div>
         </CardHeader>
@@ -280,5 +290,33 @@ export default function EventControlCenter() {
         />
       )}
     </div>
+  );
+}
+
+function getCombinedStreamStatus(left: SseStatus, right: SseStatus): SseStatus {
+  if (left === 'error' || right === 'error') return 'error';
+  if (left === 'connecting' || right === 'connecting') return 'connecting';
+  if (left === 'open' && right === 'open') return 'open';
+  return 'idle';
+}
+
+function ConnectionStatusBadge({ error, status }: { error: Error | null; status: SseStatus }) {
+  const config =
+    status === 'open'
+      ? { label: 'Live', className: 'text-success', dot: 'bg-success' }
+      : status === 'connecting'
+        ? { label: 'Connecting', className: 'text-accent', dot: 'bg-accent' }
+        : status === 'error'
+          ? { label: 'Reconnecting', className: 'text-danger', dot: 'bg-danger' }
+          : { label: 'Idle', className: 'text-text-muted', dot: 'bg-border' };
+
+  return (
+    <span
+      className={['inline-flex items-center gap-2 font-medium', config.className].join(' ')}
+      title={error?.message}
+    >
+      <span className={['h-2 w-2 rounded-full', config.dot].join(' ')} />
+      {config.label}
+    </span>
   );
 }

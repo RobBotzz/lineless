@@ -41,3 +41,19 @@ export function deleteProduct(productId: string): Promise<void> {
     auth: 'organizer',
   });
 }
+
+export function pauseProductAsOperator(productId: string, standId: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${productId}/pause`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+  });
+}
+
+export function resumeProductAsOperator(productId: string, standId: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${productId}/resume`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+  });
+}

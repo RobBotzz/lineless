@@ -65,17 +65,37 @@ export type LiveOrder = {
   totalPriceIncludingTax: number;
 };
 
+export const EVENT_CONTROL_CENTER_STREAM_EVENT = 'control-center';
+export const EVENT_ORDERS_STREAM_EVENT = 'orders';
+
+function eventControlCenterSettingsParams(settings?: EventControlCenterSettings): string {
+  return settings
+    ? `?standAlertThresholds=${encodeURIComponent(JSON.stringify(settings.standAlertThresholds))}`
+    : '';
+}
+
+export function eventControlCenterStreamPath(
+  eventId: string,
+  settings?: EventControlCenterSettings,
+): string {
+  return `/events/${eventId}/event-control-center/stream${eventControlCenterSettingsParams(settings)}`;
+}
+
+export function eventOrdersStreamPath(eventId: string, standId?: string): string {
+  const params = standId ? `?standId=${encodeURIComponent(standId)}` : '';
+  return `/events/${eventId}/event-control-center/orders/stream${params}`;
+}
+
 export function getEventControlCenter(
   eventId: string,
   settings?: EventControlCenterSettings,
 ): Promise<EventControlCenterData> {
-  const params = settings
-    ? `?standAlertThresholds=${encodeURIComponent(JSON.stringify(settings.standAlertThresholds))}`
-    : '';
-
-  return apiFetch<EventControlCenterData>(`/events/${eventId}/event-control-center${params}`, {
-    auth: 'organizer',
-  });
+  return apiFetch<EventControlCenterData>(
+    `/events/${eventId}/event-control-center${eventControlCenterSettingsParams(settings)}`,
+    {
+      auth: 'organizer',
+    },
+  );
 }
 
 export function getEventOrders(eventId: string, standId?: string): Promise<LiveOrder[]> {

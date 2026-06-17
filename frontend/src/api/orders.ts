@@ -75,6 +75,21 @@ export function getUnpaidOrders(standId: string): Promise<Order[]> {
   return apiFetch<Order[]>('/orders/cashier', { auth: 'operator', standId });
 }
 
+export type OperatorOrderItemAction = 'start' | 'ready' | 'fulfill' | 'cancel';
+
+export function advanceOrderItemAsOperator(
+  orderId: string,
+  itemId: string,
+  action: OperatorOrderItemAction,
+  standId: string,
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}/items/${itemId}/${action}`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+  });
+}
+
 // Mocked: the real POST /api/orders/:orderId/cash-payment (mark paid + release
 // instant items) lands in a follow-up MR — payments are out of scope here.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

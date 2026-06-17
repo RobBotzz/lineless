@@ -150,3 +150,98 @@ async function extractError(res: Response): Promise<string> {
     return res.statusText;
   }
 }
+
+export interface SseFrame {
+  event: string;
+  data: string;
+}
+
+export interface StreamSseOptions extends Omit<ApiFetchOptions, 'body' | 'method' | 'signal'> {
+  signal: AbortSignal;
+  onMessage: (frame: SseFrame) => void;
+  onOpen?: () => void;
+}
+
+// Fetch-backed SSE transport. Native EventSource cannot send the Authorization
+// header required by organizer/operator streams, so streaming uses the same auth
+// and one-shot refresh path as apiFetch.
+export async function streamSse(path: string, options: StreamSseOptions): Promise<void> {
+  return doStream(path, options, false);
+}
+
+async function doStream(path: string, options: StreamSseOptions, isRetry: boolean): Promise<void> {
+  const { auth, standId, eventId, signal, onMessage, onOpen, headers, ...rest } = options;
+
+  const finalHeaders = new Headers(headers);
+  finalHeaders.set('Accept', 'text/event-stream');
+  attachAuthHeader(finalHeaders, auth, { standId, eventId });
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...rest,
+    headers: finalHeaders,
+    signal,
+  });
+
+  if (res.status === 401 && auth !== 'public') {
+    if (!isRetry && canRefresh(auth) && refreshCredential) {
+      const refreshed = await refreshCredential(auth, { standId, eventId });
+      if (refreshed) return doStream(path, options, true);
+    }
+    onUnauthorized?.(auth, { standId, eventId });
+  }
+
+  if (!res.ok || !res.body) {
+    const message = await extractError(res);
+    throw new ApiError(res.status, message);
+  }
+
+  onOpen?.();
+  await readSseStream(res.body, onMessage);
+}
+
+async function readSseStream(
+  body: ReadableStream<Uint8Array>,
+  onMessage: (frame: SseFrame) => void,
+): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      let boundary = buffer.indexOf('\n\n');
+      while (boundary !== -1) {
+        const frame = parseSseFrame(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 2);
+        if (frame) onMessage(frame);
+        boundary = buffer.indexOf('\n\n');
+      }
+    }
+  } finally {
+    void reader.cancel().catch(() => undefined);
+  }
+}
+
+function parseSseFrame(raw: string): SseFrame | null {
+  let event = 'message';
+  const data: string[] = [];
+
+  for (const rawLine of raw.split('\n')) {
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+    if (line === '' || line.startsWith(':')) continue;
+
+    const colon = line.indexOf(':');
+    const field = colon === -1 ? line : line.slice(0, colon);
+    let value = colon === -1 ? '' : line.slice(colon + 1);
+    if (value.startsWith(' ')) value = value.slice(1);
+
+    if (field === 'event') event = value;
+    else if (field === 'data') data.push(value);
+  }
+
+  return data.length > 0 ? { event, data: data.join('\n') } : null;
+}
