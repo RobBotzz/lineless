@@ -1,4 +1,4 @@
-import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
@@ -35,6 +35,13 @@ export default function OrderConfirmed() {
       <Button className="w-full" onClick={() => navigate(paths.attendee.orders(eventId))}>
         Track Order
       </Button>
+      {/* Temporary dev entry-point — the real navigation comes from the order-history branch */}
+      <Link
+        to={paths.attendee.review(eventId, state.order._id)}
+        className="block w-full rounded-md border border-border bg-surface py-2 text-center text-sm font-medium text-text hover:bg-surface-muted"
+      >
+        Rate your order
+      </Link>
     </div>
   );
 }

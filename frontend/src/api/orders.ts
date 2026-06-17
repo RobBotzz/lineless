@@ -3,7 +3,7 @@
 import { apiFetch } from './client';
 import { getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
-import type { Order, OrderItemView } from '../types/order';
+import type { AttendeeOrder, Order, OrderItemView } from '../types/order';
 
 // orderId must be the UUID _id, not the human-readable orderNumber.
 export function getOrder(orderId: string, standId: string): Promise<Order> {
@@ -79,6 +79,12 @@ export function createOrder(eventId: string, items: OrderItemView[]): Promise<Or
     eventId,
     body: JSON.stringify({ eventId, items: flattenOrderItems(items) }),
   });
+}
+
+// GET /api/orders/:orderId — enriched order for the attendee review page.
+// Items include productName + standName joined by the backend.
+export function getAttendeeOrder(orderId: string, eventId: string): Promise<AttendeeOrder> {
+  return apiFetch<AttendeeOrder>(`/orders/${orderId}`, { auth: 'attendee', eventId });
 }
 
 // GET /api/orders/cashier — unpaid orders for the cashier's event.

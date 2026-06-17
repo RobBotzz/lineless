@@ -34,6 +34,15 @@ export function computeTotal(order: Order): number {
     .reduce((sum, item) => sum + item.priceIncludingTaxAtPurchase, 0);
 }
 
+// Attendee-specific enriched order — the backend joins productName + standName
+// onto each item so the frontend never has to fetch the product catalog.
+export interface AttendeeOrderItem extends OrderItem {
+  productName: string;
+  standName: string;
+}
+
+export type AttendeeOrder = Omit<Order, 'items'> & { items: AttendeeOrderItem[] };
+
 // Enriched view type for display. Backend items are flat (one per unit); callers
 // group by productId and join product/stand names before passing here.
 export interface OrderItemView {
