@@ -32,7 +32,10 @@ export default function OrderConfirmed() {
         title="Order Confirmed"
         subtitle="Your order is in progress."
       />
-      <Button className="w-full" onClick={() => navigate(paths.attendee.orders(eventId))}>
+      <Button
+        className="w-full"
+        onClick={() => navigate(paths.attendee.trackOrder(eventId, state.order._id))}
+      >
         Track Order
       </Button>
     </div>

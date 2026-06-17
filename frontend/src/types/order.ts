@@ -39,6 +39,7 @@ export function computeTotal(order: Order): number {
 export interface OrderItemView {
   productId: string;
   productName: string;
+  standId: string;
   standName: string;
   unitPrice: number; // integer cents (priceIncludingTaxAtPurchase)
   quantity: number;

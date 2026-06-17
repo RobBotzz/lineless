@@ -20,6 +20,8 @@ export const paths = {
     checkoutPending: (eventId: string, orderId: string) =>
       `/event/${eventId}/checkout/${orderId}/pending`,
     orders: (eventId: string) => `/event/${eventId}/orders`,
+    trackOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}`,
+    reviewOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}/review`,
   },
   operator: {
     root: (eventId: string) => `/operator/${eventId}`,

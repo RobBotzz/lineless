@@ -50,6 +50,7 @@ export default function CashierManualOrder() {
       const orderItems: OrderItemView[] = items.map((item) => ({
         productId: item.product._id,
         productName: item.product.productName,
+        standId: item.product.standId,
         standName: standNameFor(item.product),
         unitPrice: item.product.priceIncludingTax,
         quantity: item.quantity,
