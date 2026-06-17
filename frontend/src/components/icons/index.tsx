@@ -272,6 +272,20 @@ export function CheckCircleIcon({ className = 'h-6 w-6' }: IconProps) {
   );
 }
 
+// Hourglass nested in a circle outline — matches CheckCircleIcon's framing so
+// the pending-payment banner reads as the same "status icon" family.
+export function HourglassCircleIcon({ className = 'h-6 w-6' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9 7h6" />
+      <path d="M9 17h6" />
+      <path d="M9 7c0 2.5 2 3 2 5s-2 2.5-2 5" />
+      <path d="M15 7c0 2.5-2 3-2 5s2 2.5 2 5" />
+    </svg>
+  );
+}
+
 export function InfoIcon({ className = 'h-4 w-4' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>
