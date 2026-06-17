@@ -1,0 +1,30 @@
+meta {
+  name: 07 confirm baseline PI
+  type: http
+  seq: 7
+}
+
+post {
+  url: https://api.stripe.com/v1/payment_intents/{{baselinePI}}/confirm?payment_method=pm_card_visa&return_url=https://example.com/return
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{stripeSecretKey}}
+}
+
+tests {
+  // The hold authorized on Stripe must equal the organizer's new 5000-cent
+  // baseline, proving the custom hold reached the PaymentIntent, not the default.
+  test("baseline hold authorized for 5000 cents", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.status).to.equal("requires_capture");
+    expect(res.body.amount).to.equal(5000);
+    expect(res.body.amount_capturable).to.equal(5000);
+  });
+}
+
+settings {
+  encodeUrl: true
+}
