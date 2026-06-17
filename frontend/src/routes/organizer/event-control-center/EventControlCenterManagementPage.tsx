@@ -698,9 +698,6 @@ function StandAvailabilityControl({
           {isLive ? 'Open' : 'Paused'}
         </span>
       </button>
-      <span className="text-xs text-text-muted">
-        {isLive ? 'Stand is accepting new orders.' : 'Stand is paused for new orders.'}
-      </span>
     </div>
   );
 }

@@ -241,11 +241,6 @@ export default function EventControlCenter() {
           <div className="min-w-0">
             <CardTitle className="text-2xl font-bold">{event.name || 'Untitled Event'}</CardTitle>
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-text-muted">
-              <span className="inline-flex items-center gap-2 font-medium text-success">
-                <span className="h-2 w-2 rounded-full bg-success shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-success)_14%,transparent)]" />
-                Active
-              </span>
-              <span className="hidden text-border sm:inline">•</span>
               <span>
                 Last updated:{' '}
                 <span className="font-medium tabular-nums text-text">
@@ -266,6 +261,7 @@ export default function EventControlCenter() {
         <EventControlCenterAnalyticsPage
           analytics={analytics}
           eventStartAt={event.startedAt ?? event.createdAt}
+          productsByStand={productsByStand}
           stands={stands}
         />
       ) : activeSection === 'settings' ? (

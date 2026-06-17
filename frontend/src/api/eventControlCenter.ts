@@ -21,6 +21,18 @@ export type StandQueueMetric = {
   alert: boolean;
 };
 
+export type ProductRating = {
+  _id: string;
+  productId: string;
+  productName: string;
+  productImageUrl: string | null;
+  standId: string;
+  standName: string;
+  stars: number;
+  comment: string | null;
+  createdAt: string;
+};
+
 export type EventControlCenterData = {
   totalRevenueCents: number;
   activeGuests: number;
@@ -28,6 +40,7 @@ export type EventControlCenterData = {
   eventRevenue: RevenuePoint[];
   standRevenue: StandRevenueSeries[];
   standQueues: StandQueueMetric[];
+  productRatings: ProductRating[];
 };
 
 export type StandAlertThreshold = {

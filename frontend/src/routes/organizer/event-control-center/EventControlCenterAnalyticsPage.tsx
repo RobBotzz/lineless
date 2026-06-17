@@ -2,12 +2,15 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 
 import {
   type EventControlCenterData,
+  type ProductRating,
   type RevenuePoint,
   type StandQueueMetric,
   type StandRevenueSeries,
 } from '@/api/eventControlCenter';
+import { ImageIcon } from '@/components/icons';
+import { StarRating } from '@/components/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatMoney } from '@/types/product';
+import { formatMoney, type Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
 
 type StandDisplay = Pick<Stand, '_id' | 'standName'>;
@@ -15,10 +18,12 @@ type StandDisplay = Pick<Stand, '_id' | 'standName'>;
 export function EventControlCenterAnalyticsPage({
   analytics,
   eventStartAt,
+  productsByStand,
   stands,
 }: {
   analytics: EventControlCenterData;
   eventStartAt: string;
+  productsByStand: Record<string, Product[]>;
   stands: Stand[];
 }) {
   const standNameById = useMemo(
@@ -74,16 +79,13 @@ export function EventControlCenterAnalyticsPage({
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <CardHeader>
           <div>
             <CardTitle>Queue & Stand Performance</CardTitle>
             <p className="mt-2 text-sm text-text-muted">
               Queue depth and average wait time by booth.
             </p>
           </div>
-          <ChartPill
-            label={analytics.standQueues.some((queue) => queue.queueLength > 0) ? 'Live' : 'Empty'}
-          />
         </CardHeader>
         <CardContent>
           <QueueStandPerformance
@@ -94,18 +96,297 @@ export function EventControlCenterAnalyticsPage({
         </CardContent>
       </Card>
 
-      <ProductRatingsSection />
+      <ProductRatingsSection
+        productsByStand={productsByStand}
+        productRatings={analytics.productRatings}
+        stands={stands}
+      />
     </div>
   );
 }
 
-function ProductRatingsSection() {
+function ProductRatingsSection({
+  productRatings,
+  productsByStand,
+  stands,
+}: {
+  productRatings: ProductRating[];
+  productsByStand: Record<string, Product[]>;
+  stands: Stand[];
+}) {
+  const [selectedStandId, setSelectedStandId] = useState('all');
+  const [selectedProductId, setSelectedProductId] = useState('all');
+  const boothSelected = selectedStandId !== 'all';
+  const productsForSelectedStand = useMemo(
+    () =>
+      boothSelected
+        ? [...(productsByStand[selectedStandId] ?? [])].sort((left, right) =>
+            left.productName.localeCompare(right.productName),
+          )
+        : [],
+    [boothSelected, productsByStand, selectedStandId],
+  );
+  const ratingStands = useMemo(
+    () => stands.filter((stand) => stand.standType === 'PRODUCT'),
+    [stands],
+  );
+  const filteredRatings = useMemo(
+    () =>
+      productRatings.filter((rating) => {
+        if (selectedStandId !== 'all' && rating.standId !== selectedStandId) return false;
+        if (selectedProductId !== 'all' && rating.productId !== selectedProductId) return false;
+        return true;
+      }),
+    [productRatings, selectedProductId, selectedStandId],
+  );
+  const positiveRatings = filteredRatings.filter((rating) => rating.stars >= 4);
+  const actionRatings = filteredRatings.filter((rating) => rating.stars <= 3);
+
+  function handleSelectStand(standId: string) {
+    setSelectedStandId(standId);
+    setSelectedProductId('all');
+  }
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Product Ratings</CardTitle>
+      <CardHeader className="gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle>Product Ratings</CardTitle>
+            <p className="mt-2 text-sm text-text-muted">
+              Latest product reviews split by sentiment.
+            </p>
+          </div>
+          <ProductRatingsFilters
+            boothSelected={boothSelected}
+            products={productsForSelectedStand}
+            selectedProductId={selectedProductId}
+            selectedStandId={selectedStandId}
+            stands={ratingStands}
+            onSelectProduct={setSelectedProductId}
+            onSelectStand={handleSelectStand}
+          />
+        </div>
       </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ProductRatingFeed
+            emptyMessage="Positive reviews will appear here as guests rate products."
+            ratings={positiveRatings}
+            title="Positive Vibes"
+            tone="positive"
+          />
+          <ProductRatingFeed
+            emptyMessage="Lower-rated reviews will appear here for quick follow-up."
+            ratings={actionRatings}
+            title="Action Required"
+            tone="action"
+          />
+        </div>
+      </CardContent>
     </Card>
+  );
+}
+
+function ProductRatingsFilters({
+  boothSelected,
+  onSelectProduct,
+  onSelectStand,
+  products,
+  selectedProductId,
+  selectedStandId,
+  stands,
+}: {
+  boothSelected: boolean;
+  onSelectProduct: (productId: string) => void;
+  onSelectStand: (standId: string) => void;
+  products: Product[];
+  selectedProductId: string;
+  selectedStandId: string;
+  stands: StandDisplay[];
+}) {
+  const selectedStand = stands.find((stand) => stand._id === selectedStandId) ?? null;
+
+  return (
+    <div className="w-full space-y-3 lg:max-w-xl lg:justify-self-end">
+      <RatingChipFilter
+        ariaLabel="Product ratings booth filter"
+        label="Stands"
+        options={stands.map((stand) => ({ label: stand.standName, value: stand._id }))}
+        selectedValue={selectedStandId}
+        resetValue={selectedStand ? 'all' : undefined}
+        onSelect={onSelectStand}
+      />
+      <div
+        className={[
+          'grid w-full transition-all duration-300 ease-out lg:justify-items-end',
+          boothSelected
+            ? 'grid-rows-[1fr] translate-y-0 opacity-100'
+            : 'grid-rows-[0fr] -translate-y-2 opacity-0',
+        ].join(' ')}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <RatingChipFilter
+            ariaLabel="Product ratings product filter"
+            label="Products"
+            options={products.map((product) => ({
+              label: product.productName,
+              value: product._id,
+            }))}
+            selectedValue={selectedProductId}
+            resetValue={selectedProductId !== 'all' ? 'all' : undefined}
+            onSelect={onSelectProduct}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RatingChipFilter({
+  ariaLabel,
+  label,
+  onSelect,
+  options,
+  resetValue,
+  selectedValue,
+}: {
+  ariaLabel: string;
+  label: string;
+  onSelect: (value: string) => void;
+  options: { label: string; value: string }[];
+  resetValue?: string;
+  selectedValue: string;
+}) {
+  return (
+    <div className="relative space-y-2">
+      <p className="text-right text-xs font-semibold uppercase tracking-wide text-text-muted">
+        {label}
+      </p>
+      <div
+        aria-label={ariaLabel}
+        className="flex justify-end gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="group"
+      >
+        {options.map((option) => (
+          <button
+            aria-pressed={selectedValue === option.value}
+            className={[
+              'inline-flex max-w-48 shrink-0 items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium shadow-sm transition-colors duration-200 ease-out',
+              selectedValue === option.value
+                ? 'border-accent bg-accent text-[var(--color-button-text)] shadow-[0_10px_24px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]'
+                : 'border-border bg-surface text-text hover:border-accent/30 hover:bg-surface-muted',
+            ].join(' ')}
+            key={option.value}
+            title={option.label}
+            type="button"
+            onClick={() =>
+              onSelect(selectedValue === option.value && resetValue ? resetValue : option.value)
+            }
+          >
+            <span className="truncate">{option.label}</span>
+            {selectedValue === option.value && resetValue && (
+              <span aria-hidden className="text-xs font-bold leading-none">
+                x
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProductRatingFeed({
+  emptyMessage,
+  ratings,
+  title,
+  tone,
+}: {
+  emptyMessage: string;
+  ratings: ProductRating[];
+  title: string;
+  tone: 'action' | 'positive';
+}) {
+  const toneClasses =
+    tone === 'positive'
+      ? {
+          badge: 'border-success/30 bg-success/10 text-success',
+          rail: 'bg-success',
+        }
+      : {
+          badge: 'border-danger/30 bg-danger/10 text-danger',
+          rail: 'bg-danger',
+        };
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-border bg-background">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={['h-8 w-1 rounded-full', toneClasses.rail].join(' ')} />
+          <h3 className="truncate text-sm font-semibold text-text">{title}</h3>
+        </div>
+        <span
+          className={[
+            'rounded-full border px-2.5 py-1 text-xs font-semibold tabular-nums',
+            toneClasses.badge,
+          ].join(' ')}
+        >
+          {ratings.length}
+        </span>
+      </div>
+      <div className="max-h-[34rem] space-y-3 overflow-y-auto p-3">
+        {ratings.length > 0 ? (
+          ratings.map((rating) => <ProductRatingCard key={rating._id} rating={rating} />)
+        ) : (
+          <div className="rounded-lg border border-dashed border-border bg-surface-muted/40 px-4 py-8 text-center text-sm text-text-muted">
+            {emptyMessage}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ProductRatingCard({ rating }: { rating: ProductRating }) {
+  const [imageOk, setImageOk] = useState(true);
+  const showImage = !!rating.productImageUrl && imageOk;
+
+  return (
+    <article className="rounded-lg border border-border bg-surface p-3 shadow-sm">
+      <div className="flex gap-3">
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-muted">
+          {showImage ? (
+            <img
+              alt=""
+              className="h-full w-full object-cover"
+              onError={() => setImageOk(false)}
+              src={rating.productImageUrl!}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-text-muted">
+              <ImageIcon className="h-5 w-5" />
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h4 className="truncate text-sm font-semibold text-text">{rating.productName}</h4>
+              <span className="mt-1 inline-flex max-w-full rounded-full border border-border bg-background px-2 py-0.5 text-xs font-medium text-text-muted">
+                <span className="truncate">{rating.standName}</span>
+              </span>
+            </div>
+            <StarRating rating={rating.stars} className="shrink-0" />
+          </div>
+          {rating.comment ? (
+            <p className="mt-3 text-sm leading-6 text-text">{rating.comment}</p>
+          ) : (
+            <p className="mt-3 text-sm italic leading-6 text-text-muted">No message provided.</p>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -1121,21 +1402,6 @@ function QueueStandPerformanceRow({
         </span>
       </div>
     </div>
-  );
-}
-
-function ChartPill({ label }: { label: 'Live' | 'Empty' }) {
-  return (
-    <span
-      className={[
-        'w-fit rounded-full border px-2.5 py-1 text-xs font-semibold',
-        label === 'Live'
-          ? 'border-success/30 bg-success/10 text-success'
-          : 'border-border bg-surface text-text-muted',
-      ].join(' ')}
-    >
-      {label}
-    </span>
   );
 }
 
