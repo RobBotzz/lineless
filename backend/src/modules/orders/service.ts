@@ -48,6 +48,13 @@ function assertItemCancellable(item: OrderItemDoc): void {
   }
 }
 
+function assertOrganizerItemCancellable(item: OrderItemDoc): void {
+  assertItemCancellable(item);
+  if (item.readyAt) {
+    throw new OrderItemStateError("Ready items cannot be cancelled");
+  }
+}
+
 export async function submitOrder(
   sessionId: string | null,
   input: CreateOrderInput
@@ -197,7 +204,7 @@ export async function cancelOrderForOrganizer(
   const now = new Date();
   let changed = false;
   for (const item of order.items) {
-    if (item.fulfilledAt || item.cancelledAt) continue;
+    if (item.readyAt || item.fulfilledAt || item.cancelledAt) continue;
     item.cancelledAt = now;
     changed = true;
   }
@@ -230,7 +237,7 @@ export async function cancelOrderItemsForOrganizer(
   });
 
   for (const item of items) {
-    assertItemCancellable(item);
+    assertOrganizerItemCancellable(item);
   }
 
   const now = new Date();

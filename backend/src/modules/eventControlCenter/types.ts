@@ -1,10 +1,26 @@
 import { z } from "zod";
 
 const alertThreshold = z.coerce.number().int().min(0);
-
-export const eventControlCenterQuerySchema = z.object({
+const standAlertThresholdSchema = z.object({
   queueLengthAlertThreshold: alertThreshold.default(10),
   averageWaitAlertThresholdMinutes: alertThreshold.default(15),
+});
+
+const standAlertThresholdsQuerySchema = z.preprocess((value) => {
+  if (value === undefined) return {};
+  if (Array.isArray(value)) value = value[0];
+  if (typeof value !== "string") return value;
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed;
+  } catch {
+    return value;
+  }
+}, z.record(z.uuid(), standAlertThresholdSchema).default({}));
+
+export const eventControlCenterQuerySchema = z.object({
+  standAlertThresholds: standAlertThresholdsQuerySchema,
 });
 
 export const liveOrdersQuerySchema = z.object({
@@ -23,7 +39,7 @@ export type LiveOrdersQuery = z.infer<typeof liveOrdersQuerySchema>;
 export interface EventControlCenterData {
   totalRevenueCents: number;
   activeGuests: number;
-  maxBottleneckStandId: string | null;
+  activeAlertCount: number;
   eventRevenue: RevenuePoint[];
   standRevenue: StandRevenueSeries[];
   standQueues: StandQueueMetric[];
@@ -69,6 +85,7 @@ export interface LiveOrderItem {
   productId: string;
   productName: string;
   status: LiveOrderStatus;
+  readyAt: Date | null;
   customerComment: string | null;
   unitPriceIncludingTax: number;
 }

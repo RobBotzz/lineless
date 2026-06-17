@@ -136,31 +136,20 @@ function buildStandQueueMetrics(
       stats.readyItemCount > 0
         ? Math.round(stats.totalWaitMinutes / stats.readyItemCount)
         : 0;
+    const thresholds = options.standAlertThresholds[standId] ?? {
+      queueLengthAlertThreshold: 10,
+      averageWaitAlertThresholdMinutes: 15,
+    };
 
     return {
       standId,
       queueLength: stats.queueLength,
       averageWaitMinutes,
       alert:
-        stats.queueLength >= options.queueLengthAlertThreshold ||
-        averageWaitMinutes >= options.averageWaitAlertThresholdMinutes,
+        stats.queueLength >= thresholds.queueLengthAlertThreshold ||
+        averageWaitMinutes >= thresholds.averageWaitAlertThresholdMinutes,
     };
   });
-}
-
-function findMaxBottleneckStandId(
-  standQueues: StandQueueMetric[]
-): string | null {
-  const bottleneck = standQueues
-    .filter((queue) => queue.queueLength > 0)
-    .sort((left, right) => {
-      if (right.queueLength !== left.queueLength) {
-        return right.queueLength - left.queueLength;
-      }
-      return right.averageWaitMinutes - left.averageWaitMinutes;
-    })[0];
-
-  return bottleneck?.standId ?? null;
 }
 
 function toLiveOrder(
@@ -180,6 +169,7 @@ function toLiveOrder(
         productId: item.productId,
         productName: product.productName,
         status: itemStatus(item),
+        readyAt: item.readyAt,
         customerComment: item.customerComment,
         unitPriceIncludingTax: item.priceIncludingTaxAtPurchase,
         standId: product.standId,
@@ -197,6 +187,7 @@ function toLiveOrder(
     productId: item.productId,
     productName: item.productName,
     status: item.status,
+    readyAt: item.readyAt,
     customerComment: item.customerComment,
     unitPriceIncludingTax: item.unitPriceIncludingTax,
   }));
@@ -422,7 +413,7 @@ export async function getEventControlCenter(
   return {
     totalRevenueCents,
     activeGuests,
-    maxBottleneckStandId: findMaxBottleneckStandId(standQueues),
+    activeAlertCount: standQueues.filter((queue) => queue.alert).length,
     eventRevenue,
     standRevenue,
     standQueues,
