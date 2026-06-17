@@ -12,6 +12,7 @@ import {
   softDeleteProduct,
   pauseProduct,
   resumeProduct,
+  toProductResponse,
   type ProductControlAuth,
 } from "./service";
 import { ProductNotFoundError, ProductStateError } from "./errors";
@@ -73,7 +74,7 @@ standProductsRouter.post(
         req.organizer!.accountId,
         data
       );
-      res.status(201).json(product);
+      res.status(201).json(toProductResponse(product));
     } catch (err) {
       handleError(err, res);
     }
@@ -91,7 +92,7 @@ standProductsRouter.get(
         : req.operator
           ? await listProductsForOperator(standId(req), req.operator.standId)
           : await listProductsForAttendee(standId(req), req.attendee!.eventId);
-      res.status(200).json(products);
+      res.status(200).json(products.map(toProductResponse));
     } catch (err) {
       handleError(err, res);
     }
@@ -119,7 +120,7 @@ eventProductsRouter.get(
             eventId(req),
             req.operator!.standId
           );
-      res.status(200).json(products);
+      res.status(200).json(products.map(toProductResponse));
     } catch (err) {
       handleError(err, res);
     }
@@ -141,7 +142,7 @@ productsRouter.get(
         productId(req),
         req.organizer!.accountId
       );
-      res.status(200).json(product);
+      res.status(200).json(toProductResponse(product));
     } catch (err) {
       handleError(err, res);
     }
@@ -156,7 +157,7 @@ productsRouter.post(
   async (req: Request, res: Response) => {
     try {
       const product = await pauseProduct(productId(req), controlAuth(req));
-      res.status(200).json(product);
+      res.status(200).json(toProductResponse(product));
     } catch (err) {
       handleError(err, res);
     }
@@ -170,7 +171,7 @@ productsRouter.post(
   async (req: Request, res: Response) => {
     try {
       const product = await resumeProduct(productId(req), controlAuth(req));
-      res.status(200).json(product);
+      res.status(200).json(toProductResponse(product));
     } catch (err) {
       handleError(err, res);
     }
@@ -201,7 +202,7 @@ productsRouter.patch(
         req.organizer!.accountId,
         data
       );
-      res.status(200).json(product);
+      res.status(200).json(toProductResponse(product));
     } catch (err) {
       handleError(err, res);
     }

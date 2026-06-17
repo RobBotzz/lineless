@@ -7,6 +7,14 @@ import { StandNotFoundError } from "../stands/errors";
 import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
 import { Event } from "../events/model";
 
+// The wire shape for a product: hides the raw rating aggregate and exposes the
+// computed average (null until the first review). The frontend Product type
+// declares `rating` and has no ratingSum/ratingCount.
+export function toProductResponse(p: ProductDoc) {
+  const { ratingSum, ratingCount, ...rest } = p;
+  return { ...rest, rating: ratingCount > 0 ? ratingSum / ratingCount : null };
+}
+
 async function productsForStand(standId: string): Promise<ProductDoc[]> {
   return Product.find({ standId, deletedAt: null })
     .sort({ createdAt: 1 })
@@ -70,7 +78,7 @@ export async function createProduct(
   input: CreateProductInput
 ): Promise<ProductDoc> {
   await verifyStandOwnership(standId, accountId);
-  return Product.create({
+  const product = await Product.create({
     standId,
     productName: input.productName,
     productDescription: input.productDescription,
@@ -80,6 +88,7 @@ export async function createProduct(
     instantProduct: input.instantProduct,
     productStock: input.productStock,
   });
+  return product.toObject();
 }
 
 export async function listProductsForOrganizer(
@@ -120,7 +129,10 @@ export async function listEventProductsForOperator(
   eventId: string,
   operatorStandId: string
 ): Promise<ProductDoc[]> {
-  const stand = await Stand.findOne({ _id: operatorStandId, deletedAt: null }).lean();
+  const stand = await Stand.findOne({
+    _id: operatorStandId,
+    deletedAt: null,
+  }).lean();
   if (!stand || stand.eventId !== eventId || stand.standType !== "CASHIER")
     throw new StandNotFoundError();
   const event = await Event.findById(eventId).lean();
@@ -175,7 +187,7 @@ export async function pauseProduct(
   }
   product.productStatus = "PAUSED";
   await product.save();
-  return product;
+  return product.toObject();
 }
 
 // PAUSED -> LIVE. Mirror of pauseProduct: TERMINATED is terminal and an
@@ -193,7 +205,7 @@ export async function resumeProduct(
   }
   product.productStatus = "LIVE";
   await product.save();
-  return product;
+  return product.toObject();
 }
 
 export async function updateProduct(
@@ -220,7 +232,7 @@ export async function updateProduct(
   if (patch.productStock !== undefined)
     product.productStock = patch.productStock;
   await product.save();
-  return product;
+  return product.toObject();
 }
 
 export async function softDeleteProduct(
