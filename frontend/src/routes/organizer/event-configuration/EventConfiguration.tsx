@@ -320,9 +320,10 @@ export default function EventConfiguration() {
                 {showCustomerLink && <CustomerLinkPanel eventId={event._id} />}
               </div>
               <Link
-                className={[buttonVariants({ variant: 'secondary', size: 'lg' }), 'w-full'].join(
-                  ' ',
-                )}
+                className={[
+                  buttonVariants({ variant: 'default', size: 'lg' }),
+                  'w-full bg-success text-white hover:bg-success/90',
+                ].join(' ')}
                 to={paths.organizer.eventControlCenterAnalytics(event._id)}
               >
                 Event Control Center
