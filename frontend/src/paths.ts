@@ -15,7 +15,10 @@ export const paths = {
   attendee: {
     event: (eventId: string) => `/event/${eventId}`,
     cart: (eventId: string) => `/event/${eventId}/cart`,
-    checkout: (eventId: string) => `/event/${eventId}/checkout`,
+    checkoutConfirmed: (eventId: string, orderId: string) =>
+      `/event/${eventId}/checkout/${orderId}/confirmed`,
+    checkoutPending: (eventId: string, orderId: string) =>
+      `/event/${eventId}/checkout/${orderId}/pending`,
     orders: (eventId: string) => `/event/${eventId}/orders`,
   },
   operator: {
@@ -23,7 +26,13 @@ export const paths = {
     link: (eventId: string, operatorAccessKey: string) =>
       `/operator/${eventId}/link/${operatorAccessKey}`,
     pickupDashboard: (eventId: string) => `/operator/${eventId}/pickup`,
-    cashierDashboard: (eventId: string) => `/operator/${eventId}/cashier`,
     stand: (eventId: string, standId: string) => `/operator/${eventId}/${standId}`,
+    cashier: (eventId: string) => `/operator/${eventId}/cashier`,
+    cashierOrder: (eventId: string) => `/operator/${eventId}/cashier/order`,
+    cashierPayment: (eventId: string) => `/operator/${eventId}/cashier/payment`,
+    cashierPaymentOrder: (eventId: string, orderId: string) =>
+      `/operator/${eventId}/cashier/payment/${orderId}`,
+    cashierPaymentConfirmed: (eventId: string, orderId: string) =>
+      `/operator/${eventId}/cashier/payment/${orderId}/confirmed`,
   },
 } as const;

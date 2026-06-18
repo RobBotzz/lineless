@@ -14,8 +14,6 @@ import { hasCoordinates } from '@/types/location';
 import type { Stand } from '@/types/stand';
 import { operatorStandsQueryOptions } from '../operatorQueries';
 
-// TODO: Replace with cashierEnabled from operator bootstrap endpoint.
-const CASHIER_ENABLED_PLACEHOLDER = true;
 const LINK_EXPIRED_MESSAGE = 'Link expired. Please reopen the operator link.';
 const LOGIN_FAILED_MESSAGE = 'Login failed. Please try again.';
 const WRONG_PASSWORD_OR_LINK_MESSAGE = 'Wrong password or invalid link.';
@@ -77,6 +75,10 @@ export default function StandSelection() {
         : 'error';
   }
   const stands = operatorStandsQuery.data ?? [];
+  // The cashier is a dedicated stand; surface it via its own tile and keep it out
+  // of the regular stand-dashboard list (it would otherwise render twice).
+  const cashierStand = stands.find((stand) => stand.standType === 'CASHIER');
+  const productStands = stands.filter((stand) => stand.standType !== 'CASHIER');
 
   const canUseOperatorSession = loadState === 'ready' && !!eventId && hasSessionForEvent;
 
@@ -162,18 +164,16 @@ export default function StandSelection() {
                 onClick={() => navigateToSystemDashboard(paths.operator.pickupDashboard(eventId))}
                 title="Pick Up"
               />
-              {CASHIER_ENABLED_PLACEHOLDER && (
+              {cashierStand && (
                 <SelectionTile
                   icon={<CashierIcon className="h-6 w-6" />}
                   meta="Manual orders and cash payments"
-                  onClick={() =>
-                    navigateToSystemDashboard(paths.operator.cashierDashboard(eventId))
-                  }
+                  onClick={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
                   title="Cashier"
                 />
               )}
 
-              {stands.map((stand) => (
+              {productStands.map((stand) => (
                 <StandSelectionTile
                   key={stand._id}
                   loggedIn={Boolean(loggedInStands[stand._id])}
@@ -184,7 +184,7 @@ export default function StandSelection() {
               ))}
             </div>
 
-            {stands.length === 0 && (
+            {productStands.length === 0 && (
               <div className="mt-6 rounded-lg border-2 border-dashed border-border bg-surface px-4 py-10 text-center">
                 <p className="text-sm font-medium text-text">No stands configured yet</p>
                 <p className="mt-1 text-sm text-text-muted">
@@ -272,7 +272,7 @@ function SelectionTile({
       type="button"
     >
       <span className="flex items-start justify-between gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-[var(--color-button-text)]">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
           {icon}
         </span>
         {loggedIn ? (
@@ -359,7 +359,7 @@ function PasswordDialog({
   if (!stand) return null;
 
   return (
-    <div className="fixed inset-0 z-[1100] overflow-y-auto bg-black/40" role="presentation">
+    <div className="fixed inset-0 z-1100 overflow-y-auto bg-black/40" role="presentation">
       <div className="flex min-h-full items-center justify-center px-4 py-8">
         <section
           aria-labelledby="stand-password-title"

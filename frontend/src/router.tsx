@@ -27,15 +27,21 @@ import AttendeeProductSelection, {
 } from './routes/attendee/product-selection/ProductSelection';
 import { productSelectionLoader } from './routes/attendee/product-selection/data';
 import AttendeeCart from './routes/attendee/cart/Cart';
-import AttendeeCheckout from './routes/attendee/checkout/Checkout';
+import AttendeeOrderConfirmed from './routes/attendee/checkout/OrderConfirmed';
+import AttendeeCashPaymentPending from './routes/attendee/checkout/CashPaymentPending';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
-import OperatorCashierDashboard from './routes/operator/cashier-dashboard/CashierDashboard';
 import OperatorLinkEntry from './routes/operator/link-entry/OperatorLinkEntry';
 import OperatorPickupDashboard from './routes/operator/pickup-dashboard/PickupDashboard';
 import OperatorStandDashboard from './routes/operator/stand-dashboard/OperatorDashboard';
 import OperatorStandSelection from './routes/operator/stand-selection/StandSelection';
+import CashierLayout from './routes/operator/cashier/CashierLayout';
+import CashierHome from './routes/operator/cashier/CashierHome';
+import CashierManualOrder from './routes/operator/cashier/CashierManualOrder';
+import CashierPayment from './routes/operator/cashier/CashierPayment';
+import CashierPaymentDetails from './routes/operator/cashier/CashierPaymentDetails';
+import CashierPaymentConfirmed from './routes/operator/cashier/CashierPaymentConfirmed';
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -85,7 +91,8 @@ export const router = createBrowserRouter(
           errorElement={<ProductSelectionError />}
         />
         <Route path="cart" element={<AttendeeCart />} />
-        <Route path="checkout" element={<AttendeeCheckout />} />
+        <Route path="checkout/:orderId/confirmed" element={<AttendeeOrderConfirmed />} />
+        <Route path="checkout/:orderId/pending" element={<AttendeeCashPaymentPending />} />
         <Route path="orders" element={<AttendeeOrderHistory />} />
       </Route>
 
@@ -105,11 +112,26 @@ export const router = createBrowserRouter(
           element={<OperatorPickupDashboard />}
           handle={{ title: 'Pick Up' }}
         />
+        {/* Static "cashier" out-ranks the dynamic :standId route in v7. */}
         <Route
           path=":eventId/cashier"
-          element={<OperatorCashierDashboard />}
-          handle={{ title: 'Cashier' }}
-        />
+          element={<CashierLayout />}
+          handle={{ title: 'Cashier Stand' }}
+        >
+          <Route index element={<CashierHome />} />
+          <Route path="order" element={<CashierManualOrder />} handle={{ title: 'Manual Order' }} />
+          <Route path="payment" element={<CashierPayment />} handle={{ title: 'Payment' }} />
+          <Route
+            path="payment/:orderId"
+            element={<CashierPaymentDetails />}
+            handle={{ title: 'Payment' }}
+          />
+          <Route
+            path="payment/:orderId/confirmed"
+            element={<CashierPaymentConfirmed />}
+            handle={{ title: 'Payment Confirmed' }}
+          />
+        </Route>
         <Route
           path=":eventId/:standId"
           element={<OperatorStandDashboard />}

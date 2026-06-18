@@ -187,7 +187,7 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
                   required={!isEdit}
                 />
                 {isEdit && accessPassword.trim().length > 0 && (
-                  <div className="flex items-start gap-2 rounded bg-amber-50 p-3 text-sm text-amber-800">
+                  <div className="flex items-start gap-2 rounded bg-warning/10 p-3 text-sm text-warning">
                     <WarningTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>
                       Changing the password will log out all operators currently signed in to this
