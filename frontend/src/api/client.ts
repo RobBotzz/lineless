@@ -50,6 +50,18 @@ function canRefresh(auth: ApiAuthMode): auth is 'organizer' | 'operator' {
   return auth === 'organizer' || auth === 'operator';
 }
 
+// On a 401 for an authed request: try a one-shot token refresh. Returns true if
+// the caller should retry once (the token was refreshed); otherwise routes the
+// dead credential to onUnauthorized and returns false. Shared by doFetch and
+// doStream so fetch and stream auth can never drift apart.
+async function tryRefreshOr401(auth: AuthScope, isRetry: boolean, ids: ScopeIds): Promise<boolean> {
+  if (!isRetry && canRefresh(auth) && refreshCredential) {
+    if (await refreshCredential(auth, ids)) return true;
+  }
+  onUnauthorized?.(auth, ids);
+  return false;
+}
+
 interface ApiFetchOptions extends RequestInit {
   auth: ApiAuthMode;
   // Required when auth is 'operator': which stand's token to send.
@@ -81,12 +93,9 @@ async function doFetch<T>(path: string, options: ApiFetchOptions, isRetry: boole
   });
 
   if (res.status === 401 && auth !== 'public') {
-    // Try a one-shot token refresh before treating the credential as dead.
-    if (!isRetry && canRefresh(auth) && refreshCredential) {
-      const refreshed = await refreshCredential(auth, { standId, eventId });
-      if (refreshed) return doFetch<T>(path, options, true);
+    if (await tryRefreshOr401(auth, isRetry, { standId, eventId })) {
+      return doFetch<T>(path, options, true);
     }
-    onUnauthorized?.(auth, { standId, eventId });
   }
 
   if (!res.ok) {
@@ -189,11 +198,9 @@ async function doStream(path: string, options: StreamSseOptions, isRetry: boolea
   const res = await fetch(`${BASE_URL}${path}`, { ...rest, headers: finalHeaders, signal });
 
   if (res.status === 401 && auth !== 'public') {
-    if (!isRetry && canRefresh(auth) && refreshCredential) {
-      const refreshed = await refreshCredential(auth, { standId, eventId });
-      if (refreshed) return doStream(path, options, true);
+    if (await tryRefreshOr401(auth, isRetry, { standId, eventId })) {
+      return doStream(path, options, true);
     }
-    onUnauthorized?.(auth, { standId, eventId });
   }
 
   if (!res.ok || !res.body) {
