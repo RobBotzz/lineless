@@ -39,7 +39,7 @@ export function AlertDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 px-4 py-8"
       role="presentation"
     >
       <section

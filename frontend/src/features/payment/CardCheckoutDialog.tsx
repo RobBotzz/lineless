@@ -157,16 +157,18 @@ export function CardCheckoutDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 px-4 py-8"
       role="presentation"
     >
       <section
         aria-modal="true"
         role="dialog"
         aria-label="Card payment"
-        className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(31,41,55,0.2)]"
+        className="flex max-h-[calc(100dvh-4rem)] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_24px_80px_rgba(31,41,55,0.2)]"
       >
-        <div className="mb-4 flex items-center justify-between">
+        {/* Header stays put; only the body scrolls, so the close button and
+            title remain reachable when the Stripe element grows tall. */}
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-lg font-semibold text-text">Card payment</h2>
           <button
             type="button"
@@ -178,45 +180,47 @@ export function CardCheckoutDialog({
           </button>
         </div>
 
-        {phase === 'error' ? (
-          <div className="space-y-4">
-            <p className="text-sm text-danger">{error}</p>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={handleCancel}>
-                Cancel
-              </Button>
-              <Button className="flex-1" onClick={handleRetry}>
-                Try again
-              </Button>
+        <div className="overflow-y-auto px-6 py-5">
+          {phase === 'error' ? (
+            <div className="space-y-4">
+              <p className="text-sm text-danger">{error}</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={handleCancel}>
+                  Cancel
+                </Button>
+                <Button className="flex-1" onClick={handleRetry}>
+                  Try again
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : prompt ? (
-          <div className="space-y-4">
-            <p className="text-sm text-text-muted">
-              Your card is only held, not charged, until you pick up your order.
-            </p>
-            {promptError && <p className="text-sm text-danger">{promptError}</p>}
-            <Elements
-              key={prompt.clientSecret}
-              stripe={stripePromise}
-              options={{ clientSecret: prompt.clientSecret }}
-            >
-              <CardPaymentForm
-                onConfirmed={handleCardConfirmed}
-                onError={handleCardError}
-                submitLabel={prompt.label}
+          ) : prompt ? (
+            <div className="space-y-4">
+              <p className="text-sm text-text-muted">
+                Your card is only held, not charged, until you pick up your order.
+              </p>
+              {promptError && <p className="text-sm text-danger">{promptError}</p>}
+              <Elements
+                key={prompt.clientSecret}
+                stripe={stripePromise}
+                options={{ clientSecret: prompt.clientSecret }}
+              >
+                <CardPaymentForm
+                  onConfirmed={handleCardConfirmed}
+                  onError={handleCardError}
+                  submitLabel={prompt.label}
+                />
+              </Elements>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <span
+                className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent"
+                aria-hidden
               />
-            </Elements>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <span
-              className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent"
-              aria-hidden
-            />
-            <p className="text-sm text-text-muted">{message}</p>
-          </div>
-        )}
+              <p className="text-sm text-text-muted">{message}</p>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
