@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -135,6 +135,10 @@ export default function OperatorDashboard() {
     setConfirmItem(null);
   }, [confirmItem, runTransition]);
 
+  // Stable identity so ModalOverlay's Escape listener isn't re-registered on every
+  // re-render (e.g. each SSE frame) while the fulfill dialog is open.
+  const closeConfirm = useCallback(() => setConfirmItem(null), []);
+
   // Both the top chips and the products overview drive this single filter.
   const toggleFilter = useCallback((productId: string) => {
     setFilter((current) => (current === productId ? null : productId));
@@ -166,18 +170,14 @@ export default function OperatorDashboard() {
 
   const items = board?.items ?? [];
   const products = board?.products ?? [];
-  // Color products by their position in the board's product list (not a hash of
-  // the id), so the first PRODUCT_PALETTE.length products always get distinct
-  // colors instead of risking a hash collision.
-  const colorOf = useMemo(() => {
-    const byId = new Map(
-      (board?.products ?? []).map((p, i) => [
-        p.productId,
-        PRODUCT_PALETTE[i % PRODUCT_PALETTE.length],
-      ]),
-    );
-    return (productId: string) => byId.get(productId) ?? PRODUCT_PALETTE[0];
-  }, [board?.products]);
+  // Color products by their position in the product list (not a hash of the id),
+  // so the first PRODUCT_PALETTE.length products always get distinct colors. Built
+  // per render rather than memoized: it's a tiny map, and `board` is a fresh object
+  // on every SSE frame, so a memo keyed on it would rebuild anyway.
+  const productColors = new Map(
+    products.map((p, i) => [p.productId, PRODUCT_PALETTE[i % PRODUCT_PALETTE.length]]),
+  );
+  const colorOf = (productId: string) => productColors.get(productId) ?? PRODUCT_PALETTE[0];
   const visibleItems = filter ? items.filter((item) => item.productId === filter) : items;
   const openCount = products.reduce((sum, product) => sum + product.openToDo, 0);
   const standName = standQuery.data?.standName;
@@ -275,11 +275,7 @@ export default function OperatorDashboard() {
       </div>
 
       {confirmItem && (
-        <FulfillDialog
-          item={confirmItem}
-          onConfirm={confirmFulfill}
-          onCancel={() => setConfirmItem(null)}
-        />
+        <FulfillDialog item={confirmItem} onConfirm={confirmFulfill} onCancel={closeConfirm} />
       )}
 
       {pauseTarget && (
