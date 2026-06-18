@@ -47,7 +47,7 @@ export function CardPaymentForm({ onConfirmed, onError, submitLabel }: CardPayme
       }}
       className="space-y-4"
     >
-      <PaymentElement />
+      <PaymentElement options={{ wallets: { applePay: 'auto', googlePay: 'auto' } }} />
       <Button type="submit" className="h-12 w-full rounded-xl" disabled={!stripe || submitting}>
         {submitting ? 'Authorizing…' : submitLabel}
       </Button>
