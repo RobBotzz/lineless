@@ -1,6 +1,6 @@
 // Order API for the cashier. The cashier always acts as its event's CASHIER
 // stand; callers pass that standId (resolved by CashierLayout) for operator auth.
-import { apiFetch } from './client';
+import { apiFetch, apiFetchAllowing } from './client';
 import { getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
 import type { Order, OrderItemView } from '../types/order';
@@ -79,6 +79,54 @@ export function createOrder(eventId: string, items: OrderItemView[]): Promise<Or
     eventId,
     body: JSON.stringify({ eventId, items: flattenOrderItems(items) }),
   });
+}
+
+// Outcome of placing a card order against a tab. `created` means the order fit
+// the existing authorized hold and is live. `authorizationRequired` means the
+// order exceeded the hold: the backend already created it (gated) and minted a
+// top-up PaymentIntent whose clientSecret must be confirmed to release it.
+export type CardOrderResult =
+  | { status: 'created'; order: Order }
+  | { status: 'authorizationRequired'; clientSecret: string; orderId: string };
+
+// POST /api/orders with a tabId — places a card order against an OPEN tab.
+// A 402 is an expected branch (top-up needed), not an error, so we let the
+// client resolve it and read the clientSecret from the body.
+export async function createCardOrder(
+  eventId: string,
+  items: OrderItemView[],
+  tabId: string,
+): Promise<CardOrderResult> {
+  const { status, data } = await apiFetchAllowing<{
+    order?: Order;
+    clientSecret?: string;
+    orderId?: string;
+  }>(
+    '/orders',
+    {
+      method: 'POST',
+      auth: 'attendee',
+      eventId,
+      body: JSON.stringify({ eventId, tabId, items: flattenOrderItems(items) }),
+    },
+    [402],
+  );
+
+  if (status === 402) {
+    return {
+      status: 'authorizationRequired',
+      clientSecret: data.clientSecret as string,
+      orderId: data.orderId as string,
+    };
+  }
+  return { status: 'created', order: data.order as Order };
+}
+
+// GET /api/orders/:orderId — the attendee's own order by id. Used to hydrate the
+// confirmation screen after a top-up authorization, where the order was created
+// by the backend during the 402 and is not in hand client-side.
+export function getAttendeeOrder(orderId: string, eventId: string): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}`, { auth: 'attendee', eventId });
 }
 
 // GET /api/orders/cashier — unpaid orders for the cashier's event.

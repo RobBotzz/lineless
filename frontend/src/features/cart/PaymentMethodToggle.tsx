@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import type { PaymentMethod } from '@/features/orders/mockPayment';
+import type { PaymentMethod } from '@/features/payment';
 
 interface PaymentMethodToggleProps {
   value: PaymentMethod;
