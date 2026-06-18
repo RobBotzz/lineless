@@ -196,7 +196,7 @@ export function CardCheckoutDialog({
           ) : prompt ? (
             <div className="space-y-4">
               <p className="text-sm text-text-muted">
-                Your card is only held, not charged, until you pick up your order.
+                Your card is only held now. You're charged after the event.
               </p>
               {promptError && <p className="text-sm text-danger">{promptError}</p>}
               <Elements
