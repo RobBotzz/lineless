@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -59,6 +59,17 @@ const COLUMNS: ColumnConfig[] = [
 
 const ACTION_ERROR = 'Could not update the item. It may have moved already — try again.';
 const PAUSE_ERROR = 'Could not change the product. Please try again.';
+// How long a card keeps its move glow after changing column (matches the
+// board-card-glow animation in index.css).
+const MOVE_HIGHLIGHT_MS = 5000;
+
+// A new set with the given keys removed (no-op if there are none).
+function withoutKeys(set: ReadonlySet<string>, keys: readonly string[]): ReadonlySet<string> {
+  if (keys.length === 0) return set;
+  const next = new Set(set);
+  keys.forEach((key) => next.delete(key));
+  return next;
+}
 
 export default function OperatorDashboard() {
   const { eventId, standId } = useParams();
@@ -73,6 +84,15 @@ export default function OperatorDashboard() {
   // The product whose pause/resume dialog is open — UI state only; the request's
   // in-flight + error state lives in pauseMutation below.
   const [pauseTarget, setPauseTarget] = useState<BoardProduct | null>(null);
+  // Items that just changed column (brief move shimmer) and items whose comment
+  // should auto-open after a To Do -> In Progress move. Both live at dashboard
+  // level: a card unmounts/remounts when it changes column, so per-card state
+  // wouldn't survive the move. Moves are detected by diffing consecutive frames.
+  const [recentlyMoved, setRecentlyMoved] = useState<ReadonlySet<string>>(() => new Set());
+  const [autoOpenComment, setAutoOpenComment] = useState<ReadonlySet<string>>(() => new Set());
+  const prevItemStatesRef = useRef<Map<string, BoardItemState>>(new Map());
+  const moveTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => moveTimersRef.current.forEach(clearTimeout), []);
 
   // The stream pushes a fresh full board on every change (and as its first frame),
   // so we just replace local state — no client-side merging of transition responses.
@@ -81,8 +101,39 @@ export default function OperatorDashboard() {
     // `data` arrives as unknown over the wire — validate its shape before trusting
     // it. A malformed/partial/error frame is dropped, keeping the last good board,
     // so it can never be stored and crash a later board.items access.
-    if (isOperatorBoard(data)) setBoard(data);
-    else console.warn('Ignoring malformed operator board frame', data);
+    if (!isOperatorBoard(data)) {
+      console.warn('Ignoring malformed operator board frame', data);
+      return;
+    }
+
+    // Diff against the previous frame to flag items that changed column. Detection
+    // runs here (not in an effect) so the flags are set in the same batch as the
+    // board — the card then mounts in its new column already carrying them.
+    const prev = prevItemStatesRef.current;
+    prevItemStatesRef.current = new Map(data.items.map((item) => [item.itemId, item.state]));
+    if (prev.size > 0) {
+      const moved: string[] = [];
+      const openComment: string[] = [];
+      for (const item of data.items) {
+        const before = prev.get(item.itemId);
+        if (before === undefined || before === item.state) continue; // new or unchanged
+        moved.push(item.itemId);
+        if (before === 'PENDING' && item.state === 'PREPARING' && item.customerComment?.trim()) {
+          openComment.push(item.itemId);
+        }
+      }
+      if (moved.length > 0) {
+        setRecentlyMoved((cur) => new Set([...cur, ...moved]));
+        if (openComment.length > 0) setAutoOpenComment((cur) => new Set([...cur, ...openComment]));
+        const timer = setTimeout(() => {
+          setRecentlyMoved((cur) => withoutKeys(cur, moved));
+          setAutoOpenComment((cur) => withoutKeys(cur, openComment));
+        }, MOVE_HIGHLIGHT_MS);
+        moveTimersRef.current.push(timer);
+      }
+    }
+
+    setBoard(data);
   }, []);
 
   const { status } = useSSE({
@@ -257,6 +308,8 @@ export default function OperatorDashboard() {
               pending={pending}
               onAdvance={advance}
               colorOf={colorOf}
+              recentlyMoved={recentlyMoved}
+              autoOpenComment={autoOpenComment}
             />
           ))}
 
@@ -297,12 +350,16 @@ function BoardColumn({
   pending,
   onAdvance,
   colorOf,
+  recentlyMoved,
+  autoOpenComment,
 }: {
   column: ColumnConfig;
   items: BoardItem[];
   pending: ReadonlySet<string>;
   onAdvance: (item: BoardItem) => void;
   colorOf: (productId: string) => string;
+  recentlyMoved: ReadonlySet<string>;
+  autoOpenComment: ReadonlySet<string>;
 }) {
   return (
     <section className="flex flex-col rounded-lg border border-border bg-surface p-4 shadow-sm">
@@ -325,6 +382,8 @@ function BoardColumn({
               actionLabel={column.actionLabel}
               color={colorOf(item.productId)}
               pending={pending.has(item.itemId)}
+              highlight={recentlyMoved.has(item.itemId)}
+              defaultCommentOpen={autoOpenComment.has(item.itemId)}
               onAdvance={() => onAdvance(item)}
             />
           ))
@@ -343,16 +402,22 @@ function BoardItemCard({
   actionLabel,
   color,
   pending,
+  highlight,
+  defaultCommentOpen,
   onAdvance,
 }: {
   item: BoardItem;
   actionLabel: string;
   color: string;
   pending: boolean;
+  highlight: boolean;
+  defaultCommentOpen: boolean;
   onAdvance: () => void;
 }) {
   const comment = item.customerComment?.trim() || null;
-  const [commentOpen, setCommentOpen] = useState(false);
+  // Initialised from defaultCommentOpen so an item that just moved To Do ->
+  // In Progress mounts in its new column with the comment already expanded.
+  const [commentOpen, setCommentOpen] = useState(defaultCommentOpen);
 
   return (
     <div
@@ -360,6 +425,7 @@ function BoardItemCard({
       className={cn(
         'group relative rounded-md border border-border border-l-4 bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-md',
         pending && 'opacity-60',
+        highlight && 'board-card-moved',
       )}
     >
       {/* Stretched advance button sits behind the content so the whole card is
