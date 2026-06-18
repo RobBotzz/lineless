@@ -13,8 +13,11 @@ stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
   let event: ReturnType<typeof stripe.webhooks.constructEvent>;
   try {
     if (isDev && (!sig || sig === "REPLACE_WITH_STRIPE_CLI_SIGNATURE")) {
-      // In dev, accept raw JSON directly without signature verification
-      event = req.body as ReturnType<typeof stripe.webhooks.constructEvent>;
+      // In dev, accept an unsigned event (e.g. Bruno) without verification. The
+      // body is the raw Buffer, so parse it into the event object here.
+      event = JSON.parse((req.body as Buffer).toString("utf8")) as ReturnType<
+        typeof stripe.webhooks.constructEvent
+      >;
     } else {
       event = stripe.webhooks.constructEvent(
         req.body as Buffer,

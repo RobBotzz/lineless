@@ -15,6 +15,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Forwards live Stripe webhook events to the backend (POST /webhooks/stripe)
+  # so card holds get authorized and tabs move to OPEN. Authenticates with the
+  # committed test key, so teammates need no Stripe login of their own. The
+  # listen signing secret for this account is the whsec_ in Backend config, so
+  # signature verification passes. Requires internet access to Stripe.
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    command:
+      [
+        "listen",
+        "--api-key",
+        "sk_test_REPLACE_WITH_YOUR_STRIPE_TEST_SECRET_KEY",
+        "--forward-to",
+        "backend:8000/webhooks/stripe",
+      ]
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   frontend:
     build: ./Frontend
     ports:
