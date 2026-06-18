@@ -90,7 +90,21 @@ export function CardCheckoutDialog({
     if (existing) {
       const tab = await getTabStatus(existing.tabId, eventId);
       if (tab.status === 'OPEN') return existing.tabId;
-      clearAttendeeTab(eventId); // PAID / FAILED / mid-auth — open a fresh tab
+      // A tab mid-authorization may just be waiting on the webhook (e.g. the
+      // card was confirmed but an earlier poll timed out). Re-poll before
+      // abandoning it, so a confirmed hold isn't orphaned and duplicated as a
+      // second card hold. Only discard once it proves unusable.
+      if (tab.status === 'PENDING_AUTHORIZATION') {
+        try {
+          setMessage('Confirming authorization…');
+          await pollUntilOpen(existing.tabId);
+          return existing.tabId;
+        } catch {
+          // Never opened (declined, or the card was never confirmed) — fall
+          // through and open a fresh tab below.
+        }
+      }
+      clearAttendeeTab(eventId); // PAID / CHECKOUT_PENDING / FAILED / dead
     }
 
     const { tabId, clientSecret } = await createTab(eventId);

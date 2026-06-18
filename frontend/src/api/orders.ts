@@ -72,13 +72,16 @@ export function createManualOrder(
 }
 
 // POST /api/orders — creates an order for the attendee's own cart (attendee session auth).
-export function createOrder(eventId: string, items: OrderItemView[]): Promise<Order> {
-  return apiFetch<Order>('/orders', {
+export async function createOrder(eventId: string, items: OrderItemView[]): Promise<Order> {
+  // POST /orders wraps the created order as { order } (same shape createCardOrder
+  // reads), so unwrap it here rather than treating the body as the order itself.
+  const { order } = await apiFetch<{ order: Order }>('/orders', {
     method: 'POST',
     auth: 'attendee',
     eventId,
     body: JSON.stringify({ eventId, items: flattenOrderItems(items) }),
   });
+  return order;
 }
 
 // Outcome of placing a card order against a tab. `created` means the order fit
