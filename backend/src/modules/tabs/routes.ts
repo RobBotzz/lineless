@@ -1,6 +1,6 @@
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
-import { createTab } from "./service";
+import { createTab, getTabForAttendee } from "./service";
 import { TabNotFoundError, TabStateError } from "./errors";
 import { EventNotFoundError } from "../events/errors";
 import { authAttendee } from "../../middleware/auth/guards";
@@ -35,5 +35,19 @@ tabsRouter.post(
     }
   })
 );
+
+// GET /tabs/:tabId — the owning attendee polls tab status (and headroom) while
+// waiting for the Stripe authorization webhook to flip the tab to OPEN.
+tabsRouter.get("/:tabId", authAttendee, async (req: Request, res: Response) => {
+  try {
+    const tab = await getTabForAttendee(
+      req.params["tabId"] as string,
+      req.attendee!.sessionId
+    );
+    return res.status(200).json(tab);
+  } catch (err) {
+    return handleError(err, res);
+  }
+});
 
 export default tabsRouter;

@@ -13,6 +13,8 @@ import {
   verifyEventOwnership,
 } from "../events/ownership";
 import {
+  getActiveTabTotalCents,
+  getAuthorizedTabCents,
   getReadyTabTotalCents,
   isTabReadyForCheckout,
 } from "../orders/tabAuthorization";
@@ -90,6 +92,27 @@ export async function createTab(
   } finally {
     await dbSession.endSession();
   }
+}
+
+// Read a tab the attendee owns, with its current authorization headroom. The
+// frontend polls this after confirming a card hold: the tab only flips to OPEN
+// once the Stripe webhook lands, so it waits on `status` before submitting the
+// order. `availableCents` lets the client tell whether the next order will fit
+// the existing hold or trigger a top-up.
+export async function getTabForAttendee(tabId: string, sessionId: string) {
+  const tab = await Tab.findOne({ _id: tabId, sessionId }).lean();
+  if (!tab) throw new TabNotFoundError();
+
+  const authorizedCents = await getAuthorizedTabCents(tabId);
+  const consumedCents = await getActiveTabTotalCents(tabId);
+
+  return {
+    tabId: tab._id,
+    status: tab.status,
+    authorizedCents,
+    consumedCents,
+    availableCents: Math.max(authorizedCents - consumedCents, 0),
+  };
 }
 
 async function settleTab(tabId: string, filters: { eventId?: string }) {
