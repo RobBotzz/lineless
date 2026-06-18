@@ -46,3 +46,13 @@ export interface OperatorBoard {
   items: BoardItem[];
   products: BoardProduct[];
 }
+
+// Runtime guard for the SSE/HTTP payload (which arrives as `unknown`). Validates
+// the board's top-level shape so a malformed, partial, or error frame can't be
+// stored as a board and crash a later `board.items` access. Item/product entries
+// are not deep-checked — the component reads them defensively (optional chaining).
+export function isOperatorBoard(value: unknown): value is OperatorBoard {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.standId === 'string' && Array.isArray(v.items) && Array.isArray(v.products);
+}

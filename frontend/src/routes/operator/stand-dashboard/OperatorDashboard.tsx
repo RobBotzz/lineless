@@ -10,7 +10,13 @@ import { pauseProductAsOperator, resumeProductAsOperator } from '@/api/products'
 import { useSSE, type SseStatus } from '@/hooks/useSSE';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import type { BoardItem, BoardItemState, BoardProduct, OperatorBoard } from '@/types/operatorBoard';
+import {
+  isOperatorBoard,
+  type BoardItem,
+  type BoardItemState,
+  type BoardProduct,
+  type OperatorBoard,
+} from '@/types/operatorBoard';
 import { BackButton } from '@/components/shared';
 import { ChatIcon, ChevronDownIcon, PauseIcon, PlayIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -71,7 +77,12 @@ export default function OperatorDashboard() {
   // The stream pushes a fresh full board on every change (and as its first frame),
   // so we just replace local state — no client-side merging of transition responses.
   const handleMessage = useCallback(({ event, data }: { event: string; data: unknown }) => {
-    if (event === OPERATOR_BOARD_EVENT) setBoard(data as OperatorBoard);
+    if (event !== OPERATOR_BOARD_EVENT) return;
+    // `data` arrives as unknown over the wire — validate its shape before trusting
+    // it. A malformed/partial/error frame is dropped, keeping the last good board,
+    // so it can never be stored and crash a later board.items access.
+    if (isOperatorBoard(data)) setBoard(data);
+    else console.warn('Ignoring malformed operator board frame', data);
   }, []);
 
   const { status } = useSSE({
