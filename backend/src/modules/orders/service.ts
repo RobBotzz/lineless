@@ -175,6 +175,9 @@ export async function submitOrder(
       amount: overage,
       currency: "eur",
       capture_method: "manual",
+      // Card only — keeps the top-up consistent with the baseline hold (card +
+      // Apple Pay / Google Pay wallets, no Link/others).
+      payment_method_types: ["card"],
       metadata: { tabId, orderId: newOrderId },
     });
 

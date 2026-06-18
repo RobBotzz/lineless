@@ -60,6 +60,9 @@ export async function createTab(
     amount: baselineHoldCents,
     currency: "eur",
     capture_method: "manual",
+    // Card only — Apple Pay / Google Pay ride on the card type, so they are
+    // offered automatically; Link and other methods are excluded.
+    payment_method_types: ["card"],
     metadata: { sessionId, eventId },
   });
 
