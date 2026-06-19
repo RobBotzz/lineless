@@ -35,14 +35,8 @@ export function writeControlCenterSettings(eventId: string, settings: EventContr
 }
 
 export function normalizeControlCenterSettings(
-  settings: Partial<EventControlCenterSettings> & {
-    queueLengthAlertThreshold?: unknown;
-    averageWaitAlertThresholdMinutes?: unknown;
-    stockAlertThreshold?: unknown;
-  },
+  settings: Partial<EventControlCenterSettings> & { stockAlertThreshold?: unknown },
 ): EventControlCenterSettings {
-  const legacyQueueLengthThreshold = settings.queueLengthAlertThreshold;
-  const legacyAverageWaitThreshold = settings.averageWaitAlertThresholdMinutes;
   const standAlertThresholds: Record<string, StandAlertThreshold> = {};
   const rawStandThresholds = settings.standAlertThresholds;
 
@@ -57,23 +51,7 @@ export function normalizeControlCenterSettings(
       settings.stockAlertThreshold,
       defaultStockAlertThreshold,
     ),
-    standAlertThresholds:
-      Object.keys(standAlertThresholds).length > 0
-        ? standAlertThresholds
-        : legacyQueueLengthThreshold !== undefined || legacyAverageWaitThreshold !== undefined
-          ? {
-              legacy: {
-                queueLengthAlertThreshold: normalizeThreshold(
-                  legacyQueueLengthThreshold,
-                  defaultStandControlCenterThresholds.queueLengthAlertThreshold,
-                ),
-                averageWaitAlertThresholdMinutes: normalizeThreshold(
-                  legacyAverageWaitThreshold,
-                  defaultStandControlCenterThresholds.averageWaitAlertThresholdMinutes,
-                ),
-              },
-            }
-          : {},
+    standAlertThresholds,
   };
 }
 
@@ -81,14 +59,11 @@ export function createSettingsForStands(
   settings: EventControlCenterSettings,
   stands: Pick<Stand, '_id'>[],
 ): EventControlCenterSettings {
-  const legacyThresholds = settings.standAlertThresholds.legacy;
   const standAlertThresholds: Record<string, StandAlertThreshold> = {};
 
   for (const stand of stands) {
     standAlertThresholds[stand._id] =
-      settings.standAlertThresholds[stand._id] ??
-      legacyThresholds ??
-      defaultStandControlCenterThresholds;
+      settings.standAlertThresholds[stand._id] ?? defaultStandControlCenterThresholds;
   }
 
   return {

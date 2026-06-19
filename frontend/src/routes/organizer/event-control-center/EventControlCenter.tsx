@@ -2,30 +2,10 @@ import { useMemo, useState } from 'react';
 import { Navigate, useLoaderData, useParams, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import {
-  EVENT_CONTROL_CENTER_STREAM_EVENT,
-  EVENT_ORDERS_STREAM_EVENT,
-  cancelOrder,
-  cancelOrderItems,
-  eventControlCenterStreamPath,
-  eventOrdersStreamPath,
-  getEventControlCenter,
-  getEventOrders,
-  pauseProduct,
-  pauseStand,
-  resumeProduct,
-  resumeStand,
-  updateProductStock,
-  type EventControlCenterData,
-  type EventControlCenterSettings,
-  type LiveOrder,
-} from '@/api/eventControlCenter';
-import { BackButton } from '@/components/shared';
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
-import { useSSE, type SseStatus } from '@/hooks/useSSE';
+import type { EventControlCenterSettings } from '@/api/eventControlCenter';
 import { paths } from '@/paths';
-import type { Product } from '@/types/product';
-import type { Stand } from '@/types/stand';
+import { ControlCenterHeader } from './components/ControlCenterHeader';
+import type { EventControlCenterLoaderData } from './data';
 import { EventControlCenterAnalyticsPage } from './EventControlCenterAnalyticsPage';
 import { EventControlCenterManagementPage } from './EventControlCenterManagementPage';
 import { EventControlCenterSettingsPage } from './EventControlCenterSettingsPage';
@@ -35,7 +15,7 @@ import {
   readControlCenterSettings,
   writeControlCenterSettings,
 } from './eventControlCenterSettingsStorage';
-import type { EventControlCenterLoaderData } from './data';
+import { useEventControlCenterLiveData } from './hooks/useEventControlCenterLiveData';
 
 export function EventControlCenterError() {
   const error = useRouteError();
@@ -59,11 +39,6 @@ export default function EventControlCenter() {
     productsByStand: initialProductsByStand,
     stands: initialStands,
   } = useLoaderData() as EventControlCenterLoaderData;
-  const [analytics, setAnalytics] = useState(initialAnalytics);
-  const [liveOrders, setLiveOrders] = useState(initialLiveOrders);
-  const [productsByStand, setProductsByStand] = useState(initialProductsByStand);
-  const [stands, setStands] = useState(initialStands);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState(() => new Date());
   const [controlCenterSettingsState, setControlCenterSettingsState] = useState<{
     eventId: string;
     settings: EventControlCenterSettings;
@@ -87,148 +62,27 @@ export default function EventControlCenter() {
         controlCenterSettingsState.eventId === event._id
           ? controlCenterSettingsState.settings
           : readControlCenterSettings(event._id),
-        stands,
+        initialStands,
       ),
-    [controlCenterSettingsState, event._id, stands],
+    [controlCenterSettingsState, event._id, initialStands],
   );
 
-  const analyticsStreamPath = useMemo(
-    () => eventControlCenterStreamPath(event._id, controlCenterSettings),
-    [controlCenterSettings, event._id],
-  );
-  const ordersStreamPath = useMemo(() => eventOrdersStreamPath(event._id), [event._id]);
-
-  const analyticsStream = useSSE({
-    auth: 'organizer',
-    path: analyticsStreamPath,
-    onMessage: (message) => {
-      if (message.event !== EVENT_CONTROL_CENTER_STREAM_EVENT) return;
-      setAnalytics(message.data as EventControlCenterData);
-      setLastUpdatedAt(new Date());
-    },
+  const liveData = useEventControlCenterLiveData({
+    controlCenterSettings,
+    eventId: event._id,
+    initialAnalytics,
+    initialLiveOrders,
+    initialProductsByStand,
+    initialStands,
   });
-  const ordersStream = useSSE({
-    auth: 'organizer',
-    path: ordersStreamPath,
-    onMessage: (message) => {
-      if (message.event !== EVENT_ORDERS_STREAM_EVENT) return;
-      setLiveOrders(message.data as LiveOrder[]);
-      setLastUpdatedAt(new Date());
-    },
-  });
-  const streamStatus = getCombinedStreamStatus(analyticsStream.status, ordersStream.status);
-  const streamError = analyticsStream.error ?? ordersStream.error;
-
-  async function refreshSnapshot() {
-    const [nextAnalytics, nextLiveOrders] = await Promise.all([
-      getEventControlCenter(event._id, controlCenterSettings),
-      getEventOrders(event._id),
-    ]);
-    setAnalytics(nextAnalytics);
-    setLiveOrders(nextLiveOrders);
-    setLastUpdatedAt(new Date());
-  }
-
-  async function handleCancelOrder(orderId: string) {
-    await cancelOrder(event._id, orderId);
-    await refreshSnapshot();
-  }
-
-  async function handleCancelOrderItems(orderId: string, itemIds: string[]) {
-    await cancelOrderItems(event._id, orderId, itemIds);
-    await refreshSnapshot();
-  }
 
   function handleControlCenterSettingsChange(settings: EventControlCenterSettings) {
     const normalizedSettings = createSettingsForStands(
       normalizeControlCenterSettings(settings),
-      stands,
+      liveData.stands,
     );
     writeControlCenterSettings(event._id, normalizedSettings);
     setControlCenterSettingsState({ eventId: event._id, settings: normalizedSettings });
-  }
-
-  async function handleProductPauseChange(standId: string, product: Product, paused: boolean) {
-    if (paused) {
-      await pauseProduct(product._id);
-    } else {
-      await resumeProduct(product._id);
-    }
-
-    const currentStandProducts = productsByStand[standId] ?? [];
-    const nextStandProducts = currentStandProducts.map((candidate) =>
-      candidate._id === product._id
-        ? { ...candidate, productStatus: paused ? 'PAUSED' : 'LIVE' }
-        : candidate,
-    );
-
-    if (paused) {
-      const hasLiveProducts = nextStandProducts.some(
-        (candidate) => candidate.productStatus === 'LIVE',
-      );
-      const stand = stands.find((candidate) => candidate._id === standId);
-      if (!hasLiveProducts && stand?.standStatus === 'LIVE') {
-        const updatedStand = await pauseStand(event._id, standId);
-        setStands((current) =>
-          current.map((candidate) => (candidate._id === standId ? updatedStand : candidate)),
-        );
-      }
-    } else {
-      const stand = stands.find((candidate) => candidate._id === standId);
-      if (stand?.standStatus === 'PAUSED') {
-        const updatedStand = await resumeStand(event._id, standId);
-        setStands((current) =>
-          current.map((candidate) => (candidate._id === standId ? updatedStand : candidate)),
-        );
-      }
-    }
-
-    setProductsByStand((current) => ({
-      ...current,
-      [standId]: (current[standId] ?? []).map((candidate) =>
-        candidate._id === product._id
-          ? { ...candidate, productStatus: paused ? 'PAUSED' : 'LIVE' }
-          : candidate,
-      ),
-    }));
-  }
-
-  async function handleStandPauseChange(stand: Stand, paused: boolean) {
-    const updatedStand = paused
-      ? await pauseStand(event._id, stand._id)
-      : await resumeStand(event._id, stand._id);
-    const standProducts = productsByStand[stand._id] ?? [];
-    const productsToSync = standProducts.filter((product) =>
-      paused ? product.productStatus === 'LIVE' : product.productStatus === 'PAUSED',
-    );
-
-    await Promise.all(
-      productsToSync.map((product) =>
-        paused ? pauseProduct(product._id) : resumeProduct(product._id),
-      ),
-    );
-
-    setStands((current) =>
-      current.map((candidate) => (candidate._id === stand._id ? updatedStand : candidate)),
-    );
-    setProductsByStand((current) => ({
-      ...current,
-      [stand._id]: (current[stand._id] ?? []).map((product) =>
-        product.productStatus === 'TERMINATED'
-          ? product
-          : { ...product, productStatus: paused ? 'PAUSED' : 'LIVE' },
-      ),
-    }));
-  }
-
-  async function handleProductStockChange(standId: string, product: Product, productStock: number) {
-    const updatedProduct = await updateProductStock(event._id, standId, product._id, productStock);
-    setProductsByStand((current) => ({
-      ...current,
-      [standId]: (current[standId] ?? []).map((candidate) =>
-        candidate._id === product._id ? updatedProduct : candidate,
-      ),
-    }));
   }
 
   if (hasInvalidSection) {
@@ -237,83 +91,40 @@ export default function EventControlCenter() {
 
   return (
     <div className="space-y-6">
-      <BackButton to={paths.organizer.event(event._id)}>Event Configuration</BackButton>
-
-      <Card>
-        <CardHeader>
-          <div className="min-w-0">
-            <CardTitle className="text-2xl font-bold">{event.name || 'Untitled Event'}</CardTitle>
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-text-muted">
-              <span>
-                Last updated:{' '}
-                <span className="font-medium tabular-nums text-text">
-                  {lastUpdatedAt.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-              </span>
-              <span className="hidden text-border sm:inline">•</span>
-              <ConnectionStatusBadge error={streamError} status={streamStatus} />
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+      <ControlCenterHeader
+        backTo={paths.organizer.event(event._id)}
+        eventName={event.name}
+        lastUpdatedAt={liveData.lastUpdatedAt}
+        streamError={liveData.streamError}
+        streamStatus={liveData.streamStatus}
+      />
 
       {activeSection === 'analytics' ? (
         <EventControlCenterAnalyticsPage
-          analytics={analytics}
+          analytics={liveData.analytics}
           eventStartAt={event.startedAt ?? event.createdAt}
-          productsByStand={productsByStand}
-          stands={stands}
+          productsByStand={liveData.productsByStand}
+          stands={liveData.stands}
         />
       ) : activeSection === 'settings' ? (
         <EventControlCenterSettingsPage
           key={`${event._id}-${JSON.stringify(controlCenterSettings)}`}
           settings={controlCenterSettings}
-          stands={stands}
+          stands={liveData.stands}
           onChange={handleControlCenterSettingsChange}
         />
       ) : (
         <EventControlCenterManagementPage
-          liveOrders={liveOrders}
-          productsByStand={productsByStand}
-          stands={stands}
-          onCancelOrderItems={handleCancelOrderItems}
-          onCancelOrder={handleCancelOrder}
-          onProductPauseChange={handleProductPauseChange}
-          onProductStockChange={handleProductStockChange}
-          onStandPauseChange={handleStandPauseChange}
+          liveOrders={liveData.liveOrders}
+          productsByStand={liveData.productsByStand}
+          stands={liveData.stands}
+          onCancelOrderItems={liveData.handleCancelOrderItems}
+          onCancelOrder={liveData.handleCancelOrder}
+          onProductPauseChange={liveData.handleProductPauseChange}
+          onProductStockChange={liveData.handleProductStockChange}
+          onStandPauseChange={liveData.handleStandPauseChange}
         />
       )}
     </div>
-  );
-}
-
-function getCombinedStreamStatus(left: SseStatus, right: SseStatus): SseStatus {
-  if (left === 'error' || right === 'error') return 'error';
-  if (left === 'connecting' || right === 'connecting') return 'connecting';
-  if (left === 'open' && right === 'open') return 'open';
-  return 'idle';
-}
-
-function ConnectionStatusBadge({ error, status }: { error: Error | null; status: SseStatus }) {
-  const config =
-    status === 'open'
-      ? { label: 'Live', className: 'text-success', dot: 'bg-success' }
-      : status === 'connecting'
-        ? { label: 'Connecting', className: 'text-accent', dot: 'bg-accent' }
-        : status === 'error'
-          ? { label: 'Reconnecting', className: 'text-danger', dot: 'bg-danger' }
-          : { label: 'Idle', className: 'text-text-muted', dot: 'bg-border' };
-
-  return (
-    <span
-      className={['inline-flex items-center gap-2 font-medium', config.className].join(' ')}
-      title={error?.message}
-    >
-      <span className={['h-2 w-2 rounded-full', config.dot].join(' ')} />
-      {config.label}
-    </span>
   );
 }
