@@ -14,6 +14,7 @@ import type {
   LiveOrder,
   LiveOrderItem,
   ProductRating,
+  ProductStockAlert,
   LiveOrdersQuery,
   RevenuePoint,
   StandQueueMetric,
@@ -32,6 +33,10 @@ type ProductSnapshot = {
 };
 type ProductRatingProductSnapshot = ProductSnapshot & {
   productImageUrl: string | null;
+};
+type ProductStockAlertProductSnapshot = ProductSnapshot & {
+  productStock: number;
+  productStatus: "LIVE" | "PAUSED" | "TERMINATED";
 };
 type ProductLookup = Map<string, ProductSnapshot>;
 type QueueStatsByStand = Map<
@@ -185,6 +190,63 @@ async function loadProductRatingsForEvent(
       };
     })
     .filter((rating): rating is ProductRating => Boolean(rating));
+}
+
+async function loadProductStockAlertsForEvent(
+  eventId: string,
+  standIds: string[],
+  stockAlertThreshold: number
+): Promise<ProductStockAlert[]> {
+  const products = await Product.find({
+    standId: { $in: standIds },
+    productStock: { $lte: stockAlertThreshold },
+    productStatus: { $ne: "TERMINATED" },
+    deletedAt: null,
+  })
+    .select("_id standId productName productStock productStatus")
+    .lean<ProductStockAlertProductSnapshot[]>();
+
+  if (products.length === 0) return [];
+
+  const stockStandIds = [
+    ...new Set(products.map((product) => product.standId)),
+  ];
+  const stands = await Stand.find({
+    _id: { $in: stockStandIds },
+    eventId,
+    deletedAt: null,
+  })
+    .select("_id standName")
+    .lean();
+  const standNameById = new Map(
+    stands.map((stand) => [stand._id, stand.standName])
+  );
+
+  return products
+    .map((product): ProductStockAlert | null => {
+      const standName = standNameById.get(product.standId);
+      if (!standName) return null;
+      if (product.productStatus === "TERMINATED") return null;
+
+      return {
+        productId: product._id,
+        productName: product.productName,
+        standId: product.standId,
+        standName,
+        productStock: product.productStock,
+        stockAlertThreshold,
+        productStatus: product.productStatus,
+      };
+    })
+    .filter((alert): alert is ProductStockAlert => Boolean(alert))
+    .sort((left, right) => {
+      if (left.productStock !== right.productStock) {
+        return left.productStock - right.productStock;
+      }
+      const standCompare = left.standName.localeCompare(right.standName);
+      if (standCompare !== 0) return standCompare;
+      return left.productName.localeCompare(right.productName);
+    });
 }
 
 function buildStandQueueMetrics(
@@ -420,15 +482,21 @@ export async function getEventControlCenter(
   const baseDate = event.startedAt
     ? new Date(event.startedAt)
     : new Date(event.createdAt);
-  const [analytics, activeGuests, productRatings] = await Promise.all([
-    loadEventControlCenterAnalytics(eventId, standIds, baseDate),
-    AttendeeSession.countDocuments({
-      eventId,
-      status: "active",
-      expiresAt: { $gt: new Date() },
-    }),
-    loadProductRatingsForEvent(eventId, standIds),
-  ]);
+  const [analytics, activeGuests, productRatings, productStockAlerts] =
+    await Promise.all([
+      loadEventControlCenterAnalytics(eventId, standIds, baseDate),
+      AttendeeSession.countDocuments({
+        eventId,
+        status: "active",
+        expiresAt: { $gt: new Date() },
+      }),
+      loadProductRatingsForEvent(eventId, standIds),
+      loadProductStockAlertsForEvent(
+        eventId,
+        standIds,
+        options.stockAlertThreshold
+      ),
+    ]);
 
   const eventRevenueBuckets = new Map(
     analytics.eventRevenue.map((point) => [
@@ -480,10 +548,13 @@ export async function getEventControlCenter(
   return {
     totalRevenueCents,
     activeGuests,
-    activeAlertCount: standQueues.filter((queue) => queue.alert).length,
+    activeAlertCount:
+      standQueues.filter((queue) => queue.alert).length +
+      productStockAlerts.length,
     eventRevenue,
     standRevenue,
     standQueues,
+    productStockAlerts,
     productRatings,
   };
 }

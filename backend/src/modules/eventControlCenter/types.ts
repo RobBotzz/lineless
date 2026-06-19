@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const alertThreshold = z.coerce.number().int().min(0);
+const stock = z.number().int().min(0);
 const standAlertThresholdSchema = z.object({
   queueLengthAlertThreshold: alertThreshold.default(10),
   averageWaitAlertThresholdMinutes: alertThreshold.default(15),
@@ -21,6 +22,7 @@ const standAlertThresholdsQuerySchema = z.preprocess((value) => {
 
 export const eventControlCenterQuerySchema = z.object({
   standAlertThresholds: standAlertThresholdsQuerySchema,
+  stockAlertThreshold: alertThreshold.default(5),
 });
 
 export const liveOrdersQuerySchema = z.object({
@@ -29,6 +31,10 @@ export const liveOrdersQuerySchema = z.object({
 
 export const cancelOrderItemsSchema = z.object({
   itemIds: z.array(z.uuid()).min(1),
+});
+
+export const updateProductStockSchema = z.object({
+  productStock: stock,
 });
 
 export type EventControlCenterQuery = z.infer<
@@ -43,7 +49,18 @@ export interface EventControlCenterData {
   eventRevenue: RevenuePoint[];
   standRevenue: StandRevenueSeries[];
   standQueues: StandQueueMetric[];
+  productStockAlerts: ProductStockAlert[];
   productRatings: ProductRating[];
+}
+
+export interface ProductStockAlert {
+  productId: string;
+  productName: string;
+  standId: string;
+  standName: string;
+  productStock: number;
+  stockAlertThreshold: number;
+  productStatus: "LIVE" | "PAUSED";
 }
 
 export interface ProductRating {

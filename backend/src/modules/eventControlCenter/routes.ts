@@ -14,6 +14,8 @@ import {
 import {
   pauseProductForEventControlCenter,
   resumeProductForEventControlCenter,
+  toProductResponse,
+  updateProductStockForEventControlCenter,
 } from "../products/service";
 import {
   pauseStandForEventControlCenter,
@@ -23,6 +25,7 @@ import {
   cancelOrderItemsSchema,
   eventControlCenterQuerySchema,
   liveOrdersQuerySchema,
+  updateProductStockSchema,
 } from "./types";
 
 function eventId(req: Request): string {
@@ -130,6 +133,15 @@ eventControlCenterRouter.get(
         if (rating.eventId !== targetEventId) return;
         sendLatest.send();
       });
+      const unsubscribeProducts = subscribe("product.changed", (product) => {
+        if (
+          !initial.standRevenue.some(
+            (series) => series.standId === product.standId
+          )
+        )
+          return;
+        sendLatest.send();
+      });
       const refreshInterval = setInterval(sendLatest.send, 60_000);
 
       sse.onClose(() => {
@@ -137,6 +149,7 @@ eventControlCenterRouter.get(
         clearInterval(refreshInterval);
         unsubscribe();
         unsubscribeRatings();
+        unsubscribeProducts();
       });
     } catch (err) {
       console.error("Event control center stream error:", err);
@@ -228,6 +241,22 @@ eventControlCenterRouter.get(
       console.error("Event control center orders stream error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
+  })
+);
+
+// PATCH /events/:eventId/event-control-center/stands/:standId/products/:productId/stock
+eventControlCenterRouter.patch(
+  "/stands/:standId/products/:productId/stock",
+  authOrganizer,
+  validateBody(updateProductStockSchema, async (req, res, data) => {
+    const product = await updateProductStockForEventControlCenter(
+      eventId(req),
+      standId(req),
+      productId(req),
+      accountId(req),
+      data.productStock
+    );
+    res.status(200).json(toProductResponse(product));
   })
 );
 

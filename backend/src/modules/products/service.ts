@@ -252,6 +252,28 @@ export async function resumeProductForEventControlCenter(
   return resumeProduct(productId, { type: "organizer", accountId });
 }
 
+export async function updateProductStockForEventControlCenter(
+  eventId: string,
+  standId: string,
+  productId: string,
+  accountId: string,
+  productStock: number
+): Promise<ProductDoc> {
+  await verifyEventOwnership(eventId, accountId);
+  await assertProductBelongsToEventStand(eventId, standId, productId);
+
+  const product = await Product.findOne({
+    _id: productId,
+    standId,
+    deletedAt: null,
+  });
+  if (!product) throw new ProductNotFoundError();
+
+  product.productStock = productStock;
+  await product.save();
+  return product.toObject();
+}
+
 export async function updateProduct(
   productId: string,
   accountId: string,
