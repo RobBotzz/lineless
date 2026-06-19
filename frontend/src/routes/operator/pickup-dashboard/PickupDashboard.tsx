@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 
-import { BackButton } from '../../components/shared';
-import { paths } from '../../paths';
-import { useOperatorNavbarActions } from './operatorNavbarActions';
+import { BackButton } from '@/components/shared';
+import { paths } from '@/paths';
+import { useOperatorNavbarActions } from '../operatorNavbarActions';
 
 type PickupOrderItem = {
   orderNumber: string;
