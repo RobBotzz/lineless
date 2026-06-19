@@ -33,6 +33,16 @@ export type ProductRating = {
   createdAt: string;
 };
 
+export type ProductStockAlert = {
+  productId: string;
+  productName: string;
+  standId: string;
+  standName: string;
+  productStock: number;
+  stockAlertThreshold: number;
+  productStatus: 'LIVE' | 'PAUSED';
+};
+
 export type EventControlCenterData = {
   totalRevenueCents: number;
   activeGuests: number;
@@ -40,6 +50,7 @@ export type EventControlCenterData = {
   eventRevenue: RevenuePoint[];
   standRevenue: StandRevenueSeries[];
   standQueues: StandQueueMetric[];
+  productStockAlerts: ProductStockAlert[];
   productRatings: ProductRating[];
 };
 
@@ -50,6 +61,7 @@ export type StandAlertThreshold = {
 
 export type EventControlCenterSettings = {
   standAlertThresholds: Record<string, StandAlertThreshold>;
+  stockAlertThreshold: number;
 };
 
 export type LiveOrderStatus = 'IN_LINE' | 'PREPARING' | 'READY';
@@ -82,9 +94,12 @@ export const EVENT_CONTROL_CENTER_STREAM_EVENT = 'control-center';
 export const EVENT_ORDERS_STREAM_EVENT = 'orders';
 
 function eventControlCenterSettingsParams(settings?: EventControlCenterSettings): string {
-  return settings
-    ? `?standAlertThresholds=${encodeURIComponent(JSON.stringify(settings.standAlertThresholds))}`
-    : '';
+  if (!settings) return '';
+  const params = new URLSearchParams({
+    standAlertThresholds: JSON.stringify(settings.standAlertThresholds),
+    stockAlertThreshold: String(settings.stockAlertThreshold),
+  });
+  return `?${params.toString()}`;
 }
 
 export function eventControlCenterStreamPath(
@@ -152,6 +167,22 @@ export function resumeProduct(productId: string): Promise<Product> {
     method: 'POST',
     auth: 'organizer',
   });
+}
+
+export function updateProductStock(
+  eventId: string,
+  standId: string,
+  productId: string,
+  productStock: number,
+): Promise<Product> {
+  return apiFetch<Product>(
+    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/stock`,
+    {
+      method: 'PATCH',
+      auth: 'organizer',
+      body: JSON.stringify({ productStock }),
+    },
+  );
 }
 
 export function pauseStand(eventId: string, standId: string): Promise<Stand> {

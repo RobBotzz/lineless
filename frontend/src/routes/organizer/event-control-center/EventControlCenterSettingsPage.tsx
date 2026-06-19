@@ -7,6 +7,7 @@ import { TextField } from '@/components/ui/text-field';
 import {
   createSettingsForStands,
   defaultControlCenterSettings,
+  defaultStockAlertThreshold,
   defaultStandControlCenterThresholds,
   normalizeControlCenterSettings,
 } from './eventControlCenterSettingsStorage';
@@ -36,6 +37,7 @@ export function EventControlCenterSettingsPage({
   ) {
     setSavedMessage(null);
     setForm((current) => ({
+      ...current,
       standAlertThresholds: {
         ...current.standAlertThresholds,
         [standId]: {
@@ -43,6 +45,14 @@ export function EventControlCenterSettingsPage({
           [key]: value,
         },
       },
+    }));
+  }
+
+  function updateStockAlertThreshold(value: number) {
+    setSavedMessage(null);
+    setForm((current) => ({
+      ...current,
+      stockAlertThreshold: value,
     }));
   }
 
@@ -64,9 +74,25 @@ export function EventControlCenterSettingsPage({
     <div>
       <Card>
         <CardHeader>
-          <CardTitle>Stand Alert Thresholds</CardTitle>
+          <CardTitle>Alert Thresholds</CardTitle>
         </CardHeader>
         <CardContent>
+          <section className="mb-5 rounded-lg border border-border bg-background px-4 py-4">
+            <h3 className="font-semibold text-text">Stock Alerts</h3>
+            <div className="mt-4 max-w-sm">
+              <TextField
+                helperText="Products are flagged when their stock reaches this number or lower."
+                id="stock-alert-threshold"
+                label="Stock alert threshold"
+                min={0}
+                onChange={(event) => updateStockAlertThreshold(Number(event.target.value))}
+                step={1}
+                type="number"
+                value={form.stockAlertThreshold ?? defaultStockAlertThreshold}
+              />
+            </div>
+          </section>
+
           {stands.length > 0 ? (
             <div className="space-y-4">
               {stands.map((stand) => {

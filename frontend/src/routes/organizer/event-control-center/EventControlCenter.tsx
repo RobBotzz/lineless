@@ -15,6 +15,7 @@ import {
   pauseStand,
   resumeProduct,
   resumeStand,
+  updateProductStock,
   type EventControlCenterData,
   type EventControlCenterSettings,
   type LiveOrder,
@@ -71,16 +72,8 @@ export default function EventControlCenter() {
     settings: readControlCenterSettings(event._id),
   }));
   const { section } = useParams();
-  const [selectedStandId, setSelectedStandId] = useState<string>(
-    () => initialStands[0]?._id ?? 'all',
-  );
   const activeSection =
     section === 'management' ? 'management' : section === 'settings' ? 'settings' : 'analytics';
-
-  const selectedStand =
-    selectedStandId === 'all'
-      ? null
-      : (stands.find((stand) => stand._id === selectedStandId) ?? null);
 
   const hasInvalidSection =
     section !== undefined &&
@@ -228,6 +221,16 @@ export default function EventControlCenter() {
     }));
   }
 
+  async function handleProductStockChange(standId: string, product: Product, productStock: number) {
+    const updatedProduct = await updateProductStock(event._id, standId, product._id, productStock);
+    setProductsByStand((current) => ({
+      ...current,
+      [standId]: (current[standId] ?? []).map((candidate) =>
+        candidate._id === product._id ? updatedProduct : candidate,
+      ),
+    }));
+  }
+
   if (hasInvalidSection) {
     return <Navigate replace to={paths.organizer.eventControlCenterAnalytics(event._id)} />;
   }
@@ -266,7 +269,7 @@ export default function EventControlCenter() {
         />
       ) : activeSection === 'settings' ? (
         <EventControlCenterSettingsPage
-          key={`${event._id}-${JSON.stringify(controlCenterSettings.standAlertThresholds)}`}
+          key={`${event._id}-${JSON.stringify(controlCenterSettings)}`}
           settings={controlCenterSettings}
           stands={stands}
           onChange={handleControlCenterSettingsChange}
@@ -275,14 +278,12 @@ export default function EventControlCenter() {
         <EventControlCenterManagementPage
           liveOrders={liveOrders}
           productsByStand={productsByStand}
-          selectedStand={selectedStand}
-          selectedStandId={selectedStandId}
           stands={stands}
           onCancelOrderItems={handleCancelOrderItems}
           onCancelOrder={handleCancelOrder}
           onProductPauseChange={handleProductPauseChange}
+          onProductStockChange={handleProductStockChange}
           onStandPauseChange={handleStandPauseChange}
-          onSelectStand={setSelectedStandId}
         />
       )}
     </div>

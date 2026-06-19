@@ -1,8 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { type LiveOrder, type LiveOrderItem } from '@/api/eventControlCenter';
 import { AlertDialog } from '@/components/feedback';
-import { ChevronDownIcon, LockIcon, UnlockIcon, WarningTriangleIcon } from '@/components/icons';
+import {
+  ChevronDownIcon,
+  LockIcon,
+  MinusIcon,
+  PlusIcon,
+  UnlockIcon,
+  WarningTriangleIcon,
+} from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Toggle } from '@/components/ui/toggle';
@@ -22,10 +29,8 @@ export function EventControlCenterManagementPage({
   onCancelOrder,
   onCancelOrderItems,
   onProductPauseChange,
+  onProductStockChange,
   onStandPauseChange,
-  onSelectStand,
-  selectedStandId,
-  selectedStand,
   productsByStand,
   stands,
 }: {
@@ -33,136 +38,423 @@ export function EventControlCenterManagementPage({
   onCancelOrder: (orderId: string) => Promise<void>;
   onCancelOrderItems: (orderId: string, itemIds: string[]) => Promise<void>;
   onProductPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
+  onProductStockChange: (standId: string, product: Product, productStock: number) => Promise<void>;
   onStandPauseChange: (stand: Stand, paused: boolean) => Promise<void>;
-  onSelectStand: (standId: string) => void;
   stands: Stand[];
   productsByStand: Record<string, Product[]>;
-  selectedStandId: string;
-  selectedStand: Stand | null;
 }) {
-  const visibleStands = useMemo(
-    () =>
-      selectedStandId === 'all' ? stands : stands.filter((stand) => stand._id === selectedStandId),
-    [selectedStandId, stands],
-  );
+  const [liveOrdersStandId, setLiveOrdersStandId] = useState('all');
+  const selectedLiveOrdersStand =
+    liveOrdersStandId === 'all'
+      ? null
+      : (stands.find((stand) => stand._id === liveOrdersStandId) ?? null);
   const visibleOrders = useMemo(
     () =>
-      selectedStandId === 'all'
+      liveOrdersStandId === 'all'
         ? liveOrders
-        : liveOrders.filter((order) => order.standIds.includes(selectedStandId)),
-    [liveOrders, selectedStandId],
+        : liveOrders.filter((order) => order.standIds.includes(liveOrdersStandId)),
+    [liveOrders, liveOrdersStandId],
   );
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
-      <aside className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Stand Filter</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <select
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft lg:hidden"
-              onChange={(event) => onSelectStand(event.target.value)}
-              value={selectedStandId}
-            >
-              <option value="all">All stands</option>
-              {stands.map((stand) => (
-                <option key={stand._id} value={stand._id}>
-                  {stand.standName}
-                </option>
-              ))}
-            </select>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <CardTitle>
+              Live Orders {selectedLiveOrdersStand ? `- ${selectedLiveOrdersStand.standName}` : ''}
+            </CardTitle>
+            <StandChipFilters
+              ariaLabel="Live orders stand filter"
+              selectedStandId={liveOrdersStandId}
+              stands={stands}
+              onSelectStand={setLiveOrdersStandId}
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <LiveOrdersTable
+            orders={visibleOrders}
+            stands={stands}
+            onCancelOrder={onCancelOrder}
+            onCancelOrderItems={onCancelOrderItems}
+          />
+        </CardContent>
+      </Card>
 
-            <div className="hidden space-y-2 lg:block">
-              <StandFilterButton
-                active={selectedStandId === 'all'}
-                label="All stands"
-                onClick={() => onSelectStand('all')}
-              />
+      <StockManagementSection
+        productsByStand={productsByStand}
+        stands={stands}
+        onProductStockChange={onProductStockChange}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Operational Pausing</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {stands.length > 0 ? (
+            <div className="space-y-4">
               {stands.map((stand) => (
-                <StandFilterButton
-                  active={selectedStandId === stand._id}
+                <StandPausePanel
                   key={stand._id}
-                  label={stand.standName}
-                  onClick={() => onSelectStand(stand._id)}
+                  liveOrders={liveOrders}
+                  onCancelOrderItems={onCancelOrderItems}
+                  onProductPauseChange={onProductPauseChange}
+                  onStandPauseChange={onStandPauseChange}
+                  products={productsByStand[stand._id] ?? []}
+                  stand={stand}
                 />
               ))}
             </div>
-          </CardContent>
-        </Card>
-      </aside>
-
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Live Orders {selectedStand ? `- ${selectedStand.standName}` : ''}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <LiveOrdersTable
-              orders={visibleOrders}
-              stands={stands}
-              onCancelOrder={onCancelOrder}
-              onCancelOrderItems={onCancelOrderItems}
+          ) : (
+            <EmptyState
+              title="No stands configured"
+              message="Create stands before station or product pausing can be managed."
             />
-          </CardContent>
-        </Card>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Operational Pausing</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {visibleStands.length > 0 ? (
-              <div className="space-y-4">
-                {visibleStands.map((stand) => (
-                  <StandPausePanel
-                    key={stand._id}
-                    liveOrders={liveOrders}
-                    onCancelOrderItems={onCancelOrderItems}
-                    onProductPauseChange={onProductPauseChange}
-                    onStandPauseChange={onStandPauseChange}
-                    products={productsByStand[stand._id] ?? []}
-                    stand={stand}
+type StockProductEntry = Product & {
+  standName: string;
+};
+
+type StockProductGroup = {
+  products: StockProductEntry[];
+  standId: string;
+  standName: string;
+};
+
+type StockFilterOption = {
+  label: string;
+  value: string;
+};
+
+function StockManagementSection({
+  onProductStockChange,
+  productsByStand,
+  stands,
+}: {
+  onProductStockChange: (standId: string, product: Product, productStock: number) => Promise<void>;
+  productsByStand: Record<string, Product[]>;
+  stands: Stand[];
+}) {
+  const [selectedStandId, setSelectedStandId] = useState('all');
+  const productStands = useMemo(
+    () => stands.filter((stand) => (productsByStand[stand._id] ?? []).length > 0),
+    [productsByStand, stands],
+  );
+  const boothSelected = selectedStandId !== 'all';
+  const visibleGroups = useMemo((): StockProductGroup[] => {
+    const standScope = boothSelected
+      ? productStands.filter((stand) => stand._id === selectedStandId)
+      : productStands;
+
+    return standScope
+      .map((stand) => ({
+        standId: stand._id,
+        standName: stand.standName,
+        products: [...(productsByStand[stand._id] ?? [])]
+          .sort((left, right) => left.productName.localeCompare(right.productName))
+          .map((product) => ({ ...product, standName: stand.standName })),
+      }))
+      .filter((group) => group.products.length > 0);
+  }, [boothSelected, productStands, productsByStand, selectedStandId]);
+  const visibleProductCount = visibleGroups.reduce(
+    (total, group) => total + group.products.length,
+    0,
+  );
+
+  function handleSelectStand(standId: string) {
+    setSelectedStandId(standId);
+  }
+
+  return (
+    <Card>
+      <CardHeader className="gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle>Stock Management</CardTitle>
+            <p className="mt-2 text-sm text-text-muted">
+              Adjust live product stock without changing product availability.
+            </p>
+          </div>
+          <StandChipFilters
+            ariaLabel="Stock management booth filter"
+            selectedStandId={selectedStandId}
+            stands={productStands}
+            onSelectStand={handleSelectStand}
+          />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {visibleProductCount > 0 ? (
+          <div className="space-y-3">
+            {visibleGroups.map((group) => (
+              <section className="space-y-3" key={group.standId}>
+                {!boothSelected && (
+                  <h3 className="text-sm font-semibold text-text-muted">{group.standName}</h3>
+                )}
+                {group.products.map((product) => (
+                  <StockProductRow
+                    key={`${product._id}-${product.productStock}`}
+                    product={product}
+                    onSave={(nextStock) =>
+                      onProductStockChange(product.standId, product, nextStock)
+                    }
                   />
                 ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No stands configured"
-                message="Create stands before station or product pausing can be managed."
-              />
+              </section>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No products found"
+            message="Products for the selected filter will appear here."
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StandChipFilters({
+  ariaLabel,
+  onSelectStand,
+  selectedStandId,
+  stands,
+}: {
+  ariaLabel: string;
+  onSelectStand: (standId: string) => void;
+  selectedStandId: string;
+  stands: Pick<Stand, '_id' | 'standName'>[];
+}) {
+  return (
+    <div className="w-full space-y-3 lg:max-w-xl lg:justify-self-end">
+      <StockChipFilter
+        ariaLabel={ariaLabel}
+        label="Stands"
+        options={stands.map((stand) => ({ label: stand.standName, value: stand._id }))}
+        selectedValue={selectedStandId}
+        resetValue={selectedStandId !== 'all' ? 'all' : undefined}
+        onSelect={onSelectStand}
+      />
+    </div>
+  );
+}
+
+function StockChipFilter({
+  ariaLabel,
+  label,
+  onSelect,
+  options,
+  resetValue,
+  selectedValue,
+}: {
+  ariaLabel: string;
+  label: string;
+  onSelect: (value: string) => void;
+  options: StockFilterOption[];
+  resetValue?: string;
+  selectedValue: string;
+}) {
+  return (
+    <div className="relative space-y-2">
+      <p className="text-right text-xs font-semibold uppercase tracking-wide text-text-muted">
+        {label}
+      </p>
+      <div
+        aria-label={ariaLabel}
+        className="flex justify-end gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="group"
+      >
+        {options.map((option) => (
+          <button
+            aria-pressed={selectedValue === option.value}
+            className={[
+              'inline-flex max-w-48 shrink-0 items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium shadow-sm transition-colors duration-200 ease-out',
+              selectedValue === option.value
+                ? 'border-accent bg-accent text-[var(--color-button-text)] shadow-[0_10px_24px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]'
+                : 'border-border bg-surface text-text hover:border-accent/30 hover:bg-surface-muted',
+            ].join(' ')}
+            key={option.value}
+            title={option.label}
+            type="button"
+            onClick={() =>
+              onSelect(selectedValue === option.value && resetValue ? resetValue : option.value)
+            }
+          >
+            <span className="truncate">{option.label}</span>
+            {selectedValue === option.value && resetValue && (
+              <span aria-hidden className="text-xs font-bold leading-none">
+                x
+              </span>
             )}
-          </CardContent>
-        </Card>
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
-function StandFilterButton({
-  active,
+function StockProductRow({
+  onSave,
+  product,
+}: {
+  onSave: (productStock: number) => Promise<void>;
+  product: StockProductEntry;
+}) {
+  const [draftStock, setDraftStock] = useState(String(product.productStock));
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const parsedStock = parseStockDraft(draftStock);
+  const isTerminated = product.productStatus === 'TERMINATED';
+  const isDirty = parsedStock !== null && parsedStock !== product.productStock;
+  const canSave = !isTerminated && isDirty && !isSaving;
+
+  function stepStock(delta: number) {
+    const base = parsedStock ?? product.productStock;
+    setDraftStock(String(Math.max(0, base + delta)));
+    setError(null);
+  }
+
+  async function handleSave() {
+    if (parsedStock === null) {
+      setError('Enter a non-negative whole number.');
+      return;
+    }
+    if (!canSave) return;
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      await onSave(parsedStock);
+    } catch {
+      setError('Stock could not be saved.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <section
+      className={[
+        'grid gap-4 rounded-lg border border-border bg-background p-4 md:grid-cols-[minmax(10rem,1fr)_auto] md:items-center',
+        isTerminated ? 'opacity-70' : '',
+      ].join(' ')}
+    >
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="truncate font-semibold text-text">{product.productName}</h3>
+          <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-muted">
+            {product.standName}
+          </span>
+          <ProductStatusBadge status={product.productStatus} />
+        </div>
+        <p className="mt-1 text-sm text-text-muted">
+          Current stock:{' '}
+          <span className="font-semibold tabular-nums text-text">{product.productStock}</span>
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2 md:items-end">
+        <div className="flex items-center gap-2">
+          <IconButton
+            disabled={isTerminated || isSaving || (parsedStock ?? product.productStock) <= 0}
+            label={`Decrease ${product.productName} stock`}
+            onClick={() => stepStock(-1)}
+          >
+            <MinusIcon />
+          </IconButton>
+          <input
+            aria-label={`${product.productName} stock`}
+            className="h-10 w-24 rounded-lg border border-border bg-surface px-3 text-center text-sm font-semibold tabular-nums text-text outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted"
+            disabled={isTerminated || isSaving}
+            min={0}
+            onChange={(event) => {
+              setDraftStock(event.target.value);
+              setError(null);
+            }}
+            step={1}
+            type="number"
+            value={draftStock}
+          />
+          <IconButton
+            disabled={isTerminated || isSaving}
+            label={`Increase ${product.productName} stock`}
+            onClick={() => stepStock(1)}
+          >
+            <PlusIcon />
+          </IconButton>
+          <Button disabled={!canSave} onClick={() => void handleSave()} size="sm">
+            {isSaving ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+        {error ? (
+          <p className="text-xs font-medium text-danger">{error}</p>
+        ) : parsedStock === null ? (
+          <p className="text-xs text-danger">Enter a non-negative whole number.</p>
+        ) : isDirty ? (
+          <p className="text-xs text-text-muted">Unsaved stock change.</p>
+        ) : (
+          <p className="text-xs text-text-muted">Stock is up to date.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ProductStatusBadge({ status }: { status: Product['productStatus'] }) {
+  const className =
+    status === 'LIVE'
+      ? 'border-success/30 bg-success/10 text-success'
+      : status === 'PAUSED'
+        ? 'border-danger/30 bg-danger/10 text-danger'
+        : 'border-border bg-surface-muted text-text-muted';
+  const label = status === 'LIVE' ? 'Live' : status === 'PAUSED' ? 'Paused' : 'Terminated';
+
+  return (
+    <span
+      className={['rounded-full border px-2 py-0.5 text-xs font-semibold', className].join(' ')}
+    >
+      {label}
+    </span>
+  );
+}
+
+function IconButton({
+  children,
+  disabled,
   label,
   onClick,
 }: {
-  active: boolean;
+  children: ReactNode;
+  disabled?: boolean;
   label: string;
   onClick: () => void;
 }) {
   return (
     <button
-      className={[
-        'w-full truncate rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
-        active
-          ? 'bg-accent text-[var(--color-button-text)]'
-          : 'text-text-muted hover:bg-surface-muted hover:text-text',
-      ].join(' ')}
+      aria-label={label}
+      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition hover:bg-surface-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={disabled}
       onClick={onClick}
       type="button"
     >
-      {label}
+      {children}
     </button>
   );
+}
+
+function parseStockDraft(value: string): number | null {
+  if (value.trim() === '') return null;
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 0) return null;
+  return numeric;
 }
 
 function LiveOrdersTable({

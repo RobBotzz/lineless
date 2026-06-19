@@ -6,8 +6,11 @@ export const defaultStandControlCenterThresholds: StandAlertThreshold = {
   averageWaitAlertThresholdMinutes: 15,
 };
 
+export const defaultStockAlertThreshold = 5;
+
 export const defaultControlCenterSettings: EventControlCenterSettings = {
   standAlertThresholds: {},
+  stockAlertThreshold: defaultStockAlertThreshold,
 };
 
 function controlCenterSettingsKey(eventId: string): string {
@@ -35,6 +38,7 @@ export function normalizeControlCenterSettings(
   settings: Partial<EventControlCenterSettings> & {
     queueLengthAlertThreshold?: unknown;
     averageWaitAlertThresholdMinutes?: unknown;
+    stockAlertThreshold?: unknown;
   },
 ): EventControlCenterSettings {
   const legacyQueueLengthThreshold = settings.queueLengthAlertThreshold;
@@ -49,6 +53,10 @@ export function normalizeControlCenterSettings(
   }
 
   return {
+    stockAlertThreshold: normalizeThreshold(
+      settings.stockAlertThreshold,
+      defaultStockAlertThreshold,
+    ),
     standAlertThresholds:
       Object.keys(standAlertThresholds).length > 0
         ? standAlertThresholds
@@ -83,7 +91,13 @@ export function createSettingsForStands(
       defaultStandControlCenterThresholds;
   }
 
-  return { standAlertThresholds };
+  return {
+    standAlertThresholds,
+    stockAlertThreshold: normalizeThreshold(
+      settings.stockAlertThreshold,
+      defaultStockAlertThreshold,
+    ),
+  };
 }
 
 function normalizeStandAlertThreshold(value: unknown): StandAlertThreshold {
