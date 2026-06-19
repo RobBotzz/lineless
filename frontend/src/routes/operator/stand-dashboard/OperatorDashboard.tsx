@@ -77,7 +77,7 @@ export default function OperatorDashboard() {
 
   const [board, setBoard] = useState<OperatorBoard | null>(null);
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
-  const [filter, setFilter] = useState<string | null>(null);
+  const [filters, setFilters] = useState<ReadonlySet<string>>(() => new Set());
   const [actionError, setActionError] = useState<string | null>(null);
   // The item awaiting pickup-code confirmation before it is handed over.
   const [confirmItem, setConfirmItem] = useState<BoardItem | null>(null);
@@ -190,10 +190,17 @@ export default function OperatorDashboard() {
   // re-render (e.g. each SSE frame) while the fulfill dialog is open.
   const closeConfirm = useCallback(() => setConfirmItem(null), []);
 
-  // Both the top chips and the products overview drive this single filter.
+  // Multi-select board filter, driven by the top chips. Kept independent of
+  // `board`, so it persists across SSE updates (moving an item never clears it).
   const toggleFilter = useCallback((productId: string) => {
-    setFilter((current) => (current === productId ? null : productId));
+    setFilters((current) => {
+      const next = new Set(current);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
   }, []);
+  const clearFilters = useCallback(() => setFilters(new Set()), []);
 
   // Only one pause/resume runs at a time (it's a modal), so a single mutation
   // owns the in-flight + error state. The board itself updates over the SSE stream
@@ -229,8 +236,11 @@ export default function OperatorDashboard() {
     products.map((p, i) => [p.productId, PRODUCT_PALETTE[i % PRODUCT_PALETTE.length]]),
   );
   const colorOf = (productId: string) => productColors.get(productId) ?? PRODUCT_PALETTE[0];
-  const visibleItems = filter ? items.filter((item) => item.productId === filter) : items;
-  const openCount = products.reduce((sum, product) => sum + product.openToDo, 0);
+  const visibleItems =
+    filters.size > 0 ? items.filter((item) => filters.has(item.productId)) : items;
+  // The products overview is filtered the same way (it no longer drives the filter).
+  const visibleProducts =
+    filters.size > 0 ? products.filter((product) => filters.has(product.productId)) : products;
   const standName = standQuery.data?.standName;
   const pauseError = pauseMutation.error
     ? pauseMutation.error instanceof ApiError
@@ -282,10 +292,19 @@ export default function OperatorDashboard() {
                   product={product}
                   color={colorOf(product.productId)}
                   count={items.filter((item) => item.productId === product.productId).length}
-                  active={filter === product.productId}
+                  active={filters.has(product.productId)}
                   onToggle={() => toggleFilter(product.productId)}
                 />
               ))}
+              {filters.size > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-muted shadow-sm transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
           )}
         </header>
@@ -314,11 +333,8 @@ export default function OperatorDashboard() {
           ))}
 
           <ProductsOverview
-            products={products}
-            openCount={openCount}
-            activeFilter={filter}
+            products={visibleProducts}
             colorOf={colorOf}
-            onToggleFilter={toggleFilter}
             onRequestPause={(product) => {
               pauseMutation.reset();
               setPauseTarget(product);
@@ -624,19 +640,16 @@ function PauseProductDialog({
 
 function ProductsOverview({
   products,
-  openCount,
-  activeFilter,
   colorOf,
-  onToggleFilter,
   onRequestPause,
 }: {
   products: BoardProduct[];
-  openCount: number;
-  activeFilter: string | null;
   colorOf: (productId: string) => string;
-  onToggleFilter: (productId: string) => void;
   onRequestPause: (product: BoardProduct) => void;
 }) {
+  // Reflects the products shown — when a filter is active these are only the
+  // selected ones, so the count stays consistent with the rows below.
+  const openCount = products.reduce((sum, product) => sum + product.openToDo, 0);
   return (
     <section className="flex flex-col rounded-lg border border-border bg-surface p-4 shadow-sm">
       <div className="mb-4">
@@ -655,8 +668,6 @@ function ProductsOverview({
               key={product.productId}
               product={product}
               color={colorOf(product.productId)}
-              active={activeFilter === product.productId}
-              onToggleFilter={() => onToggleFilter(product.productId)}
               onRequestPause={() => onRequestPause(product)}
             />
           ))
@@ -673,14 +684,10 @@ function ProductsOverview({
 function ProductSummaryRow({
   product,
   color,
-  active,
-  onToggleFilter,
   onRequestPause,
 }: {
   product: BoardProduct;
   color: string;
-  active: boolean;
-  onToggleFilter: () => void;
   onRequestPause: () => void;
 }) {
   const paused = product.productStatus === 'PAUSED';
@@ -689,22 +696,11 @@ function ProductSummaryRow({
   return (
     <div
       className={cn(
-        'relative rounded-lg border transition',
-        active ? 'border-accent bg-accent-soft' : 'border-border bg-background',
+        'rounded-lg border border-border bg-background',
         product.productStatus !== 'LIVE' && 'opacity-80',
       )}
     >
-      {/* Stretched filter button sits behind the content so the whole row filters
-          the board, while the pause/resume control stays independently tappable. */}
-      <button
-        type="button"
-        onClick={onToggleFilter}
-        aria-pressed={active}
-        aria-label={`Filter board by ${product.productName}`}
-        className="absolute inset-0 z-0 rounded-lg focus:outline-none"
-      />
-
-      <div className="pointer-events-none relative z-10 flex flex-col gap-1.5 p-3">
+      <div className="flex flex-col gap-1.5 p-3">
         <div className="flex items-start gap-2">
           <span
             className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
@@ -740,7 +736,7 @@ function ProductSummaryRow({
               onClick={onRequestPause}
               aria-label={paused ? `Resume ${product.productName}` : `Pause ${product.productName}`}
               className={cn(
-                'pointer-events-auto inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                 paused
                   ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
                   : 'border-warning/50 bg-warning/20 text-text hover:bg-warning/40',
