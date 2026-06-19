@@ -1,4 +1,6 @@
-import { CheckCircleIcon, StandIcon } from '@/components/icons';
+import type { ReactNode } from 'react';
+
+import { CheckCircleIcon, HourglassCircleIcon, StandIcon } from '@/components/icons';
 import type { Order, OrderItemView } from '@/types/order';
 
 import { OrderSummary } from './OrderSummary';
@@ -11,6 +13,12 @@ interface OrderConfirmationProps {
   // Banner copy is passed in so each persona words it its own way.
   title: string;
   subtitle: string;
+  // 'success' = paid/confirmed (green); 'pending' = action required, pay at cashier (the
+  // shared `warning` token, same as StandDialog's password-change notice).
+  variant?: 'success' | 'pending';
+  // Extra section rendered right after the order-number/pickup-code meta grid
+  // and before the product summary (e.g. cashier stand location).
+  afterMeta?: ReactNode;
 }
 
 export function OrderConfirmation({
@@ -19,17 +27,26 @@ export function OrderConfirmation({
   total,
   title,
   subtitle,
+  variant = 'success',
+  afterMeta,
 }: OrderConfirmationProps) {
-  const banner = (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-success/40 bg-success/5 p-8 text-center">
-      <CheckCircleIcon className="h-12 w-12 text-success" />
-      <h2 className="text-xl font-semibold text-text">{title}</h2>
-      <p className="text-sm text-text-muted">{subtitle}</p>
-    </div>
-  );
+  const banner =
+    variant === 'pending' ? (
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 p-8 text-center">
+        <HourglassCircleIcon className="h-12 w-12 text-warning" />
+        <h2 className="text-xl font-semibold text-text">{title}</h2>
+        <p className="text-sm text-text-muted">{subtitle}</p>
+      </div>
+    ) : (
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-success/40 bg-success/5 p-8 text-center">
+        <CheckCircleIcon className="h-12 w-12 text-success" />
+        <h2 className="text-xl font-semibold text-text">{title}</h2>
+        <p className="text-sm text-text-muted">{subtitle}</p>
+      </div>
+    );
 
   const orderMeta = (
-    <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-4">
       <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
         <p className="text-xs text-text-muted">Order Number</p>
         <p className="mt-1 text-lg font-semibold text-accent">{order.orderNumber}</p>
@@ -54,12 +71,11 @@ export function OrderConfirmation({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="mt-4 space-y-6">
       {banner}
-      <div className="space-y-4 lg:grid lg:grid-cols-[1fr_280px] lg:items-start lg:gap-6 lg:space-y-0">
-        {productSummary}
-        <div className="lg:sticky lg:top-6">{orderMeta}</div>
-      </div>
+      {orderMeta}
+      {afterMeta}
+      {productSummary}
     </div>
   );
 }

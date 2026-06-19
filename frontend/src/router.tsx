@@ -31,14 +31,15 @@ import AttendeeProductSelection, {
 } from './routes/attendee/product-selection/ProductSelection';
 import { productSelectionLoader } from './routes/attendee/product-selection/data';
 import AttendeeCart from './routes/attendee/cart/Cart';
-import AttendeeCheckout from './routes/attendee/checkout/Checkout';
+import AttendeeOrderConfirmed from './routes/attendee/checkout/OrderConfirmed';
+import AttendeeCashPaymentPending from './routes/attendee/checkout/CashPaymentPending';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
-import OperatorLinkEntry from './routes/operator/OperatorLinkEntry';
-import OperatorPickupDashboard from './routes/operator/PickupDashboard';
-import OperatorStandDashboard from './routes/operator/Queue';
-import OperatorStandSelection from './routes/operator/StandSelection';
+import OperatorLinkEntry from './routes/operator/link-entry/OperatorLinkEntry';
+import OperatorPickupDashboard from './routes/operator/pickup-dashboard/PickupDashboard';
+import OperatorStandDashboard from './routes/operator/stand-dashboard/OperatorDashboard';
+import OperatorStandSelection from './routes/operator/stand-selection/StandSelection';
 import CashierLayout from './routes/operator/cashier/CashierLayout';
 import CashierHome from './routes/operator/cashier/CashierHome';
 import CashierManualOrder from './routes/operator/cashier/CashierManualOrder';
@@ -100,7 +101,8 @@ export const router = createBrowserRouter(
           errorElement={<ProductSelectionError />}
         />
         <Route path="cart" element={<AttendeeCart />} />
-        <Route path="checkout" element={<AttendeeCheckout />} />
+        <Route path="checkout/:orderId/confirmed" element={<AttendeeOrderConfirmed />} />
+        <Route path="checkout/:orderId/pending" element={<AttendeeCashPaymentPending />} />
         <Route path="orders" element={<AttendeeOrderHistory />} />
       </Route>
 

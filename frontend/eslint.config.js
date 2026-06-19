@@ -20,6 +20,11 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Matches tsc's --noUnusedParameters convention: a leading underscore
+      // marks a parameter as intentionally unused (e.g. unimplemented stubs).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
   },
   {
     // Shadcn-style ui components export both a component and its variants helper.

@@ -42,16 +42,20 @@ export function deleteProduct(productId: string): Promise<void> {
   });
 }
 
-export function pauseProductAsOperator(productId: string, standId: string): Promise<Product> {
-  return apiFetch<Product>(`/products/${productId}/pause`, {
+// Availability control, scoped to the operator's stand. Status is its own explicit
+// transition (not PATCH); the backend 409s if the product is already in that state.
+// LIVE -> PAUSED: attendees can no longer order this product.
+export function pauseProductAsOperator(productId: string, standId: string): Promise<void> {
+  return apiFetch<void>(`/products/${productId}/pause`, {
     method: 'POST',
     auth: 'operator',
     standId,
   });
 }
 
-export function resumeProductAsOperator(productId: string, standId: string): Promise<Product> {
-  return apiFetch<Product>(`/products/${productId}/resume`, {
+// PAUSED -> LIVE: the product becomes orderable again.
+export function resumeProductAsOperator(productId: string, standId: string): Promise<void> {
+  return apiFetch<void>(`/products/${productId}/resume`, {
     method: 'POST',
     auth: 'operator',
     standId,

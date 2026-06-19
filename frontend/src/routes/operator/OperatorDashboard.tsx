@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 
-import { OPERATOR_BOARD_STREAM_EVENT, operatorBoardStreamPath } from '@/api/operatorBoard';
+import { OPERATOR_BOARD_EVENT, OPERATOR_BOARD_STREAM_PATH } from '@/api/operatorBoard';
 import { advanceOrderItemAsOperator } from '@/api/orders';
 import { pauseProductAsOperator, resumeProductAsOperator } from '@/api/products';
 import { AlertDialog } from '@/components/feedback';
@@ -40,10 +40,10 @@ export default function Dashboard() {
   const stream = useSSE({
     auth: 'operator',
     enabled: Boolean(standId),
-    path: standId ? operatorBoardStreamPath() : null,
+    path: standId ? OPERATOR_BOARD_STREAM_PATH : null,
     standId,
     onMessage: (message) => {
-      if (message.event !== OPERATOR_BOARD_STREAM_EVENT) return;
+      if (message.event !== OPERATOR_BOARD_EVENT) return;
       setBoard(message.data as OperatorBoard);
     },
   });

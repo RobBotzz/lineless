@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router';
 
-import { startOperatorSession } from '../../auth/keychain';
-import { paths } from '../../paths';
+import { startOperatorSession } from '@/auth/keychain';
+import { paths } from '@/paths';
 
 // Secret-link entry point: persist the event link key, then replace the URL so
 // the key never lingers in browser history or a Referer header.
