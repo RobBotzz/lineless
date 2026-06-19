@@ -50,6 +50,18 @@ function canRefresh(auth: ApiAuthMode): auth is 'organizer' | 'operator' {
   return auth === 'organizer' || auth === 'operator';
 }
 
+// On a 401 for an authed request: try a one-shot token refresh. Returns true if
+// the caller should retry once (the token was refreshed); otherwise routes the
+// dead credential to onUnauthorized and returns false. Shared by doFetch and
+// doStream so fetch and stream auth can never drift apart.
+async function tryRefreshOr401(auth: AuthScope, isRetry: boolean, ids: ScopeIds): Promise<boolean> {
+  if (!isRetry && canRefresh(auth) && refreshCredential) {
+    if (await refreshCredential(auth, ids)) return true;
+  }
+  onUnauthorized?.(auth, ids);
+  return false;
+}
+
 interface ApiFetchOptions extends RequestInit {
   auth: ApiAuthMode;
   // Required when auth is 'operator': which stand's token to send.
@@ -100,12 +112,9 @@ async function doFetch<T>(
   });
 
   if (res.status === 401 && auth !== 'public') {
-    // Try a one-shot token refresh before treating the credential as dead.
-    if (!isRetry && canRefresh(auth) && refreshCredential) {
-      const refreshed = await refreshCredential(auth, { standId, eventId });
-      if (refreshed) return doFetch<T>(path, options, true, allowStatuses);
+    if (await tryRefreshOr401(auth, isRetry, { standId, eventId })) {
+      return doFetch<T>(path, options, true, allowStatuses);
     }
-    onUnauthorized?.(auth, { standId, eventId });
   }
 
   if (!res.ok && !allowStatuses.includes(res.status)) {
@@ -168,4 +177,105 @@ async function extractError(res: Response): Promise<string> {
   } catch {
     return res.statusText;
   }
+}
+
+export interface SseFrame {
+  event: string;
+  data: string;
+}
+
+export interface StreamSseOptions extends Omit<ApiFetchOptions, 'body' | 'method' | 'signal'> {
+  // Abort to close the stream (unmount / dependency change). Required so a stream
+  // can never outlive its component.
+  signal: AbortSignal;
+  onMessage: (frame: SseFrame) => void;
+  // Fires once the connection is established (HTTP 200, before the first frame).
+  onOpen?: () => void;
+}
+
+// Low-level Server-Sent-Events transport — the streaming sibling of apiFetch.
+// It attaches the same persona credential (attachAuthHeader), performs the same
+// one-shot refresh + onUnauthorized on a 401, then keeps the connection open and
+// hands every decoded frame to onMessage until the server closes, the caller
+// aborts (options.signal), or the socket errors. Resolves on a clean end; rejects
+// on a connection/HTTP error so useSSE can decide whether to reconnect.
+//
+// We read the stream over fetch rather than via the native EventSource because
+// EventSource cannot send an Authorization header, which every authed stream needs.
+export async function streamSse(path: string, options: StreamSseOptions): Promise<void> {
+  return doStream(path, options, false);
+}
+
+// `isRetry` mirrors doFetch: at most one refresh + reconnect per connect attempt.
+async function doStream(path: string, options: StreamSseOptions, isRetry: boolean): Promise<void> {
+  const { auth, standId, eventId, signal, onMessage, onOpen, headers, ...rest } = options;
+
+  const finalHeaders = new Headers(headers);
+  finalHeaders.set('Accept', 'text/event-stream');
+  attachAuthHeader(finalHeaders, auth, { standId, eventId });
+
+  const res = await fetch(`${BASE_URL}${path}`, { ...rest, headers: finalHeaders, signal });
+
+  if (res.status === 401 && auth !== 'public') {
+    if (await tryRefreshOr401(auth, isRetry, { standId, eventId })) {
+      return doStream(path, options, true);
+    }
+  }
+
+  if (!res.ok || !res.body) {
+    const message = await extractError(res);
+    throw new ApiError(res.status, message);
+  }
+
+  onOpen?.();
+  await readSseStream(res.body, onMessage);
+}
+
+// Decode the chunked body and split it into SSE frames on the blank-line delimiter.
+async function readSseStream(
+  body: ReadableStream<Uint8Array>,
+  onMessage: (frame: SseFrame) => void,
+): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let boundary = buffer.indexOf('\n\n');
+      while (boundary !== -1) {
+        const frame = parseSseFrame(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 2);
+        if (frame) onMessage(frame);
+        boundary = buffer.indexOf('\n\n');
+      }
+    }
+  } finally {
+    void reader.cancel().catch(() => undefined);
+  }
+}
+
+// Parse one frame block. Returns null for heartbeats (comment-only, no data line).
+function parseSseFrame(raw: string): SseFrame | null {
+  let event = 'message';
+  const data: string[] = [];
+
+  for (const rawLine of raw.split('\n')) {
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+    if (line === '' || line.startsWith(':')) continue; // blank or comment (heartbeat)
+
+    const colon = line.indexOf(':');
+    const field = colon === -1 ? line : line.slice(0, colon);
+    let value = colon === -1 ? '' : line.slice(colon + 1);
+    if (value.startsWith(' ')) value = value.slice(1); // SSE strips one leading space
+
+    if (field === 'event') event = value;
+    else if (field === 'data') data.push(value);
+  }
+
+  return data.length > 0 ? { event, data: data.join('\n') } : null;
 }

@@ -12,7 +12,7 @@ import { CashierIcon, LockIcon, PickupIcon, PinIcon, StandIcon } from '@/compone
 import { paths } from '@/paths';
 import { hasCoordinates } from '@/types/location';
 import type { Stand } from '@/types/stand';
-import { operatorStandsQueryOptions } from './operatorQueries';
+import { operatorStandsQueryOptions } from '../operatorQueries';
 
 const LINK_EXPIRED_MESSAGE = 'Link expired. Please reopen the operator link.';
 const LOGIN_FAILED_MESSAGE = 'Login failed. Please try again.';
