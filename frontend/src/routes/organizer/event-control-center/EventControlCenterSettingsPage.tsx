@@ -28,7 +28,7 @@ export function EventControlCenterSettingsPage({
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   const normalizedSettings = createSettingsForStands(settings, stands);
-  const hasChanges = JSON.stringify(form) !== JSON.stringify(normalizedSettings);
+  const hasChanges = !controlCenterSettingsEqual(form, normalizedSettings);
 
   function updateStandThreshold(
     standId: string,
@@ -168,4 +168,38 @@ export function EventControlCenterSettingsPage({
       </Card>
     </div>
   );
+}
+
+function controlCenterSettingsEqual(
+  left: EventControlCenterSettings,
+  right: EventControlCenterSettings,
+): boolean {
+  if (
+    (left.stockAlertThreshold ?? defaultStockAlertThreshold) !==
+    (right.stockAlertThreshold ?? defaultStockAlertThreshold)
+  ) {
+    return false;
+  }
+
+  const standIds = new Set([
+    ...Object.keys(left.standAlertThresholds),
+    ...Object.keys(right.standAlertThresholds),
+  ]);
+
+  for (const standId of standIds) {
+    const leftThresholds =
+      left.standAlertThresholds[standId] ?? defaultStandControlCenterThresholds;
+    const rightThresholds =
+      right.standAlertThresholds[standId] ?? defaultStandControlCenterThresholds;
+
+    if (
+      leftThresholds.queueLengthAlertThreshold !== rightThresholds.queueLengthAlertThreshold ||
+      leftThresholds.averageWaitAlertThresholdMinutes !==
+        rightThresholds.averageWaitAlertThresholdMinutes
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }

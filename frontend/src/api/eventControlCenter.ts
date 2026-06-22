@@ -155,18 +155,32 @@ export function cancelOrderItems(
   );
 }
 
-export function pauseProduct(productId: string): Promise<Product> {
-  return apiFetch<Product>(`/products/${productId}/pause`, {
-    method: 'POST',
-    auth: 'organizer',
-  });
+export function pauseProduct(
+  eventId: string,
+  standId: string,
+  productId: string,
+): Promise<Product> {
+  return apiFetch<Product>(
+    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/pause`,
+    {
+      method: 'POST',
+      auth: 'organizer',
+    },
+  );
 }
 
-export function resumeProduct(productId: string): Promise<Product> {
-  return apiFetch<Product>(`/products/${productId}/resume`, {
-    method: 'POST',
-    auth: 'organizer',
-  });
+export function resumeProduct(
+  eventId: string,
+  standId: string,
+  productId: string,
+): Promise<Product> {
+  return apiFetch<Product>(
+    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/resume`,
+    {
+      method: 'POST',
+      auth: 'organizer',
+    },
+  );
 }
 
 export function updateProductStock(

@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from 'react-router';
+import { Outlet, useMatch } from 'react-router';
 import { OrganizerRequireAuth } from '../../auth/organizer/OrganizerRequireAuth';
 import { useOrganizerAuth } from '../../auth/organizer/OrganizerAuthContext';
 import { AccountMenu, OrganizerNavbar } from '../../components/layout';
@@ -6,12 +6,12 @@ import { paths } from '../../paths';
 
 export default function OrganizerLayout() {
   const { logout } = useOrganizerAuth();
-  const { pathname } = useLocation();
-  const eventControlCenterMatch = pathname.match(
-    /^\/organizer\/events\/([^/]+)\/event-control-center\/([^/]+)\/?$/,
-  );
-  const eventControlCenterEventId = eventControlCenterMatch?.[1];
-  const eventControlCenterSection = eventControlCenterMatch?.[2];
+  const eventControlCenterMatch = useMatch({
+    path: '/organizer/events/:eventId/event-control-center/:section',
+    end: false,
+  });
+  const eventControlCenterEventId = eventControlCenterMatch?.params.eventId;
+  const eventControlCenterSection = eventControlCenterMatch?.params.section;
   const isEventControlCenterRoute = Boolean(eventControlCenterMatch);
   const eventControlCenterLinks = eventControlCenterEventId
     ? [

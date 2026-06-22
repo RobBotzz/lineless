@@ -91,9 +91,9 @@ export function useEventControlCenterLiveData({
 
   async function handleProductPauseChange(standId: string, product: Product, paused: boolean) {
     if (paused) {
-      await pauseProduct(product._id);
+      await pauseProduct(eventId, standId, product._id);
     } else {
-      await resumeProduct(product._id);
+      await resumeProduct(eventId, standId, product._id);
     }
 
     const currentStandProducts = productsByStand[standId] ?? [];
@@ -145,7 +145,9 @@ export function useEventControlCenterLiveData({
 
     await Promise.all(
       productsToSync.map((product) =>
-        paused ? pauseProduct(product._id) : resumeProduct(product._id),
+        paused
+          ? pauseProduct(eventId, stand._id, product._id)
+          : resumeProduct(eventId, stand._id, product._id),
       ),
     );
 
