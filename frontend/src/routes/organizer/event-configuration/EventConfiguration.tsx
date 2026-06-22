@@ -103,6 +103,7 @@ export default function EventConfiguration() {
   const [editingStand, setEditingStand] = useState<Stand | null>(null);
   const [pendingDeleteStandId, setPendingDeleteStandId] = useState<string | null>(null);
   const [pendingDeleteEvent, setPendingDeleteEvent] = useState(false);
+  const [pendingCompleteEvent, setPendingCompleteEvent] = useState(false);
 
   // Product dialog: track which stand we're adding to / which product we're editing.
   const [productDialog, setProductDialog] = useState<{
@@ -202,6 +203,11 @@ export default function EventConfiguration() {
     setPendingDeleteEvent(false);
   }
 
+  function confirmCompleteEvent() {
+    submit({ intent: 'stop' });
+    setPendingCompleteEvent(false);
+  }
+
   function handleSave() {
     const patch: UpdateEventInput = {
       name: form.name,
@@ -264,7 +270,7 @@ export default function EventConfiguration() {
                 <Button
                   className="w-full"
                   disabled={!canStop || busy}
-                  onClick={() => submit({ intent: 'stop' })}
+                  onClick={() => setPendingCompleteEvent(true)}
                   size="lg"
                   variant="secondary"
                 >
@@ -555,6 +561,19 @@ export default function EventConfiguration() {
           onAcknowledge={confirmDeleteEvent}
           onCancel={() => setPendingDeleteEvent(false)}
           title="Delete event?"
+        />
+
+        <AlertDialog
+          acknowledgeLabel="Complete Event"
+          cancelLabel="Cancel"
+          message={
+            pendingCompleteEvent
+              ? 'Completing the event closes every open tab and charges each guest for the items they received. Items that are not yet ready or fulfilled will not be charged, and the remaining card holds are released. This cannot be undone.'
+              : null
+          }
+          onAcknowledge={confirmCompleteEvent}
+          onCancel={() => setPendingCompleteEvent(false)}
+          title="Complete event?"
         />
 
         <AlertDialog
