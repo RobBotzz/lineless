@@ -271,17 +271,84 @@ async function checkoutReadyTabsForEvent(
   };
 }
 
-export async function checkoutTabsForEvent(
-  eventId: string
-): Promise<BulkTabCheckoutResult> {
-  return checkoutReadyTabsForEvent(eventId);
-}
-
 export async function checkoutTabsForOrganizerEvent(
   eventId: string,
   accountId: string
 ): Promise<BulkTabCheckoutResult> {
   await verifyEventOwnership(eventId, accountId);
+  return checkoutReadyTabsForEvent(eventId);
+}
+
+// Prepares a single tab for final settlement at event end: items the guest never
+// received (not READY/FULFILLED) are cancelled so they are never charged, and any
+// unconfirmed top-up hold is released. This leaves only delivered items, so the
+// unchanged settlement path charges exactly those and releases the remaining
+// authorization.
+async function finalizeTabForEventEnd(tabId: string): Promise<void> {
+  // Release unconfirmed top-up holds on Stripe first (Stripe is not transactional).
+  const pendingHolds = await TabPayment.find({
+    tabId,
+    tabPaymentStatus: "PENDING",
+  });
+  for (const hold of pendingHolds) {
+    try {
+      await stripe.paymentIntents.cancel(hold.stripePaymentIntentId);
+    } catch {
+      // Already resolved on Stripe's side — nothing to release.
+    }
+  }
+
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      const orders = await Order.find({ tabId }).session(dbSession);
+      const now = new Date();
+      for (const order of orders) {
+        let touched = false;
+        order.items.forEach((item) => {
+          if (!item.readyAt && !item.fulfilledAt && !item.cancelledAt) {
+            item.cancelledAt = now;
+            touched = true;
+          }
+        });
+        if (touched) await order.save({ session: dbSession });
+      }
+
+      await TabPayment.updateMany(
+        { tabId, tabPaymentStatus: "PENDING" },
+        { tabPaymentStatus: "RELEASED" },
+        { session: dbSession }
+      );
+
+      // A tab parked mid top-up returns to OPEN so the settlement loop picks it up.
+      await Tab.updateOne(
+        { _id: tabId, status: "PENDING_AUTHORIZATION" },
+        { status: "OPEN" },
+        { session: dbSession }
+      );
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
+// Final settlement when an event is stopped: closes every open tab. Undelivered
+// items are cancelled (and so never charged), then the existing settlement
+// charges each guest for their READY/FULFILLED items and releases the rest.
+export async function finalizeEventTabs(
+  eventId: string
+): Promise<BulkTabCheckoutResult> {
+  const tabs = await Tab.find({
+    eventId,
+    status: { $in: ["OPEN", "CHECKOUT_PENDING", "PENDING_AUTHORIZATION"] },
+  })
+    .select("_id")
+    .lean();
+
+  for (const tab of tabs) {
+    await finalizeTabForEventEnd(tab._id);
+  }
+
   return checkoutReadyTabsForEvent(eventId);
 }
 
