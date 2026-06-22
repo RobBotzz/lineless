@@ -22,6 +22,7 @@ export interface OrderDoc {
   pickupCode: string;
   customerEmail: string | null;
   paidAt: Date | null;
+  deletedAt: Date | null;
   items: OrderItemDoc[];
   createdAt: Date;
   updatedAt: Date;
@@ -49,6 +50,7 @@ const orderSchema = new Schema<OrderDoc>(
     pickupCode: { type: String, required: true, index: true },
     customerEmail: { type: String, default: null },
     paidAt: { type: Date, default: null },
+    deletedAt: { type: Date, default: null },
     items: [orderItemSchema],
   },
   { timestamps: true }
