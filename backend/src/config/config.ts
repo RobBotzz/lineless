@@ -31,6 +31,8 @@ interface Config {
   stripe: {
     secretKey: string;
     webhookSecret: string;
+    /** Dev-only escape hatch to accept unsigned webhooks (e.g. Bruno). */
+    allowUnsignedWebhooks: boolean;
   };
 }
 
@@ -79,5 +81,9 @@ export const config: Config = {
     webhookSecret:
       process.env["STRIPE_WEBHOOK_SECRET"] ??
       "whsec_REPLACE_WITH_YOUR_STRIPE_WEBHOOK_SECRET",
+    // Defaults to false so it must be opted into per-environment. This can never
+    // be left open in production just because NODE_ENV was not set.
+    allowUnsignedWebhooks:
+      process.env["STRIPE_ALLOW_UNSIGNED_WEBHOOKS"] === "true",
   },
 };

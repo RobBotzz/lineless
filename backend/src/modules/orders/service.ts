@@ -182,41 +182,49 @@ export async function submitOrder(
     });
 
     const dbSession = await mongoose.startSession();
-    await dbSession.withTransaction(async () => {
-      await TabPayment.create(
-        [
-          {
-            tabId,
-            orderId: newOrderId,
-            stripePaymentIntentId: pi.id,
-            tabPaymentStatus: "PENDING",
-            authorizedCentsAmount: overage,
-          },
-        ],
-        { session: dbSession }
-      );
-      await Tab.updateOne(
-        { _id: tabId },
-        { status: "PENDING_AUTHORIZATION" },
-        { session: dbSession }
-      );
-      await Order.create(
-        [
-          {
-            _id: newOrderId,
-            eventId,
-            tabId,
-            sessionId,
-            orderNumber,
-            pickupCode,
-            customerEmail: customerEmail ?? null,
-            items: processedItems,
-          },
-        ],
-        { session: dbSession }
-      );
-    });
-    await dbSession.endSession();
+    try {
+      await dbSession.withTransaction(async () => {
+        await TabPayment.create(
+          [
+            {
+              tabId,
+              orderId: newOrderId,
+              stripePaymentIntentId: pi.id,
+              tabPaymentStatus: "PENDING",
+              authorizedCentsAmount: overage,
+            },
+          ],
+          { session: dbSession }
+        );
+        await Tab.updateOne(
+          { _id: tabId },
+          { status: "PENDING_AUTHORIZATION" },
+          { session: dbSession }
+        );
+        await Order.create(
+          [
+            {
+              _id: newOrderId,
+              eventId,
+              tabId,
+              sessionId,
+              orderNumber,
+              pickupCode,
+              customerEmail: customerEmail ?? null,
+              items: processedItems,
+            },
+          ],
+          { session: dbSession }
+        );
+      });
+    } catch (err) {
+      // The transaction rolled back, so cancel the top-up PaymentIntent created
+      // above — otherwise it is orphaned (no TabPayment row references it).
+      await stripe.paymentIntents.cancel(pi.id).catch(() => undefined);
+      throw err;
+    } finally {
+      await dbSession.endSession();
+    }
 
     return {
       status: 402 as const,
@@ -225,8 +233,10 @@ export async function submitOrder(
     };
   }
 
+  // The existing hold already covers this order, so it is paid immediately. Its
+  // items stay PENDING (startedAt null) — they enter the operator board as new
+  // work and only move to PREPARING when an operator starts them.
   const now = new Date();
-  processedItems.forEach((i) => (i.startedAt = now));
 
   const dbSession = await mongoose.startSession();
   let createdOrder;
@@ -307,9 +317,8 @@ export async function confirmCashPayment(
   const now = new Date();
   order.cashPayment = { _id: crypto.randomUUID(), createdAt: now };
   order.paidAt = now;
-  order.items.forEach((item) => {
-    if (!item.startedAt) item.startedAt = now;
-  });
+  // Items stay PENDING until an operator starts them — paying does not move an
+  // item into PREPARING.
   await order.save();
 
   return order;
@@ -522,6 +531,9 @@ export async function advanceOrderItem(
       if (state !== "PENDING")
         throw new OrderItemStateError("Item must be PENDING to start");
       item.startedAt = now;
+      // Instant products need no preparation: starting one marks it READY in
+      // the same step, skipping PREPARING.
+      if (product.instantProduct) item.readyAt = now;
       break;
     case "ready":
       if (state !== "PREPARING")
@@ -544,23 +556,4 @@ export async function advanceOrderItem(
 
   await order.save();
   return order;
-}
-
-export async function releaseInstantItems(orderId: string): Promise<void> {
-  const order = await Order.findById(orderId);
-  if (!order) throw new OrderNotFoundError();
-
-  const now = new Date();
-  let changed = false;
-
-  for (const item of order.items) {
-    const product = await Product.findById(item.productId).lean();
-    if (product?.instantProduct && !item.startedAt) {
-      item.startedAt = now;
-      item.readyAt = now;
-      changed = true;
-    }
-  }
-
-  if (changed) await order.save();
 }

@@ -8,13 +8,17 @@ const stripe = new Stripe(config.stripe.secretKey);
 
 stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
   const sig = req.headers["stripe-signature"];
-  const isDev = config.nodeEnv !== "production";
+  const allowUnsigned = config.stripe.allowUnsignedWebhooks;
 
   let event: ReturnType<typeof stripe.webhooks.constructEvent>;
   try {
-    if (isDev && (!sig || sig === "REPLACE_WITH_STRIPE_CLI_SIGNATURE")) {
-      // In dev, accept an unsigned event (e.g. Bruno) without verification. The
-      // body is the raw Buffer, so parse it into the event object here.
+    if (
+      allowUnsigned &&
+      (!sig || sig === "REPLACE_WITH_STRIPE_CLI_SIGNATURE")
+    ) {
+      // Flag explicitly enabled: accept an unsigned event (e.g. Bruno) without
+      // verification. The body is the raw Buffer, so parse it into the event
+      // object here.
       event = JSON.parse((req.body as Buffer).toString("utf8")) as ReturnType<
         typeof stripe.webhooks.constructEvent
       >;

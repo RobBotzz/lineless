@@ -1,10 +1,8 @@
 import { Router, type Request, type Response } from "express";
-import { validateBody } from "../../middleware/validate";
 import { createTab, getTabForAttendee } from "./service";
 import { TabNotFoundError, TabStateError } from "./errors";
 import { EventNotFoundError } from "../events/errors";
 import { authAttendee } from "../../middleware/auth/guards";
-import { CreateTabSchema } from "./types";
 
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof TabNotFoundError)
@@ -19,22 +17,19 @@ function handleError(err: unknown, res: Response): unknown {
 
 const tabsRouter = Router();
 
-tabsRouter.post(
-  "/",
-  authAttendee,
-  validateBody(CreateTabSchema, async (req, res, data) => {
-    try {
-      const result = await createTab(
-        req.attendee!.sessionId,
-        req.attendee!.eventId,
-        data.eventId
-      );
-      return res.status(201).json(result);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  })
-);
+// POST /tabs — the attendee session is bound to exactly one event, so the
+// event is derived from the session; no event is taken from the request body.
+tabsRouter.post("/", authAttendee, async (req: Request, res: Response) => {
+  try {
+    const result = await createTab(
+      req.attendee!.sessionId,
+      req.attendee!.eventId
+    );
+    return res.status(201).json(result);
+  } catch (err) {
+    return handleError(err, res);
+  }
+});
 
 // GET /tabs/:tabId — the owning attendee polls tab status (and headroom) while
 // waiting for the Stripe authorization webhook to flip the tab to OPEN.

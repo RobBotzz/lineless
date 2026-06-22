@@ -80,19 +80,11 @@ export async function markAuthorizedTabOrdersPaid(
     consumedCents += orderTotal;
     if (consumedCents > authorizedCents) break;
 
-    let changed = false;
+    // Marking the order paid is what releases it onto the operator board; its
+    // items stay PENDING until an operator explicitly starts preparing them.
     if (!order.paidAt) {
       order.paidAt = now;
-      changed = true;
+      await order.save({ session });
     }
-
-    order.items.forEach((item) => {
-      if (!item.cancelledAt && !item.startedAt) {
-        item.startedAt = now;
-        changed = true;
-      }
-    });
-
-    if (changed) await order.save({ session });
   }
 }
