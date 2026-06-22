@@ -81,7 +81,7 @@ function toForm(event: Event): EventForm {
     name: event.name,
     plannedDate: toDateInputValue(event.plannedDate),
     ratingsEnabled: event.ratingsEnabled,
-    baselineHold: (event.baselineHoldCents / 100).toFixed(2),
+    baselineHold: String(Math.round(event.baselineHoldCents / 100)),
     primaryColor: event.branding.primaryColor,
     secondaryColor: event.branding.secondaryColor,
     location: event.location ?? emptyLocation,
@@ -114,9 +114,10 @@ export default function EventConfiguration() {
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
 
-  // Baseline hold is entered in euros; backend requires at least 100 cents (€1.00).
+  // Baseline hold is entered in whole euros (multiples of €1); backend requires
+  // at least 100 cents (€1.00).
   const baselineHoldEuros = Number(form.baselineHold);
-  const baselineHoldValid = Number.isFinite(baselineHoldEuros) && baselineHoldEuros >= 1;
+  const baselineHoldValid = Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1;
 
   useEffect(() => {
     let frameId: number | null = null;
@@ -367,13 +368,15 @@ export default function EventConfiguration() {
                 id="baseline-hold"
                 label="Card pre-authorization hold (€)"
                 type="number"
-                inputMode="decimal"
+                inputMode="numeric"
                 min="1"
-                step="0.01"
+                step="1"
                 value={form.baselineHold}
                 onChange={(e) => updateField('baselineHold', e.target.value)}
-                helperText="Held on each guest's card when they open a tab. Only what they actually order is charged; the rest is released. Applies to tabs opened after saving."
-                error={baselineHoldValid ? undefined : 'Enter an amount of at least €1.00.'}
+                helperText="Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
+                error={
+                  baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
+                }
               />
 
               <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
