@@ -44,6 +44,10 @@ type ProductStockAlertProductSnapshot = ProductSnapshot & {
   productStatus: "LIVE" | "PAUSED";
 };
 type ProductLookup = Map<string, ProductSnapshot>;
+type LiveOrdersProductScope = {
+  productById: ProductLookup;
+  productIds: string[];
+};
 type QueueStatsByStand = Map<
   string,
   { queueLength: number; readyItemCount: number; totalWaitMinutes: number }
@@ -146,6 +150,18 @@ async function loadProductsByStand(standIds: string[]): Promise<ProductLookup> {
     .lean();
 
   return new Map(products.map((product) => [product._id, product]));
+}
+
+async function loadLiveOrdersProductScope(
+  standIds: string[],
+  standIdFilter?: string
+): Promise<LiveOrdersProductScope> {
+  const productById = await loadProductsByStand(standIds);
+  const productIds = [...productById.values()]
+    .filter((product) => !standIdFilter || product.standId === standIdFilter)
+    .map((product) => product._id);
+
+  return { productById, productIds };
 }
 
 async function loadProductRatingsForEvent(
@@ -592,13 +608,27 @@ export async function listLiveOrdersForEventControlCenter(
     throw new StandNotFoundError();
   }
 
-  const [orders, productById] = await Promise.all([
-    Order.find({ eventId, paidAt: { $ne: null } })
-      .sort({ createdAt: -1 })
-      .limit(LIVE_ORDERS_LIMIT)
-      .lean(),
-    loadProductsByStand(standIds),
-  ]);
+  const { productById, productIds } = await loadLiveOrdersProductScope(
+    standIds,
+    options.standId
+  );
+
+  if (productIds.length === 0) return [];
+
+  const orders = await Order.find({
+    eventId,
+    paidAt: { $ne: null },
+    items: {
+      $elemMatch: {
+        productId: { $in: productIds },
+        fulfilledAt: null,
+        cancelledAt: null,
+      },
+    },
+  })
+    .sort({ createdAt: -1 })
+    .limit(LIVE_ORDERS_LIMIT)
+    .lean();
 
   return orders
     .map((order) => toLiveOrder(order, productById, options.standId))
