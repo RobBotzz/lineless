@@ -25,10 +25,8 @@ export function EventControlCenterAnalyticsPage({
     () => new Map(stands.map((stand) => [stand._id, stand.standName])),
     [stands],
   );
-  const productStockAlerts = analytics.productStockAlerts ?? [];
-  const activeAlertCount =
-    analytics.activeAlertCount ??
-    analytics.standQueues.filter((queue) => queue.alert).length + productStockAlerts.length;
+  const productStockAlerts = analytics.productStockAlerts;
+  const activeAlertCount = analytics.activeAlertCount;
 
   return (
     <div className="space-y-6">

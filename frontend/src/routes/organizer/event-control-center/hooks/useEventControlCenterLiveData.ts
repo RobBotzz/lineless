@@ -107,6 +107,11 @@ export function useEventControlCenterLiveData({
     }
   }
 
+  async function refreshLiveSnapshotIfStreamClosed() {
+    if (streamStatus === 'open') return;
+    await refreshSnapshot();
+  }
+
   async function recoverOperationalSnapshot() {
     try {
       await refreshOperationalSnapshot();
@@ -119,7 +124,7 @@ export function useEventControlCenterLiveData({
     setMutationError(null);
     try {
       await cancelOrder(eventId, orderId);
-      await refreshSnapshot();
+      await refreshLiveSnapshotIfStreamClosed();
     } catch (error) {
       await recoverLiveSnapshot();
       setMutationError('Order could not be cancelled.');
@@ -131,7 +136,7 @@ export function useEventControlCenterLiveData({
     setMutationError(null);
     try {
       await cancelOrderItems(eventId, orderId, itemIds);
-      await refreshSnapshot();
+      await refreshLiveSnapshotIfStreamClosed();
     } catch (error) {
       await recoverLiveSnapshot();
       setMutationError('Selected items could not be cancelled.');
@@ -193,6 +198,7 @@ export function useEventControlCenterLiveData({
 
   async function handleStandPauseChange(stand: Stand, paused: boolean) {
     setMutationError(null);
+    if ((stand.standStatus === 'PAUSED') === paused) return;
     try {
       const updatedStand = paused
         ? await pauseStand(eventId, stand._id)

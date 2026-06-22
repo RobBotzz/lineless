@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import type { LiveOrder, LiveOrderItem } from '@/api/eventControlCenter';
 import { AlertDialog } from '@/components/feedback';
@@ -13,11 +13,13 @@ const LIVE_ORDERS_PER_PAGE = 5;
 
 export function LiveOrdersTable({
   orders,
+  pageResetKey,
   stands,
   onCancelOrder,
   onCancelOrderItems,
 }: {
   orders: LiveOrder[];
+  pageResetKey: string;
   stands: Stand[];
   onCancelOrder: (orderId: string) => Promise<void>;
   onCancelOrderItems: (orderId: string, itemIds: string[]) => Promise<void>;
@@ -29,7 +31,12 @@ export function LiveOrdersTable({
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [cancellingItemOrderId, setCancellingItemOrderId] = useState<string | null>(null);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [confirmingCancellation, setConfirmingCancellation] = useState(false);
+  const confirmingCancellationRef = useRef(false);
+  const [pageState, setPageState] = useState(() => ({
+    currentPage: 1,
+    resetKey: pageResetKey,
+  }));
   const [pendingCancellation, setPendingCancellation] = useState<
     | { type: 'order'; order: LiveOrder }
     | { type: 'items'; order: LiveOrder; itemIds: string[] }
@@ -40,10 +47,16 @@ export function LiveOrdersTable({
     [stands],
   );
   const totalPages = Math.max(1, Math.ceil(orders.length / LIVE_ORDERS_PER_PAGE));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
+  let currentPage = Math.min(pageState.currentPage, totalPages);
+  if (pageState.resetKey !== pageResetKey) {
+    currentPage = 1;
+    setPageState({ currentPage, resetKey: pageResetKey });
+  } else if (pageState.currentPage !== currentPage) {
+    setPageState({ currentPage, resetKey: pageResetKey });
+  }
   const pageOrders = orders.slice(
-    (safeCurrentPage - 1) * LIVE_ORDERS_PER_PAGE,
-    safeCurrentPage * LIVE_ORDERS_PER_PAGE,
+    (currentPage - 1) * LIVE_ORDERS_PER_PAGE,
+    currentPage * LIVE_ORDERS_PER_PAGE,
   );
 
   function toggleExpanded(orderId: string) {
@@ -87,19 +100,24 @@ export function LiveOrdersTable({
   }
 
   async function confirmCancellation() {
+    if (confirmingCancellationRef.current) return;
     const cancellation = pendingCancellation;
     if (!cancellation) return;
 
-    setPendingCancellation(null);
+    confirmingCancellationRef.current = true;
+    setConfirmingCancellation(true);
     setCancellationError(null);
     if (cancellation.type === 'order') {
       setCancellingOrderId(cancellation.order._id);
       try {
         await onCancelOrder(cancellation.order._id);
+        setPendingCancellation(null);
       } catch {
         setCancellationError('Order could not be cancelled.');
       } finally {
         setCancellingOrderId(null);
+        setConfirmingCancellation(false);
+        confirmingCancellationRef.current = false;
       }
       return;
     }
@@ -111,10 +129,13 @@ export function LiveOrdersTable({
         ...current,
         [cancellation.order._id]: [],
       }));
+      setPendingCancellation(null);
     } catch {
       setCancellationError('Selected items could not be cancelled.');
     } finally {
       setCancellingItemOrderId(null);
+      setConfirmingCancellation(false);
+      confirmingCancellationRef.current = false;
     }
   }
 
@@ -161,7 +182,7 @@ export function LiveOrdersTable({
       {totalPages > 1 ? (
         <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
           {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => {
-            const isActive = page === safeCurrentPage;
+            const isActive = page === currentPage;
 
             return (
               <button
@@ -173,7 +194,7 @@ export function LiveOrdersTable({
                     : 'border-border bg-surface text-text-muted hover:bg-surface-muted hover:text-text',
                 ].join(' ')}
                 key={page}
-                onClick={() => setCurrentPage(page)}
+                onClick={() => setPageState({ currentPage: page, resetKey: pageResetKey })}
                 type="button"
               >
                 {page}
@@ -184,7 +205,9 @@ export function LiveOrdersTable({
       ) : null}
 
       <AlertDialog
-        acknowledgeLabel="Cancel order"
+        acknowledgeDisabled={confirmingCancellation}
+        acknowledgeLabel={confirmingCancellation ? 'Cancelling...' : 'Cancel order'}
+        cancelDisabled={confirmingCancellation}
         cancelLabel="Keep order"
         message={
           pendingCancellation?.type === 'order'
@@ -192,12 +215,16 @@ export function LiveOrdersTable({
             : null
         }
         onAcknowledge={() => void confirmCancellation()}
-        onCancel={() => setPendingCancellation(null)}
+        onCancel={() => {
+          if (!confirmingCancellation) setPendingCancellation(null);
+        }}
         title="Cancel order?"
       />
 
       <AlertDialog
-        acknowledgeLabel="Cancel items"
+        acknowledgeDisabled={confirmingCancellation}
+        acknowledgeLabel={confirmingCancellation ? 'Cancelling...' : 'Cancel items'}
+        cancelDisabled={confirmingCancellation}
         cancelLabel="Keep items"
         message={
           pendingCancellation?.type === 'items'
@@ -207,7 +234,9 @@ export function LiveOrdersTable({
             : null
         }
         onAcknowledge={() => void confirmCancellation()}
-        onCancel={() => setPendingCancellation(null)}
+        onCancel={() => {
+          if (!confirmingCancellation) setPendingCancellation(null);
+        }}
         title="Cancel selected items?"
       />
     </>

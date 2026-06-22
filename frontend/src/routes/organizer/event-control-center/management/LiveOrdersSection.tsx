@@ -52,6 +52,7 @@ export function LiveOrdersSection({
       <CardContent>
         <LiveOrdersTable
           orders={visibleOrders}
+          pageResetKey={liveOrdersStandId}
           stands={stands}
           onCancelOrder={onCancelOrder}
           onCancelOrderItems={onCancelOrderItems}

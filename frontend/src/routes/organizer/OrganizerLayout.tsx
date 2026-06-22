@@ -34,7 +34,7 @@ export default function OrganizerLayout() {
       ? paths.organizer.eventControlCenterManagement(eventControlCenterEventId)
       : eventControlCenterEventId && eventControlCenterSection === 'settings'
         ? paths.organizer.eventControlCenterSettings(eventControlCenterEventId)
-        : eventControlCenterEventId && eventControlCenterSection !== 'settings'
+        : eventControlCenterEventId
           ? paths.organizer.eventControlCenterAnalytics(eventControlCenterEventId)
           : undefined;
 

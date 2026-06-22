@@ -142,6 +142,15 @@ export function CheckIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
+export function XIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
 export function WarningTriangleIcon({ className = 'h-8 w-8' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>

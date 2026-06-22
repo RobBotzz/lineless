@@ -1,3 +1,5 @@
+import type { ProductStatus } from './product';
+
 export type RevenuePoint = {
   elapsedMinutes: number;
   intervalRevenueCents: number;
@@ -36,7 +38,7 @@ export type ProductStockAlert = {
   standName: string;
   productStock: number;
   stockAlertThreshold: number;
-  productStatus: 'LIVE' | 'PAUSED';
+  productStatus: Exclude<ProductStatus, 'TERMINATED'>;
 };
 
 export type EventControlCenterData = {

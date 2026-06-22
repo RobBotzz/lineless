@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import type { StandQueueMetric } from '@/api/eventControlCenter';
 import type { Stand } from '@/types/stand';
 import { OperationalCanvas } from '../components/OperationalCanvas';
@@ -17,44 +19,40 @@ export function QueueStandPerformance({
   standQueues: StandQueueMetric[];
   stands: StandDisplay[];
 }) {
-  const queueByStandId = new Map(standQueues.map((queue) => [queue.standId, queue]));
-  const knownStandIds = new Set(stands.map((stand) => stand._id));
-  const entries: QueueStandPerformanceEntry[] = [
-    ...stands.map((stand) => {
-      const queue = queueByStandId.get(stand._id);
+  const visibleEntries = useMemo(() => {
+    const queueByStandId = new Map(standQueues.map((queue) => [queue.standId, queue]));
+    const knownStandIds = new Set(stands.map((stand) => stand._id));
+    const entries: QueueStandPerformanceEntry[] = [
+      ...stands.map((stand) => {
+        const queue = queueByStandId.get(stand._id);
 
-      return {
-        standId: stand._id,
-        standName: stand.standName,
-        queueLength: queue?.queueLength ?? 0,
-        averageWaitMinutes: queue?.averageWaitMinutes ?? 0,
-        alert: queue?.alert ?? false,
-      };
-    }),
-    ...standQueues
-      .filter((queue) => !knownStandIds.has(queue.standId))
-      .map((queue) => ({
-        ...queue,
-        standName: standNameById.get(queue.standId) ?? 'Unknown booth',
-      })),
-  ];
-  const visibleEntries = (
-    entries.length > 0
-      ? entries
-      : stands.map((stand) => ({
+        return {
           standId: stand._id,
           standName: stand.standName,
-          queueLength: 0,
-          averageWaitMinutes: 0,
-          alert: false,
-        }))
-  ).sort((left, right) => {
-    if (right.queueLength !== left.queueLength) {
-      return right.queueLength - left.queueLength;
-    }
-    return right.averageWaitMinutes - left.averageWaitMinutes;
-  });
-  const maxQueueLength = Math.max(...visibleEntries.map((entry) => entry.queueLength), 1);
+          queueLength: queue?.queueLength ?? 0,
+          averageWaitMinutes: queue?.averageWaitMinutes ?? 0,
+          alert: queue?.alert ?? false,
+        };
+      }),
+      ...standQueues
+        .filter((queue) => !knownStandIds.has(queue.standId))
+        .map((queue) => ({
+          ...queue,
+          standName: standNameById.get(queue.standId) ?? 'Unknown booth',
+        })),
+    ];
+
+    return (entries.length > 0 ? entries : []).sort((left, right) => {
+      if (right.queueLength !== left.queueLength) {
+        return right.queueLength - left.queueLength;
+      }
+      return right.averageWaitMinutes - left.averageWaitMinutes;
+    });
+  }, [standNameById, standQueues, stands]);
+  const maxQueueLength = useMemo(
+    () => Math.max(...visibleEntries.map((entry) => entry.queueLength), 1),
+    [visibleEntries],
+  );
 
   if (visibleEntries.length === 0) {
     return (

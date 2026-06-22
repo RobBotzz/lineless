@@ -207,12 +207,9 @@ function createRevenueIntervalPoints(
   if (points.length === 0) return [];
 
   const bucketByStartMinute = new Map<number, { orderCount: number; revenueCents: number }>();
-  let previousRevenueCents = 0;
 
   for (const point of points) {
-    const intervalRevenueCents =
-      point.intervalRevenueCents ?? Math.max(0, point.revenueCents - previousRevenueCents);
-    previousRevenueCents = point.revenueCents;
+    const intervalRevenueCents = point.intervalRevenueCents;
 
     const bucketStartMinute =
       Math.floor(point.elapsedMinutes / granularityMinutes) * granularityMinutes;
@@ -221,7 +218,7 @@ function createRevenueIntervalPoints(
       revenueCents: 0,
     };
 
-    bucket.orderCount += point.orderCount ?? (intervalRevenueCents > 0 ? 1 : 0);
+    bucket.orderCount += point.orderCount;
     bucket.revenueCents += intervalRevenueCents;
     bucketByStartMinute.set(bucketStartMinute, bucket);
   }

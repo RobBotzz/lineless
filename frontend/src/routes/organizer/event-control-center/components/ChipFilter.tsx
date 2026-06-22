@@ -1,3 +1,5 @@
+import { XIcon } from '@/components/icons';
+
 export type ChipFilterOption = {
   label: string;
   value: string;
@@ -46,9 +48,7 @@ export function ChipFilter({
           >
             <span className="truncate">{option.label}</span>
             {selectedValue === option.value && resetValue ? (
-              <span aria-hidden className="text-xs font-bold leading-none">
-                x
-              </span>
+              <XIcon className="h-3.5 w-3.5 shrink-0" />
             ) : null}
           </button>
         ))}

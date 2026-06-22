@@ -27,10 +27,26 @@ export const EVENT_ORDERS_STREAM_EVENT = 'orders';
 function eventControlCenterSettingsParams(settings?: EventControlCenterSettings): string {
   if (!settings) return '';
   const params = new URLSearchParams({
-    standAlertThresholds: JSON.stringify(settings.standAlertThresholds),
+    standAlertThresholds: stableStandAlertThresholdsParam(settings),
     stockAlertThreshold: String(settings.stockAlertThreshold),
   });
   return `?${params.toString()}`;
+}
+
+function stableStandAlertThresholdsParam(settings: EventControlCenterSettings): string {
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(settings.standAlertThresholds)
+        .sort(([leftStandId], [rightStandId]) => leftStandId.localeCompare(rightStandId))
+        .map(([standId, thresholds]) => [
+          standId,
+          {
+            queueLengthAlertThreshold: thresholds.queueLengthAlertThreshold,
+            averageWaitAlertThresholdMinutes: thresholds.averageWaitAlertThresholdMinutes,
+          },
+        ]),
+    ),
+  );
 }
 
 export function eventControlCenterStreamPath(

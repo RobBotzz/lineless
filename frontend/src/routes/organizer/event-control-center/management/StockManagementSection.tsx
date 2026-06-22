@@ -85,7 +85,7 @@ export function StockManagementSection({
                 )}
                 {group.products.map((product) => (
                   <StockProductRow
-                    key={`${product._id}-${product.productStock}`}
+                    key={product._id}
                     product={product}
                     onSave={(nextStock) =>
                       onProductStockChange(product.standId, product, nextStock)
@@ -113,9 +113,22 @@ function StockProductRow({
   onSave: (productStock: number) => Promise<void>;
   product: StockProductEntry;
 }) {
-  const [draftStock, setDraftStock] = useState(String(product.productStock));
+  const [draftState, setDraftState] = useState(() => ({
+    productId: product._id,
+    productStock: product.productStock,
+    value: String(product.productStock),
+  }));
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  let draftStock = draftState.value;
+  if (draftState.productId !== product._id || draftState.productStock !== product.productStock) {
+    draftStock = String(product.productStock);
+    setDraftState({
+      productId: product._id,
+      productStock: product.productStock,
+      value: draftStock,
+    });
+  }
   const parsedStock = parseStockDraft(draftStock);
   const isTerminated = product.productStatus === 'TERMINATED';
   const isDirty = parsedStock !== null && parsedStock !== product.productStock;
@@ -123,7 +136,10 @@ function StockProductRow({
 
   function stepStock(delta: number) {
     const base = parsedStock ?? product.productStock;
-    setDraftStock(String(Math.max(0, base + delta)));
+    setDraftState((current) => ({
+      ...current,
+      value: String(Math.max(0, base + delta)),
+    }));
     setError(null);
   }
 
@@ -181,7 +197,10 @@ function StockProductRow({
             disabled={isTerminated || isSaving}
             min={0}
             onChange={(event) => {
-              setDraftStock(event.target.value);
+              setDraftState((current) => ({
+                ...current,
+                value: event.target.value,
+              }));
               setError(null);
             }}
             step={1}

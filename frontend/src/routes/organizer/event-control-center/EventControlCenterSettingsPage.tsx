@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { EventControlCenterSettings } from '@/api/eventControlCenter';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import {
   createSettingsForStands,
+  createControlCenterSettingsSignature,
   defaultControlCenterSettings,
   defaultStockAlertThreshold,
   defaultStandControlCenterThresholds,
@@ -22,12 +23,24 @@ export function EventControlCenterSettingsPage({
   settings: EventControlCenterSettings;
   stands: Stand[];
 }) {
-  const [form, setForm] = useState<EventControlCenterSettings>(() =>
-    createSettingsForStands(settings, stands),
+  const normalizedSettings = useMemo(
+    () => createSettingsForStands(settings, stands),
+    [settings, stands],
   );
+  const normalizedSettingsSignature = useMemo(
+    () => createControlCenterSettingsSignature(normalizedSettings),
+    [normalizedSettings],
+  );
+  const [formState, setFormState] = useState(() => ({
+    form: normalizedSettings,
+    signature: normalizedSettingsSignature,
+  }));
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
-
-  const normalizedSettings = createSettingsForStands(settings, stands);
+  let form = formState.form;
+  if (formState.signature !== normalizedSettingsSignature) {
+    form = normalizedSettings;
+    setFormState({ form, signature: normalizedSettingsSignature });
+  }
   const hasChanges = !controlCenterSettingsEqual(form, normalizedSettings);
 
   function updateStandThreshold(
@@ -36,13 +49,16 @@ export function EventControlCenterSettingsPage({
     value: number,
   ) {
     setSavedMessage(null);
-    setForm((current) => ({
+    setFormState((current) => ({
       ...current,
-      standAlertThresholds: {
-        ...current.standAlertThresholds,
-        [standId]: {
-          ...(current.standAlertThresholds[standId] ?? defaultStandControlCenterThresholds),
-          [key]: value,
+      form: {
+        ...current.form,
+        standAlertThresholds: {
+          ...current.form.standAlertThresholds,
+          [standId]: {
+            ...(current.form.standAlertThresholds[standId] ?? defaultStandControlCenterThresholds),
+            [key]: value,
+          },
         },
       },
     }));
@@ -50,22 +66,31 @@ export function EventControlCenterSettingsPage({
 
   function updateStockAlertThreshold(value: number) {
     setSavedMessage(null);
-    setForm((current) => ({
+    setFormState((current) => ({
       ...current,
-      stockAlertThreshold: value,
+      form: {
+        ...current.form,
+        stockAlertThreshold: value,
+      },
     }));
   }
 
   function saveSettings() {
     const nextSettings = createSettingsForStands(normalizeControlCenterSettings(form), stands);
-    setForm(nextSettings);
+    setFormState({
+      form: nextSettings,
+      signature: createControlCenterSettingsSignature(nextSettings),
+    });
     onChange(nextSettings);
     setSavedMessage('Settings saved. Analytics will refresh with these thresholds.');
   }
 
   function resetSettings() {
     const nextSettings = createSettingsForStands(defaultControlCenterSettings, stands);
-    setForm(nextSettings);
+    setFormState({
+      form: nextSettings,
+      signature: createControlCenterSettingsSignature(nextSettings),
+    });
     onChange(nextSettings);
     setSavedMessage('Settings reset to defaults.');
   }

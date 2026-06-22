@@ -108,7 +108,7 @@ export default function EventControlCenter() {
         />
       ) : activeSection === 'settings' ? (
         <EventControlCenterSettingsPage
-          key={`${event._id}-${JSON.stringify(controlCenterSettings)}`}
+          key={event._id}
           settings={controlCenterSettings}
           stands={liveData.stands}
           onChange={handleControlCenterSettingsChange}

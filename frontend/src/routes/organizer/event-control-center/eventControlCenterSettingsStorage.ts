@@ -1,4 +1,5 @@
 import type { EventControlCenterSettings, StandAlertThreshold } from '@/api/eventControlCenter';
+import { readJsonFromStorage, writeJsonToStorage } from '@/lib/browserStorage';
 import type { Stand } from '@/types/stand';
 
 export const defaultStandControlCenterThresholds: StandAlertThreshold = {
@@ -18,27 +19,44 @@ function controlCenterSettingsKey(eventId: string): string {
 }
 
 export function readControlCenterSettings(eventId: string): EventControlCenterSettings {
-  if (typeof window === 'undefined') return defaultControlCenterSettings;
-
-  try {
-    const raw = window.localStorage.getItem(controlCenterSettingsKey(eventId));
-    if (!raw) return defaultControlCenterSettings;
-    const parsed = JSON.parse(raw) as Partial<EventControlCenterSettings>;
-    return normalizeControlCenterSettings(parsed);
-  } catch {
-    return defaultControlCenterSettings;
-  }
+  const parsed = readJsonFromStorage(controlCenterSettingsKey(eventId));
+  return parsed === null ? defaultControlCenterSettings : normalizeControlCenterSettings(parsed);
 }
 
 export function writeControlCenterSettings(eventId: string, settings: EventControlCenterSettings) {
-  window.localStorage.setItem(controlCenterSettingsKey(eventId), JSON.stringify(settings));
+  writeJsonToStorage(controlCenterSettingsKey(eventId), settings);
 }
 
-export function normalizeControlCenterSettings(
-  settings: Partial<EventControlCenterSettings> & { stockAlertThreshold?: unknown },
-): EventControlCenterSettings {
+export function createControlCenterSettingsSignature(settings: EventControlCenterSettings): string {
+  return JSON.stringify({
+    stockAlertThreshold: normalizeThreshold(
+      settings.stockAlertThreshold,
+      defaultStockAlertThreshold,
+    ),
+    standAlertThresholds: Object.fromEntries(
+      Object.entries(settings.standAlertThresholds)
+        .sort(([leftStandId], [rightStandId]) => leftStandId.localeCompare(rightStandId))
+        .map(([standId, thresholds]) => [
+          standId,
+          {
+            queueLengthAlertThreshold: normalizeThreshold(
+              thresholds.queueLengthAlertThreshold,
+              defaultStandControlCenterThresholds.queueLengthAlertThreshold,
+            ),
+            averageWaitAlertThresholdMinutes: normalizeThreshold(
+              thresholds.averageWaitAlertThresholdMinutes,
+              defaultStandControlCenterThresholds.averageWaitAlertThresholdMinutes,
+            ),
+          },
+        ]),
+    ),
+  });
+}
+
+export function normalizeControlCenterSettings(settings: unknown): EventControlCenterSettings {
   const standAlertThresholds: Record<string, StandAlertThreshold> = {};
-  const rawStandThresholds = settings.standAlertThresholds;
+  const rawSettings = isRecord(settings) ? settings : {};
+  const rawStandThresholds = rawSettings.standAlertThresholds;
 
   if (rawStandThresholds && typeof rawStandThresholds === 'object') {
     for (const [standId, thresholds] of Object.entries(rawStandThresholds)) {
@@ -48,7 +66,7 @@ export function normalizeControlCenterSettings(
 
   return {
     stockAlertThreshold: normalizeThreshold(
-      settings.stockAlertThreshold,
+      rawSettings.stockAlertThreshold,
       defaultStockAlertThreshold,
     ),
     standAlertThresholds,
@@ -93,4 +111,8 @@ function normalizeThreshold(value: unknown, fallback: number): number {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
   return Math.max(0, Math.round(numeric));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
