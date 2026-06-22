@@ -44,3 +44,22 @@ export interface OrderItemView {
   quantity: number;
   comments: string[]; // per-unit; index i = comment for unit #(i+1), '' if none
 }
+
+// Derive item state from timestamps (most recent non-null determines state).
+export function deriveItemStatus(
+  item: OrderItem,
+): 'PENDING' | 'PREPARING' | 'READY' | 'FULFILLED' | 'CANCELLED' {
+  if (item.cancelledAt) return 'CANCELLED';
+  if (item.fulfilledAt) return 'FULFILLED';
+  if (item.readyAt) return 'READY';
+  if (item.startedAt) return 'PREPARING';
+  return 'PENDING';
+}
+
+// Derive order status: fulfilled only if all non-cancelled items are fulfilled.
+export function deriveOrderStatus(order: Order): 'in-preparation' | 'fulfilled' {
+  const nonCancelledItems = order.items.filter((item) => !item.cancelledAt);
+  if (nonCancelledItems.length === 0) return 'fulfilled'; // no items = done
+  const allFulfilled = nonCancelledItems.every((item) => item.fulfilledAt);
+  return allFulfilled ? 'fulfilled' : 'in-preparation';
+}
