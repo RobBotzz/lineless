@@ -61,6 +61,8 @@ type EventForm = {
   name: string;
   plannedDate: string;
   ratingsEnabled: boolean;
+  // Baseline hold is stored as integer cents on the backend but edited in euros.
+  baselineHold: string;
   primaryColor: string;
   secondaryColor: string;
   location: Location;
@@ -79,6 +81,7 @@ function toForm(event: Event): EventForm {
     name: event.name,
     plannedDate: toDateInputValue(event.plannedDate),
     ratingsEnabled: event.ratingsEnabled,
+    baselineHold: (event.baselineHoldCents / 100).toFixed(2),
     primaryColor: event.branding.primaryColor,
     secondaryColor: event.branding.secondaryColor,
     location: event.location ?? emptyLocation,
@@ -110,6 +113,10 @@ export default function EventConfiguration() {
 
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
+
+  // Baseline hold is entered in euros; backend requires at least 100 cents (€1.00).
+  const baselineHoldEuros = Number(form.baselineHold);
+  const baselineHoldValid = Number.isFinite(baselineHoldEuros) && baselineHoldEuros >= 1;
 
   useEffect(() => {
     let frameId: number | null = null;
@@ -200,6 +207,7 @@ export default function EventConfiguration() {
       // Send undefined rather than an empty string to leave the date unchanged.
       plannedDate: form.plannedDate || undefined,
       ratingsEnabled: form.ratingsEnabled,
+      baselineHoldCents: Math.round(baselineHoldEuros * 100),
       branding: { primaryColor: form.primaryColor, secondaryColor: form.secondaryColor },
       location: form.location,
     };
@@ -355,6 +363,19 @@ export default function EventConfiguration() {
                 value={form.location}
               />
 
+              <TextField
+                id="baseline-hold"
+                label="Card pre-authorization hold (€)"
+                type="number"
+                inputMode="decimal"
+                min="1"
+                step="0.01"
+                value={form.baselineHold}
+                onChange={(e) => updateField('baselineHold', e.target.value)}
+                helperText="Held on each guest's card when they open a tab. Only what they actually order is charged; the rest is released. Applies to tabs opened after saving."
+                error={baselineHoldValid ? undefined : 'Enter an amount of at least €1.00.'}
+              />
+
               <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
                 <label className="text-sm font-medium" htmlFor="ratings-enabled">
                   Optional Product Rating
@@ -393,7 +414,12 @@ export default function EventConfiguration() {
             </div>
 
             <div className="mt-6 flex justify-end">
-              <Button className="px-6" disabled={busy} onClick={handleSave} size="lg">
+              <Button
+                className="px-6"
+                disabled={busy || !baselineHoldValid}
+                onClick={handleSave}
+                size="lg"
+              >
                 {busy ? 'Saving…' : 'Save'}
               </Button>
             </div>

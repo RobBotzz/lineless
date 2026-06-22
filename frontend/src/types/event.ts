@@ -22,6 +22,8 @@ export interface Event {
   ratingsEnabled: boolean;
   cashierEnabled: boolean;
   offlineOrdersEnabled: boolean;
+  // Amount held on a guest's card when they open a tab (integer cents).
+  baselineHoldCents: number;
   branding: EventBranding;
   location: Location;
   startedAt?: string;
@@ -38,6 +40,8 @@ export interface UpdateEventInput {
   ratingsEnabled?: boolean;
   cashierEnabled?: boolean;
   offlineOrdersEnabled?: boolean;
+  // Integer cents; backend enforces a minimum of 100 (€1.00).
+  baselineHoldCents?: number;
   branding?: Partial<EventBranding>;
   // Replace semantics: the backend overwrites the whole location object, so
   // always send all three fields (see src/shared/location.ts locationInputSchema).
