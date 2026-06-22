@@ -89,7 +89,7 @@ function QueueStandPerformanceRow({
   return (
     <div
       className={[
-        'grid gap-4 rounded-lg border p-4 transition md:grid-cols-[minmax(10rem,0.8fr)_minmax(16rem,1.5fr)_auto] md:items-center',
+        'grid gap-4 rounded-lg border p-4 transition md:grid-cols-[minmax(10rem,1fr)_minmax(16rem,1.5fr)_minmax(10rem,1fr)] md:items-center',
         entry.alert ? 'border-danger/30 bg-danger/5' : 'border-border bg-background',
       ].join(' ')}
     >
@@ -128,7 +128,7 @@ function QueueStandPerformanceRow({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 md:justify-end">
+      <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
         <span className="text-sm font-medium text-text-muted md:hidden">Avg. Wait Time</span>
         <span
           className={[
