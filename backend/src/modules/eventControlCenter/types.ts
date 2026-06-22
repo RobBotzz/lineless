@@ -84,11 +84,15 @@ export interface RevenuePoint {
 
 export interface StandRevenueSeries {
   standId: string;
+  standName: string;
+  standStatus: "LIVE" | "PAUSED";
   points: RevenuePoint[];
 }
 
 export interface StandQueueMetric {
   standId: string;
+  standName: string;
+  standStatus: "LIVE" | "PAUSED";
   queueLength: number;
   averageWaitMinutes: number;
   alert: boolean;

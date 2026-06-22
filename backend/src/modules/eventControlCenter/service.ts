@@ -7,7 +7,7 @@ import { Order, type OrderDoc, type OrderItemDoc } from "../orders/model";
 import { Product } from "../products/model";
 import { Rating } from "../ratings/model";
 import { StandNotFoundError } from "../stands/errors";
-import { Stand } from "../stands/model";
+import { Stand, type StandStatus } from "../stands/model";
 import type {
   EventControlCenterData,
   EventControlCenterQuery,
@@ -23,9 +23,14 @@ import type {
 
 type EventControlCenterContext = {
   event: { createdAt: Date; startedAt?: Date };
-  standIds: string[];
+  stands: StandSnapshot[];
 };
 
+type StandSnapshot = {
+  _id: string;
+  standName: string;
+  standStatus: StandStatus;
+};
 type ProductSnapshot = {
   _id: string;
   standId: string;
@@ -36,7 +41,7 @@ type ProductRatingProductSnapshot = ProductSnapshot & {
 };
 type ProductStockAlertProductSnapshot = ProductSnapshot & {
   productStock: number;
-  productStatus: "LIVE" | "PAUSED" | "TERMINATED";
+  productStatus: "LIVE" | "PAUSED";
 };
 type ProductLookup = Map<string, ProductSnapshot>;
 type QueueStatsByStand = Map<
@@ -111,14 +116,16 @@ async function loadEventControlCenterContext(
     Event.findOne({ _id: eventId, deletedAt: null })
       .select("createdAt startedAt")
       .lean(),
-    Stand.find({ eventId, deletedAt: null }).select("_id").lean(),
+    Stand.find({ eventId, deletedAt: null })
+      .select("_id standName standStatus")
+      .lean<StandSnapshot[]>(),
   ]);
 
   if (!event) throw new EventNotFoundError();
 
   return {
     event,
-    standIds: stands.map((stand) => stand._id),
+    stands,
   };
 }
 
@@ -209,7 +216,7 @@ async function loadProductStockAlertsForEvent(
   const products = await Product.find({
     standId: { $in: standIds },
     productStock: { $lte: stockAlertThreshold },
-    productStatus: { $ne: "TERMINATED" },
+    productStatus: { $in: ["LIVE", "PAUSED"] },
     deletedAt: null,
   })
     .select("_id standId productName productStock productStatus")
@@ -235,7 +242,6 @@ async function loadProductStockAlertsForEvent(
     .map((product): ProductStockAlert | null => {
       const standName = standNameById.get(product.standId);
       if (!standName) return null;
-      if (product.productStatus === "TERMINATED") return null;
 
       return {
         productId: product._id,
@@ -259,12 +265,12 @@ async function loadProductStockAlertsForEvent(
 }
 
 function buildStandQueueMetrics(
-  standIds: string[],
+  stands: StandSnapshot[],
   queueStatsByStand: QueueStatsByStand,
   options: EventControlCenterQuery
 ): StandQueueMetric[] {
-  return standIds.map((standId) => {
-    const stats = queueStatsByStand.get(standId) ?? {
+  return stands.map((stand) => {
+    const stats = queueStatsByStand.get(stand._id) ?? {
       queueLength: 0,
       readyItemCount: 0,
       totalWaitMinutes: 0,
@@ -273,13 +279,15 @@ function buildStandQueueMetrics(
       stats.readyItemCount > 0
         ? Math.round(stats.totalWaitMinutes / stats.readyItemCount)
         : 0;
-    const thresholds = options.standAlertThresholds[standId] ?? {
+    const thresholds = options.standAlertThresholds[stand._id] ?? {
       queueLengthAlertThreshold: 10,
       averageWaitAlertThresholdMinutes: 15,
     };
 
     return {
-      standId,
+      standId: stand._id,
+      standName: stand.standName,
+      standStatus: stand.standStatus,
       queueLength: stats.queueLength,
       averageWaitMinutes,
       alert:
@@ -483,10 +491,11 @@ export async function getEventControlCenter(
   accountId: string,
   options: EventControlCenterQuery
 ): Promise<EventControlCenterData> {
-  const { event, standIds } = await loadEventControlCenterContext(
+  const { event, stands } = await loadEventControlCenterContext(
     eventId,
     accountId
   );
+  const standIds = stands.map((stand) => stand._id);
 
   const baseDate = event.startedAt
     ? new Date(event.startedAt)
@@ -537,7 +546,7 @@ export async function getEventControlCenter(
   );
 
   const standQueues = buildStandQueueMetrics(
-    standIds,
+    stands,
     queueStatsByStand,
     options
   );
@@ -546,10 +555,12 @@ export async function getEventControlCenter(
     eventRevenue.length > 0
       ? eventRevenue[eventRevenue.length - 1]!.revenueCents
       : 0;
-  const standRevenue: StandRevenueSeries[] = standIds.map((standId) => ({
-    standId,
+  const standRevenue: StandRevenueSeries[] = stands.map((stand) => ({
+    standId: stand._id,
+    standName: stand.standName,
+    standStatus: stand.standStatus,
     points: cumulativePoints(
-      standRevenueBucketsByStand.get(standId) ??
+      standRevenueBucketsByStand.get(stand._id) ??
         new Map<number, RevenueBucket>()
     ),
   }));
@@ -573,7 +584,8 @@ export async function listLiveOrdersForEventControlCenter(
   accountId: string,
   options: LiveOrdersQuery
 ): Promise<LiveOrder[]> {
-  const { standIds } = await loadEventControlCenterContext(eventId, accountId);
+  const { stands } = await loadEventControlCenterContext(eventId, accountId);
+  const standIds = stands.map((stand) => stand._id);
   const standIdSet = new Set(standIds);
 
   if (options.standId && !standIdSet.has(options.standId)) {

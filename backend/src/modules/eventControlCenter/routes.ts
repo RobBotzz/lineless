@@ -1,4 +1,9 @@
-import { Router, type Request } from "express";
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import { validateBody, validateQuery } from "../../middleware/validate";
 import { authOrganizer } from "../../middleware/auth/guards";
 import { subscribe } from "../../lib/realtimeBus";
@@ -13,15 +18,23 @@ import {
   cancelOrderItemsForOrganizer,
 } from "../orders/service";
 import {
+  OrderItemNotFoundError,
+  OrderItemStateError,
+  OrderNotFoundError,
+} from "../orders/errors";
+import {
   pauseProductForEventControlCenter,
   resumeProductForEventControlCenter,
   toProductResponse,
   updateProductStockForEventControlCenter,
 } from "../products/service";
+import { ProductNotFoundError, ProductStateError } from "../products/errors";
 import {
   pauseStandForEventControlCenter,
   resumeStandForEventControlCenter,
 } from "../stands/service";
+import { StandNotFoundError } from "../stands/errors";
+import { EventNotFoundError } from "../events/errors";
 import {
   cancelOrderItemsSchema,
   eventControlCenterQuerySchema,
@@ -47,6 +60,35 @@ function productId(req: Request): string {
 
 function accountId(req: Request): string {
   return req.organizer!.accountId;
+}
+
+function handleError(err: unknown, res: Response): unknown {
+  if (err instanceof EventNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof OrderNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof OrderItemNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof StandNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof ProductNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof OrderItemStateError)
+    return res.status(409).json({ error: err.message });
+  if (err instanceof ProductStateError)
+    return res.status(409).json({ error: err.message });
+  console.error("Event control center error:", err);
+  return res.status(500).json({ error: "Internal server error" });
+}
+
+function eventControlCenterErrorHandler(
+  err: unknown,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+): unknown {
+  void _next;
+  return handleError(err, res);
 }
 
 function createQueuedSnapshotSender<T>(
@@ -129,6 +171,7 @@ eventControlCenterRouter.get(
       const eventStandIds = new Set(
         initial.standRevenue.map((series) => series.standId)
       );
+      const ignoredStandIds = new Set<string>();
       const unsubscribe = subscribe("order.changed", (order) => {
         if (order.eventId !== targetEventId) return;
         sendLatest.send();
@@ -142,16 +185,26 @@ eventControlCenterRouter.get(
           sendLatest.send();
           return;
         }
+        if (ignoredStandIds.has(product.standId)) return;
 
         void standBelongsToEvent(targetEventId, product.standId)
           .then((belongsToEvent) => {
-            if (!belongsToEvent) return;
+            if (!belongsToEvent) {
+              ignoredStandIds.add(product.standId);
+              return;
+            }
             eventStandIds.add(product.standId);
             sendLatest.send();
           })
           .catch((err) =>
             console.error("Event control center product stream error:", err)
           );
+      });
+      const unsubscribeStands = subscribe("stand.changed", (stand) => {
+        if (stand.eventId !== targetEventId) return;
+        eventStandIds.add(stand._id);
+        ignoredStandIds.delete(stand._id);
+        sendLatest.send();
       });
       const refreshInterval = setInterval(sendLatest.send, 60_000);
 
@@ -161,10 +214,10 @@ eventControlCenterRouter.get(
         unsubscribe();
         unsubscribeRatings();
         unsubscribeProducts();
+        unsubscribeStands();
       });
     } catch (err) {
-      console.error("Event control center stream error:", err);
-      res.status(500).json({ error: "Internal server error" });
+      handleError(err, res);
     }
   })
 );
@@ -249,8 +302,7 @@ eventControlCenterRouter.get(
         unsubscribe();
       });
     } catch (err) {
-      console.error("Event control center orders stream error:", err);
-      res.status(500).json({ error: "Internal server error" });
+      handleError(err, res);
     }
   })
 );
@@ -283,7 +335,7 @@ eventControlCenterRouter.post(
       productId(req),
       accountId(req)
     );
-    res.status(200).json(product);
+    res.status(200).json(toProductResponse(product));
   }
 );
 
@@ -327,6 +379,8 @@ eventControlCenterRouter.post(
       productId(req),
       accountId(req)
     );
-    res.status(200).json(product);
+    res.status(200).json(toProductResponse(product));
   }
 );
+
+eventControlCenterRouter.use(eventControlCenterErrorHandler);

@@ -214,6 +214,8 @@ export async function cancelOrderForOrganizer(
   const now = new Date();
   let changed = false;
   for (const item of order.items) {
+    // Bulk organizer cancellation only cancels items that can still be stopped;
+    // explicit item cancellation below reports READY selections as conflicts.
     if (item.readyAt || item.fulfilledAt || item.cancelledAt) continue;
     item.cancelledAt = now;
     changed = true;
