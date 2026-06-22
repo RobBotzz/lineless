@@ -26,6 +26,7 @@
 | Events   | `POST /api/events/:eventId/event-control-center/orders/:orderId/items/cancel`               | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/pause`                      | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/resume`                     | no     | own event | no             | no            |
+| Events   | `PATCH /api/events/:eventId/event-control-center/stands/:standId/products/:productId/stock` | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/products/:productId/pause`  | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/products/:productId/resume` | no     | own event | no             | no            |
 | Stands   | `POST /api/events/:eventId/stands`                                                          | no     | own event | no             | no            |

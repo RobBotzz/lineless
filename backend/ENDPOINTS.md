@@ -44,12 +44,12 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Event Control Center
 
-| Method | URL                                                    | Description                                          |
-| ------ | ------------------------------------------------------ | ---------------------------------------------------- |
-| GET    | `/events/{eventId}/event-control-center`               | Event control center data – live KPIs and queues     |
-| GET    | `/events/{eventId}/event-control-center/stream`        | Event control center data stream (SSE)               |
-| GET    | `/events/{eventId}/event-control-center/orders`        | Live paid, unfulfilled orders for the control center |
-| GET    | `/events/{eventId}/event-control-center/orders/stream` | Live order list stream (SSE)                         |
+| Method | URL                                                    | Description                                                 |
+| ------ | ------------------------------------------------------ | ----------------------------------------------------------- |
+| GET    | `/events/{eventId}/event-control-center`               | Event control center data – live KPIs and queues            |
+| GET    | `/events/{eventId}/event-control-center/stream`        | Event control center data stream (SSE)                      |
+| GET    | `/events/{eventId}/event-control-center/orders`        | Latest live paid, unfulfilled orders for the control center |
+| GET    | `/events/{eventId}/event-control-center/orders/stream` | Live order list stream (SSE)                                |
 
 ### Operational control (event control center)
 
@@ -59,6 +59,7 @@ Admin dashboard, event configuration, event control center, payout management.
 | POST   | `/events/{eventId}/event-control-center/orders/{orderId}/items/cancel`                | Cancel selected order items |
 | POST   | `/events/{eventId}/event-control-center/stands/{standId}/pause`                       | Pause a stand               |
 | POST   | `/events/{eventId}/event-control-center/stands/{standId}/resume`                      | Resume a stand              |
+| PATCH  | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/stock`  | Update product stock        |
 | POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/pause`  | Pause a product             |
 | POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/resume` | Resume a product            |
 

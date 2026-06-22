@@ -6,6 +6,7 @@ import { SseConnection } from "../../lib/sse";
 import {
   getEventControlCenter,
   listLiveOrdersForEventControlCenter,
+  standBelongsToEvent,
 } from "./service";
 import {
   cancelOrderForOrganizer,
@@ -125,6 +126,9 @@ eventControlCenterRouter.get(
         (snapshot) => sse.send("control-center", snapshot),
         "Event control center"
       );
+      const eventStandIds = new Set(
+        initial.standRevenue.map((series) => series.standId)
+      );
       const unsubscribe = subscribe("order.changed", (order) => {
         if (order.eventId !== targetEventId) return;
         sendLatest.send();
@@ -134,13 +138,20 @@ eventControlCenterRouter.get(
         sendLatest.send();
       });
       const unsubscribeProducts = subscribe("product.changed", (product) => {
-        if (
-          !initial.standRevenue.some(
-            (series) => series.standId === product.standId
-          )
-        )
+        if (eventStandIds.has(product.standId)) {
+          sendLatest.send();
           return;
-        sendLatest.send();
+        }
+
+        void standBelongsToEvent(targetEventId, product.standId)
+          .then((belongsToEvent) => {
+            if (!belongsToEvent) return;
+            eventStandIds.add(product.standId);
+            sendLatest.send();
+          })
+          .catch((err) =>
+            console.error("Event control center product stream error:", err)
+          );
       });
       const refreshInterval = setInterval(sendLatest.send, 60_000);
 
@@ -189,7 +200,7 @@ eventControlCenterRouter.post(
   })
 );
 
-// GET /events/:eventId/event-control-center/orders — live, paid, unfulfilled orders.
+// GET /events/:eventId/event-control-center/orders — latest live, paid, unfulfilled orders.
 eventControlCenterRouter.get(
   "/orders",
   authOrganizer,

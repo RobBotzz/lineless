@@ -68,6 +68,7 @@ type RevenueBucket = {
   revenueCents: number;
 };
 const PRODUCT_RATINGS_LIMIT = 80;
+const LIVE_ORDERS_LIMIT = 200;
 
 function cumulativePoints(buckets: Map<number, RevenueBucket>): RevenuePoint[] {
   let runningTotal = 0;
@@ -119,6 +120,14 @@ async function loadEventControlCenterContext(
     event,
     standIds: stands.map((stand) => stand._id),
   };
+}
+
+export async function standBelongsToEvent(
+  eventId: string,
+  standId: string
+): Promise<boolean> {
+  const stand = await Stand.exists({ _id: standId, eventId, deletedAt: null });
+  return Boolean(stand);
 }
 
 async function loadProductsByStand(standIds: string[]): Promise<ProductLookup> {
@@ -573,7 +582,8 @@ export async function listLiveOrdersForEventControlCenter(
 
   const [orders, productById] = await Promise.all([
     Order.find({ eventId, paidAt: { $ne: null } })
-      .sort({ createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .limit(LIVE_ORDERS_LIMIT)
       .lean(),
     loadProductsByStand(standIds),
   ]);
