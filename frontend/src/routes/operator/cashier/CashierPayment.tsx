@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
-import { SearchIcon } from '../../../components/icons';
+import { DeleteIcon, SearchIcon } from '../../../components/icons';
 import { BackButton } from '../../../components/shared';
 import { Button } from '../../../components/ui/button';
-import { getUnpaidOrders } from '../../../api/orders';
+import { deleteUnpaidOrder, getUnpaidOrders } from '../../../api/orders';
 import type { Order } from '../../../types/order';
 import { computeTotal } from '../../../types/order';
 import { formatMoney } from '../../../types/product';
@@ -19,6 +19,7 @@ export default function CashierPayment() {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [query, setQuery] = useState('');
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -60,6 +61,21 @@ export default function CashierPayment() {
 
     setSearchError(`No unpaid order found for "${query.trim()}".`);
   }
+
+  function confirmDelete() {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    setPendingDeleteId(null);
+    deleteUnpaidOrder(id, standId)
+      .then(() => {
+        setOrders((prev) => prev?.filter((o) => o._id !== id) ?? prev);
+      })
+      .catch(() => {
+        // Order stays in the list if the request fails; the cashier can retry.
+      });
+  }
+
+  const pendingDeleteOrder = orders?.find((o) => o._id === pendingDeleteId) ?? null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -107,13 +123,13 @@ export default function CashierPayment() {
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredOrders.map((order) => (
-                <li key={order._id}>
+                <li key={order._id} className="relative">
                   <button
                     type="button"
                     onClick={() => navigate(paths.operator.cashierPaymentOrder(eventId, order._id))}
                     className="h-full w-full rounded-lg border border-border bg-surface p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2 pr-7">
                       <span className="text-base font-semibold text-accent">
                         {order.orderNumber}
                       </span>
@@ -127,12 +143,62 @@ export default function CashierPayment() {
                     </div>
                     <p className="mt-0.5 text-xs text-text-muted">{order.items.length} items</p>
                   </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete order ${order.orderNumber}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPendingDeleteId(order._id);
+                    }}
+                    className="absolute right-2 top-2 rounded p-1 text-text-muted transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+                  >
+                    <DeleteIcon className="h-4 w-4" />
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </div>
       </section>
+
+      {pendingDeleteId ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        >
+          <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-xl">
+            <h2 id="delete-dialog-title" className="text-base font-semibold text-text">
+              Delete Order
+            </h2>
+            {pendingDeleteOrder ? (
+              <p className="mt-2 text-sm text-text-muted">
+                Are you sure you want to delete order{' '}
+                <span className="font-semibold text-text">{pendingDeleteOrder.orderNumber}</span>?
+                This order will be removed from the cashier view.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-text-muted">
+                Are you sure you want to delete this unpaid order? It will be removed from the
+                cashier view.
+              </p>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setPendingDeleteId(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="bg-danger text-white hover:bg-danger/90"
+                onClick={confirmDelete}
+              >
+                Delete Order
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
