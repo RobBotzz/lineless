@@ -116,6 +116,7 @@ export default function EventControlCenter() {
       ) : (
         <EventControlCenterManagementPage
           liveOrders={liveData.liveOrders}
+          mutationError={liveData.mutationError}
           productsByStand={liveData.productsByStand}
           stands={liveData.stands}
           onCancelOrderItems={liveData.handleCancelOrderItems}

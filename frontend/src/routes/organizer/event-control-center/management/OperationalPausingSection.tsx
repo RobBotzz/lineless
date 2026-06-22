@@ -81,6 +81,7 @@ function StandPausePanel({
     label: string;
     requests: CancelItemsRequest[];
   } | null>(null);
+  const [bulkCancelError, setBulkCancelError] = useState<string | null>(null);
   const productIds = products.map((product) => product._id);
   const standCancelRequests = getCancelRequestsForProducts(liveOrders, new Set(productIds));
   const standCancellableItemCount = countCancelItems(standCancelRequests);
@@ -88,10 +89,13 @@ function StandPausePanel({
 
   async function cancelRequests(requests: CancelItemsRequest[]) {
     setIsCancellingStand(true);
+    setBulkCancelError(null);
     try {
       await Promise.all(
         requests.map((request) => onCancelOrderItems(request.orderId, request.itemIds)),
       );
+    } catch {
+      setBulkCancelError('Items for this stand could not be cancelled.');
     } finally {
       setIsCancellingStand(false);
     }
@@ -124,6 +128,11 @@ function StandPausePanel({
               >
                 Cancel Everything ({standCancellableItemCount})
               </Button>
+            ) : null}
+            {bulkCancelError ? (
+              <p className="max-w-64 text-right text-xs font-medium text-danger">
+                {bulkCancelError}
+              </p>
             ) : null}
           </div>
         </div>
@@ -175,12 +184,16 @@ function StandAvailabilityControl({
   stand: Stand;
 }) {
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const isLive = stand.standStatus === 'LIVE';
 
   async function handleToggle() {
     setIsSaving(true);
+    setError(null);
     try {
       await onPauseChange(stand, isLive);
+    } catch {
+      setError('Stand availability could not be changed.');
     } finally {
       setIsSaving(false);
     }
@@ -228,6 +241,7 @@ function StandAvailabilityControl({
           {isLive ? 'Open' : 'Paused'}
         </span>
       </button>
+      {error ? <p className="text-xs font-medium text-danger">{error}</p> : null}
     </div>
   );
 }
@@ -247,6 +261,7 @@ function ProductPauseTile({
 }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [pendingCancel, setPendingCancel] = useState<CancelItemsRequest[] | null>(null);
   const isLive = product.productStatus === 'LIVE';
   const isPaused = product.productStatus === 'PAUSED';
@@ -262,8 +277,11 @@ function ProductPauseTile({
   async function handleAvailabilityChange(checked: boolean) {
     if (isTerminated) return;
     setIsSaving(true);
+    setError(null);
     try {
       await onPauseChange(standId, product, !checked);
+    } catch {
+      setError('Product availability could not be changed.');
     } finally {
       setIsSaving(false);
     }
@@ -271,10 +289,13 @@ function ProductPauseTile({
 
   async function handleCancelEverything(requests: CancelItemsRequest[]) {
     setIsCancelling(true);
+    setError(null);
     try {
       await Promise.all(
         requests.map((request) => onCancelOrderItems(request.orderId, request.itemIds)),
       );
+    } catch {
+      setError('Items for this product could not be cancelled.');
     } finally {
       setIsCancelling(false);
     }
@@ -304,6 +325,7 @@ function ProductPauseTile({
               Cancel Everything ({cancellableItemCount})
             </Button>
           ) : null}
+          {error ? <p className="mt-2 text-xs font-medium text-danger">{error}</p> : null}
         </div>
         <Toggle
           checked={isLive}

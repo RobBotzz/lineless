@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 
 import type { RevenuePoint, StandRevenueSeries } from '@/api/eventControlCenter';
 import { formatMoney } from '@/types/product';
@@ -27,13 +27,11 @@ export function RevenueChart({
   points,
   standNameById,
   standRevenue,
-  totalRevenueCents,
 }: {
   eventStartAt: string;
   points: RevenuePoint[];
   standNameById: Map<string, string>;
   standRevenue: StandRevenueSeries[];
-  totalRevenueCents: number;
 }) {
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const chartSvgRef = useRef<SVGSVGElement | null>(null);
@@ -43,22 +41,31 @@ export function RevenueChart({
     REVENUE_GRANULARITY_OPTIONS[0]!.minutes,
   );
   const [tooltipLayout, setTooltipLayout] = useState<CSSProperties | null>(null);
-  const model = createRevenueChartModel(
-    points,
-    totalRevenueCents,
-    standRevenue,
-    standNameById,
-    eventStartAt,
-    granularityMinutes,
-    chartWidth,
+  const model = useMemo(
+    () =>
+      createRevenueChartModel(
+        points,
+        standRevenue,
+        standNameById,
+        eventStartAt,
+        granularityMinutes,
+        chartWidth,
+      ),
+    [chartWidth, eventStartAt, granularityMinutes, points, standNameById, standRevenue],
   );
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const hasPoints = points.length > 0;
   const activeIndex = hoveredIndex;
   const activeCoordinates = activeIndex === null ? null : model.coordinates[activeIndex];
   const activePoint = activeIndex === null ? null : model.points[activeIndex];
-  const linePath = createSmoothRevenuePath(model.lineCoordinates);
-  const areaPath = createAreaPath(linePath, model.lineCoordinates, model.baselineY);
+  const linePath = useMemo(
+    () => createSmoothRevenuePath(model.lineCoordinates),
+    [model.lineCoordinates],
+  );
+  const areaPath = useMemo(
+    () => createAreaPath(linePath, model.lineCoordinates, model.baselineY),
+    [linePath, model.baselineY, model.lineCoordinates],
+  );
 
   useEffect(() => {
     const container = chartContainerRef.current;

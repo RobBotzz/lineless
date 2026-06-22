@@ -7,6 +7,7 @@ import { StockManagementSection } from './management/StockManagementSection';
 
 export function EventControlCenterManagementPage({
   liveOrders,
+  mutationError,
   onCancelOrder,
   onCancelOrderItems,
   onProductPauseChange,
@@ -16,6 +17,7 @@ export function EventControlCenterManagementPage({
   stands,
 }: {
   liveOrders: LiveOrder[];
+  mutationError: string | null;
   onCancelOrder: (orderId: string) => Promise<void>;
   onCancelOrderItems: (orderId: string, itemIds: string[]) => Promise<void>;
   onProductPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
@@ -26,6 +28,12 @@ export function EventControlCenterManagementPage({
 }) {
   return (
     <div className="space-y-6">
+      {mutationError ? (
+        <p className="rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
+          {mutationError}
+        </p>
+      ) : null}
+
       <LiveOrdersSection
         liveOrders={liveOrders}
         stands={stands}

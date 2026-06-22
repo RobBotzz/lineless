@@ -67,7 +67,6 @@ export function EventControlCenterAnalyticsPage({
         <CardContent>
           <RevenueChart
             eventStartAt={eventStartAt}
-            totalRevenueCents={analytics.totalRevenueCents}
             points={analytics.eventRevenue}
             standNameById={standNameById}
             standRevenue={analytics.standRevenue}

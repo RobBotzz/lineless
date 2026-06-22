@@ -1,94 +1,25 @@
 import { apiFetch } from './client';
 import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
+import type {
+  EventControlCenterData,
+  EventControlCenterSettings,
+  LiveOrder,
+} from '@/types/eventControlCenter';
 
-export type RevenuePoint = {
-  elapsedMinutes: number;
-  intervalRevenueCents: number;
-  orderCount: number;
-  revenueCents: number;
-};
-
-export type StandRevenueSeries = {
-  standId: string;
-  points: RevenuePoint[];
-};
-
-export type StandQueueMetric = {
-  standId: string;
-  queueLength: number;
-  averageWaitMinutes: number;
-  alert: boolean;
-};
-
-export type ProductRating = {
-  _id: string;
-  productId: string;
-  productName: string;
-  productImageUrl: string | null;
-  standId: string;
-  standName: string;
-  stars: number;
-  comment: string | null;
-  createdAt: string;
-};
-
-export type ProductStockAlert = {
-  productId: string;
-  productName: string;
-  standId: string;
-  standName: string;
-  productStock: number;
-  stockAlertThreshold: number;
-  productStatus: 'LIVE' | 'PAUSED';
-};
-
-export type EventControlCenterData = {
-  totalRevenueCents: number;
-  activeGuests: number;
-  activeAlertCount: number;
-  eventRevenue: RevenuePoint[];
-  standRevenue: StandRevenueSeries[];
-  standQueues: StandQueueMetric[];
-  productStockAlerts: ProductStockAlert[];
-  productRatings: ProductRating[];
-};
-
-export type StandAlertThreshold = {
-  queueLengthAlertThreshold: number;
-  averageWaitAlertThresholdMinutes: number;
-};
-
-export type EventControlCenterSettings = {
-  standAlertThresholds: Record<string, StandAlertThreshold>;
-  stockAlertThreshold: number;
-};
-
-export type LiveOrderStatus = 'IN_LINE' | 'PREPARING' | 'READY';
-
-export type LiveOrderItem = {
-  itemId: string;
-  productId: string;
-  productName: string;
-  status: LiveOrderStatus;
-  readyAt: string | null;
-  customerComment: string | null;
-  unitPriceIncludingTax: number;
-};
-
-export type LiveOrder = {
-  _id: string;
-  eventId: string;
-  orderNumber: string;
-  pickupCode: string;
-  customerEmail: string | null;
-  status: LiveOrderStatus;
-  standIds: string[];
-  createdAt: string;
-  paidAt: string | null;
-  items: LiveOrderItem[];
-  totalPriceIncludingTax: number;
-};
+export type {
+  EventControlCenterData,
+  EventControlCenterSettings,
+  LiveOrder,
+  LiveOrderItem,
+  LiveOrderStatus,
+  ProductRating,
+  ProductStockAlert,
+  RevenuePoint,
+  StandAlertThreshold,
+  StandQueueMetric,
+  StandRevenueSeries,
+} from '@/types/eventControlCenter';
 
 export const EVENT_CONTROL_CENTER_STREAM_EVENT = 'control-center';
 export const EVENT_ORDERS_STREAM_EVENT = 'orders';

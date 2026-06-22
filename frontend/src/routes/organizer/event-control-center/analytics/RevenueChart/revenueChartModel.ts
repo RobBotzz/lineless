@@ -71,7 +71,6 @@ export type RevenueChartModel = {
 
 export function createRevenueChartModel(
   points: RevenuePoint[],
-  totalRevenueCents: number,
   standRevenue: StandRevenueSeries[],
   standNameById: Map<string, string>,
   eventStartAt: string,
@@ -85,7 +84,9 @@ export function createRevenueChartModel(
   const safeEventStartAt = Number.isNaN(parsedEventStartAt.getTime())
     ? new Date()
     : parsedEventStartAt;
-  const standRevenueById = new Map(standRevenue.map((series) => [series.standId, series]));
+  const standRevenueCentsById = new Map(
+    standRevenue.map((series) => [series.standId, getStandRevenueCents(series)]),
+  );
   const rankedStandEntries = [
     ...Array.from(standNameById.entries()).map(([standId, standName]) => ({
       standId,
@@ -96,8 +97,8 @@ export function createRevenueChartModel(
       .map((series) => ({ standId: series.standId, standName: 'Unknown stand' })),
   ].sort(
     (left, right) =>
-      (standRevenueById.get(right.standId)?.points.at(-1)?.revenueCents ?? 0) -
-      (standRevenueById.get(left.standId)?.points.at(-1)?.revenueCents ?? 0),
+      (standRevenueCentsById.get(right.standId) ?? 0) -
+      (standRevenueCentsById.get(left.standId) ?? 0),
   );
   const intervalPoints = createRevenueIntervalPoints(
     sortedPoints,
@@ -131,19 +132,20 @@ export function createRevenueChartModel(
     x: xForMinute(point.elapsedMinutes),
     y: yForRevenue(point.revenueCents),
   }));
-  const totalBreakdown = rankedStandEntries
+  const totalBreakdownInput = rankedStandEntries
     .map((stand, index) => {
-      const revenueCents = standRevenueById.get(stand.standId)?.points.at(-1)?.revenueCents ?? 0;
+      const revenueCents = standRevenueCentsById.get(stand.standId) ?? 0;
 
       return {
         color: REVENUE_STAND_COLORS[index % REVENUE_STAND_COLORS.length]!,
         revenueCents,
-        share: totalRevenueCents > 0 ? (revenueCents / totalRevenueCents) * 100 : 0,
+        share: 0,
         standId: stand.standId,
         standName: stand.standName,
       };
     })
     .sort((left, right) => right.revenueCents - left.revenueCents);
+  const totalBreakdown = normalizeStandBreakdownShares(totalBreakdownInput);
 
   return {
     baselineY: plot.top + plot.height,
@@ -160,6 +162,41 @@ export function createRevenueChartModel(
     yForRevenue,
     yTicks: [maxRevenue, Math.round(maxRevenue / 2), 0],
   };
+}
+
+function getStandRevenueCents(series: StandRevenueSeries): number {
+  const intervalRevenueCents = series.points.reduce(
+    (total, point) => total + point.intervalRevenueCents,
+    0,
+  );
+  if (intervalRevenueCents > 0) return intervalRevenueCents;
+
+  const sortedPoints = [...series.points].sort(
+    (left, right) => left.elapsedMinutes - right.elapsedMinutes,
+  );
+  return sortedPoints.at(-1)?.revenueCents ?? 0;
+}
+
+function normalizeStandBreakdownShares(
+  breakdown: StandRevenueBreakdown[],
+): StandRevenueBreakdown[] {
+  const totalRevenueCents = breakdown.reduce((total, entry) => total + entry.revenueCents, 0);
+  if (totalRevenueCents <= 0) return breakdown;
+
+  let assignedShare = 0;
+  const lastRevenueIndex = breakdown.findLastIndex((entry) => entry.revenueCents > 0);
+
+  return breakdown.map((entry, index) => {
+    if (entry.revenueCents <= 0) return entry;
+
+    const share =
+      index === lastRevenueIndex
+        ? Math.max(0, 100 - assignedShare)
+        : (entry.revenueCents / totalRevenueCents) * 100;
+    assignedShare += share;
+
+    return { ...entry, share };
+  });
 }
 
 function createRevenueIntervalPoints(

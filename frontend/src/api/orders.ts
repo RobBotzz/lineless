@@ -3,11 +3,11 @@ import { getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
 import type { Order, OrderItemView } from '../types/order';
 
-// Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED, or cancel.
+// Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED.
 // These transitions are operator-only (authOperator on the backend) and each
 // persists server-side; the operator board's SSE stream then re-pushes the
 // resulting board, so callers do not merge the response into local state.
-type ItemTransition = 'start' | 'ready' | 'fulfill' | 'cancel';
+type ItemTransition = 'start' | 'ready' | 'fulfill';
 
 function transitionItem(
   orderId: string,
@@ -35,11 +35,6 @@ export function readyOrderItem(orderId: string, itemId: string, standId: string)
 // READY -> FULFILLED (handed to the customer; leaves the board)
 export function fulfillOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
   return transitionItem(orderId, itemId, 'fulfill', standId);
-}
-
-// Cancel an item in any active state (leaves the board)
-export function cancelOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
-  return transitionItem(orderId, itemId, 'cancel', standId);
 }
 
 // --- Cashier order API ---------------------------------------------------------
@@ -126,21 +121,6 @@ export function createOrder(eventId: string, items: OrderItemView[]): Promise<Or
 // The stand is derived from the operator token, so no standId needed in the URL.
 export function getUnpaidOrders(standId: string): Promise<Order[]> {
   return apiFetch<Order[]>('/orders/cashier', { auth: 'operator', standId });
-}
-
-export type OperatorOrderItemAction = 'start' | 'ready' | 'fulfill' | 'cancel';
-
-export function advanceOrderItemAsOperator(
-  orderId: string,
-  itemId: string,
-  action: OperatorOrderItemAction,
-  standId: string,
-): Promise<Order> {
-  return apiFetch<Order>(`/orders/${orderId}/items/${itemId}/${action}`, {
-    method: 'POST',
-    auth: 'operator',
-    standId,
-  });
 }
 
 // Mocked: the real POST /api/orders/:orderId/cash-payment (mark paid + release

@@ -28,6 +28,7 @@ export function LiveOrdersTable({
   );
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [cancellingItemOrderId, setCancellingItemOrderId] = useState<string | null>(null);
+  const [cancellationError, setCancellationError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingCancellation, setPendingCancellation] = useState<
     | { type: 'order'; order: LiveOrder }
@@ -90,10 +91,13 @@ export function LiveOrdersTable({
     if (!cancellation) return;
 
     setPendingCancellation(null);
+    setCancellationError(null);
     if (cancellation.type === 'order') {
       setCancellingOrderId(cancellation.order._id);
       try {
         await onCancelOrder(cancellation.order._id);
+      } catch {
+        setCancellationError('Order could not be cancelled.');
       } finally {
         setCancellingOrderId(null);
       }
@@ -107,6 +111,8 @@ export function LiveOrdersTable({
         ...current,
         [cancellation.order._id]: [],
       }));
+    } catch {
+      setCancellationError('Selected items could not be cancelled.');
     } finally {
       setCancellingItemOrderId(null);
     }
@@ -120,6 +126,12 @@ export function LiveOrdersTable({
 
   return (
     <>
+      {cancellationError ? (
+        <p className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
+          {cancellationError}
+        </p>
+      ) : null}
+
       <div className="overflow-hidden rounded-lg border border-border">
         <div className="hidden grid-cols-[8rem_minmax(0,1fr)_8rem_8rem_2rem] gap-4 bg-surface-muted px-4 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted md:grid">
           <span>Order</span>
