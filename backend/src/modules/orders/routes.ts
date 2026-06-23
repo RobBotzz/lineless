@@ -3,6 +3,7 @@ import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
   deleteUnpaidOrder,
+  enrichOrderForAttendee,
   getOrderForAttendee,
   getOrderForCashier,
   getOrderForOrganizer,
@@ -10,6 +11,8 @@ import {
   listUnpaidOrdersForCashier,
   submitOrder,
 } from "./service";
+import { SseConnection } from "../../lib/sse";
+import { subscribe } from "../../lib/realtimeBus";
 import {
   CashierDisabledError,
   EventNotActiveError,
@@ -96,6 +99,36 @@ ordersRouter.get(
       return res.status(200).json(orders);
     } catch (err) {
       return handleError(err, res);
+    }
+  }
+);
+
+// GET /orders/stream — attendee's live order feed over SSE. Sends a `snapshot`
+// event on connect (same list as GET /orders) then an `order` event whenever
+// one of the attendee's paid orders changes (item state transitions, payment).
+// Must be registered before /:orderId so Express does not swallow "stream".
+ordersRouter.get(
+  "/stream",
+  authAttendee,
+  async (req: Request, res: Response) => {
+    const sessionId = req.attendee!.sessionId;
+    try {
+      const initial = await listOrdersForAttendee(sessionId);
+
+      const sse = new SseConnection(res);
+      sse.send("snapshot", initial);
+
+      const unsub = subscribe("order.changed", (order) => {
+        if (order.sessionId !== sessionId || !order.paidAt) return;
+        enrichOrderForAttendee(order)
+          .then((enriched) => sse.send("order", enriched))
+          .catch((err) => console.error("Attendee order stream error:", err));
+      });
+
+      sse.onClose(() => unsub());
+    } catch (err) {
+      console.error("Attendee order stream error:", err);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 );
