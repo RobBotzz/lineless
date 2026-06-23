@@ -11,6 +11,12 @@ export const paths = {
     payment: '/organizer/payment',
     settings: '/organizer/settings',
     event: (eventId: string) => `/organizer/events/${eventId}`,
+    eventControlCenterAnalytics: (eventId: string) =>
+      `/organizer/events/${eventId}/event-control-center/analytics`,
+    eventControlCenterManagement: (eventId: string) =>
+      `/organizer/events/${eventId}/event-control-center/management`,
+    eventControlCenterSettings: (eventId: string) =>
+      `/organizer/events/${eventId}/event-control-center/settings`,
   },
   attendee: {
     event: (eventId: string) => `/event/${eventId}`,

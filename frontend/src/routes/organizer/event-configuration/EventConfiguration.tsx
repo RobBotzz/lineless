@@ -1,11 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { useFetcher, useLoaderData, useRouteError } from 'react-router';
+import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
 import { AlertDialog } from '@/components/feedback';
 import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
 import { DeleteIconButton } from '@/components/shared';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
@@ -319,9 +319,15 @@ export default function EventConfiguration() {
                 </Button>
                 {showCustomerLink && <CustomerLinkPanel eventId={event._id} />}
               </div>
-              <Button className="w-full" disabled size="lg" variant="secondary">
-                Analytics Dashboard
-              </Button>
+              <Link
+                className={[
+                  buttonVariants({ variant: 'default', size: 'lg' }),
+                  'w-full bg-success text-white hover:bg-success/90',
+                ].join(' ')}
+                to={paths.organizer.eventControlCenterAnalytics(event._id)}
+              >
+                Event Control Center
+              </Link>
             </CardContent>
           </Card>
         </section>

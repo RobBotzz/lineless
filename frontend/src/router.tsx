@@ -17,6 +17,9 @@ import {
   eventConfigurationLoader,
   eventConfigurationAction,
 } from './routes/organizer/event-configuration/data';
+import { EventControlCenterError } from './routes/organizer/event-control-center/EventControlCenter';
+import EventControlCenterRoute from './routes/organizer/event-control-center/EventControlCenterRoute';
+import { eventControlCenterLoader } from './routes/organizer/event-control-center/data';
 import OrganizerPayment from './routes/organizer/Payment';
 import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Settings';
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
@@ -68,6 +71,12 @@ export const router = createBrowserRouter(
           loader={settingsLoader}
           action={settingsAction}
           errorElement={<SettingsError />}
+        />
+        <Route
+          path="events/:eventId/event-control-center/:section"
+          element={<EventControlCenterRoute />}
+          loader={eventControlCenterLoader}
+          errorElement={<EventControlCenterError />}
         />
       </Route>
 

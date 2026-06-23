@@ -3,11 +3,11 @@ import { getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
 import type { Order, OrderItemView } from '../types/order';
 
-// Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED, or cancel.
+// Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED.
 // These transitions are operator-only (authOperator on the backend) and each
 // persists server-side; the operator board's SSE stream then re-pushes the
 // resulting board, so callers do not merge the response into local state.
-type ItemTransition = 'start' | 'ready' | 'fulfill' | 'cancel';
+type ItemTransition = 'start' | 'ready' | 'fulfill';
 
 function transitionItem(
   orderId: string,
@@ -37,9 +37,19 @@ export function fulfillOrderItem(orderId: string, itemId: string, standId: strin
   return transitionItem(orderId, itemId, 'fulfill', standId);
 }
 
-// Cancel an item in any active state (leaves the board)
-export function cancelOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
-  return transitionItem(orderId, itemId, 'cancel', standId);
+export function cancelOrder(orderId: string): Promise<unknown> {
+  return apiFetch<unknown>(`/orders/${orderId}/cancel`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+export function cancelOrderItems(orderId: string, itemIds: string[]): Promise<unknown> {
+  return apiFetch<unknown>(`/orders/${orderId}/items/cancel`, {
+    method: 'POST',
+    auth: 'organizer',
+    body: JSON.stringify({ itemIds }),
+  });
 }
 
 // --- Cashier order API ---------------------------------------------------------
