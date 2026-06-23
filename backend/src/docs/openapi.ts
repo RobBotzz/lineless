@@ -10,6 +10,7 @@ import {
 import { ordersRouter } from "../modules/orders/routes";
 import sessionsRouter from "../modules/sessions/routes";
 import tabsRouter from "../modules/tabs/routes";
+import { eventControlCenterRouter } from "../modules/eventControlCenter/routes";
 import {
   authAttendee,
   authOrganizer,
@@ -22,16 +23,21 @@ import {
 // =============================================================================
 // The OpenAPI document is GENERATED, not hand-written. We walk each mounted
 // Express router's stack to discover every route's method + path, read the Zod
-// body schema that `validateBody` attached to its handler, and detect auth by
-// matching the auth middleware functions. Add a route anywhere below and it
-// appears in /docs automatically — the only thing maintained by hand is the
-// MOUNTS table (one line per mounted router).
+// input schemas that `validateBody` / `validateQuery` attached to their
+// handlers, and detect auth by matching the auth middleware functions. Add a
+// route anywhere below and it appears in /docs automatically — the only thing
+// maintained by hand is the MOUNTS table (one line per mounted router).
 // =============================================================================
 
 const MOUNTS: { base: string; router: Router; tag: string }[] = [
   { base: "/api/account", router: accountRouter, tag: "Accounts" },
   { base: "/api/sessions", router: sessionsRouter, tag: "Sessions" },
   { base: "/api/events", router: eventsRouter, tag: "Events" },
+  {
+    base: "/api/events/:eventId/event-control-center",
+    router: eventControlCenterRouter,
+    tag: "Event Control Center",
+  },
   {
     base: "/api/events/:eventId/stands",
     router: eventStandsRouter,
@@ -74,6 +80,7 @@ const AUTH = new Map<unknown, SecurityRequirement[]>([
 
 // --- minimal shape of the Express router internals we read ---
 type HandleFn = ((...args: unknown[]) => unknown) & { __zodBody?: z.ZodType };
+type QueryValidatedHandleFn = HandleFn & { __zodQuery?: z.ZodType };
 interface Layer {
   name?: string;
   handle?: HandleFn;
@@ -128,15 +135,54 @@ function pathParams(fullPath: string): Record<string, unknown>[] {
   }));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function queryParams(schema: z.ZodType): Record<string, unknown>[] {
+  const json = toSchema(schema);
+  const properties = json["properties"];
+  if (!isRecord(properties)) {
+    return [];
+  }
+
+  const required = new Set(
+    Array.isArray(json["required"]) ? (json["required"] as string[]) : []
+  );
+
+  return Object.entries(properties).map(([name, propertySchema]) => {
+    const parameter: Record<string, unknown> = {
+      name,
+      in: "query",
+      required: required.has(name),
+    };
+
+    if (isRecord(propertySchema) && propertySchema["type"] === "object") {
+      return {
+        ...parameter,
+        description: "JSON-encoded query parameter",
+        content: {
+          "application/json": { schema: propertySchema },
+        },
+      };
+    }
+
+    return {
+      ...parameter,
+      schema: propertySchema,
+    };
+  });
+}
+
 function responsesFor(
   hasAuth: boolean,
-  hasBody: boolean
+  hasValidatedInput: boolean
 ): Record<string, unknown> {
   const responses: Record<string, unknown> = {
     "2XX": { description: "Successful response" },
   };
-  if (hasBody)
-    responses["400"] = { description: "Request body failed validation" };
+  if (hasValidatedInput)
+    responses["400"] = { description: "Request input failed validation" };
   if (hasAuth)
     responses["401"] = { description: "Missing or invalid authentication" };
   return responses;
@@ -148,6 +194,7 @@ interface Operation {
   tag: string;
   security: SecurityRequirement[];
   bodySchema: z.ZodType | null;
+  querySchema: z.ZodType | null;
 }
 
 // Walks one mounted router and returns one Operation per (route, method).
@@ -166,17 +213,27 @@ function collect(mount: (typeof MOUNTS)[number]): Operation[] {
     // Per-route auth + body schema live in the route's own handler stack.
     let routeSecurity: SecurityRequirement[] | null = null;
     let bodySchema: z.ZodType | null = null;
+    let querySchema: z.ZodType | null = null;
     for (const h of layer.route.stack) {
       const sec = securityFor(h.handle);
       if (sec) routeSecurity = sec;
       if (h.handle.__zodBody) bodySchema = h.handle.__zodBody;
+      const queryHandle = h.handle as QueryValidatedHandleFn;
+      if (queryHandle.__zodQuery) querySchema = queryHandle.__zodQuery;
     }
 
     const fullPath = joinPath(mount.base, layer.route.path);
     const security = routeSecurity ?? routerSecurity;
     for (const method of Object.keys(layer.route.methods)) {
       if (!layer.route.methods[method]) continue;
-      ops.push({ fullPath, method, tag: mount.tag, security, bodySchema });
+      ops.push({
+        fullPath,
+        method,
+        tag: mount.tag,
+        security,
+        bodySchema,
+        querySchema,
+      });
     }
   }
   return ops;
@@ -194,6 +251,7 @@ function buildPaths(): Record<string, Record<string, unknown>> {
         tags: [op.tag],
         summary: `${op.method.toUpperCase()} ${op.fullPath}`,
         security: op.security,
+        ...(op.querySchema ? { parameters: queryParams(op.querySchema) } : {}),
         ...(op.bodySchema
           ? {
               requestBody: {
@@ -204,7 +262,10 @@ function buildPaths(): Record<string, Record<string, unknown>> {
               },
             }
           : {}),
-        responses: responsesFor(op.security.length > 0, op.bodySchema !== null),
+        responses: responsesFor(
+          op.security.length > 0,
+          op.bodySchema !== null || op.querySchema !== null
+        ),
       };
     }
   }
@@ -224,6 +285,10 @@ export const openapiSpec = {
     { name: "Accounts", description: "Organizer authentication and profile" },
     { name: "Sessions", description: "Attendee session lifecycle" },
     { name: "Events", description: "Event lifecycle (organizer only)" },
+    {
+      name: "Event Control Center",
+      description: "Organizer live operations, analytics, and controls",
+    },
     {
       name: "Stands",
       description: "Stand management and operator authentication",

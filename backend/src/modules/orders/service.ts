@@ -55,6 +55,15 @@ interface CashPaymentActor {
   operatorStandId?: string;
 }
 
+function assertItemCancellable(item: OrderItemDoc): void {
+  const state = getItemState(item);
+  if (state === "READY" || state === "FULFILLED" || state === "CANCELLED") {
+    throw new OrderItemStateError(
+      `Item cannot be cancelled from ${state} state`
+    );
+  }
+}
+
 export async function submitOrder(
   /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
   sessionId: string | null,
@@ -86,9 +95,12 @@ export async function submitOrder(
   }
 
   const eventStands = await Stand.find({ eventId, deletedAt: null })
-    .select("_id")
+    .select("_id standStatus")
     .lean();
   const eventStandIds = eventStands.map((s) => s._id);
+  const standStatusById = new Map(
+    eventStands.map((stand) => [stand._id, stand.standStatus ?? "LIVE"])
+  );
 
   const productIds = [...new Set(items.map((item) => item.productId))];
   const products = await Product.find({
@@ -101,7 +113,11 @@ export async function submitOrder(
   let totalCents = 0;
   const processedItems = items.map((item) => {
     const product = productById.get(item.productId);
-    if (!product || product.productStatus !== "LIVE") {
+    if (
+      !product ||
+      product.productStatus !== "LIVE" ||
+      standStatusById.get(product.standId) === "PAUSED"
+    ) {
       throw new OrderValidationError(
         `Product ${item.productId} is not available for ordering.`
       );
@@ -499,9 +515,87 @@ export async function listUnpaidOrdersForCashier(
   operatorStandId: string
 ): Promise<OrderDoc[]> {
   const stand = await assertActiveCashierStand(operatorStandId);
-  return Order.find({ eventId: stand.eventId, paidAt: null, tabId: null })
+  return Order.find({
+    eventId: stand.eventId,
+    paidAt: null,
+    tabId: null,
+    deletedAt: null,
+  })
     .sort({ createdAt: -1 })
     .lean();
+}
+
+export async function cancelOrderForOrganizer(
+  orderId: string,
+  accountId: string
+): Promise<OrderDoc> {
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+  await verifyEventOwnership(order.eventId, accountId);
+
+  const now = new Date();
+  let changed = false;
+  for (const item of order.items) {
+    // Bulk organizer cancellation only cancels items that can still be stopped;
+    // explicit item cancellation below reports READY selections as conflicts.
+    if (item.readyAt || item.fulfilledAt || item.cancelledAt) continue;
+    item.cancelledAt = now;
+    changed = true;
+  }
+
+  if (!changed) {
+    throw new OrderItemStateError("Order has no cancellable items");
+  }
+
+  await order.save();
+  return order;
+}
+
+export async function cancelOrderItemsForOrganizer(
+  orderId: string,
+  itemIds: string[],
+  accountId: string
+): Promise<OrderDoc> {
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+  await verifyEventOwnership(order.eventId, accountId);
+
+  const itemsById = new Map(order.items.map((item) => [item._id, item]));
+  const items = itemIds.map((itemId) => {
+    const item = itemsById.get(itemId);
+    if (!item) throw new OrderItemNotFoundError();
+    return item;
+  });
+
+  for (const item of items) {
+    assertItemCancellable(item);
+  }
+
+  const now = new Date();
+  for (const item of items) {
+    item.cancelledAt = now;
+  }
+
+  await order.save();
+  return order;
+}
+
+// Soft-delete an unpaid order. The document stays in MongoDB for analytics;
+// deletedAt marks it as removed so it no longer appears in the cashier list.
+export async function deleteUnpaidOrder(
+  orderId: string,
+  operatorStandId: string
+): Promise<void> {
+  const stand = await assertActiveCashierStand(operatorStandId);
+  const order = await Order.findOne({
+    _id: orderId,
+    eventId: stand.eventId,
+    paidAt: null,
+    deletedAt: null,
+  });
+  if (!order) throw new OrderNotFoundError();
+  order.deletedAt = new Date();
+  await order.save();
 }
 
 export async function advanceOrderItem(
@@ -546,10 +640,7 @@ export async function advanceOrderItem(
       item.fulfilledAt = now;
       break;
     case "cancel":
-      if (state === "FULFILLED" || state === "CANCELLED")
-        throw new OrderItemStateError(
-          `Item cannot be cancelled from ${state} state`
-        );
+      assertItemCancellable(item);
       item.cancelledAt = now;
       break;
   }

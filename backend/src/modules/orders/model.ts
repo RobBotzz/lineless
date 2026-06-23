@@ -38,6 +38,7 @@ export interface OrderDoc {
   pickupCode: string;
   customerEmail: string | null;
   paidAt: Date | null;
+  deletedAt: Date | null;
   items: OrderItemDoc[];
   cashPayment: CashPaymentDoc | null;
   cashRefunds: CashRefundDoc[];
@@ -82,6 +83,7 @@ const OrderSchema = new Schema<OrderDoc>(
     pickupCode: { type: String, required: true, index: true },
     customerEmail: { type: String, default: null },
     paidAt: { type: Date, default: null },
+    deletedAt: { type: Date, default: null },
     items: [OrderItemSchema],
     cashPayment: { type: CashPaymentSchema, default: null },
     cashRefunds: { type: [CashRefundSchema], default: [] },

@@ -8,7 +8,7 @@ These are marked as **Shared** at the bottom.
 
 ## Organizer
 
-Admin dashboard, event configuration, analytics, payout management.
+Admin dashboard, event configuration, event control center, payout management.
 
 ### Events
 
@@ -29,6 +29,8 @@ Admin dashboard, event configuration, analytics, payout management.
 | ------ | -------------------------- | ------------------------------------------ |
 | POST   | `/events/{eventId}/stands` | Create stand                               |
 | PATCH  | `/stands/{standId}`        | Update stand                               |
+| POST   | `/stands/{standId}/pause`  | Pause stand                                |
+| POST   | `/stands/{standId}/resume` | Resume stand                               |
 | DELETE | `/stands/{standId}`        | Delete stand (soft delete via `deletedAt`) |
 
 ### Products
@@ -37,24 +39,20 @@ Admin dashboard, event configuration, analytics, payout management.
 | ------ | --------------------------------- | -------------------------------------------- |
 | POST   | `/stands/{standId}/products`      | Create product                               |
 | GET    | `/products/{productId}`           | Get single product                           |
-| PATCH  | `/products/{productId}`           | Update product                               |
+| PATCH  | `/products/{productId}`           | Update product, including stock              |
 | DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`) |
 | POST   | `/products/{productId}/pause`     | Pause product                                |
+| POST   | `/products/{productId}/resume`    | Resume product                               |
 | POST   | `/products/{productId}/terminate` | Terminate product                            |
 
-### Analytics
+### Event Control Center
 
-| Method | URL                           | Description                                        |
-| ------ | ----------------------------- | -------------------------------------------------- |
-| GET    | `/analytics/{eventId}/stream` | Analytics stream (SSE) – live KPIs, sales, ratings |
-
-### Operational control (analytics dashboard)
-
-| Method                      | URL                        | Description                         |
-| --------------------------- | -------------------------- | ----------------------------------- | --------------------------- |
-| POST                        | `/stands/{standId}/pause`  | Pause a stand's queue               |
-| POST                        | `/stands/{standId}/resume` | Resume a stand's queue              |
-| UNSURE - PLEASE DISCUSS/ -> | POST                       | `/order-items/{orderItemId}/cancel` | Cancel a pending order item |
+| Method | URL                                                    | Description                                                 |
+| ------ | ------------------------------------------------------ | ----------------------------------------------------------- |
+| GET    | `/events/{eventId}/event-control-center`               | Event control center data – live KPIs and queues            |
+| GET    | `/events/{eventId}/event-control-center/stream`        | Event control center data stream (SSE)                      |
+| GET    | `/events/{eventId}/event-control-center/orders`        | Latest live paid, unfulfilled orders for the control center |
+| GET    | `/events/{eventId}/event-control-center/orders/stream` | Live order list stream (SSE)                                |
 
 ### Account / Payments
 
@@ -78,12 +76,14 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Orders
 
-| Method | URL                         | Description                                      |
-| ------ | --------------------------- | ------------------------------------------------ |
-| POST   | `/orders`                   | Create order                                     |
-| GET    | `/orders/{orderId}`         | Get order details (confirmation / tracking view) |
-| GET    | `/orders/{orderId}/stream`  | Order status stream (SSE) – live pickup status   |
-| POST   | `/orders/{orderId}/ratings` | Submit product ratings (1–5 stars + comment)     |
+| Method | URL                              | Description                                      |
+| ------ | -------------------------------- | ------------------------------------------------ |
+| POST   | `/orders`                        | Create order                                     |
+| GET    | `/orders/{orderId}`              | Get order details (confirmation / tracking view) |
+| GET    | `/orders/{orderId}/stream`       | Order status stream (SSE) – live pickup status   |
+| POST   | `/orders/{orderId}/cancel`       | Cancel all open order items                      |
+| POST   | `/orders/{orderId}/items/cancel` | Cancel selected order items                      |
+| POST   | `/orders/{orderId}/ratings`      | Submit product ratings (1–5 stars + comment)     |
 
 ### Payment
 
