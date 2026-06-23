@@ -16,6 +16,7 @@ import {
 } from "./service";
 import {
   CashierStandDisabledError,
+  CashierStandProtectedError,
   OperatorInvalidCredentialsError,
   StandNotFoundError,
 } from "./errors";
@@ -49,6 +50,8 @@ function handleError(err: unknown, res: Response): unknown {
   if (err instanceof OperatorInvalidCredentialsError)
     return res.status(401).json({ error: err.message });
   if (err instanceof CashierStandDisabledError)
+    return res.status(403).json({ error: err.message });
+  if (err instanceof CashierStandProtectedError)
     return res.status(403).json({ error: err.message });
   if (err instanceof RefreshTokenInvalidError)
     return res.status(401).json({ error: err.message });

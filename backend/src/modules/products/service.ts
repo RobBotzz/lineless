@@ -3,7 +3,10 @@ import { ProductNotFoundError, ProductStateError } from "./errors";
 import type { CreateProductInput, UpdateProductInput } from "./types";
 import { verifyStandOwnership } from "../stands/ownership";
 import { Stand } from "../stands/model";
-import { StandNotFoundError } from "../stands/errors";
+import {
+  CashierStandProtectedError,
+  StandNotFoundError,
+} from "../stands/errors";
 import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
 import { Event } from "../events/model";
 
@@ -78,6 +81,16 @@ export async function createProduct(
   input: CreateProductInput
 ): Promise<ProductDoc> {
   await verifyStandOwnership(standId, accountId);
+  // The cashier stand carries no products of its own; it serves the event-wide
+  // catalog. Reject product creation against it.
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null })
+    .select("standType")
+    .lean();
+  if (stand?.standType === "CASHIER") {
+    throw new CashierStandProtectedError(
+      "Products cannot be created for the cashier stand"
+    );
+  }
   const product = await Product.create({
     standId,
     productName: input.productName,

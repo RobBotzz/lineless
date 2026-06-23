@@ -26,7 +26,9 @@ export async function createEvent(
     branding: input.branding,
     location: input.location,
   });
-  if (event.cashierEnabled) await ensureCashierStand(event._id);
+  // Every event always has exactly one backend-created cashier stand,
+  // regardless of whether the cashier is currently enabled.
+  await ensureCashierStand(event._id);
   return event;
 }
 
