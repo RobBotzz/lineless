@@ -263,6 +263,23 @@ export function ChatIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
+export function PauseIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <rect height="14" rx="1" width="4" x="6" y="5" />
+      <rect height="14" rx="1" width="4" x="14" y="5" />
+    </svg>
+  );
+}
+
+export function PlayIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M7 4.5v15l12-7.5z" />
+    </svg>
+  );
+}
+
 export function CheckCircleIcon({ className = 'h-6 w-6' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>

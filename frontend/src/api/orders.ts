@@ -1,9 +1,50 @@
-// Order API for the cashier. The cashier always acts as its event's CASHIER
-// stand; callers pass that standId (resolved by CashierLayout) for operator auth.
 import { apiFetch } from './client';
 import { getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
 import type { AttendeeOrder, Order, OrderItemView } from '../types/order';
+
+// Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED, or cancel.
+// These transitions are operator-only (authOperator on the backend) and each
+// persists server-side; the operator board's SSE stream then re-pushes the
+// resulting board, so callers do not merge the response into local state.
+type ItemTransition = 'start' | 'ready' | 'fulfill' | 'cancel';
+
+function transitionItem(
+  orderId: string,
+  itemId: string,
+  action: ItemTransition,
+  standId: string,
+): Promise<void> {
+  return apiFetch<void>(`/orders/${orderId}/items/${itemId}/${action}`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+  });
+}
+
+// PENDING -> PREPARING
+export function startOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
+  return transitionItem(orderId, itemId, 'start', standId);
+}
+
+// PREPARING -> READY
+export function readyOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
+  return transitionItem(orderId, itemId, 'ready', standId);
+}
+
+// READY -> FULFILLED (handed to the customer; leaves the board)
+export function fulfillOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
+  return transitionItem(orderId, itemId, 'fulfill', standId);
+}
+
+// Cancel an item in any active state (leaves the board)
+export function cancelOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
+  return transitionItem(orderId, itemId, 'cancel', standId);
+}
+
+// --- Cashier order API ---------------------------------------------------------
+// The cashier always acts as its event's CASHIER stand; callers pass that standId
+// (resolved by CashierLayout) for operator auth.
 
 // orderId must be the UUID _id, not the human-readable orderNumber.
 export function getOrder(orderId: string, standId: string): Promise<Order> {
@@ -91,6 +132,16 @@ export function getAttendeeOrder(orderId: string, eventId: string): Promise<Atte
 // The stand is derived from the operator token, so no standId needed in the URL.
 export function getUnpaidOrders(standId: string): Promise<Order[]> {
   return apiFetch<Order[]>('/orders/cashier', { auth: 'operator', standId });
+}
+
+// DELETE /api/orders/cashier/:orderId — soft-delete an unpaid order.
+// The order stays in MongoDB for analytics; it is excluded from the cashier list.
+export function deleteUnpaidOrder(orderId: string, standId: string): Promise<void> {
+  return apiFetch<void>(`/orders/cashier/${orderId}`, {
+    method: 'DELETE',
+    auth: 'operator',
+    standId,
+  });
 }
 
 // Mocked: the real POST /api/orders/:orderId/cash-payment (mark paid + release
