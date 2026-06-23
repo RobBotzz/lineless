@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
+  deleteUnpaidOrder,
   getOrderForAttendee,
   getOrderForCashier,
   getOrderForOrganizer,
@@ -155,4 +156,22 @@ ordersRouter.post(
   "/:orderId/items/:itemId/cancel",
   authOperator,
   itemTransition("cancel")
+);
+
+// DELETE /orders/cashier/:orderId — soft-delete an unpaid cash order.
+// Must be registered before /:orderId to avoid Express route shadowing.
+ordersRouter.delete(
+  "/cashier/:orderId",
+  authOperator,
+  async (req: Request, res: Response) => {
+    try {
+      await deleteUnpaidOrder(
+        req.params["orderId"] as string,
+        req.operator!.standId
+      );
+      return res.status(204).send();
+    } catch (err) {
+      return handleError(err, res);
+    }
+  }
 );

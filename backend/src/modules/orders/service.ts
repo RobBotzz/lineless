@@ -168,9 +168,32 @@ export async function listUnpaidOrdersForCashier(
   operatorStandId: string
 ): Promise<OrderDoc[]> {
   const stand = await assertActiveCashierStand(operatorStandId);
-  return Order.find({ eventId: stand.eventId, paidAt: null, tabId: null })
+  return Order.find({
+    eventId: stand.eventId,
+    paidAt: null,
+    tabId: null,
+    deletedAt: null,
+  })
     .sort({ createdAt: -1 })
     .lean();
+}
+
+// Soft-delete an unpaid order. The document stays in MongoDB for analytics;
+// deletedAt marks it as removed so it no longer appears in the cashier list.
+export async function deleteUnpaidOrder(
+  orderId: string,
+  operatorStandId: string
+): Promise<void> {
+  const stand = await assertActiveCashierStand(operatorStandId);
+  const order = await Order.findOne({
+    _id: orderId,
+    eventId: stand.eventId,
+    paidAt: null,
+    deletedAt: null,
+  });
+  if (!order) throw new OrderNotFoundError();
+  order.deletedAt = new Date();
+  await order.save();
 }
 
 export async function advanceOrderItem(
