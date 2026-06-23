@@ -84,6 +84,22 @@ ordersRouter.get("/", authAttendee, async (req: Request, res: Response) => {
   }
 });
 
+// GET /orders/cashier — unpaid orders for the cashier's event, derived from the
+// operator token (consistent with all other operator routes).
+// Must be registered before /:orderId to avoid Express matching "cashier" as an orderId.
+ordersRouter.get(
+  "/cashier",
+  authOperator,
+  async (req: Request, res: Response) => {
+    try {
+      const orders = await listUnpaidOrdersForCashier(req.operator!.standId);
+      return res.status(200).json(orders);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  }
+);
+
 // GET /orders/:orderId — fetch a single order by ID (organizer, attendee, or a
 // cashier operator collecting a cash payment for an order in its event).
 ordersRouter.get(
@@ -140,21 +156,6 @@ ordersRouter.post(
   "/:orderId/items/:itemId/cancel",
   authOperator,
   itemTransition("cancel")
-);
-
-// GET /orders/cashier — unpaid orders for the cashier's event, derived from the
-// operator token (consistent with all other operator routes).
-ordersRouter.get(
-  "/cashier",
-  authOperator,
-  async (req: Request, res: Response) => {
-    try {
-      const orders = await listUnpaidOrdersForCashier(req.operator!.standId);
-      return res.status(200).json(orders);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
 );
 
 // DELETE /orders/cashier/:orderId — soft-delete an unpaid cash order.
