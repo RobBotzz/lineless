@@ -37,17 +37,10 @@ export function getItemState(item: OrderItemDoc): ItemState {
 
 function assertItemCancellable(item: OrderItemDoc): void {
   const state = getItemState(item);
-  if (state === "FULFILLED" || state === "CANCELLED") {
+  if (state === "READY" || state === "FULFILLED" || state === "CANCELLED") {
     throw new OrderItemStateError(
       `Item cannot be cancelled from ${state} state`
     );
-  }
-}
-
-function assertOrganizerItemCancellable(item: OrderItemDoc): void {
-  assertItemCancellable(item);
-  if (item.readyAt) {
-    throw new OrderItemStateError("Ready items cannot be cancelled");
   }
 }
 
@@ -239,7 +232,7 @@ export async function cancelOrderItemsForOrganizer(
   });
 
   for (const item of items) {
-    assertOrganizerItemCancellable(item);
+    assertItemCancellable(item);
   }
 
   const now = new Date();
@@ -290,10 +283,7 @@ export async function advanceOrderItem(
       item.fulfilledAt = now;
       break;
     case "cancel":
-      if (state === "FULFILLED" || state === "CANCELLED")
-        throw new OrderItemStateError(
-          `Item cannot be cancelled from ${state} state`
-        );
+      assertItemCancellable(item);
       item.cancelledAt = now;
       break;
   }
