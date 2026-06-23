@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
+import { Button } from '@/components/ui/button';
+import { AlertDialog } from '../../../components/feedback/AlertDialog';
 import { DeleteIcon, SearchIcon } from '../../../components/icons';
 import { BackButton } from '../../../components/shared';
-import { Button } from '../../../components/ui/button';
 import { deleteUnpaidOrder, getUnpaidOrders } from '../../../api/orders';
 import type { Order } from '../../../types/order';
 import { computeTotal } from '../../../types/order';
@@ -71,7 +72,7 @@ export default function CashierPayment() {
         setOrders((prev) => prev?.filter((o) => o._id !== id) ?? prev);
       })
       .catch(() => {
-        // Order stays in the list if the request fails; the cashier can retry.
+        setSearchError('Could not delete the order. Please try again.');
       });
   }
 
@@ -161,44 +162,20 @@ export default function CashierPayment() {
         </div>
       </section>
 
-      {pendingDeleteId ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-dialog-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-        >
-          <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-xl">
-            <h2 id="delete-dialog-title" className="text-base font-semibold text-text">
-              Delete Order
-            </h2>
-            {pendingDeleteOrder ? (
-              <p className="mt-2 text-sm text-text-muted">
-                Are you sure you want to delete order{' '}
-                <span className="font-semibold text-text">{pendingDeleteOrder.orderNumber}</span>?
-                This order will be removed from the cashier view.
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-text-muted">
-                Are you sure you want to delete this unpaid order? It will be removed from the
-                cashier view.
-              </p>
-            )}
-            <div className="mt-6 flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={() => setPendingDeleteId(null)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-danger text-white hover:bg-danger/90"
-                onClick={confirmDelete}
-              >
-                Delete Order
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <AlertDialog
+        message={
+          pendingDeleteId
+            ? pendingDeleteOrder
+              ? `Delete order ${pendingDeleteOrder.orderNumber}? This order will be removed from the cashier view.`
+              : 'Delete this unpaid order? It will be removed from the cashier view.'
+            : null
+        }
+        title="Delete Order"
+        variant="danger"
+        acknowledgeLabel="Delete Order"
+        onAcknowledge={confirmDelete}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }
