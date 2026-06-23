@@ -85,10 +85,14 @@ function eventControlCenterErrorHandler(
   err: unknown,
   _req: Request,
   res: Response,
-  _next: NextFunction
-): unknown {
-  void _next;
-  return handleError(err, res);
+  next: NextFunction
+): void {
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+
+  handleError(err, res);
 }
 
 function createQueuedSnapshotSender<T>(
