@@ -1,17 +1,44 @@
 import { useState } from 'react';
-import { useParams, useLoaderData } from 'react-router';
+import { useParams, useLoaderData, Link } from 'react-router';
+
+import { Button } from '@/components/ui/button';
 
 import { BackButton } from '@/components/shared';
 import { paths } from '@/paths';
 import { computeTotal, deriveItemStatus, deriveOrderStatus, type Order } from '@/types/order';
 import { formatMoney } from '@/types/product';
-import { ChevronDownIcon } from '@/components/icons';
+import { ArrowRightIcon, ChevronDownIcon } from '@/components/icons';
 import { cn } from '@/lib/utils';
+import { useSSE } from '@/hooks/useSSE';
 
 export default function OrderHistory() {
   const { eventId } = useParams() as { eventId: string };
-  const orders = useLoaderData() as Order[];
+  const initialOrders = useLoaderData() as Order[];
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  useSSE({
+    path: '/orders/stream',
+    auth: 'attendee',
+    eventId,
+    onMessage: ({ event, data }) => {
+      if (event === 'snapshot') {
+        setOrders(data as Order[]);
+      } else if (event === 'order') {
+        const updated = data as Order;
+        setOrders((prev) => {
+          const idx = prev.findIndex((o) => o._id === updated._id);
+          if (idx !== -1) {
+            const next = [...prev];
+            next[idx] = updated;
+            return next;
+          }
+          // New paid order (e.g. payment just confirmed) — prepend to keep newest-first.
+          return [updated, ...prev];
+        });
+      }
+    },
+  });
 
   const toggleExpand = (orderId: string) => {
     setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
@@ -100,31 +127,60 @@ export default function OrderHistory() {
                     <p className="text-sm font-semibold text-text mb-3">Items</p>
                     <ul className="space-y-3">
                       {order.items.map((item) => {
-                        if (item.cancelledAt) return null;
+                        const cancelled = !!item.cancelledAt;
                         const itemStatus = deriveItemStatus(item);
                         return (
                           <li
                             key={item._id}
-                            className="flex items-start justify-between gap-3 rounded-lg bg-surface-muted p-3"
+                            className={cn(
+                              'flex items-start justify-between gap-3 rounded-lg bg-surface-muted p-3',
+                              cancelled && 'opacity-50',
+                            )}
                           >
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-text">
-                                Product {item.productId}
+                              <p
+                                className={cn(
+                                  'text-sm font-medium text-text',
+                                  cancelled && 'line-through',
+                                )}
+                              >
+                                {item.productName}
                               </p>
-                              <p className="text-xs text-text-muted">
+                              <p
+                                className={cn(
+                                  'text-xs text-text-muted',
+                                  cancelled && 'line-through',
+                                )}
+                              >
                                 EUR {formatMoney(item.priceIncludingTaxAtPurchase)}
                               </p>
-                              {item.customerComment && (
+                              {item.customerComment && !cancelled && (
                                 <p className="text-xs text-text-muted italic mt-1">
                                   Note: {item.customerComment}
                                 </p>
                               )}
                             </div>
-                            {status === 'in-preparation' && (
-                              <span className="text-xs font-medium text-text-muted px-2 py-1 bg-surface rounded whitespace-nowrap">
+                            {cancelled ? (
+                              <span className="text-xs font-medium text-error px-2 py-1 bg-surface rounded whitespace-nowrap">
+                                CANCELLED
+                              </span>
+                            ) : itemStatus === 'PENDING' ||
+                              itemStatus === 'PREPARING' ||
+                              itemStatus === 'READY' ? (
+                              <span
+                                className={cn(
+                                  'text-xs font-medium px-2 py-1 rounded whitespace-nowrap',
+                                  itemStatus === 'READY' &&
+                                    'bg-success/10 text-success border border-success/40',
+                                  itemStatus === 'PREPARING' &&
+                                    'bg-warning/10 text-warning border border-warning/40',
+                                  itemStatus === 'PENDING' &&
+                                    'bg-surface text-text-muted border border-border',
+                                )}
+                              >
                                 {itemStatus}
                               </span>
-                            )}
+                            ) : null}
                           </li>
                         );
                       })}
@@ -140,10 +196,14 @@ export default function OrderHistory() {
                         EUR {formatMoney(computeTotal(order))}
                       </span>
                     </div>
-                    <p className="text-xs text-text-muted mt-3 italic">
-                      Payment details coming soon
-                    </p>
                   </div>
+
+                  <Link to={paths.attendee.checkoutConfirmed(eventId, order._id)}>
+                    <Button variant="default" className="w-full py-6 gap-2">
+                      Track Order
+                      <ArrowRightIcon className="h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               )}
             </div>

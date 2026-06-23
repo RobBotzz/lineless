@@ -1,7 +1,9 @@
-// Mirrors OrderItemDoc from backend (modules/orders/model.ts).
+// Mirrors AttendeeOrderItem from backend (modules/orders/service.ts).
 export interface OrderItem {
   _id: string;
   productId: string;
+  productName: string;
+  standName: string;
   customerComment: string | null; // single note per unit; null when none
   priceIncludingTaxAtPurchase: number; // integer cents, incl. tax
   taxRateAtPurchase: number; // basis points, e.g. 1900 for 19%
