@@ -128,6 +128,16 @@ export function getUnpaidOrders(standId: string): Promise<Order[]> {
   return apiFetch<Order[]>('/orders/cashier', { auth: 'operator', standId });
 }
 
+// DELETE /api/orders/cashier/:orderId — soft-delete an unpaid order.
+// The order stays in MongoDB for analytics; it is excluded from the cashier list.
+export function deleteUnpaidOrder(orderId: string, standId: string): Promise<void> {
+  return apiFetch<void>(`/orders/cashier/${orderId}`, {
+    method: 'DELETE',
+    auth: 'operator',
+    standId,
+  });
+}
+
 // Mocked: the real POST /api/orders/:orderId/cash-payment (mark paid + release
 // instant items) lands in a follow-up MR — payments are out of scope here.
 export function confirmCashPayment(_orderId: string): Promise<void> {
