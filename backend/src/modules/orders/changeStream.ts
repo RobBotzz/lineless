@@ -2,6 +2,7 @@ import { Order, type OrderDoc } from "./model";
 import { publish } from "../../lib/realtimeBus";
 
 let stream: ReturnType<typeof Order.watch> | null = null;
+type ChangeWithFullDocument<T> = { fullDocument?: T | null };
 
 // Watch the orders collection and publish every insert/update onto the realtime
 // bus. This replaces explicit publish() calls at each write site: any path that
@@ -13,9 +14,9 @@ export function watchOrderChanges(): void {
   stream = s;
 
   s.on("change", (change) => {
-    if ("fullDocument" in change && change.fullDocument) {
-      publish("order.changed", change.fullDocument as OrderDoc);
-    }
+    const fullDocument = (change as ChangeWithFullDocument<OrderDoc>)
+      .fullDocument;
+    if (fullDocument) publish("order.changed", fullDocument);
   });
 
   // A dropped change stream silently stops all live updates — re-establish it.

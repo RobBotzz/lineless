@@ -3,12 +3,14 @@ import { model, Schema } from "mongoose";
 import { locationSchema, type Location } from "../../shared/location";
 
 export type StandType = "PRODUCT" | "CASHIER";
+export type StandStatus = "LIVE" | "PAUSED";
 
 export interface StandDoc {
   _id: string;
   eventId: string;
   standName: string;
   standType: StandType;
+  standStatus: StandStatus;
   accessPasswordHash: string | null;
   location: Location;
   deletedAt: Date | null;
@@ -25,6 +27,11 @@ const standSchema = new Schema<StandDoc>(
       type: String,
       enum: ["PRODUCT", "CASHIER"],
       default: "PRODUCT",
+    },
+    standStatus: {
+      type: String,
+      enum: ["LIVE", "PAUSED"],
+      default: "LIVE",
     },
     accessPasswordHash: { type: String, default: null },
     location: { type: locationSchema, default: () => ({}) },
