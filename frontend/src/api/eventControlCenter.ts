@@ -1,6 +1,4 @@
 import { apiFetch } from './client';
-import type { Product } from '@/types/product';
-import type { Stand } from '@/types/stand';
 import type {
   EventControlCenterData,
   EventControlCenterSettings,
@@ -76,64 +74,6 @@ export function getEventControlCenter(
 export function getEventOrders(eventId: string, standId?: string): Promise<LiveOrder[]> {
   const params = standId ? `?standId=${encodeURIComponent(standId)}` : '';
   return apiFetch<LiveOrder[]>(`/events/${eventId}/event-control-center/orders${params}`, {
-    auth: 'organizer',
-  });
-}
-
-export function pauseProduct(
-  eventId: string,
-  standId: string,
-  productId: string,
-): Promise<Product> {
-  return apiFetch<Product>(
-    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/pause`,
-    {
-      method: 'POST',
-      auth: 'organizer',
-    },
-  );
-}
-
-export function resumeProduct(
-  eventId: string,
-  standId: string,
-  productId: string,
-): Promise<Product> {
-  return apiFetch<Product>(
-    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/resume`,
-    {
-      method: 'POST',
-      auth: 'organizer',
-    },
-  );
-}
-
-export function updateProductStock(
-  eventId: string,
-  standId: string,
-  productId: string,
-  productStock: number,
-): Promise<Product> {
-  return apiFetch<Product>(
-    `/events/${eventId}/event-control-center/stands/${standId}/products/${productId}/stock`,
-    {
-      method: 'PATCH',
-      auth: 'organizer',
-      body: JSON.stringify({ productStock }),
-    },
-  );
-}
-
-export function pauseStand(eventId: string, standId: string): Promise<Stand> {
-  return apiFetch<Stand>(`/events/${eventId}/event-control-center/stands/${standId}/pause`, {
-    method: 'POST',
-    auth: 'organizer',
-  });
-}
-
-export function resumeStand(eventId: string, standId: string): Promise<Stand> {
-  return apiFetch<Stand>(`/events/${eventId}/event-control-center/stands/${standId}/resume`, {
-    method: 'POST',
     auth: 'organizer',
   });
 }

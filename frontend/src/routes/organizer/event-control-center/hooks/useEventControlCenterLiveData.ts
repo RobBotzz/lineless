@@ -7,19 +7,14 @@ import {
   eventOrdersStreamPath,
   getEventControlCenter,
   getEventOrders,
-  pauseProduct,
-  pauseStand,
-  resumeProduct,
-  resumeStand,
-  updateProductStock,
   type EventControlCenterData,
   type EventControlCenterSettings,
   type LiveOrder,
 } from '@/api/eventControlCenter';
 import { cancelOrder, cancelOrderItems } from '@/api/orders';
 import { useSSE, type SseStatus } from '@/hooks/useSSE';
-import { getStandProducts } from '@/api/products';
-import { getEventStands } from '@/api/stands';
+import { getStandProducts, pauseProduct, resumeProduct, updateProductStock } from '@/api/products';
+import { getEventStands, pauseStand, resumeStand } from '@/api/stands';
 import { isEventControlCenterData, isLiveOrderArray } from '@/types/eventControlCenter';
 import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
@@ -147,9 +142,9 @@ export function useEventControlCenterLiveData({
     setMutationError(null);
     try {
       if (paused) {
-        await pauseProduct(eventId, standId, product._id);
+        await pauseProduct(product._id);
       } else {
-        await resumeProduct(eventId, standId, product._id);
+        await resumeProduct(product._id);
       }
 
       const currentStandProducts = productsByStand[standId] ?? [];
@@ -165,7 +160,7 @@ export function useEventControlCenterLiveData({
         );
         const stand = stands.find((candidate) => candidate._id === standId);
         if (!hasLiveProducts && stand?.standStatus === 'LIVE') {
-          const updatedStand = await pauseStand(eventId, standId);
+          const updatedStand = await pauseStand(standId);
           setStands((current) =>
             current.map((candidate) => (candidate._id === standId ? updatedStand : candidate)),
           );
@@ -173,7 +168,7 @@ export function useEventControlCenterLiveData({
       } else {
         const stand = stands.find((candidate) => candidate._id === standId);
         if (stand?.standStatus === 'PAUSED') {
-          const updatedStand = await resumeStand(eventId, standId);
+          const updatedStand = await resumeStand(standId);
           setStands((current) =>
             current.map((candidate) => (candidate._id === standId ? updatedStand : candidate)),
           );
@@ -199,9 +194,7 @@ export function useEventControlCenterLiveData({
     setMutationError(null);
     if ((stand.standStatus === 'PAUSED') === paused) return;
     try {
-      const updatedStand = paused
-        ? await pauseStand(eventId, stand._id)
-        : await resumeStand(eventId, stand._id);
+      const updatedStand = paused ? await pauseStand(stand._id) : await resumeStand(stand._id);
       const standProducts = productsByStand[stand._id] ?? [];
       const productsToSync = standProducts.filter((product) =>
         paused ? product.productStatus === 'LIVE' : product.productStatus === 'PAUSED',
@@ -209,9 +202,7 @@ export function useEventControlCenterLiveData({
 
       await Promise.all(
         productsToSync.map((product) =>
-          paused
-            ? pauseProduct(eventId, stand._id, product._id)
-            : resumeProduct(eventId, stand._id, product._id),
+          paused ? pauseProduct(product._id) : resumeProduct(product._id),
         ),
       );
 
@@ -236,7 +227,7 @@ export function useEventControlCenterLiveData({
   async function handleProductStockChange(standId: string, product: Product, productStock: number) {
     setMutationError(null);
     try {
-      const updatedProduct = await updateProductStock(eventId, standId, product._id, productStock);
+      const updatedProduct = await updateProductStock(product._id, productStock);
       setProductsByStand((current) => ({
         ...current,
         [standId]: (current[standId] ?? []).map((candidate) =>

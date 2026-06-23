@@ -82,6 +82,20 @@ export function updateStand(standId: string, patch: UpdateStandInput): Promise<v
   });
 }
 
+export function pauseStand(standId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/stands/${standId}/pause`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+export function resumeStand(standId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/stands/${standId}/resume`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
 export function deleteStand(standId: string): Promise<void> {
   return apiFetch<void>(`/stands/${standId}`, {
     method: 'DELETE',
