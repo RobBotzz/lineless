@@ -50,6 +50,14 @@ function StatusOverview({ items }: { items: OrderItem[] }) {
   const allCollected = active.length > 0 && active.every((i) => i.fulfilledAt !== null);
   const progress = active.length > 0 ? (ready.length / active.length) * 100 : 0;
 
+  if (active.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <p className="font-semibold text-text">Order cancelled</p>
+      </div>
+    );
+  }
+
   const heading = allCollected
     ? 'Order collected'
     : allReady
@@ -127,7 +135,7 @@ export default function TrackOrder() {
     );
   }
 
-  if (orderQuery.isError || !orderQuery.data) {
+  if (orderQuery.isError || !orderQuery.data || standsQuery.isError) {
     return (
       <div className="space-y-4">
         <BackButton to={paths.attendee.event(eventId)}>Back</BackButton>
@@ -193,9 +201,15 @@ export default function TrackOrder() {
       <StatusOverview items={order.items} />
 
       {/* Items grouped by stand */}
-      {viewItemsQuery.isPending && (
+      {viewItemsQuery.isFetching && (
         <p className="rounded-xl bg-surface-muted p-4 text-center text-sm text-text-muted">
           Loading stand details…
+        </p>
+      )}
+
+      {viewItemsQuery.isError && (
+        <p className="rounded-xl bg-surface-muted p-4 text-center text-sm text-text-muted">
+          Could not load item details.
         </p>
       )}
 
