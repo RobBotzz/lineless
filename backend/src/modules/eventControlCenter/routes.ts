@@ -14,15 +14,6 @@ import {
   standBelongsToEvent,
 } from "./service";
 import {
-  cancelOrderForOrganizer,
-  cancelOrderItemsForOrganizer,
-} from "../orders/service";
-import {
-  OrderItemNotFoundError,
-  OrderItemStateError,
-  OrderNotFoundError,
-} from "../orders/errors";
-import {
   pauseProductForEventControlCenter,
   resumeProductForEventControlCenter,
   toProductResponse,
@@ -36,7 +27,6 @@ import {
 import { StandNotFoundError } from "../stands/errors";
 import { EventNotFoundError } from "../events/errors";
 import {
-  cancelOrderItemsSchema,
   eventControlCenterQuerySchema,
   liveOrdersQuerySchema,
   updateProductStockSchema,
@@ -44,10 +34,6 @@ import {
 
 function eventId(req: Request): string {
   return req.params["eventId"] as string;
-}
-
-function orderId(req: Request): string {
-  return req.params["orderId"] as string;
 }
 
 function standId(req: Request): string {
@@ -65,16 +51,10 @@ function accountId(req: Request): string {
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
-  if (err instanceof OrderNotFoundError)
-    return res.status(404).json({ error: err.message });
-  if (err instanceof OrderItemNotFoundError)
-    return res.status(404).json({ error: err.message });
   if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof ProductNotFoundError)
     return res.status(404).json({ error: err.message });
-  if (err instanceof OrderItemStateError)
-    return res.status(409).json({ error: err.message });
   if (err instanceof ProductStateError)
     return res.status(409).json({ error: err.message });
   console.error("Event control center error:", err);
@@ -223,37 +203,6 @@ eventControlCenterRouter.get(
     } catch (err) {
       handleError(err, res);
     }
-  })
-);
-
-// POST /events/:eventId/event-control-center/orders/:orderId/cancel
-// Order change streams publish the resulting order update to SSE subscribers.
-eventControlCenterRouter.post(
-  "/orders/:orderId/cancel",
-  authOrganizer,
-  async (req, res) => {
-    const order = await cancelOrderForOrganizer(
-      eventId(req),
-      orderId(req),
-      accountId(req)
-    );
-    res.status(200).json(order);
-  }
-);
-
-// POST /events/:eventId/event-control-center/orders/:orderId/items/cancel
-// Order change streams publish the resulting order update to SSE subscribers.
-eventControlCenterRouter.post(
-  "/orders/:orderId/items/cancel",
-  authOrganizer,
-  validateBody(cancelOrderItemsSchema, async (req, res, data) => {
-    const order = await cancelOrderItemsForOrganizer(
-      eventId(req),
-      orderId(req),
-      data.itemIds,
-      accountId(req)
-    );
-    res.status(200).json(order);
   })
 );
 

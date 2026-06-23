@@ -12,5 +12,9 @@ export const createOrderSchema = z.object({
   items: z.array(orderItemInputSchema).min(1),
 });
 
+export const cancelOrderItemsSchema = z.object({
+  itemIds: z.array(z.uuid()).min(1),
+});
+
 export type OrderItemInput = z.infer<typeof orderItemInputSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;

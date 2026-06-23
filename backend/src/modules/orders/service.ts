@@ -35,10 +35,6 @@ export function getItemState(item: OrderItemDoc): ItemState {
   return "PENDING";
 }
 
-function assertOrderBelongsToEvent(order: OrderDoc, eventId: string): void {
-  if (order.eventId !== eventId) throw new OrderNotFoundError();
-}
-
 function assertItemCancellable(item: OrderItemDoc): void {
   const state = getItemState(item);
   if (state === "FULFILLED" || state === "CANCELLED") {
@@ -201,15 +197,12 @@ export async function listUnpaidOrdersForCashier(
 }
 
 export async function cancelOrderForOrganizer(
-  eventId: string,
   orderId: string,
   accountId: string
 ): Promise<OrderDoc> {
-  await verifyEventOwnership(eventId, accountId);
-
   const order = await Order.findById(orderId);
   if (!order) throw new OrderNotFoundError();
-  assertOrderBelongsToEvent(order, eventId);
+  await verifyEventOwnership(order.eventId, accountId);
 
   const now = new Date();
   let changed = false;
@@ -230,16 +223,13 @@ export async function cancelOrderForOrganizer(
 }
 
 export async function cancelOrderItemsForOrganizer(
-  eventId: string,
   orderId: string,
   itemIds: string[],
   accountId: string
 ): Promise<OrderDoc> {
-  await verifyEventOwnership(eventId, accountId);
-
   const order = await Order.findById(orderId);
   if (!order) throw new OrderNotFoundError();
-  assertOrderBelongsToEvent(order, eventId);
+  await verifyEventOwnership(order.eventId, accountId);
 
   const itemsById = new Map(order.items.map((item) => [item._id, item]));
   const items = itemIds.map((itemId) => {

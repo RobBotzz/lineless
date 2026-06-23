@@ -22,13 +22,13 @@
 | Events   | `GET /api/events/:eventId/event-control-center/stream`                                      | no     | own event | no             | no            |
 | Events   | `GET /api/events/:eventId/event-control-center/orders`                                      | no     | own event | no             | no            |
 | Events   | `GET /api/events/:eventId/event-control-center/orders/stream`                               | no     | own event | no             | no            |
-| Events   | `POST /api/events/:eventId/event-control-center/orders/:orderId/cancel`                     | no     | own event | no             | no            |
-| Events   | `POST /api/events/:eventId/event-control-center/orders/:orderId/items/cancel`               | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/pause`                      | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/resume`                     | no     | own event | no             | no            |
 | Events   | `PATCH /api/events/:eventId/event-control-center/stands/:standId/products/:productId/stock` | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/products/:productId/pause`  | no     | own event | no             | no            |
 | Events   | `POST /api/events/:eventId/event-control-center/stands/:standId/products/:productId/resume` | no     | own event | no             | no            |
+| Orders   | `POST /api/orders/:orderId/cancel`                                                          | no     | own event | no             | no            |
+| Orders   | `POST /api/orders/:orderId/items/cancel`                                                    | no     | own event | no             | no            |
 | Stands   | `POST /api/events/:eventId/stands`                                                          | no     | own event | no             | no            |
 | Stands   | `GET /api/events/:eventId/stands`                                                           | no     | own event | event link key | session event |
 | Stands   | `GET /api/stands/:standId`                                                                  | no     | own event | own stand      | session event |

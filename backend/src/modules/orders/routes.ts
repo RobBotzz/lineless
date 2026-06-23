@@ -2,6 +2,8 @@ import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
+  cancelOrderForOrganizer,
+  cancelOrderItemsForOrganizer,
   getOrderForAttendee,
   getOrderForCashier,
   getOrderForOrganizer,
@@ -18,9 +20,11 @@ import {
   OrderNotFoundError,
   OrderValidationError,
 } from "./errors";
-import { createOrderSchema } from "./types";
+import { EventNotFoundError } from "../events/errors";
+import { cancelOrderItemsSchema, createOrderSchema } from "./types";
 import {
   authAttendee,
+  authOrganizer,
   authOperator,
   authOrganizerOrOperatorOrAttendee,
   authOperatorOrAttendee,
@@ -36,6 +40,8 @@ function itemId(req: Request): string {
 
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof OrderNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof OrderItemNotFoundError)
     return res.status(404).json({ error: err.message });
@@ -100,6 +106,41 @@ ordersRouter.get(
       return handleError(err, res);
     }
   }
+);
+
+// POST /orders/:orderId/cancel — organizer cancels all not-ready order items.
+ordersRouter.post(
+  "/:orderId/cancel",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const order = await cancelOrderForOrganizer(
+        orderId(req),
+        req.organizer!.accountId
+      );
+      return res.status(200).json(order);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  }
+);
+
+// POST /orders/:orderId/items/cancel — organizer cancels selected order items.
+ordersRouter.post(
+  "/:orderId/items/cancel",
+  authOrganizer,
+  validateBody(cancelOrderItemsSchema, async (req, res, data) => {
+    try {
+      const order = await cancelOrderItemsForOrganizer(
+        orderId(req),
+        data.itemIds,
+        req.organizer!.accountId
+      );
+      return res.status(200).json(order);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  })
 );
 
 function itemTransition(action: "start" | "ready" | "fulfill" | "cancel") {

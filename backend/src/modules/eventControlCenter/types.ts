@@ -29,10 +29,6 @@ export const liveOrdersQuerySchema = z.object({
   standId: z.uuid().optional(),
 });
 
-export const cancelOrderItemsSchema = z.object({
-  itemIds: z.array(z.uuid()).min(1),
-});
-
 export const updateProductStockSchema = z.object({
   productStock: stock,
 });

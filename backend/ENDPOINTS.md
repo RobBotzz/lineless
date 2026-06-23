@@ -53,15 +53,13 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Operational control (event control center)
 
-| Method | URL                                                                                   | Description                 |
-| ------ | ------------------------------------------------------------------------------------- | --------------------------- |
-| POST   | `/events/{eventId}/event-control-center/orders/{orderId}/cancel`                      | Cancel all open order items |
-| POST   | `/events/{eventId}/event-control-center/orders/{orderId}/items/cancel`                | Cancel selected order items |
-| POST   | `/events/{eventId}/event-control-center/stands/{standId}/pause`                       | Pause a stand               |
-| POST   | `/events/{eventId}/event-control-center/stands/{standId}/resume`                      | Resume a stand              |
-| PATCH  | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/stock`  | Update product stock        |
-| POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/pause`  | Pause a product             |
-| POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/resume` | Resume a product            |
+| Method | URL                                                                                   | Description          |
+| ------ | ------------------------------------------------------------------------------------- | -------------------- |
+| POST   | `/events/{eventId}/event-control-center/stands/{standId}/pause`                       | Pause a stand        |
+| POST   | `/events/{eventId}/event-control-center/stands/{standId}/resume`                      | Resume a stand       |
+| PATCH  | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/stock`  | Update product stock |
+| POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/pause`  | Pause a product      |
+| POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/resume` | Resume a product     |
 
 ### Account / Payments
 
@@ -85,12 +83,14 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Orders
 
-| Method | URL                         | Description                                      |
-| ------ | --------------------------- | ------------------------------------------------ |
-| POST   | `/orders`                   | Create order                                     |
-| GET    | `/orders/{orderId}`         | Get order details (confirmation / tracking view) |
-| GET    | `/orders/{orderId}/stream`  | Order status stream (SSE) – live pickup status   |
-| POST   | `/orders/{orderId}/ratings` | Submit product ratings (1–5 stars + comment)     |
+| Method | URL                              | Description                                      |
+| ------ | -------------------------------- | ------------------------------------------------ |
+| POST   | `/orders`                        | Create order                                     |
+| GET    | `/orders/{orderId}`              | Get order details (confirmation / tracking view) |
+| GET    | `/orders/{orderId}/stream`       | Order status stream (SSE) – live pickup status   |
+| POST   | `/orders/{orderId}/cancel`       | Cancel all open order items                      |
+| POST   | `/orders/{orderId}/items/cancel` | Cancel selected order items                      |
+| POST   | `/orders/{orderId}/ratings`      | Submit product ratings (1–5 stars + comment)     |
 
 ### Payment
 
