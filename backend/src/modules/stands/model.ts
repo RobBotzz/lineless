@@ -34,10 +34,10 @@ const standSchema = new Schema<StandDoc>(
 );
 
 // Exactly one cashier stand per event, enforced at the database level. The
-// cashier stand is system-managed (created by the backend, never deleted), so a
-// partial unique index scoped to the CASHIER type is sufficient.
+// partial filter limits uniqueness to CASHIER stands; the compound key keeps
+// this index distinct from the plain `eventId` index above.
 standSchema.index(
-  { eventId: 1 },
+  { eventId: 1, standType: 1 },
   { unique: true, partialFilterExpression: { standType: "CASHIER" } }
 );
 
