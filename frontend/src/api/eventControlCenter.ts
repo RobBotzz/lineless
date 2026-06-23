@@ -80,28 +80,6 @@ export function getEventOrders(eventId: string, standId?: string): Promise<LiveO
   });
 }
 
-export function cancelOrder(eventId: string, orderId: string): Promise<unknown> {
-  return apiFetch<unknown>(`/events/${eventId}/event-control-center/orders/${orderId}/cancel`, {
-    method: 'POST',
-    auth: 'organizer',
-  });
-}
-
-export function cancelOrderItems(
-  eventId: string,
-  orderId: string,
-  itemIds: string[],
-): Promise<unknown> {
-  return apiFetch<unknown>(
-    `/events/${eventId}/event-control-center/orders/${orderId}/items/cancel`,
-    {
-      method: 'POST',
-      auth: 'organizer',
-      body: JSON.stringify({ itemIds }),
-    },
-  );
-}
-
 export function pauseProduct(
   eventId: string,
   standId: string,

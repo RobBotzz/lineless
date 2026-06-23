@@ -37,6 +37,21 @@ export function fulfillOrderItem(orderId: string, itemId: string, standId: strin
   return transitionItem(orderId, itemId, 'fulfill', standId);
 }
 
+export function cancelOrder(orderId: string): Promise<unknown> {
+  return apiFetch<unknown>(`/orders/${orderId}/cancel`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+export function cancelOrderItems(orderId: string, itemIds: string[]): Promise<unknown> {
+  return apiFetch<unknown>(`/orders/${orderId}/items/cancel`, {
+    method: 'POST',
+    auth: 'organizer',
+    body: JSON.stringify({ itemIds }),
+  });
+}
+
 // --- Cashier order API ---------------------------------------------------------
 // The cashier always acts as its event's CASHIER stand; callers pass that standId
 // (resolved by CashierLayout) for operator auth.

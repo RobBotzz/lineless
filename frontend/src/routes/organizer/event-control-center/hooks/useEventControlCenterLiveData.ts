@@ -3,8 +3,6 @@ import { useMemo, useState } from 'react';
 import {
   EVENT_CONTROL_CENTER_STREAM_EVENT,
   EVENT_ORDERS_STREAM_EVENT,
-  cancelOrder,
-  cancelOrderItems,
   eventControlCenterStreamPath,
   eventOrdersStreamPath,
   getEventControlCenter,
@@ -18,6 +16,7 @@ import {
   type EventControlCenterSettings,
   type LiveOrder,
 } from '@/api/eventControlCenter';
+import { cancelOrder, cancelOrderItems } from '@/api/orders';
 import { useSSE, type SseStatus } from '@/hooks/useSSE';
 import { getStandProducts } from '@/api/products';
 import { getEventStands } from '@/api/stands';
@@ -123,7 +122,7 @@ export function useEventControlCenterLiveData({
   async function handleCancelOrder(orderId: string) {
     setMutationError(null);
     try {
-      await cancelOrder(eventId, orderId);
+      await cancelOrder(orderId);
       await refreshLiveSnapshotIfStreamClosed();
     } catch (error) {
       await recoverLiveSnapshot();
@@ -135,7 +134,7 @@ export function useEventControlCenterLiveData({
   async function handleCancelOrderItems(orderId: string, itemIds: string[]) {
     setMutationError(null);
     try {
-      await cancelOrderItems(eventId, orderId, itemIds);
+      await cancelOrderItems(orderId, itemIds);
       await refreshLiveSnapshotIfStreamClosed();
     } catch (error) {
       await recoverLiveSnapshot();
