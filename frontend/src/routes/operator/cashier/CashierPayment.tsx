@@ -3,8 +3,8 @@ import { useNavigate, useOutletContext } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { AlertDialog } from '../../../components/feedback/AlertDialog';
-import { DeleteIcon, SearchIcon } from '../../../components/icons';
-import { BackButton } from '../../../components/shared';
+import { SearchIcon } from '../../../components/icons';
+import { BackButton, DeleteIconButton } from '../../../components/shared';
 import { deleteUnpaidOrder, getUnpaidOrders } from '../../../api/orders';
 import type { Order } from '../../../types/order';
 import { computeTotal } from '../../../types/order';
@@ -144,17 +144,14 @@ export default function CashierPayment() {
                     </div>
                     <p className="mt-0.5 text-xs text-text-muted">{order.items.length} items</p>
                   </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete order ${order.orderNumber}`}
+                  <DeleteIconButton
+                    label={`Delete order ${order.orderNumber}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setPendingDeleteId(order._id);
                     }}
-                    className="absolute right-2 top-2 rounded p-1 text-text-muted transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
-                  >
-                    <DeleteIcon className="h-4 w-4" />
-                  </button>
+                    className="absolute right-2 top-2"
+                  />
                 </li>
               ))}
             </ul>
