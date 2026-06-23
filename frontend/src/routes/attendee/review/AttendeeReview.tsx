@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { getAttendeeOrder } from '@/api/orders';
-import { submitRating } from '@/api/ratings';
+import { getAttendeeEvent } from '@/api/events';
+import { getMyOrderRatings, submitRating } from '@/api/ratings';
 import { ApiError } from '@/api/client';
 import { BackButton } from '@/components/shared';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { CheckCircleIcon } from '@/components/icons';
 import { paths } from '@/paths';
 
 import { ATTENDEE_WIDTH } from '../column';
@@ -19,11 +21,16 @@ interface RatingState {
 
 export default function AttendeeReview() {
   const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
-  const navigate = useNavigate();
 
   const [ratings, setRatings] = useState<Record<string, RatingState>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  const eventQuery = useQuery({
+    queryKey: ['attendee', 'event', eventId],
+    queryFn: () => getAttendeeEvent(eventId),
+  });
 
   const orderQuery = useQuery({
     queryKey: ['attendee', 'order', orderId],
@@ -31,10 +38,29 @@ export default function AttendeeReview() {
     refetchInterval: 15_000,
   });
 
+  const existingRatingsQuery = useQuery({
+    queryKey: ['attendee', 'order', orderId, 'ratings'],
+    queryFn: () => getMyOrderRatings(orderId, eventId),
+    staleTime: Infinity,
+  });
+
+  const existingRatings = useMemo(() => {
+    const map = new Map<string, { stars: number; comment: string | null }>();
+    for (const r of existingRatingsQuery.data?.ratings ?? []) {
+      map.set(r.productId, { stars: r.stars, comment: r.comment });
+    }
+    return map;
+  }, [existingRatingsQuery.data]);
+
   const reviewableProducts = useMemo(() => {
     if (!orderQuery.data) return [];
     const seen = new Set<string>();
-    const result: { productId: string; productName: string; standName: string }[] = [];
+    const result: {
+      productId: string;
+      productName: string;
+      standName: string;
+      existingRating: { stars: number; comment: string | null } | null;
+    }[] = [];
     for (const item of orderQuery.data.items) {
       if (item.fulfilledAt && !item.cancelledAt && !seen.has(item.productId)) {
         seen.add(item.productId);
@@ -42,15 +68,21 @@ export default function AttendeeReview() {
           productId: item.productId,
           productName: item.productName,
           standName: item.standName,
+          existingRating: existingRatings.get(item.productId) ?? null,
         });
       }
     }
     return result;
-  }, [orderQuery.data]);
+  }, [orderQuery.data, existingRatings]);
+
+  const allAlreadyReviewed =
+    reviewableProducts.length > 0 && reviewableProducts.every((p) => p.existingRating !== null);
 
   const allRated =
     reviewableProducts.length > 0 &&
-    reviewableProducts.every((p) => (ratings[p.productId]?.stars ?? 0) > 0);
+    reviewableProducts.every(
+      (p) => p.existingRating !== null || (ratings[p.productId]?.stars ?? 0) > 0,
+    );
 
   function setStars(productId: string, stars: number) {
     setRatings((prev) => ({
@@ -72,19 +104,21 @@ export default function AttendeeReview() {
     setSubmitError(null);
     try {
       await Promise.all(
-        reviewableProducts.map((p) => {
-          const state = ratings[p.productId];
-          return submitRating(orderId, p.productId, eventId, {
-            stars: state.stars,
-            comment: state.comment.trim() || null,
-          }).catch((err) => {
-            // 409 = already reviewed — treat as success for this product
-            if (err instanceof ApiError && err.status === 409) return;
-            throw err;
-          });
-        }),
+        reviewableProducts
+          .filter((p) => p.existingRating === null)
+          .map((p) => {
+            const state = ratings[p.productId];
+            return submitRating(orderId, p.productId, eventId, {
+              stars: state.stars,
+              comment: state.comment.trim() || null,
+            }).catch((err) => {
+              // 409 = already reviewed — treat as success for this product
+              if (err instanceof ApiError && err.status === 409) return;
+              throw err;
+            });
+          }),
       );
-      navigate(paths.attendee.orders(eventId));
+      setSubmitted(true);
     } catch {
       setSubmitError('Something went wrong. Please try again.');
       setIsSubmitting(false);
@@ -92,28 +126,59 @@ export default function AttendeeReview() {
   }
 
   const order = orderQuery.data;
+  const isLoading = eventQuery.isPending || orderQuery.isPending || existingRatingsQuery.isPending;
+
+  if (submitted) {
+    return (
+      <div className={`mx-auto ${ATTENDEE_WIDTH} space-y-4`}>
+        <div className="rounded-xl border border-border bg-surface p-8 text-center shadow-sm">
+          <CheckCircleIcon className="mx-auto h-12 w-12 text-green-500" />
+          <h1 className="mt-3 text-lg font-semibold text-text">Thanks for your ratings!</h1>
+          <p className="mt-1 text-sm text-text-muted">
+            You rated {reviewableProducts.filter((p) => p.existingRating === null).length}{' '}
+            {reviewableProducts.filter((p) => p.existingRating === null).length === 1
+              ? 'product'
+              : 'products'}
+            .
+          </p>
+          <Link to={paths.attendee.event(eventId)} className={`${buttonVariants()} mt-6 w-full`}>
+            Back to event
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`mx-auto ${ATTENDEE_WIDTH} space-y-4`}>
-      <BackButton to={paths.attendee.orders(eventId)}>Back</BackButton>
+      <BackButton to={paths.attendee.event(eventId)}>Back</BackButton>
 
       <div>
-        <h1 className="text-lg font-semibold text-text">Rate Products</h1>
-        {order && <p className="text-sm text-text-muted">Order {order.orderNumber}</p>}
+        <h1 className="text-lg font-semibold text-text">Share Your Feedback</h1>
+        <p className="text-sm text-text-muted">
+          Your star rating is visible to all customers. Comments are shared only with the organizer
+          to help improve the products.
+        </p>
       </div>
 
-      {orderQuery.isPending && <p className="py-8 text-center text-sm text-text-muted">Loading…</p>}
+      {isLoading && <p className="py-8 text-center text-sm text-text-muted">Loading…</p>}
 
-      {orderQuery.isError && (
+      {(eventQuery.isError || orderQuery.isError) && (
         <p className="rounded-xl border border-danger bg-surface px-4 py-3 text-sm text-danger">
           Could not load order. Please go back and try again.
         </p>
       )}
 
-      {order && (
+      {eventQuery.data && !eventQuery.data.ratingsEnabled && (
+        <p className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text-muted">
+          Ratings are not available for this event.
+        </p>
+      )}
+
+      {order && eventQuery.data?.ratingsEnabled && (
         <div className="rounded-xl border border-border bg-surface shadow-sm">
           <div className="border-b border-border px-4 py-3">
-            <p className="font-semibold text-text">Rate each product</p>
+            <p className="font-semibold text-text">How was your experience?</p>
             <p className="text-sm text-text-muted">{order.orderNumber}</p>
           </div>
 
@@ -128,10 +193,11 @@ export default function AttendeeReview() {
                   key={p.productId}
                   productName={p.productName}
                   standName={p.standName}
-                  stars={ratings[p.productId]?.stars ?? 0}
-                  comment={ratings[p.productId]?.comment ?? ''}
+                  stars={p.existingRating?.stars ?? ratings[p.productId]?.stars ?? 0}
+                  comment={p.existingRating?.comment ?? ratings[p.productId]?.comment ?? ''}
                   onStarsChange={(stars) => setStars(p.productId, stars)}
                   onCommentChange={(comment) => setComment(p.productId, comment)}
+                  disabled={p.existingRating !== null}
                 />
               ))
             )}
@@ -139,14 +205,27 @@ export default function AttendeeReview() {
 
           {reviewableProducts.length > 0 && (
             <div className="border-t border-border px-4 py-3">
-              {submitError && <p className="mb-3 text-sm text-danger">{submitError}</p>}
-              <Button
-                className="w-full"
-                disabled={!allRated || isSubmitting}
-                onClick={handleSubmit}
-              >
-                {isSubmitting ? 'Submitting…' : 'Submit ratings'}
-              </Button>
+              {allAlreadyReviewed ? (
+                <>
+                  <p className="mb-3 text-center text-sm text-text-muted">
+                    You have already reviewed all products in this order.
+                  </p>
+                  <Link to={paths.attendee.event(eventId)} className={`${buttonVariants()} w-full`}>
+                    Back to event
+                  </Link>
+                </>
+              ) : (
+                <>
+                  {submitError && <p className="mb-3 text-sm text-danger">{submitError}</p>}
+                  <Button
+                    className="w-full"
+                    disabled={!allRated || isSubmitting}
+                    onClick={handleSubmit}
+                  >
+                    {isSubmitting ? 'Submitting…' : 'Submit ratings'}
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>
