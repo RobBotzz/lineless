@@ -4,7 +4,7 @@ import {
   type Request,
   type Response,
 } from "express";
-import { validateBody, validateQuery } from "../../middleware/validate";
+import { validateQuery } from "../../middleware/validate";
 import { authOrganizer } from "../../middleware/auth/guards";
 import { subscribe } from "../../lib/realtimeBus";
 import { SseConnection } from "../../lib/sse";
@@ -13,35 +13,11 @@ import {
   listLiveOrdersForEventControlCenter,
   standBelongsToEvent,
 } from "./service";
-import {
-  pauseProductForEventControlCenter,
-  resumeProductForEventControlCenter,
-  toProductResponse,
-  updateProductStockForEventControlCenter,
-} from "../products/service";
-import { ProductNotFoundError, ProductStateError } from "../products/errors";
-import {
-  pauseStandForEventControlCenter,
-  resumeStandForEventControlCenter,
-} from "../stands/service";
-import { StandNotFoundError } from "../stands/errors";
 import { EventNotFoundError } from "../events/errors";
-import {
-  eventControlCenterQuerySchema,
-  liveOrdersQuerySchema,
-  updateProductStockSchema,
-} from "./types";
+import { eventControlCenterQuerySchema, liveOrdersQuerySchema } from "./types";
 
 function eventId(req: Request): string {
   return req.params["eventId"] as string;
-}
-
-function standId(req: Request): string {
-  return req.params["standId"] as string;
-}
-
-function productId(req: Request): string {
-  return req.params["productId"] as string;
 }
 
 function accountId(req: Request): string {
@@ -51,12 +27,6 @@ function accountId(req: Request): string {
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
-  if (err instanceof StandNotFoundError)
-    return res.status(404).json({ error: err.message });
-  if (err instanceof ProductNotFoundError)
-    return res.status(404).json({ error: err.message });
-  if (err instanceof ProductStateError)
-    return res.status(409).json({ error: err.message });
   console.error("Event control center error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -258,82 +228,6 @@ eventControlCenterRouter.get(
       handleError(err, res);
     }
   })
-);
-
-// PATCH /events/:eventId/event-control-center/stands/:standId/products/:productId/stock
-eventControlCenterRouter.patch(
-  "/stands/:standId/products/:productId/stock",
-  authOrganizer,
-  validateBody(updateProductStockSchema, async (req, res, data) => {
-    const product = await updateProductStockForEventControlCenter(
-      eventId(req),
-      standId(req),
-      productId(req),
-      accountId(req),
-      data.productStock
-    );
-    res.status(200).json(toProductResponse(product));
-  })
-);
-
-// POST /events/:eventId/event-control-center/stands/:standId/products/:productId/pause
-// Product availability streams are intentionally separate from the order/KPI SSE surface.
-eventControlCenterRouter.post(
-  "/stands/:standId/products/:productId/pause",
-  authOrganizer,
-  async (req, res) => {
-    const product = await pauseProductForEventControlCenter(
-      eventId(req),
-      standId(req),
-      productId(req),
-      accountId(req)
-    );
-    res.status(200).json(toProductResponse(product));
-  }
-);
-
-// POST /events/:eventId/event-control-center/stands/:standId/pause
-eventControlCenterRouter.post(
-  "/stands/:standId/pause",
-  authOrganizer,
-  async (req, res) => {
-    const stand = await pauseStandForEventControlCenter(
-      eventId(req),
-      standId(req),
-      accountId(req)
-    );
-    res.status(200).json(stand);
-  }
-);
-
-// POST /events/:eventId/event-control-center/stands/:standId/resume
-eventControlCenterRouter.post(
-  "/stands/:standId/resume",
-  authOrganizer,
-  async (req, res) => {
-    const stand = await resumeStandForEventControlCenter(
-      eventId(req),
-      standId(req),
-      accountId(req)
-    );
-    res.status(200).json(stand);
-  }
-);
-
-// POST /events/:eventId/event-control-center/stands/:standId/products/:productId/resume
-// Product availability streams are intentionally separate from the order/KPI SSE surface.
-eventControlCenterRouter.post(
-  "/stands/:standId/products/:productId/resume",
-  authOrganizer,
-  async (req, res) => {
-    const product = await resumeProductForEventControlCenter(
-      eventId(req),
-      standId(req),
-      productId(req),
-      accountId(req)
-    );
-    res.status(200).json(toProductResponse(product));
-  }
 );
 
 eventControlCenterRouter.use(eventControlCenterErrorHandler);

@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 const alertThreshold = z.coerce.number().int().min(0);
-const stock = z.number().int().min(0);
 const standAlertThresholdSchema = z.object({
   queueLengthAlertThreshold: alertThreshold.default(10),
   averageWaitAlertThresholdMinutes: alertThreshold.default(15),
@@ -27,10 +26,6 @@ export const eventControlCenterQuerySchema = z.object({
 
 export const liveOrdersQuerySchema = z.object({
   standId: z.uuid().optional(),
-});
-
-export const updateProductStockSchema = z.object({
-  productStock: stock,
 });
 
 export type EventControlCenterQuery = z.infer<

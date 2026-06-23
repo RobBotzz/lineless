@@ -207,30 +207,26 @@ export async function updateStand(
   return strip(stand.toObject());
 }
 
-export async function pauseStandForEventControlCenter(
-  eventId: string,
+export async function pauseStand(
   standId: string,
   accountId: string
 ): Promise<SafeStand> {
-  await verifyEventOwnership(eventId, accountId);
-
-  const stand = await Stand.findOne({ _id: standId, eventId, deletedAt: null });
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
+  await verifyEventOwnership(stand.eventId, accountId);
 
   stand.standStatus = "PAUSED";
   await stand.save();
   return strip(stand.toObject());
 }
 
-export async function resumeStandForEventControlCenter(
-  eventId: string,
+export async function resumeStand(
   standId: string,
   accountId: string
 ): Promise<SafeStand> {
-  await verifyEventOwnership(eventId, accountId);
-
-  const stand = await Stand.findOne({ _id: standId, eventId, deletedAt: null });
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
+  await verifyEventOwnership(stand.eventId, accountId);
 
   stand.standStatus = "LIVE";
   await stand.save();

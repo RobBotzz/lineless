@@ -29,6 +29,8 @@ Admin dashboard, event configuration, event control center, payout management.
 | ------ | -------------------------- | ------------------------------------------ |
 | POST   | `/events/{eventId}/stands` | Create stand                               |
 | PATCH  | `/stands/{standId}`        | Update stand                               |
+| POST   | `/stands/{standId}/pause`  | Pause stand                                |
+| POST   | `/stands/{standId}/resume` | Resume stand                               |
 | DELETE | `/stands/{standId}`        | Delete stand (soft delete via `deletedAt`) |
 
 ### Products
@@ -37,9 +39,10 @@ Admin dashboard, event configuration, event control center, payout management.
 | ------ | --------------------------------- | -------------------------------------------- |
 | POST   | `/stands/{standId}/products`      | Create product                               |
 | GET    | `/products/{productId}`           | Get single product                           |
-| PATCH  | `/products/{productId}`           | Update product                               |
+| PATCH  | `/products/{productId}`           | Update product, including stock              |
 | DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`) |
 | POST   | `/products/{productId}/pause`     | Pause product                                |
+| POST   | `/products/{productId}/resume`    | Resume product                               |
 | POST   | `/products/{productId}/terminate` | Terminate product                            |
 
 ### Event Control Center
@@ -50,16 +53,6 @@ Admin dashboard, event configuration, event control center, payout management.
 | GET    | `/events/{eventId}/event-control-center/stream`        | Event control center data stream (SSE)                      |
 | GET    | `/events/{eventId}/event-control-center/orders`        | Latest live paid, unfulfilled orders for the control center |
 | GET    | `/events/{eventId}/event-control-center/orders/stream` | Live order list stream (SSE)                                |
-
-### Operational control (event control center)
-
-| Method | URL                                                                                   | Description          |
-| ------ | ------------------------------------------------------------------------------------- | -------------------- |
-| POST   | `/events/{eventId}/event-control-center/stands/{standId}/pause`                       | Pause a stand        |
-| POST   | `/events/{eventId}/event-control-center/stands/{standId}/resume`                      | Resume a stand       |
-| PATCH  | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/stock`  | Update product stock |
-| POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/pause`  | Pause a product      |
-| POST   | `/events/{eventId}/event-control-center/stands/{standId}/products/{productId}/resume` | Resume a product     |
 
 ### Account / Payments
 
