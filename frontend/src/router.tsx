@@ -33,6 +33,7 @@ import AttendeeCart from './routes/attendee/cart/Cart';
 import AttendeeOrderConfirmed from './routes/attendee/checkout/OrderConfirmed';
 import AttendeeCashPaymentPending from './routes/attendee/checkout/CashPaymentPending';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
+import { ordersLoader } from './routes/attendee/order-history/data';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
 import OperatorLinkEntry from './routes/operator/link-entry/OperatorLinkEntry';
@@ -102,7 +103,7 @@ export const router = createBrowserRouter(
         <Route path="cart" element={<AttendeeCart />} />
         <Route path="checkout/:orderId/confirmed" element={<AttendeeOrderConfirmed />} />
         <Route path="checkout/:orderId/pending" element={<AttendeeCashPaymentPending />} />
-        <Route path="orders" element={<AttendeeOrderHistory />} />
+        <Route path="orders" element={<AttendeeOrderHistory />} loader={ordersLoader} />
       </Route>
 
       <Route path="operator" element={<OperatorLayout />} handle={{ title: 'Operator' }}>

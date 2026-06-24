@@ -153,3 +153,8 @@ export function deleteUnpaidOrder(orderId: string, standId: string): Promise<voi
 export function confirmCashPayment(_orderId: string): Promise<void> {
   return Promise.resolve();
 }
+
+// GET /api/orders — attendee's order history (paid orders only).
+export function getAttendeeOrders(eventId: string): Promise<Order[]> {
+  return apiFetch<Order[]>('/orders', { auth: 'attendee', eventId });
+}
