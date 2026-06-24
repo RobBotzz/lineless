@@ -100,16 +100,19 @@ function flattenOrderItems(items: OrderItemView[]) {
 }
 
 // POST /api/orders — creates a cashier order (operator auth, no attendee session).
-export function createManualOrder(
+export async function createManualOrder(
   input: { eventId: string; items: OrderItemView[] },
   standId: string,
 ): Promise<Order> {
-  return apiFetch<Order>('/orders', {
+  // POST /orders wraps the created order as { order }, so unwrap it here rather
+  // than treating the body as the order itself.
+  const { order } = await apiFetch<{ order: Order }>('/orders', {
     method: 'POST',
     auth: 'operator',
     standId,
     body: JSON.stringify({ eventId: input.eventId, items: flattenOrderItems(input.items) }),
   });
+  return order;
 }
 
 // POST /api/orders — creates an order for the attendee's own cart (attendee session auth).
