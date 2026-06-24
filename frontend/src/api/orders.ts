@@ -6,6 +6,59 @@ import { getOperatorStands } from './stands';
 import type { Order, OrderItemView } from '../types/order';
 import type { Stand } from '../types/stand';
 
+// Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED.
+// These transitions are operator-only (authOperator on the backend) and each
+// persists server-side; the operator board's SSE stream then re-pushes the
+// resulting board, so callers do not merge the response into local state.
+type ItemTransition = 'start' | 'ready' | 'fulfill';
+
+function transitionItem(
+  orderId: string,
+  itemId: string,
+  action: ItemTransition,
+  standId: string,
+): Promise<void> {
+  return apiFetch<void>(`/orders/${orderId}/items/${itemId}/${action}`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+  });
+}
+
+// PENDING -> PREPARING
+export function startOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
+  return transitionItem(orderId, itemId, 'start', standId);
+}
+
+// PREPARING -> READY
+export function readyOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
+  return transitionItem(orderId, itemId, 'ready', standId);
+}
+
+// READY -> FULFILLED (handed to the customer; leaves the board)
+export function fulfillOrderItem(orderId: string, itemId: string, standId: string): Promise<void> {
+  return transitionItem(orderId, itemId, 'fulfill', standId);
+}
+
+export function cancelOrder(orderId: string): Promise<unknown> {
+  return apiFetch<unknown>(`/orders/${orderId}/cancel`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+export function cancelOrderItems(orderId: string, itemIds: string[]): Promise<unknown> {
+  return apiFetch<unknown>(`/orders/${orderId}/items/cancel`, {
+    method: 'POST',
+    auth: 'organizer',
+    body: JSON.stringify({ itemIds }),
+  });
+}
+
+// --- Cashier order API ---------------------------------------------------------
+// The cashier always acts as its event's CASHIER stand; callers pass that standId
+// (resolved by CashierLayout) for operator auth.
+
 // orderId must be the UUID _id, not the human-readable orderNumber.
 export function getOrder(orderId: string, standId: string): Promise<Order> {
   return apiFetch<Order>(`/orders/${orderId}`, { auth: 'operator', standId });
