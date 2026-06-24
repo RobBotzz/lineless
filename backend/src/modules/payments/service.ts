@@ -40,7 +40,16 @@ export async function handleAmountCapturableUpdated(
       const payment = await TabPayment.findOne({
         stripePaymentIntentId: intentId,
       }).session(session);
-      if (!payment || payment.tabPaymentStatus !== "PENDING") return;
+      // Accept PENDING or FAILED: a card declined once then retried on the same
+      // PaymentIntent fires payment_failed (marking us FAILED) before the
+      // eventual amount_capturable_updated, so a FAILED hold must still be able
+      // to recover to AUTHORIZED. Ignore only already-resolved holds.
+      if (
+        !payment ||
+        (payment.tabPaymentStatus !== "PENDING" &&
+          payment.tabPaymentStatus !== "FAILED")
+      )
+        return;
 
       const now = new Date();
       payment.tabPaymentStatus = "AUTHORIZED";
