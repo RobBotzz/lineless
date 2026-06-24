@@ -243,29 +243,24 @@ export default function PickupDashboard() {
 
 function StandSection({ stand }: { stand: PickupBoardStand }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-border bg-background/60 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-2xl font-bold tracking-tight text-text">
-              {stand.standName}
-            </h2>
-            {stand.standStatus === 'PAUSED' && (
-              <span className="rounded-full bg-warning/20 px-2.5 py-1 text-xs font-semibold text-text">
-                Paused
-              </span>
-            )}
-          </div>
-        </div>
+    <section className="rounded-lg border border-border bg-surface p-4 shadow-sm sm:p-5">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <h2 className="truncate text-2xl font-bold tracking-tight text-text">{stand.standName}</h2>
+        {stand.standStatus === 'PAUSED' && (
+          <span className="rounded-full bg-warning/20 px-2.5 py-1 text-xs font-semibold text-text">
+            Paused
+          </span>
+        )}
       </div>
 
-      <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_1px_minmax(0,0.85fr)] xl:gap-y-0">
         <StatusLane
           title="In Line"
           intent="line"
           orders={stand.inLine}
           emptyMessage="No orders waiting at this stand."
         />
+        <div aria-hidden="true" className="h-px bg-border xl:h-auto xl:w-px xl:self-stretch" />
         <StatusLane
           title="Ready for Pickup"
           intent="ready"
@@ -289,26 +284,26 @@ function StatusLane({
   emptyMessage: string;
 }) {
   return (
-    <div
-      className={cn(
-        'min-h-80 rounded-lg border bg-background p-4',
-        intent === 'ready'
-          ? 'border-success/50 border-t-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
-          : 'border-border',
-      )}
-    >
+    <div className="min-h-80">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-text">{title}</h3>
+        <h3
+          className={cn(
+            'text-sm font-bold uppercase tracking-wide',
+            intent === 'ready' ? 'text-success' : 'text-text-muted',
+          )}
+        >
+          {title}
+        </h3>
       </div>
 
       <div className="mt-4 min-h-72">
         {orders.length > 0 ? (
           <ul
             className={cn(
-              'grid content-start gap-3',
+              'grid content-start justify-start gap-3',
               intent === 'line'
-                ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-                : 'grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3',
+                ? 'grid-cols-1 sm:grid-cols-[repeat(2,13rem)] lg:grid-cols-[repeat(3,13rem)]'
+                : 'grid-cols-1 sm:grid-cols-[repeat(2,13rem)]',
             )}
           >
             {orders.map((order) => (
@@ -333,14 +328,14 @@ function PickupOrderCard({
   return (
     <li
       className={cn(
-        'flex min-h-28 min-w-0 flex-col justify-between rounded-lg border bg-surface p-4 shadow-sm',
-        intent === 'ready' ? 'border-success/35' : 'border-border',
+        'flex min-h-28 min-w-0 flex-col justify-between rounded-md border bg-background p-4 shadow-sm',
+        'h-28 w-52',
+        intent === 'ready' ? 'border-success/40 ring-1 ring-success/10' : 'border-border',
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-text">{orderItem.productName}</p>
-          <p className="mt-1 text-xs font-medium text-text-muted">Order</p>
         </div>
       </div>
       <p className="mt-4 truncate font-mono text-3xl font-bold tracking-tight text-text">
