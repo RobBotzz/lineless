@@ -213,7 +213,7 @@ function ProductTile({
         <ProductDetailsDialog
           product={product}
           standName={standName}
-          rating={product.rating}
+          rating={product.rating ?? null}
           onClose={() => setDetailsOpen(false)}
         />
       )}

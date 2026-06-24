@@ -193,7 +193,7 @@ export interface StreamSseOptions extends Omit<ApiFetchOptions, 'body' | 'method
   onOpen?: () => void;
 }
 
-// Low-level Server-Sent-Events transport — the streaming sibling of apiFetch.
+// Low-level Server-Sent-Events transport: the streaming sibling of apiFetch.
 // It attaches the same persona credential (attachAuthHeader), performs the same
 // one-shot refresh + onUnauthorized on a 401, then keeps the connection open and
 // hands every decoded frame to onMessage until the server closes, the caller
@@ -214,7 +214,11 @@ async function doStream(path: string, options: StreamSseOptions, isRetry: boolea
   finalHeaders.set('Accept', 'text/event-stream');
   attachAuthHeader(finalHeaders, auth, { standId, eventId });
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...rest, headers: finalHeaders, signal });
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...rest,
+    headers: finalHeaders,
+    signal,
+  });
 
   if (res.status === 401 && auth !== 'public') {
     if (await tryRefreshOr401(auth, isRetry, { standId, eventId })) {
@@ -244,8 +248,8 @@ async function readSseStream(
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
 
+      buffer += decoder.decode(value, { stream: true });
       let boundary = buffer.indexOf('\n\n');
       while (boundary !== -1) {
         const frame = parseSseFrame(buffer.slice(0, boundary));
