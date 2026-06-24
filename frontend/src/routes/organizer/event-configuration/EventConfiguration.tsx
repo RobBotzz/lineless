@@ -9,7 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
-import { ChevronDownIcon, LinkIcon, PinIcon, ProductsIcon, UploadIcon } from '@/components/icons';
+import {
+  ChevronDownIcon,
+  InfoIcon,
+  LinkIcon,
+  PinIcon,
+  ProductsIcon,
+  UploadIcon,
+} from '@/components/icons';
 import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
 import { paths } from '@/paths';
 import type { Event, UpdateEventInput } from '@/types/event';
@@ -96,6 +103,7 @@ export default function EventConfiguration() {
   const [activeSection, setActiveSection] = useState<SectionId>('status');
   const [showOperatorLink, setShowOperatorLink] = useState(false);
   const [showCustomerLink, setShowCustomerLink] = useState(false);
+  const [showHoldInfo, setShowHoldInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
@@ -372,14 +380,53 @@ export default function EventConfiguration() {
 
               <TextField
                 id="baseline-hold"
-                label="Card pre-authorization hold (€)"
+                label={
+                  <span className="inline-flex items-center gap-1.5">
+                    Card pre-authorization hold (€)
+                    <span className="relative inline-flex">
+                      <button
+                        type="button"
+                        aria-label="About the card pre-authorization hold"
+                        aria-expanded={showHoldInfo}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowHoldInfo((open) => !open);
+                        }}
+                        className="text-text-muted transition hover:text-text"
+                      >
+                        <InfoIcon />
+                      </button>
+                      {showHoldInfo && (
+                        <>
+                          <button
+                            type="button"
+                            aria-hidden="true"
+                            tabIndex={-1}
+                            className="fixed inset-0 z-40 cursor-default"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setShowHoldInfo(false);
+                            }}
+                          />
+                          <span
+                            role="tooltip"
+                            className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                          >
+                            {
+                              "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
+                            }
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </span>
+                }
                 type="number"
                 inputMode="numeric"
                 min="1"
                 step="1"
                 value={form.baselineHold}
                 onChange={(e) => updateField('baselineHold', e.target.value)}
-                helperText="Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
                 error={
                   baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
                 }
