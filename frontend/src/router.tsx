@@ -17,6 +17,9 @@ import {
   eventConfigurationLoader,
   eventConfigurationAction,
 } from './routes/organizer/event-configuration/data';
+import { EventControlCenterError } from './routes/organizer/event-control-center/EventControlCenter';
+import EventControlCenterRoute from './routes/organizer/event-control-center/EventControlCenterRoute';
+import { eventControlCenterLoader } from './routes/organizer/event-control-center/data';
 import OrganizerPayment from './routes/organizer/Payment';
 import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Settings';
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
@@ -32,12 +35,13 @@ import AttendeeCashPaymentPending from './routes/attendee/checkout/CashPaymentPe
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 import AttendeeTrackOrder from './routes/attendee/order-history/TrackOrder';
 import AttendeeReviewOrder from './routes/attendee/order-history/ReviewOrder';
+import { ordersLoader } from './routes/attendee/order-history/data';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
-import OperatorLinkEntry from './routes/operator/OperatorLinkEntry';
-import OperatorPickupDashboard from './routes/operator/PickupDashboard';
-import OperatorStandDashboard from './routes/operator/Queue';
-import OperatorStandSelection from './routes/operator/StandSelection';
+import OperatorLinkEntry from './routes/operator/link-entry/OperatorLinkEntry';
+import OperatorPickupDashboard from './routes/operator/pickup-dashboard/PickupDashboard';
+import OperatorStandDashboard from './routes/operator/stand-dashboard/OperatorDashboard';
+import OperatorStandSelection from './routes/operator/stand-selection/StandSelection';
 import CashierLayout from './routes/operator/cashier/CashierLayout';
 import CashierHome from './routes/operator/cashier/CashierHome';
 import CashierManualOrder from './routes/operator/cashier/CashierManualOrder';
@@ -71,6 +75,12 @@ export const router = createBrowserRouter(
           action={settingsAction}
           errorElement={<SettingsError />}
         />
+        <Route
+          path="events/:eventId/event-control-center/:section"
+          element={<EventControlCenterRoute />}
+          loader={eventControlCenterLoader}
+          errorElement={<EventControlCenterError />}
+        />
       </Route>
 
       <Route
@@ -95,7 +105,7 @@ export const router = createBrowserRouter(
         <Route path="cart" element={<AttendeeCart />} />
         <Route path="checkout/:orderId/confirmed" element={<AttendeeOrderConfirmed />} />
         <Route path="checkout/:orderId/pending" element={<AttendeeCashPaymentPending />} />
-        <Route path="orders" element={<AttendeeOrderHistory />} />
+        <Route path="orders" element={<AttendeeOrderHistory />} loader={ordersLoader} />
         <Route path="orders/:orderId" element={<AttendeeTrackOrder />} />
         <Route path="orders/:orderId/review" element={<AttendeeReviewOrder />} />
       </Route>

@@ -68,6 +68,15 @@ export function LockIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
+export function UnlockIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <rect height="11" rx="2" width="16" x="4" y="11" />
+      <path d="M8 11V7a4 4 0 0 1 7.5-2" />
+    </svg>
+  );
+}
+
 export function PinIcon({ className = 'h-5 w-5' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>
@@ -129,6 +138,15 @@ export function CheckIcon({ className = 'h-4 w-4' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>
       <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+export function XIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
     </svg>
   );
 }
@@ -263,6 +281,23 @@ export function ChatIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
+export function PauseIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <rect height="14" rx="1" width="4" x="6" y="5" />
+      <rect height="14" rx="1" width="4" x="14" y="5" />
+    </svg>
+  );
+}
+
+export function PlayIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M7 4.5v15l12-7.5z" />
+    </svg>
+  );
+}
+
 export function CheckCircleIcon({ className = 'h-6 w-6' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>
@@ -340,6 +375,23 @@ export function ExternalLinkIcon({ className = 'h-4 w-4' }: IconProps) {
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
       <polyline points="15 3 21 3 21 9" />
       <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
+export function ArrowRightIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+    >
+      <path d="M5 12h14M12 5l7 7-7 7" />
     </svg>
   );
 }

@@ -167,9 +167,39 @@ body {
   animation: account-menu-item-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Brief glow when an operator board item moves between columns: lights up once,
+   then gently fades out (no blinking). Uses outline (not box-shadow) so it never
+   clobbers the card's own shadow. Replays on each move because the card remounts
+   when it changes column. */
+@keyframes board-card-glow {
+  0% {
+    outline-color: color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+
+  6% {
+    outline-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+
+  65% {
+    outline-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+
+  100% {
+    outline-color: color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+}
+
+.board-card-moved {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  /* Lights up fast, holds, then fades over the last ~1.7s (~5s total). */
+  animation: board-card-glow 5s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .account-menu-popover,
-  .account-menu-panel-item {
+  .account-menu-panel-item,
+  .board-card-moved {
     animation: none;
   }
 }

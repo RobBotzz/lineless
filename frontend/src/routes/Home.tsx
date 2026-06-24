@@ -80,7 +80,7 @@ export default function Home() {
 
               <p className="mt-5 max-w-lg text-lg leading-relaxed text-text-muted">
                 lineless connects guest ordering, cashier payments, operator queues, pickup screens
-                and live analytics in one branded event workflow.
+                and an event control center in one branded event workflow.
               </p>
 
               <div className="mt-8 flex items-center gap-4">

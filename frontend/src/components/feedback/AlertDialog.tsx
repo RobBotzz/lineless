@@ -7,9 +7,11 @@ interface AlertDialogProps {
   onAcknowledge: () => void;
   title?: string;
   acknowledgeLabel?: string;
+  acknowledgeDisabled?: boolean;
   variant?: 'danger' | 'success';
   onCancel?: () => void;
   cancelLabel?: string;
+  cancelDisabled?: boolean;
 }
 
 export function AlertDialog({
@@ -17,9 +19,11 @@ export function AlertDialog({
   onAcknowledge,
   title = 'Something went wrong',
   acknowledgeLabel = 'Acknowledge',
+  acknowledgeDisabled = false,
   variant = 'danger',
   onCancel,
   cancelLabel = 'Cancel',
+  cancelDisabled = false,
 }: AlertDialogProps) {
   useEffect(() => {
     if (!message) return;
@@ -66,15 +70,31 @@ export function AlertDialog({
 
         {onCancel ? (
           <div className="mt-6 flex gap-3">
-            <Button className="flex-1" onClick={onCancel} size="lg" variant="secondary">
+            <Button
+              className="flex-1"
+              disabled={cancelDisabled}
+              onClick={onCancel}
+              size="lg"
+              variant="secondary"
+            >
               {cancelLabel}
             </Button>
-            <Button className="flex-1" onClick={onAcknowledge} size="lg">
+            <Button
+              className="flex-1"
+              disabled={acknowledgeDisabled}
+              onClick={onAcknowledge}
+              size="lg"
+            >
               {acknowledgeLabel}
             </Button>
           </div>
         ) : (
-          <Button className="mt-6 w-full rounded-lg" size="lg" onClick={onAcknowledge}>
+          <Button
+            className="mt-6 w-full rounded-lg"
+            disabled={acknowledgeDisabled}
+            size="lg"
+            onClick={onAcknowledge}
+          >
             {acknowledgeLabel}
           </Button>
         )}
