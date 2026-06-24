@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
 
@@ -7,12 +9,11 @@ import { StarIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { StandTrackGroup, type StandItem } from '@/features/orders/StandTrackGroup';
+import { useSSE } from '@/hooks/useSSE';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import type { OrderItem } from '@/types/order';
+import type { Order, OrderItem } from '@/types/order';
 import type { Stand } from '@/types/stand';
-
-const REFETCH_INTERVAL_MS = 10_000;
 
 function buildStandGroups(
   rawItems: OrderItem[],
@@ -105,10 +106,26 @@ export default function TrackOrder() {
   const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
   const navigate = useNavigate();
 
+  const [liveOrder, setLiveOrder] = useState<Order | null>(null);
+
   const orderQuery = useQuery({
     queryKey: ['attendee-order', orderId, eventId],
     queryFn: () => getAttendeeOrder(orderId, eventId),
-    refetchInterval: REFETCH_INTERVAL_MS,
+  });
+
+  useSSE({
+    path: '/orders/stream',
+    auth: 'attendee',
+    eventId,
+    onMessage: ({ event, data }) => {
+      if (event === 'snapshot') {
+        const found = (data as Order[]).find((o) => o._id === orderId);
+        if (found) setLiveOrder(found);
+      } else if (event === 'order') {
+        const updated = data as Order;
+        if (updated._id === orderId) setLiveOrder(updated);
+      }
+    },
   });
 
   const standsQuery = useQuery({
@@ -146,7 +163,7 @@ export default function TrackOrder() {
     );
   }
 
-  const order = orderQuery.data;
+  const order = liveOrder ?? orderQuery.data;
   const stands = standsById(standsQuery.data ?? []);
 
   let standGroups: Array<{ stand: Stand; items: StandItem[] }> = [];

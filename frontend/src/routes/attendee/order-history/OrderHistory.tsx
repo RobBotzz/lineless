@@ -161,7 +161,7 @@ export default function OrderHistory() {
                               )}
                             </div>
                             {cancelled ? (
-                              <span className="text-xs font-medium text-error px-2 py-1 bg-surface rounded whitespace-nowrap">
+                              <span className="text-xs font-medium text-danger px-2 py-1 bg-surface rounded whitespace-nowrap">
                                 CANCELLED
                               </span>
                             ) : itemStatus === 'PENDING' ||
@@ -198,7 +198,7 @@ export default function OrderHistory() {
                     </div>
                   </div>
 
-                  <Link to={paths.attendee.checkoutConfirmed(eventId, order._id)}>
+                  <Link to={paths.attendee.trackOrder(eventId, order._id)}>
                     <Button variant="default" className="w-full py-6 gap-2">
                       Track Order
                       <ArrowRightIcon className="h-4 w-4" />
