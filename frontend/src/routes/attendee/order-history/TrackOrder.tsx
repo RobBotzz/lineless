@@ -16,6 +16,21 @@ import { paths } from '@/paths';
 import type { Order, OrderItem } from '@/types/order';
 import type { Stand } from '@/types/stand';
 
+// Shown when the stand for a paid item is no longer visible in the attendee
+// catalog (e.g. the organizer paused the stand after the order was placed).
+// The per-item status badges still work — they read from orderItem, not catalog data.
+const UNAVAILABLE_STAND: Stand = {
+  _id: '__unavailable__',
+  eventId: '',
+  standName: 'Stand unavailable',
+  standType: 'PRODUCT',
+  standStatus: 'PAUSED',
+  requiresPassword: false,
+  location: { locationName: null, xCoordinate: null, yCoordinate: null },
+  createdAt: '',
+  updatedAt: '',
+};
+
 function buildStandGroups(
   rawItems: OrderItem[],
   viewLookup: Map<string, { productName: string; standId: string }>,
@@ -27,14 +42,15 @@ function buildStandGroups(
     const info = viewLookup.get(item.productId);
     if (!info) continue;
     const stand = standsById.get(info.standId);
-    if (!stand) continue;
+    const groupKey = info.standId || UNAVAILABLE_STAND._id;
+    const resolvedStand = stand ?? UNAVAILABLE_STAND;
 
-    const existing = groups.get(info.standId);
+    const existing = groups.get(groupKey);
     if (existing) {
       existing.items.push({ orderItem: item, productName: info.productName });
     } else {
-      groups.set(info.standId, {
-        stand,
+      groups.set(groupKey, {
+        stand: resolvedStand,
         items: [{ orderItem: item, productName: info.productName }],
       });
     }
