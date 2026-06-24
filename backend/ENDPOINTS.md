@@ -106,11 +106,14 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 
 ### Stand selection & dashboards
 
-| Method | URL                               | Description                                      |
-| ------ | --------------------------------- | ------------------------------------------------ |
-| GET    | `/stands/{standId}/orders/stream` | Order stream for operator/pickup dashboard (SSE) |
-| POST   | `/products/{productId}/pause`     | Pause product                                    |
-| POST   | `/products/{productId}/terminate` | Terminate product                                |
+| Method | URL                                     | Description                                                       |
+| ------ | --------------------------------------- | ----------------------------------------------------------------- |
+| GET    | `/events/{eventId}/pickup-board`        | Event-wide read-only pickup monitor (gated by the event link key) |
+| GET    | `/events/{eventId}/pickup-board/stream` | Live event-wide pickup monitor stream (SSE, event link key)       |
+| GET    | `/operator/board`                       | Current stand operator board snapshot                             |
+| GET    | `/operator/board/stream`                | Live stand operator board stream (SSE)                            |
+| POST   | `/products/{productId}/pause`           | Pause product                                                     |
+| POST   | `/products/{productId}/terminate`       | Terminate product                                                 |
 
 ### Order item status transitions (operator dashboard)
 
