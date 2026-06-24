@@ -4,6 +4,7 @@ import { Order, type OrderDoc, type OrderItemDoc } from "./model";
 import { Product } from "../products/model";
 import { Stand } from "../stands/model";
 import { Event } from "../events/model";
+import { AttendeeSession } from "../sessions/model";
 import { verifyEventOwnership } from "../events/ownership";
 import {
   CashierDisabledError,
@@ -57,6 +58,12 @@ export async function submitOrder(
     throw new CashierDisabledError();
   if (sessionId !== null && !event.offlineOrdersEnabled)
     throw new OfflineOrdersDisabledError();
+
+  if (sessionId !== null) {
+    const session = await AttendeeSession.findById(sessionId).lean();
+    if (!session || session.eventId !== eventId)
+      throw new OrderValidationError("Session does not belong to this event");
+  }
 
   const eventStands = await Stand.find({ eventId, deletedAt: null })
     .select("_id standStatus")
@@ -380,11 +387,15 @@ export async function releaseInstantItems(orderId: string): Promise<void> {
   const order = await Order.findById(orderId);
   if (!order) throw new OrderNotFoundError();
 
+  const productIds = order.items.map((i) => i.productId);
+  const products = await Product.find({ _id: { $in: productIds } }).lean();
+  const productById = new Map(products.map((p) => [p._id, p]));
+
   const now = new Date();
   let changed = false;
 
   for (const item of order.items) {
-    const product = await Product.findById(item.productId).lean();
+    const product = productById.get(item.productId);
     if (product?.instantProduct && !item.startedAt) {
       item.startedAt = now;
       item.readyAt = now;
