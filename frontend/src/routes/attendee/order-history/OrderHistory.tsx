@@ -65,11 +65,18 @@ export default function OrderHistory() {
         {orders.map((order) => {
           const isExpanded = expandedOrderId === order._id;
           const status = deriveOrderStatus(order);
-          const statusLabel = status === 'in-preparation' ? 'In Preparation' : 'Fulfilled';
+          const statusLabel =
+            status === 'in-preparation'
+              ? 'In Preparation'
+              : status === 'cancelled'
+                ? 'Cancelled'
+                : 'Fulfilled';
           const statusColor =
             status === 'in-preparation'
               ? 'bg-warning/10 text-warning border-warning/40'
-              : 'bg-success/5 text-success border-success/40';
+              : status === 'cancelled'
+                ? 'bg-danger/10 text-danger border-danger/40'
+                : 'bg-success/5 text-success border-success/40';
 
           return (
             <div key={order._id} className="rounded-xl border border-border bg-surface shadow-sm">

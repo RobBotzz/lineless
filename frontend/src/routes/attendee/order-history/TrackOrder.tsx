@@ -10,6 +10,7 @@ import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { StandTrackGroup, type StandItem } from '@/features/orders/StandTrackGroup';
 import { useSSE } from '@/hooks/useSSE';
+import { getItemStatus } from '@/lib/order-utils';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
 import type { Order, OrderItem } from '@/types/order';
@@ -230,9 +231,11 @@ export default function TrackOrder() {
         </p>
       )}
 
-      {standGroups.map(({ stand, items }) => (
-        <StandTrackGroup key={stand._id} stand={stand} items={items} />
-      ))}
+      {standGroups
+        .filter(({ items }) => items.some((si) => getItemStatus(si.orderItem) !== 'CANCELLED'))
+        .map(({ stand, items }) => (
+          <StandTrackGroup key={stand._id} stand={stand} items={items} />
+        ))}
 
       {/* Reviews require a fulfilled item (backend eligibility) — only surface the
           entry point once at least one item has been collected. */}

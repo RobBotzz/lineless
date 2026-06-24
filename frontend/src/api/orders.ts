@@ -120,6 +120,7 @@ export async function buildAttendeeOrderViewItems(
 
   const groups = new Map<string, OrderItemView>();
   for (const item of order.items) {
+    if (item.cancelledAt) continue;
     const existing = groups.get(item.productId);
     if (existing) {
       existing.quantity += 1;

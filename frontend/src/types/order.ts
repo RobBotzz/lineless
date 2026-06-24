@@ -60,9 +60,9 @@ export function deriveItemStatus(item: OrderItem): ItemStatus {
 }
 
 // Derive order status: fulfilled only if all non-cancelled items are fulfilled.
-export function deriveOrderStatus(order: Order): 'in-preparation' | 'fulfilled' {
+export function deriveOrderStatus(order: Order): 'in-preparation' | 'fulfilled' | 'cancelled' {
   const nonCancelledItems = order.items.filter((item) => !item.cancelledAt);
-  if (nonCancelledItems.length === 0) return 'fulfilled'; // no items = done
+  if (nonCancelledItems.length === 0) return 'cancelled';
   const allFulfilled = nonCancelledItems.every((item) => item.fulfilledAt);
   return allFulfilled ? 'fulfilled' : 'in-preparation';
 }
