@@ -6,6 +6,7 @@ import { createCardOrder, getAttendeeOrder } from '@/api/orders';
 import { createTab, getTabStatus } from '@/api/tabs';
 import { clearAttendeeTab, getAttendeeTab, setAttendeeTab } from '@/auth/keychain';
 import type { Order, OrderItemView } from '@/types/order';
+import { formatMoney } from '@/types/product';
 
 import { CardPaymentForm } from './CardPaymentForm';
 import { stripePromise } from './stripe';
@@ -20,6 +21,9 @@ interface CardCheckoutDialogProps {
 interface CardPrompt {
   clientSecret: string;
   label: string;
+  // Hold amount in cents, read back from Stripe for display. Null until the
+  // PaymentIntent has been retrieved (or if the lookup fails).
+  amountCents: number | null;
 }
 
 // The tab only flips to OPEN once Stripe's authorization webhook reaches the
@@ -67,7 +71,17 @@ export function CardCheckoutDialog({
 
   function awaitCard(clientSecret: string, label: string): Promise<void> {
     setPromptError(null);
-    setPrompt({ clientSecret, label });
+    setPrompt({ clientSecret, label, amountCents: null });
+    // Read the real hold amount from Stripe (publishable-key safe) so the guest
+    // sees exactly what will be authorized. Best-effort: the form still works if
+    // the lookup fails, just without the figure.
+    void stripePromise.then(async (stripe) => {
+      const result = await stripe?.retrievePaymentIntent(clientSecret);
+      const amountCents = result?.paymentIntent?.amount ?? null;
+      setPrompt((current) =>
+        current && current.clientSecret === clientSecret ? { ...current, amountCents } : current,
+      );
+    });
     return new Promise<void>((resolve, reject) => {
       cardDeferred.current = { resolve, reject };
     });
@@ -210,7 +224,9 @@ export function CardCheckoutDialog({
           ) : prompt ? (
             <div className="space-y-4">
               <p className="text-sm text-text-muted">
-                Your card is only held now. You're charged after the event.
+                {prompt.amountCents != null
+                  ? `€${formatMoney(prompt.amountCents)} will be held on your card now. You're only charged for what you order, and the rest is released.`
+                  : "Your card is only held now. You're charged after the event."}
               </p>
               {promptError && <p className="text-sm text-danger">{promptError}</p>}
               <Elements
