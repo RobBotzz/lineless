@@ -119,23 +119,81 @@ export async function submitOrder(
   return order;
 }
 
+export interface AttendeeOrderItem extends OrderItemDoc {
+  productName: string;
+  standName: string;
+}
+
+export type AttendeeOrder = Omit<OrderDoc, "items"> & {
+  items: AttendeeOrderItem[];
+};
+
+// Joins product names and stand names onto an order's items. Used both for
+// single-order reads and for the SSE stream where the change stream hands us
+// a raw OrderDoc that needs enrichment before being pushed to the client.
+export async function enrichOrderForAttendee(
+  order: OrderDoc
+): Promise<AttendeeOrder> {
+  const productIds = [...new Set(order.items.map((i) => i.productId))];
+  const products = await Product.find({ _id: { $in: productIds } }).lean();
+  const productById = new Map(products.map((p) => [p._id, p]));
+
+  const standIds = [...new Set(products.map((p) => p.standId))];
+  const stands = await Stand.find({ _id: { $in: standIds } }).lean();
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+
+  return {
+    ...order,
+    items: order.items.map((item) => {
+      const product = productById.get(item.productId);
+      return {
+        ...item,
+        productName: product?.productName ?? "",
+        standName: product ? (standNameById.get(product.standId) ?? "") : "",
+      };
+    }),
+  };
+}
+
 export async function getOrderForAttendee(
   orderId: string,
   sessionId: string
-): Promise<OrderDoc> {
+): Promise<AttendeeOrder> {
   const order = await Order.findById(orderId).lean();
   if (!order || order.sessionId !== sessionId) throw new OrderNotFoundError();
-  return order;
+  return enrichOrderForAttendee(order);
 }
 
 // An attendee's own paid orders — the source for the order-status / review entry
-// point. Items carry fulfilledAt so the client decides review eligibility.
+// point. Product names are joined here (one batch query) to avoid frontend N+1.
 export async function listOrdersForAttendee(
   sessionId: string
-): Promise<OrderDoc[]> {
-  return Order.find({ sessionId, paidAt: { $ne: null } })
+): Promise<AttendeeOrder[]> {
+  const orders = await Order.find({ sessionId, paidAt: { $ne: null } })
     .sort({ createdAt: -1 })
     .lean();
+
+  const productIds = [
+    ...new Set(orders.flatMap((o) => o.items.map((i) => i.productId))),
+  ];
+  const products = await Product.find({ _id: { $in: productIds } }).lean();
+  const productById = new Map(products.map((p) => [p._id, p]));
+
+  const standIds = [...new Set(products.map((p) => p.standId))];
+  const stands = await Stand.find({ _id: { $in: standIds } }).lean();
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+
+  return orders.map((order) => ({
+    ...order,
+    items: order.items.map((item) => {
+      const product = productById.get(item.productId);
+      return {
+        ...item,
+        productName: product?.productName ?? "",
+        standName: product ? (standNameById.get(product.standId) ?? "") : "",
+      };
+    }),
+  }));
 }
 
 export async function getOrderForOrganizer(
