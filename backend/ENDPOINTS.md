@@ -76,14 +76,14 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Orders
 
-| Method | URL                              | Description                                      |
-| ------ | -------------------------------- | ------------------------------------------------ |
-| POST   | `/orders`                        | Create order                                     |
-| GET    | `/orders/{orderId}`              | Get order details (confirmation / tracking view) |
-| GET    | `/orders/{orderId}/stream`       | Order status stream (SSE) – live pickup status   |
-| POST   | `/orders/{orderId}/cancel`       | Cancel all open order items                      |
-| POST   | `/orders/{orderId}/items/cancel` | Cancel selected order items                      |
-| POST   | `/orders/{orderId}/ratings`      | Submit product ratings (1–5 stars + comment)     |
+| Method | URL                              | Description                                                           |
+| ------ | -------------------------------- | --------------------------------------------------------------------- |
+| POST   | `/orders`                        | Create order                                                          |
+| GET    | `/orders`                        | List attendee's own paid orders                                       |
+| GET    | `/orders/{orderId}`              | Get order details (confirmation / tracking view)                      |
+| GET    | `/orders/stream`                 | Attendee's live order feed over SSE — session-wide snapshot + updates |
+| POST   | `/orders/{orderId}/cancel`       | Cancel all open order items                                           |
+| POST   | `/orders/{orderId}/items/cancel` | Cancel selected order items                                           |
 
 ### Payment
 

@@ -11,6 +11,7 @@ import { ordersRouter } from "../modules/orders/routes";
 import sessionsRouter from "../modules/sessions/routes";
 import { eventControlCenterRouter } from "../modules/eventControlCenter/routes";
 import {
+  authAttendee,
   authOrganizer,
   authOrganizerOrAttendee,
   authOrganizerOrAttendeeOrEventLink,
@@ -54,6 +55,7 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
 // Maps an auth middleware to the OpenAPI security requirement it enforces.
 type SecurityRequirement = Record<string, string[]>;
 const AUTH = new Map<unknown, SecurityRequirement[]>([
+  [authAttendee, [{ attendeeSessionAuth: [] }]],
   [authOrganizer, [{ organizerAuth: [] }]],
   [
     authOrganizerOrAttendeeOrEventLink,
