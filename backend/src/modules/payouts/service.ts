@@ -9,7 +9,6 @@ import { Account } from "../accounts/model";
 import { EventPayout } from "./model";
 import type {
   EventPayoutBreakdown,
-  EventPayoutSummary,
   PayoutOverview,
   ProductUnitsSold,
 } from "./types";
@@ -216,23 +215,15 @@ export async function getPayoutOverview(
     .sort({ createdAt: -1 })
     .lean();
 
-  const summaries: EventPayoutSummary[] = [];
+  const breakdowns: EventPayoutBreakdown[] = [];
   for (const event of events) {
-    const breakdown = await computeEventPayout(event._id, accountId);
-    summaries.push({
-      eventId: breakdown.eventId,
-      eventName: breakdown.eventName,
-      eventStatus: breakdown.eventStatus,
-      grossRevenueCents: breakdown.grossRevenueCents,
-      netPayoutCents: breakdown.netPayoutCents,
-      onHoldCents: breakdown.onHoldReadyCents,
-    });
+    breakdowns.push(await computeEventPayout(event._id, accountId));
   }
 
   return {
     iban: account?.iban ?? null,
     ibanHolderName: account?.ibanHolderName ?? null,
-    events: summaries,
+    events: breakdowns,
   };
 }
 

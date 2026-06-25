@@ -7,16 +7,6 @@ export interface ProductUnitsSold {
   grossRevenueCents: number;
 }
 
-// Lightweight per-event row for the payout overview list.
-export interface EventPayoutSummary {
-  eventId: string;
-  eventName: string;
-  eventStatus: EventStatus;
-  grossRevenueCents: number;
-  netPayoutCents: number;
-  onHoldCents: number;
-}
-
 // Full breakdown for a single event's payout detail view.
 export interface EventPayoutBreakdown {
   eventId: string;
@@ -40,5 +30,5 @@ export interface EventPayoutBreakdown {
 export interface PayoutOverview {
   iban: string | null;
   ibanHolderName: string | null;
-  events: EventPayoutSummary[];
+  events: EventPayoutBreakdown[];
 }
