@@ -51,6 +51,8 @@ function controlAuth(req: Request): ProductControlAuth {
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof ProductNotFoundError)
     return res.status(404).json({ error: err.message });
+  if (err instanceof ProductStateError)
+    return res.status(409).json({ error: err.message });
   if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)

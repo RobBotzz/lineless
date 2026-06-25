@@ -48,6 +48,7 @@ function strip(stand: StandDoc): SafeStand {
   delete safe.accessPasswordHash;
   return {
     ...(safe as Omit<StandDoc, "accessPasswordHash">),
+    standStatus: stand.standStatus ?? "LIVE",
     requiresPassword: stand.accessPasswordHash != null,
   };
 }
@@ -64,10 +65,20 @@ interface ListableStandFilter {
   eventId: string;
   deletedAt: null;
   standType: { $ne: StandType };
+  standStatus?: { $ne: "PAUSED" };
 }
 
-function listableStandFilter(eventId: string): ListableStandFilter {
-  return { eventId, deletedAt: null, standType: { $ne: "CASHIER" } };
+function listableStandFilter(
+  eventId: string,
+  options?: { hidePausedProductStands?: boolean }
+): ListableStandFilter {
+  const filter: ListableStandFilter = {
+    eventId,
+    deletedAt: null,
+    standType: { $ne: "CASHIER" },
+  };
+  if (options?.hidePausedProductStands) filter.standStatus = { $ne: "PAUSED" };
+  return filter;
 }
 
 function isDuplicateKeyError(err: unknown): boolean {
@@ -132,7 +143,9 @@ export async function listStandsForAttendee(
 ): Promise<SafeStand[]> {
   assertSessionOwnsEvent(eventId, sessionEventId);
   await verifyActiveEvent(eventId);
-  const stands = await Stand.find(listableStandFilter(eventId))
+  const stands = await Stand.find(
+    listableStandFilter(eventId, { hidePausedProductStands: true })
+  )
     .sort({ createdAt: 1 })
     .lean();
   return stands.map(strip);
@@ -203,6 +216,32 @@ export async function updateStand(
       : null;
     await revokeAllRefreshTokens("OPERATOR", standId);
   }
+  await stand.save();
+  return strip(stand.toObject());
+}
+
+export async function pauseStand(
+  standId: string,
+  accountId: string
+): Promise<SafeStand> {
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null });
+  if (!stand) throw new StandNotFoundError();
+  await verifyEventOwnership(stand.eventId, accountId);
+
+  stand.standStatus = "PAUSED";
+  await stand.save();
+  return strip(stand.toObject());
+}
+
+export async function resumeStand(
+  standId: string,
+  accountId: string
+): Promise<SafeStand> {
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null });
+  if (!stand) throw new StandNotFoundError();
+  await verifyEventOwnership(stand.eventId, accountId);
+
+  stand.standStatus = "LIVE";
   await stand.save();
   return strip(stand.toObject());
 }

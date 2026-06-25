@@ -4,6 +4,7 @@ import { Order, type OrderDoc, type OrderItemDoc } from "./model";
 import { Product } from "../products/model";
 import { Stand } from "../stands/model";
 import { Event } from "../events/model";
+import { AttendeeSession } from "../sessions/model";
 import { verifyEventOwnership } from "../events/ownership";
 import {
   CashierDisabledError,
@@ -35,6 +36,15 @@ export function getItemState(item: OrderItemDoc): ItemState {
   return "PENDING";
 }
 
+function assertItemCancellable(item: OrderItemDoc): void {
+  const state = getItemState(item);
+  if (state === "READY" || state === "FULFILLED" || state === "CANCELLED") {
+    throw new OrderItemStateError(
+      `Item cannot be cancelled from ${state} state`
+    );
+  }
+}
+
 export async function submitOrder(
   sessionId: string | null,
   input: CreateOrderInput
@@ -49,10 +59,19 @@ export async function submitOrder(
   if (sessionId !== null && !event.offlineOrdersEnabled)
     throw new OfflineOrdersDisabledError();
 
+  if (sessionId !== null) {
+    const session = await AttendeeSession.findById(sessionId).lean();
+    if (!session || session.eventId !== eventId)
+      throw new OrderValidationError("Session does not belong to this event");
+  }
+
   const eventStands = await Stand.find({ eventId, deletedAt: null })
-    .select("_id")
+    .select("_id standStatus")
     .lean();
   const eventStandIds = eventStands.map((s) => s._id);
+  const standStatusById = new Map(
+    eventStands.map((stand) => [stand._id, stand.standStatus ?? "LIVE"])
+  );
 
   const productIds = [...new Set(items.map((i) => i.productId))];
   const products = await Product.find({
@@ -64,7 +83,11 @@ export async function submitOrder(
 
   const processedItems = items.map((item) => {
     const product = productById.get(item.productId);
-    if (!product || product.productStatus !== "LIVE") {
+    if (
+      !product ||
+      product.productStatus !== "LIVE" ||
+      standStatusById.get(product.standId) === "PAUSED"
+    ) {
       throw new OrderValidationError(
         `Product ${item.productId} is not available for ordering`
       );
@@ -103,23 +126,81 @@ export async function submitOrder(
   return order;
 }
 
+export interface AttendeeOrderItem extends OrderItemDoc {
+  productName: string;
+  standName: string;
+}
+
+export type AttendeeOrder = Omit<OrderDoc, "items"> & {
+  items: AttendeeOrderItem[];
+};
+
+// Joins product names and stand names onto an order's items. Used both for
+// single-order reads and for the SSE stream where the change stream hands us
+// a raw OrderDoc that needs enrichment before being pushed to the client.
+export async function enrichOrderForAttendee(
+  order: OrderDoc
+): Promise<AttendeeOrder> {
+  const productIds = [...new Set(order.items.map((i) => i.productId))];
+  const products = await Product.find({ _id: { $in: productIds } }).lean();
+  const productById = new Map(products.map((p) => [p._id, p]));
+
+  const standIds = [...new Set(products.map((p) => p.standId))];
+  const stands = await Stand.find({ _id: { $in: standIds } }).lean();
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+
+  return {
+    ...order,
+    items: order.items.map((item) => {
+      const product = productById.get(item.productId);
+      return {
+        ...item,
+        productName: product?.productName ?? "",
+        standName: product ? (standNameById.get(product.standId) ?? "") : "",
+      };
+    }),
+  };
+}
+
 export async function getOrderForAttendee(
   orderId: string,
   sessionId: string
-): Promise<OrderDoc> {
+): Promise<AttendeeOrder> {
   const order = await Order.findById(orderId).lean();
   if (!order || order.sessionId !== sessionId) throw new OrderNotFoundError();
-  return order;
+  return enrichOrderForAttendee(order);
 }
 
 // An attendee's own paid orders — the source for the order-status / review entry
-// point. Items carry fulfilledAt so the client decides review eligibility.
+// point. Product names are joined here (one batch query) to avoid frontend N+1.
 export async function listOrdersForAttendee(
   sessionId: string
-): Promise<OrderDoc[]> {
-  return Order.find({ sessionId, paidAt: { $ne: null } })
+): Promise<AttendeeOrder[]> {
+  const orders = await Order.find({ sessionId, paidAt: { $ne: null } })
     .sort({ createdAt: -1 })
     .lean();
+
+  const productIds = [
+    ...new Set(orders.flatMap((o) => o.items.map((i) => i.productId))),
+  ];
+  const products = await Product.find({ _id: { $in: productIds } }).lean();
+  const productById = new Map(products.map((p) => [p._id, p]));
+
+  const standIds = [...new Set(products.map((p) => p.standId))];
+  const stands = await Stand.find({ _id: { $in: standIds } }).lean();
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+
+  return orders.map((order) => ({
+    ...order,
+    items: order.items.map((item) => {
+      const product = productById.get(item.productId);
+      return {
+        ...item,
+        productName: product?.productName ?? "",
+        standName: product ? (standNameById.get(product.standId) ?? "") : "",
+      };
+    }),
+  }));
 }
 
 export async function getOrderForOrganizer(
@@ -176,6 +257,61 @@ export async function listUnpaidOrdersForCashier(
   })
     .sort({ createdAt: -1 })
     .lean();
+}
+
+export async function cancelOrderForOrganizer(
+  orderId: string,
+  accountId: string
+): Promise<OrderDoc> {
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+  await verifyEventOwnership(order.eventId, accountId);
+
+  const now = new Date();
+  let changed = false;
+  for (const item of order.items) {
+    // Bulk organizer cancellation only cancels items that can still be stopped;
+    // explicit item cancellation below reports READY selections as conflicts.
+    if (item.readyAt || item.fulfilledAt || item.cancelledAt) continue;
+    item.cancelledAt = now;
+    changed = true;
+  }
+
+  if (!changed) {
+    throw new OrderItemStateError("Order has no cancellable items");
+  }
+
+  await order.save();
+  return order;
+}
+
+export async function cancelOrderItemsForOrganizer(
+  orderId: string,
+  itemIds: string[],
+  accountId: string
+): Promise<OrderDoc> {
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+  await verifyEventOwnership(order.eventId, accountId);
+
+  const itemsById = new Map(order.items.map((item) => [item._id, item]));
+  const items = itemIds.map((itemId) => {
+    const item = itemsById.get(itemId);
+    if (!item) throw new OrderItemNotFoundError();
+    return item;
+  });
+
+  for (const item of items) {
+    assertItemCancellable(item);
+  }
+
+  const now = new Date();
+  for (const item of items) {
+    item.cancelledAt = now;
+  }
+
+  await order.save();
+  return order;
 }
 
 // Soft-delete an unpaid order. The document stays in MongoDB for analytics;
@@ -235,10 +371,7 @@ export async function advanceOrderItem(
       item.fulfilledAt = now;
       break;
     case "cancel":
-      if (state === "FULFILLED" || state === "CANCELLED")
-        throw new OrderItemStateError(
-          `Item cannot be cancelled from ${state} state`
-        );
+      assertItemCancellable(item);
       item.cancelledAt = now;
       break;
   }
@@ -254,11 +387,15 @@ export async function releaseInstantItems(orderId: string): Promise<void> {
   const order = await Order.findById(orderId);
   if (!order) throw new OrderNotFoundError();
 
+  const productIds = order.items.map((i) => i.productId);
+  const products = await Product.find({ _id: { $in: productIds } }).lean();
+  const productById = new Map(products.map((p) => [p._id, p]));
+
   const now = new Date();
   let changed = false;
 
   for (const item of order.items) {
-    const product = await Product.findById(item.productId).lean();
+    const product = productById.get(item.productId);
     if (product?.instantProduct && !item.startedAt) {
       item.startedAt = now;
       item.readyAt = now;

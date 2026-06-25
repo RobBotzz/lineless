@@ -7,6 +7,10 @@ export interface BodyValidatedHandler extends RequestHandler {
   __zodBody?: z.ZodType;
 }
 
+export interface QueryValidatedHandler extends RequestHandler {
+  __zodQuery?: z.ZodType;
+}
+
 // Wraps a route handler with body validation. The handler receives the parsed,
 // fully typed data as its third argument — no req.body access or casts needed.
 export function validateBody<S extends z.ZodType>(
@@ -32,5 +36,33 @@ export function validateBody<S extends z.ZodType>(
     }
   };
   mw.__zodBody = schema;
+  return mw;
+}
+
+// Wraps a route handler with query validation. The handler receives the parsed,
+// fully typed query as its third argument — no req.query access or casts needed.
+export function validateQuery<S extends z.ZodType>(
+  schema: S,
+  handler: (req: Request, res: Response, query: z.infer<S>) => unknown
+): QueryValidatedHandler {
+  const mw: QueryValidatedHandler = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const result = schema.safeParse(req.query);
+    if (!result.success) {
+      res
+        .status(400)
+        .json({ error: "Validation failed", details: result.error.issues });
+      return;
+    }
+    try {
+      await handler(req, res, result.data);
+    } catch (err) {
+      next(err);
+    }
+  };
+  mw.__zodQuery = schema;
   return mw;
 }

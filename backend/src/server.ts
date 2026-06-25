@@ -4,12 +4,16 @@ import { config } from "./config/config";
 import { connectDB } from "./lib/db";
 import { watchOrderChanges } from "./modules/orders/changeStream";
 import { watchProductChanges } from "./modules/products/changeStream";
+import { watchRatingChanges } from "./modules/ratings/changeStream";
+import { watchStandChanges } from "./modules/stands/changeStream";
 
 async function start(): Promise<void> {
   await connectDB();
   // Feed the realtime bus from MongoDB change streams (drives the SSE streams).
   watchOrderChanges();
   watchProductChanges();
+  watchRatingChanges();
+  watchStandChanges();
   app.listen(config.port, () => {
     console.log(`Server läuft auf Port ${config.port}`);
   });
