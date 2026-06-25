@@ -19,6 +19,9 @@ type LandingPageNavbarProps = {
   right?: ReactNode;
   activeCenterLinkTo?: string;
   onCenterLinkClick?: (to: string) => void;
+  // Where the logo links to. Defaults to the public home; pass an area root
+  // (e.g. the organizer dashboard) to keep the logo within that area.
+  logoTo?: string;
 };
 
 export function LandingPageNavbar({
@@ -31,9 +34,10 @@ export function LandingPageNavbar({
   right: customRight,
   activeCenterLinkTo,
   onCenterLinkClick,
+  logoTo = paths.home,
 }: LandingPageNavbarProps) {
   const left = (
-    <Link className="inline-flex items-center" to={paths.home}>
+    <Link className="inline-flex items-center" to={logoTo}>
       {logoSrc ? (
         <img alt={title} className="h-10 w-10 object-contain" src={logoSrc} />
       ) : title === 'lineless' ? (

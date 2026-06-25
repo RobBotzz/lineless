@@ -164,6 +164,7 @@ export default function EventConfiguration() {
   return (
     <div className="min-h-screen bg-background">
       <LandingPageNavbar
+        logoTo={paths.organizer.root}
         right={<AccountMenu isAuthenticated={true} onSignOut={() => logout(paths.home)} />}
         widthClassName="w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]"
       />
