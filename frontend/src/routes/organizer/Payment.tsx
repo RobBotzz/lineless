@@ -46,7 +46,9 @@ export default function Payment() {
   const { overview } = useLoaderData() as PaymentLoaderData;
   const rows = overview.events.map(toRow);
 
-  const pending = overview.events.reduce((sum, e) => sum + e.onHoldReadyCents, 0);
+  // Pending = delivered-but-uncharged value + captured funds still settling on Stripe.
+  const onHoldReady = overview.events.reduce((sum, e) => sum + e.onHoldReadyCents, 0);
+  const pending = onHoldReady + overview.inTransitCents;
   const reserve = overview.events.reduce((sum, e) => sum + e.onHoldAuthorizedCents, 0);
 
   const bankReady = Boolean(overview.iban && overview.ibanHolderName);
@@ -68,6 +70,7 @@ export default function Payment() {
           <AvailableForPayoutCard
             availableNow={overview.availableCents}
             pending={pending}
+            inTransit={overview.inTransitCents}
             reserve={reserve}
             bankReady={bankReady}
             openTabEventIds={openTabEventIds}
@@ -84,11 +87,12 @@ export default function Payment() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-xl bg-surface-muted px-5 py-4">
       <p className="text-sm text-text-muted">{label}</p>
       <p className="mt-1 text-2xl font-bold text-text">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-text-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -96,12 +100,14 @@ function Stat({ label, value }: { label: string; value: string }) {
 function AvailableForPayoutCard({
   availableNow,
   pending,
+  inTransit,
   reserve,
   bankReady,
   openTabEventIds,
 }: {
   availableNow: number;
   pending: number;
+  inTransit: number;
   reserve: number;
   bankReady: boolean;
   openTabEventIds: string[];
@@ -164,7 +170,11 @@ function AvailableForPayoutCard({
       <CardContent className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-3">
           <Stat label="Available now" value={eur(availableNow)} />
-          <Stat label="Pending" value={eur(pending)} />
+          <Stat
+            label="Pending"
+            value={eur(pending)}
+            hint={inTransit > 0 ? `incl. ${eur(inTransit)} settling on Stripe` : undefined}
+          />
           <Stat label="Reserve" value={eur(reserve)} />
         </div>
 
@@ -297,6 +307,7 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
               <Detail label="Card processing fees" value={eur(event.stripeFeeCents)} />
               <Detail label="Platform fee (5c/order)" value={eur(event.platformFeeCents)} />
               <Detail label="On hold (not charged)" value={eur(event.onHoldReadyCents)} />
+              <Detail label="Settling on Stripe" value={eur(event.inTransitCents)} />
             </div>
             <p className="mt-3 mb-1 text-xs font-medium text-text-muted">Items sold</p>
             {event.unitsSold.length === 0 ? (

@@ -23,6 +23,7 @@ export interface EventPayoutBreakdown {
   netPayoutCents: number;
   onHoldReadyCents: number;
   onHoldAuthorizedCents: number;
+  inTransitCents: number;
   unitsSold: ProductUnitsSold[];
   computedAt: string;
 }
@@ -42,6 +43,7 @@ export interface PayoutOverview {
   iban: string | null;
   ibanHolderName: string | null;
   availableCents: number;
+  inTransitCents: number;
   paidOutCents: number;
   events: EventPayoutBreakdown[];
   payouts: PayoutRecord[];
