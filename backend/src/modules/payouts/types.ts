@@ -24,6 +24,7 @@ export interface EventPayoutBreakdown {
   netPayoutCents: number;
   onHoldReadyCents: number;
   onHoldAuthorizedCents: number;
+  inTransitCents: number;
   unitsSold: ProductUnitsSold[];
   computedAt: Date;
 }
@@ -40,8 +41,10 @@ export interface PayoutRecord {
 export interface PayoutOverview {
   iban: string | null;
   ibanHolderName: string | null;
-  /** Net payout across all events, minus payouts already requested. */
+  /** Net payout across all events, minus in-transit funds and prior payouts. */
   availableCents: number;
+  /** Captured funds still settling on Stripe, net cents. */
+  inTransitCents: number;
   /** Total already requested/paid out. */
   paidOutCents: number;
   events: EventPayoutBreakdown[];

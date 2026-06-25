@@ -80,7 +80,7 @@ export async function computeEventPayout(
     tabId: { $in: tabIds },
     tabPaymentStatus: "CAPTURED",
   })
-    .select("capturedCentsAmount processingFeeCents")
+    .select("capturedCentsAmount processingFeeCents availableOn")
     .lean();
   const cardRevenueCents = capturedPayments.reduce(
     (sum, p) => sum + p.capturedCentsAmount,
@@ -92,6 +92,16 @@ export async function computeEventPayout(
     (sum, p) => sum + (p.processingFeeCents ?? 0),
     0
   );
+  // Captured funds still held by Stripe (available_on in the future) have not
+  // cleared yet, so they count as pending, not available. Use the net amount —
+  // what Stripe actually holds in the pending balance.
+  const now = new Date();
+  const inTransitCents = capturedPayments
+    .filter((p) => p.availableOn != null && p.availableOn > now)
+    .reduce(
+      (sum, p) => sum + (p.capturedCentsAmount - (p.processingFeeCents ?? 0)),
+      0
+    );
 
   const authorizedPayments = await TabPayment.find({
     tabId: { $in: tabIds },
@@ -149,6 +159,7 @@ export async function computeEventPayout(
         netPayoutCents,
         onHoldReadyCents,
         onHoldAuthorizedCents,
+        inTransitCents,
         paidOrderCount: paidOrders.length,
         computedAt,
       },
@@ -171,6 +182,7 @@ export async function computeEventPayout(
     netPayoutCents,
     onHoldReadyCents,
     onHoldAuthorizedCents,
+    inTransitCents,
     unitsSold,
     computedAt,
   };
@@ -228,13 +240,19 @@ export async function getPayoutOverview(
     (sum, e) => sum + e.netPayoutCents,
     0
   );
+  // Funds still settling on Stripe are not yet payable.
+  const inTransitCents = breakdowns.reduce(
+    (sum, e) => sum + e.inTransitCents,
+    0
+  );
   const payouts = await listPayouts(accountId);
   const paidOutCents = payouts.reduce((sum, p) => sum + p.amountCents, 0);
 
   return {
     iban: account?.iban ?? null,
     ibanHolderName: account?.ibanHolderName ?? null,
-    availableCents: Math.max(totalNetCents - paidOutCents, 0),
+    availableCents: Math.max(totalNetCents - inTransitCents - paidOutCents, 0),
+    inTransitCents,
     paidOutCents,
     events: breakdowns,
     payouts,

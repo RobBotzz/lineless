@@ -29,6 +29,8 @@ export interface EventPayoutDoc {
   onHoldReadyCents: number;
   /** Stripe authorized-but-not-captured holds for the event, integer cents. */
   onHoldAuthorizedCents: number;
+  /** Captured funds still settling on Stripe (available_on in the future), net cents. */
+  inTransitCents: number;
   paidOrderCount: number;
   computedAt: Date;
   createdAt: Date;
@@ -50,6 +52,7 @@ const EventPayoutSchema = new Schema<EventPayoutDoc>(
     netPayoutCents: { type: Number, default: 0 },
     onHoldReadyCents: { type: Number, default: 0 },
     onHoldAuthorizedCents: { type: Number, default: 0 },
+    inTransitCents: { type: Number, default: 0 },
     paidOrderCount: { type: Number, default: 0 },
     computedAt: { type: Date, default: () => new Date() },
   },

@@ -18,24 +18,31 @@ import {
 
 const stripe = new Stripe(config.stripe.secretKey);
 
-// Reads the Stripe processing fee from a captured PaymentIntent whose
-// latest_charge.balance_transaction was expanded. Stripe only reports the fee
-// once the charge settles, so this is the single source of truth for fees.
+// Reads settlement info from a captured PaymentIntent whose
+// latest_charge.balance_transaction was expanded: the processing fee and the
+// `available_on` date when the funds clear Stripe's pending balance. Stripe only
+// reports these once the charge settles, so this is the single source of truth.
 type CapturedIntent = Awaited<ReturnType<typeof stripe.paymentIntents.capture>>;
 
-function extractCaptureFee(intent: CapturedIntent): {
+function extractCaptureSettlement(intent: CapturedIntent): {
   feeCents: number;
   balanceTxnId: string | null;
+  availableOn: Date | null;
 } {
   const charge = intent.latest_charge;
   if (!charge || typeof charge === "string") {
-    return { feeCents: 0, balanceTxnId: null };
+    return { feeCents: 0, balanceTxnId: null, availableOn: null };
   }
   const balanceTxn = charge.balance_transaction;
   if (!balanceTxn || typeof balanceTxn === "string") {
-    return { feeCents: 0, balanceTxnId: null };
+    return { feeCents: 0, balanceTxnId: null, availableOn: null };
   }
-  return { feeCents: balanceTxn.fee, balanceTxnId: balanceTxn.id };
+  return {
+    feeCents: balanceTxn.fee,
+    balanceTxnId: balanceTxn.id,
+    // Stripe sends available_on as a unix timestamp in seconds.
+    availableOn: new Date(balanceTxn.available_on * 1000),
+  };
 }
 
 export interface TabCheckoutResult {
@@ -209,7 +216,8 @@ async function settleTab(tabId: string, filters: { eventId?: string }) {
             expand: ["latest_charge.balance_transaction"],
           }
         );
-        const { feeCents, balanceTxnId } = extractCaptureFee(intent);
+        const { feeCents, balanceTxnId, availableOn } =
+          extractCaptureSettlement(intent);
         await TabPayment.updateOne(
           { _id: payment._id },
           {
@@ -217,6 +225,7 @@ async function settleTab(tabId: string, filters: { eventId?: string }) {
             capturedCentsAmount: captureAmount,
             processingFeeCents: feeCents,
             stripeBalanceTxnId: balanceTxnId,
+            availableOn,
           }
         );
         totalCaptured += captureAmount;

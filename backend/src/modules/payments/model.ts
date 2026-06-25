@@ -25,6 +25,8 @@ export interface TabPaymentDoc {
   processingFeeCents: number;
   /** Stripe balance transaction the processing fee was read from. */
   stripeBalanceTxnId: string | null;
+  /** When the captured funds become available in Stripe's balance (settlement). */
+  availableOn: Date | null;
   expiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -46,6 +48,7 @@ const TabPaymentSchema = new Schema<TabPaymentDoc>(
     capturedCentsAmount: { type: Number, default: 0 },
     processingFeeCents: { type: Number, default: 0 },
     stripeBalanceTxnId: { type: String, default: null },
+    availableOn: { type: Date, default: null },
     expiresAt: { type: Date, default: null },
   },
   { timestamps: true }
