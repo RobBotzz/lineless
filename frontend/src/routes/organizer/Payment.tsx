@@ -14,7 +14,7 @@ import {
 } from '@/components/icons';
 import { isValidIban } from '@/lib/iban';
 import { formatMoney } from '@/types/product';
-import type { EventPayoutBreakdown } from '@/types/payout';
+import type { EventPayoutBreakdown, PayoutRecord } from '@/types/payout';
 import type { PaymentActionBody, PaymentActionResult, PaymentLoaderData } from './Payment.data';
 
 function eur(cents: number): string {
@@ -46,7 +46,6 @@ export default function Payment() {
   const { overview } = useLoaderData() as PaymentLoaderData;
   const rows = overview.events.map(toRow);
 
-  const availableNow = rows.reduce((sum, r) => sum + r.availableCents, 0);
   const pending = overview.events.reduce((sum, e) => sum + e.onHoldReadyCents, 0);
   const reserve = overview.events.reduce((sum, e) => sum + e.onHoldAuthorizedCents, 0);
 
@@ -67,7 +66,7 @@ export default function Payment() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <AvailableForPayoutCard
-            availableNow={availableNow}
+            availableNow={overview.availableCents}
             pending={pending}
             reserve={reserve}
             bankReady={bankReady}
@@ -78,7 +77,7 @@ export default function Payment() {
 
         <div className="space-y-6">
           <BankDetailsCard iban={overview.iban} ibanHolderName={overview.ibanHolderName} />
-          <RecentPayoutsCard rows={rows} />
+          <RecentPayoutsCard payouts={overview.payouts} />
         </div>
       </div>
     </div>
@@ -107,19 +106,36 @@ function AvailableForPayoutCard({
   bankReady: boolean;
   openTabEventIds: string[];
 }) {
-  const fetcher = useFetcher<PaymentActionResult>();
-  const busy = fetcher.state !== 'idle';
-  const settled = fetcher.state === 'idle' ? fetcher.data : undefined;
-  const result = settled?.ok && settled.intent === 'charge-all' ? settled : null;
-  const error = settled && !settled.ok ? settled.error : null;
+  const chargeFetcher = useFetcher<PaymentActionResult>();
+  const payoutFetcher = useFetcher<PaymentActionResult>();
   const hasOpenTabs = openTabEventIds.length > 0;
+  const canPayout = bankReady && availableNow > 0;
 
-  function chargeAll() {
-    const payload: PaymentActionBody = { intent: 'charge-all', eventIds: openTabEventIds };
+  const charging = chargeFetcher.state !== 'idle';
+  const chargeSettled = chargeFetcher.state === 'idle' ? chargeFetcher.data : undefined;
+  const chargeResult =
+    chargeSettled?.ok && chargeSettled.intent === 'charge-all' ? chargeSettled : null;
+  const chargeError = chargeSettled && !chargeSettled.ok ? chargeSettled.error : null;
+
+  const payingOut = payoutFetcher.state !== 'idle';
+  const payoutSettled = payoutFetcher.state === 'idle' ? payoutFetcher.data : undefined;
+  const payoutDone =
+    payoutSettled?.ok && payoutSettled.intent === 'request-payout' ? payoutSettled : null;
+  const payoutError = payoutSettled && !payoutSettled.ok ? payoutSettled.error : null;
+
+  function submit(fetcher: typeof chargeFetcher, payload: PaymentActionBody) {
     void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
       method: 'post',
       encType: 'application/json',
     });
+  }
+
+  function chargeAll() {
+    submit(chargeFetcher, { intent: 'charge-all', eventIds: openTabEventIds });
+  }
+
+  function payout() {
+    submit(payoutFetcher, { intent: 'request-payout' });
   }
 
   return (
@@ -152,7 +168,30 @@ function AvailableForPayoutCard({
           <Stat label="Reserve" value={eur(reserve)} />
         </div>
 
-        <div className="flex flex-col gap-4 rounded-xl border border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-xl border border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-text">Request a payout</p>
+            <p className="text-sm text-text-muted">
+              {canPayout
+                ? `Transfer ${eur(availableNow)} to your bank account.`
+                : bankReady
+                  ? 'No revenue is available yet. Charge open tabs to make it available.'
+                  : 'Add your bank details before requesting a payout.'}
+            </p>
+          </div>
+          <Button onClick={payout} disabled={payingOut || !canPayout} className="gap-2">
+            <DownloadIcon className="h-4 w-4" />
+            {payingOut ? 'Requesting…' : 'Request payout'}
+          </Button>
+        </div>
+        {payoutError ? <p className="text-sm text-danger">{payoutError}</p> : null}
+        {payoutDone ? (
+          <p className="text-sm text-success">
+            Payout of {eur(payoutDone.amountCents)} requested — it will be transferred to your IBAN.
+          </p>
+        ) : null}
+
+        <div className="flex flex-col gap-3 rounded-xl border border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <CalendarIcon className="mt-0.5 h-5 w-5 text-accent" />
             <div>
@@ -164,18 +203,21 @@ function AvailableForPayoutCard({
               </p>
             </div>
           </div>
-          <Button onClick={chargeAll} disabled={busy || !hasOpenTabs} className="gap-2">
-            <DownloadIcon className="h-4 w-4" />
-            {busy ? 'Charging…' : 'Charge open tabs'}
+          <Button
+            onClick={chargeAll}
+            disabled={charging || !hasOpenTabs}
+            variant="outline"
+            className="gap-2"
+          >
+            {charging ? 'Charging…' : 'Charge open tabs'}
           </Button>
         </div>
-
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-        {result ? (
+        {chargeError ? <p className="text-sm text-danger">{chargeError}</p> : null}
+        {chargeResult ? (
           <p className="text-sm text-success">
-            Charged {result.settled} {result.settled === 1 ? 'tab' : 'tabs'}
-            {result.skipped > 0 ? `, skipped ${result.skipped} (items not ready)` : ''}
-            {result.failed > 0 ? `, ${result.failed} failed` : ''}.
+            Charged {chargeResult.settled} {chargeResult.settled === 1 ? 'tab' : 'tabs'}
+            {chargeResult.skipped > 0 ? `, skipped ${chargeResult.skipped} (items not ready)` : ''}
+            {chargeResult.failed > 0 ? `, ${chargeResult.failed} failed` : ''}.
           </p>
         ) : null}
       </CardContent>
@@ -363,29 +405,35 @@ function BankDetailsCard({
   );
 }
 
-function RecentPayoutsCard({ rows }: { rows: EventRow[] }) {
-  const settled = rows.filter((r) => r.event.eventStatus === 'STOPPED' && r.availableCents > 0);
+function RecentPayoutsCard({ payouts }: { payouts: PayoutRecord[] }) {
+  const dateFmt = new Intl.DateTimeFormat('en-GB', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Recent Settlements</CardTitle>
+        <CardTitle className="text-xl">Recent Payouts</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {settled.length === 0 ? (
-          <p className="text-sm text-text-muted">No settled events yet.</p>
+        {payouts.length === 0 ? (
+          <p className="text-sm text-text-muted">No payouts requested yet.</p>
         ) : (
-          settled.slice(0, 6).map((row) => (
+          payouts.slice(0, 6).map((payout) => (
             <div
-              key={row.event.eventId}
+              key={payout.id}
               className="flex items-center justify-between rounded-lg bg-surface-muted px-4 py-3"
             >
               <div>
-                <p className="font-semibold text-text">{eur(row.availableCents)}</p>
-                <p className="text-xs text-text-muted">{row.event.eventName}</p>
+                <p className="font-semibold text-text">{eur(payout.amountCents)}</p>
+                <p className="text-xs text-text-muted">
+                  {dateFmt.format(new Date(payout.createdAt))}
+                </p>
               </div>
               <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-                Settled
+                {payout.status === 'PAID' ? 'Paid' : 'Requested'}
               </span>
             </div>
           ))

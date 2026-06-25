@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from 'react-router';
 
 import { updateOrganizerAccount } from '@/api/account';
 import { ApiError } from '@/api/client';
-import { chargeAllTabs, getPayoutOverview } from '@/api/payouts';
+import { chargeAllTabs, getPayoutOverview, requestPayout } from '@/api/payouts';
 import type { PayoutOverview } from '@/types/payout';
 
 export type PaymentLoaderData = {
@@ -12,11 +12,13 @@ export type PaymentLoaderData = {
 export type PaymentActionResult =
   | { ok: true; intent: 'save-bank' }
   | { ok: true; intent: 'charge-all'; settled: number; skipped: number; failed: number }
+  | { ok: true; intent: 'request-payout'; amountCents: number }
   | { ok: false; error: string };
 
 export type PaymentActionBody =
   | { intent: 'save-bank'; iban: string; ibanHolderName: string }
-  | { intent: 'charge-all'; eventIds: string[] };
+  | { intent: 'charge-all'; eventIds: string[] }
+  | { intent: 'request-payout' };
 
 // One call returns the bank details plus a full payout breakdown per event.
 export async function paymentLoader(): Promise<PaymentLoaderData> {
@@ -45,6 +47,10 @@ export async function paymentAction({ request }: ActionFunctionArgs): Promise<Pa
           skipped: results.reduce((sum, r) => sum + r.skipped, 0),
           failed: results.reduce((sum, r) => sum + r.failed, 0),
         };
+      }
+      case 'request-payout': {
+        const payout = await requestPayout();
+        return { ok: true, intent: 'request-payout', amountCents: payout.amountCents };
       }
     }
   } catch (err) {

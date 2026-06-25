@@ -27,10 +27,24 @@ export interface EventPayoutBreakdown {
   computedAt: string;
 }
 
+export type PayoutStatus = 'REQUESTED' | 'PAID';
+
+export interface PayoutRecord {
+  id: string;
+  amountCents: number;
+  ibanHolderName: string;
+  iban: string;
+  status: PayoutStatus;
+  createdAt: string;
+}
+
 export interface PayoutOverview {
   iban: string | null;
   ibanHolderName: string | null;
+  availableCents: number;
+  paidOutCents: number;
   events: EventPayoutBreakdown[];
+  payouts: PayoutRecord[];
 }
 
 // Result of charging all tabs for an event (POST /events/:id/tabs/checkout).

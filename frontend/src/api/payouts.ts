@@ -1,5 +1,10 @@
 import { apiFetch } from './client';
-import type { BulkTabCheckoutResult, EventPayoutBreakdown, PayoutOverview } from '@/types/payout';
+import type {
+  BulkTabCheckoutResult,
+  EventPayoutBreakdown,
+  PayoutOverview,
+  PayoutRecord,
+} from '@/types/payout';
 
 export function getPayoutOverview(): Promise<PayoutOverview> {
   return apiFetch<PayoutOverview>('/payouts', { auth: 'organizer' });
@@ -13,6 +18,14 @@ export function getEventPayout(eventId: string): Promise<EventPayoutBreakdown> {
 // are skipped server-side; the result reports how many settled/skipped/failed.
 export function chargeAllTabs(eventId: string): Promise<BulkTabCheckoutResult> {
   return apiFetch<BulkTabCheckoutResult>(`/events/${eventId}/tabs/checkout`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+// Records a payout for the organizer's currently available revenue.
+export function requestPayout(): Promise<PayoutRecord> {
+  return apiFetch<PayoutRecord>('/payouts/request', {
     method: 'POST',
     auth: 'organizer',
   });
