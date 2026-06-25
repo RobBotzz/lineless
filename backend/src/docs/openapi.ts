@@ -11,6 +11,7 @@ import { ordersRouter } from "../modules/orders/routes";
 import sessionsRouter from "../modules/sessions/routes";
 import tabsRouter from "../modules/tabs/routes";
 import { eventControlCenterRouter } from "../modules/eventControlCenter/routes";
+import payoutsRouter from "../modules/payouts/routes";
 import {
   authAttendee,
   authOrganizer,
@@ -52,6 +53,7 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
   { base: "/api/products", router: productsRouter, tag: "Products" },
   { base: "/api/orders", router: ordersRouter, tag: "Orders" },
   { base: "/api/tabs", router: tabsRouter, tag: "Tabs" },
+  { base: "/api/payouts", router: payoutsRouter, tag: "Payouts" },
 ];
 
 // Maps an auth middleware to the OpenAPI security requirement it enforces.
@@ -297,6 +299,10 @@ export const openapiSpec = {
     {
       name: "Tabs",
       description: "Attendee payment tabs (Stripe authorize-then-capture)",
+    },
+    {
+      name: "Payouts",
+      description: "Organizer revenue, fees, and payout reporting",
     },
   ],
   components: {
