@@ -12,6 +12,7 @@ import {
   DownloadIcon,
   HistoryIcon,
 } from '@/components/icons';
+import { isValidIban } from '@/lib/iban';
 import { formatMoney } from '@/types/product';
 import type { EventPayoutBreakdown } from '@/types/payout';
 import type { PaymentActionBody, PaymentActionResult, PaymentLoaderData } from './Payment.data';
@@ -304,8 +305,11 @@ function BankDetailsCard({
   const saved = fetcher.data?.ok === true && fetcher.data.intent === 'save-bank';
   const error = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const incomplete = !form.iban.trim() || !form.ibanHolderName.trim();
+  // Show the IBAN checksum error only once the field has content.
+  const ibanError = form.iban.trim() !== '' && !isValidIban(form.iban) ? 'Invalid IBAN' : null;
 
   function save() {
+    if (ibanError) return;
     const payload: PaymentActionBody = {
       intent: 'save-bank',
       iban: form.iban,
@@ -340,6 +344,7 @@ function BankDetailsCard({
           onChange={(e) => setForm((p) => ({ ...p, iban: e.target.value }))}
           placeholder="DE89 3704 0044 0532 0130 00"
           helperText="This IBAN is used for all organizer payouts."
+          error={ibanError}
         />
 
         {incomplete ? (
@@ -350,7 +355,7 @@ function BankDetailsCard({
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         {saved ? <p className="text-sm text-success">Bank details saved.</p> : null}
 
-        <Button onClick={save} disabled={busy} className="w-full">
+        <Button onClick={save} disabled={busy || Boolean(ibanError)} className="w-full">
           {busy ? 'Saving…' : 'Save bank details'}
         </Button>
       </CardContent>
