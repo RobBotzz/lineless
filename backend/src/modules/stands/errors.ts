@@ -18,3 +18,12 @@ export class CashierStandDisabledError extends Error {
     this.name = "CashierStandDisabledError";
   }
 }
+
+// The cashier stand is system-managed: created by the backend, never created,
+// deleted, or given products by a user. Raised when a request tries to do so.
+export class CashierStandProtectedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CashierStandProtectedError";
+  }
+}

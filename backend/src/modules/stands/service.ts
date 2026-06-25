@@ -1,6 +1,7 @@
 import { Stand, type StandDoc, type StandType } from "./model";
 import {
   CashierStandDisabledError,
+  CashierStandProtectedError,
   OperatorInvalidCredentialsError,
   StandNotFoundError,
 } from "./errors";
@@ -57,31 +58,42 @@ async function isCashierEnabled(eventId: string): Promise<boolean> {
   return event?.cashierEnabled ?? false;
 }
 
-// Stands visible on the public surfaces (attendee/operator). A disabled cashier
-// is hidden by excluding CASHIER stands from the result.
-interface PublicStandFilter {
+// Stands that appear in the stand listings. The cashier stand is system-managed
+// and intentionally excluded from every getStands surface (organizer, attendee,
+// event link); it is reached directly by id, not discovered through a list.
+interface ListableStandFilter {
   eventId: string;
   deletedAt: null;
-  standType?: { $ne: StandType };
+  standType: { $ne: StandType };
   standStatus?: { $ne: "PAUSED" };
 }
 
-function publicStandFilter(
+function listableStandFilter(
   eventId: string,
-  cashierEnabled: boolean,
   options?: { hidePausedProductStands?: boolean }
-): PublicStandFilter {
-  const filter: PublicStandFilter = { eventId, deletedAt: null };
-  if (!cashierEnabled) filter.standType = { $ne: "CASHIER" };
+): ListableStandFilter {
+  const filter: ListableStandFilter = {
+    eventId,
+    deletedAt: null,
+    standType: { $ne: "CASHIER" },
+  };
   if (options?.hidePausedProductStands) filter.standStatus = { $ne: "PAUSED" };
   return filter;
 }
 
-// The cashier stand is created lazily and idempotently while the event is being
-// configured: enabling the cashier ensures one exists. It is never created via
-// the +Stand route, which only makes PRODUCT stands. Disabling does not delete
-// it — gating hides it instead — so toggling off and on again during setup keeps
-// the same stand and its configuration.
+function isDuplicateKeyError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: number }).code === 11000
+  );
+}
+
+// Idempotently guarantees the event's single cashier stand exists. Created by
+// the backend only (never via the +Stand route, which makes PRODUCT stands) and
+// never deleted, so the partial unique index keeps it at exactly one per event.
+// The duplicate-key catch covers a concurrent ensure racing past the lookup.
 export async function ensureCashierStand(eventId: string): Promise<void> {
   const existing = await Stand.findOne({
     eventId,
@@ -89,7 +101,11 @@ export async function ensureCashierStand(eventId: string): Promise<void> {
     deletedAt: null,
   }).lean();
   if (existing) return;
-  await Stand.create({ eventId, standName: "Cashier", standType: "CASHIER" });
+  try {
+    await Stand.create({ eventId, standName: "Cashier", standType: "CASHIER" });
+  } catch (err) {
+    if (!isDuplicateKeyError(err)) throw err;
+  }
 }
 
 export async function createStand(
@@ -115,7 +131,7 @@ export async function listStands(
   accountId: string
 ): Promise<SafeStand[]> {
   await verifyEventOwnership(eventId, accountId);
-  const stands = await Stand.find({ eventId, deletedAt: null })
+  const stands = await Stand.find(listableStandFilter(eventId))
     .sort({ createdAt: 1 })
     .lean();
   return stands.map(strip);
@@ -127,11 +143,8 @@ export async function listStandsForAttendee(
 ): Promise<SafeStand[]> {
   assertSessionOwnsEvent(eventId, sessionEventId);
   await verifyActiveEvent(eventId);
-  const cashierEnabled = await isCashierEnabled(eventId);
   const stands = await Stand.find(
-    publicStandFilter(eventId, cashierEnabled, {
-      hidePausedProductStands: true,
-    })
+    listableStandFilter(eventId, { hidePausedProductStands: true })
   )
     .sort({ createdAt: 1 })
     .lean();
@@ -236,8 +249,7 @@ export async function resumeStand(
 export async function listStandsForEventLink(
   eventId: string
 ): Promise<SafeStand[]> {
-  const cashierEnabled = await isCashierEnabled(eventId);
-  const stands = await Stand.find(publicStandFilter(eventId, cashierEnabled))
+  const stands = await Stand.find(listableStandFilter(eventId))
     .sort({ createdAt: 1 })
     .lean();
   return stands.map(strip);
@@ -353,6 +365,10 @@ export async function softDeleteStand(
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
   await verifyEventOwnership(stand.eventId, accountId);
+  // The cashier stand is system-managed and cannot be deleted by a user.
+  if (stand.standType === "CASHIER") {
+    throw new CashierStandProtectedError("The cashier stand cannot be deleted");
+  }
   stand.deletedAt = new Date();
   await stand.save();
   // A deleted stand can no longer be operated.
