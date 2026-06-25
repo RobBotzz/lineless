@@ -10,6 +10,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/componen
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import {
+  ArrowRightIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   LinkIcon,
@@ -234,7 +235,7 @@ export default function EventConfiguration() {
                       size="lg"
                       variant="default"
                     >
-                      <span>Operator Dashboard Link</span>
+                      <span>Operator Link</span>
                       <ChevronDownIcon
                         className={[
                           'ml-auto transition-transform',
@@ -258,7 +259,7 @@ export default function EventConfiguration() {
                       size="lg"
                       variant="default"
                     >
-                      <span>Customer View QR / Link</span>
+                      <span>Customer Link / QR-Code</span>
                       <ChevronDownIcon
                         className={[
                           'ml-auto transition-transform',
@@ -268,14 +269,16 @@ export default function EventConfiguration() {
                     </Button>
                     {showCustomerLink && <CustomerLinkPanel eventId={event._id} />}
                   </div>
+                  {/* Navigates away (unlike the expandable buttons above) — the
+                      arrow signals a redirect rather than a dropdown. */}
                   <Link
-                    className={[
-                      buttonVariants({ variant: 'default', size: 'lg' }),
-                      'w-full bg-success text-white hover:bg-success/90',
-                    ].join(' ')}
+                    className={[buttonVariants({ variant: 'default', size: 'lg' }), 'w-full'].join(
+                      ' ',
+                    )}
                     to={paths.organizer.eventControlCenterAnalytics(event._id)}
                   >
-                    Event Control Center
+                    <span>Event Control Center</span>
+                    <ArrowRightIcon className="ml-auto h-4 w-4" />
                   </Link>
                 </CardContent>
               </Card>
