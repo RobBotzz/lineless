@@ -4,12 +4,19 @@ import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 import { ApiError } from '@/api/client';
 import { AlertDialog } from '@/components/feedback';
 import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
-import { DeleteIconButton } from '@/components/shared';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
-import { ChevronDownIcon, LinkIcon, PinIcon, ProductsIcon, UploadIcon } from '@/components/icons';
+import {
+  CheckCircleIcon,
+  ChevronDownIcon,
+  LinkIcon,
+  PinIcon,
+  ProductsIcon,
+  SettingsIcon,
+  UploadIcon,
+} from '@/components/icons';
 import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
 import { paths } from '@/paths';
 import type { Event, UpdateEventInput } from '@/types/event';
@@ -222,280 +229,294 @@ export default function EventConfiguration() {
           document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }}
         right={<AccountMenu isAuthenticated={true} onSignOut={() => logout(paths.home)} />}
-        widthClassName="w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)]"
+        widthClassName="w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]"
       />
 
-      <main className="mx-auto max-w-4xl space-y-6 px-6 py-8 lg:px-8">
-        <section className="scroll-mt-24" id="status">
-          {/* Header — title + lifecycle actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold">{event.name || 'Untitled Event'}</CardTitle>
-              {canDelete ? (
-                <CardAction>
-                  <DeleteIconButton
-                    className="shrink-0"
-                    disabled={busy}
-                    label={`Delete ${event.name || 'event'}`}
-                    onClick={() => setPendingDeleteEvent(true)}
-                  />
-                </CardAction>
-              ) : null}
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Button
-                  className="w-full bg-success text-white hover:bg-success/90"
-                  disabled={!canStart || busy}
-                  onClick={() => submit({ intent: 'start' })}
-                  size="lg"
-                >
-                  Start Event
-                </Button>
-                <Button
-                  className="w-full"
-                  disabled={!canStop || busy}
-                  onClick={() => submit({ intent: 'stop' })}
-                  size="lg"
-                  variant="secondary"
-                >
-                  Complete Event
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+        <div className="space-y-6">
+          {/* Event status + links — side by side across the full width */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section className="scroll-mt-24" id="status">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <CheckCircleIcon className="h-5 w-5" />
+                    Event Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button
+                    className="w-full bg-success text-white hover:bg-success/90"
+                    disabled={!canStart || busy}
+                    onClick={() => submit({ intent: 'start' })}
+                    size="lg"
+                  >
+                    Start Event
+                  </Button>
+                  <Button
+                    className="w-full"
+                    disabled={!canStop || busy}
+                    onClick={() => submit({ intent: 'stop' })}
+                    size="lg"
+                    variant="secondary"
+                  >
+                    Complete Event
+                  </Button>
+                  {canDelete ? (
+                    <Button
+                      className="w-full border-danger/40 text-danger hover:bg-danger/5"
+                      disabled={busy}
+                      onClick={() => setPendingDeleteEvent(true)}
+                      size="lg"
+                      variant="outline"
+                    >
+                      Delete Event
+                    </Button>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </section>
 
-        <section className="scroll-mt-24" id="links">
-          {/* Links — share targets for operators and attendees */}
-          <Card>
+            <section className="scroll-mt-24" id="links">
+              {/* Links — share targets for operators and attendees */}
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <LinkIcon />
+                    Links
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
+                  <div>
+                    <Button
+                      aria-expanded={showOperatorLink}
+                      className={['w-full', showOperatorLink ? 'rounded-b-none' : ''].join(' ')}
+                      onClick={() => setShowOperatorLink((open) => !open)}
+                      size="lg"
+                      variant="default"
+                    >
+                      <span>Operator Dashboard Link</span>
+                      <ChevronDownIcon
+                        className={[
+                          'ml-auto transition-transform',
+                          showOperatorLink ? 'rotate-180' : '',
+                        ].join(' ')}
+                      />
+                    </Button>
+                    {showOperatorLink && (
+                      <OperatorLinkPanel
+                        eventId={event._id}
+                        operatorAccessKey={event.operatorAccessKey}
+                      />
+                    )}
+                  </div>
+                  {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
+                  <div>
+                    <Button
+                      aria-expanded={showCustomerLink}
+                      className={['w-full', showCustomerLink ? 'rounded-b-none' : ''].join(' ')}
+                      onClick={() => setShowCustomerLink((open) => !open)}
+                      size="lg"
+                      variant="default"
+                    >
+                      <span>Customer View QR / Link</span>
+                      <ChevronDownIcon
+                        className={[
+                          'ml-auto transition-transform',
+                          showCustomerLink ? 'rotate-180' : '',
+                        ].join(' ')}
+                      />
+                    </Button>
+                    {showCustomerLink && <CustomerLinkPanel eventId={event._id} />}
+                  </div>
+                  <Link
+                    className={[
+                      buttonVariants({ variant: 'default', size: 'lg' }),
+                      'w-full bg-success text-white hover:bg-success/90',
+                    ].join(' ')}
+                    to={paths.organizer.eventControlCenterAnalytics(event._id)}
+                  >
+                    Event Control Center
+                  </Link>
+                </CardContent>
+              </Card>
+            </section>
+          </div>
+
+          {/* Event settings — core editable fields */}
+          <Card className="scroll-mt-24" id="settings">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <LinkIcon />
-                Links
+                <SettingsIcon className="h-5 w-5" />
+                Event Settings
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
-              <div>
-                <Button
-                  aria-expanded={showOperatorLink}
-                  className={['w-full', showOperatorLink ? 'rounded-b-none' : ''].join(' ')}
-                  onClick={() => setShowOperatorLink((open) => !open)}
-                  size="lg"
-                  variant="default"
-                >
-                  <span>Operator Dashboard Link</span>
-                  <ChevronDownIcon
-                    className={[
-                      'ml-auto transition-transform',
-                      showOperatorLink ? 'rotate-180' : '',
-                    ].join(' ')}
+            {/* @container so the fields react to the card's own width (it sits in
+                  a variable-width column), pairing up when there's room. */}
+            <CardContent className="@container">
+              <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
+                {/* Core fields */}
+                <div className="space-y-5">
+                  <TextField
+                    id="event-name"
+                    label="Event Name"
+                    onChange={(e) => updateField('name', e.target.value)}
+                    placeholder="Event name"
+                    type="text"
+                    value={form.name}
                   />
-                </Button>
-                {showOperatorLink && (
-                  <OperatorLinkPanel
-                    eventId={event._id}
-                    operatorAccessKey={event.operatorAccessKey}
+
+                  <TextField
+                    id="event-date"
+                    label="Event Date"
+                    onChange={(e) => updateField('plannedDate', e.target.value)}
+                    type="date"
+                    value={form.plannedDate}
                   />
-                )}
+
+                  <EventLocationField
+                    onChange={(location) => updateField('location', location)}
+                    value={form.location}
+                  />
+
+                  <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
+                    <label className="text-sm font-medium" htmlFor="ratings-enabled">
+                      Optional Product Rating
+                    </label>
+                    <Toggle
+                      checked={form.ratingsEnabled}
+                      id="ratings-enabled"
+                      label="Optional Product Rating"
+                      onChange={(value) => updateField('ratingsEnabled', value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Branding — sits beside the core fields when the card is wide enough */}
+                <div className="space-y-5">
+                  <div>
+                    <p className="mb-2 block text-sm font-medium">Logo</p>
+                    <Button disabled variant="outline">
+                      <UploadIcon /> <span className="ml-2">Upload</span>
+                    </Button>
+                  </div>
+
+                  <ColorField
+                    id="primary-color"
+                    label="Primary Color"
+                    onChange={(value) => updateField('primaryColor', value)}
+                    value={form.primaryColor}
+                  />
+                  {/* secondaryColor in the backend = the button text color in the UI. */}
+                  <ColorField
+                    id="secondary-color"
+                    label="Button Text Color"
+                    onChange={(value) => updateField('secondaryColor', value)}
+                    value={form.secondaryColor}
+                  />
+                </div>
               </div>
-              {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
-              <div>
-                <Button
-                  aria-expanded={showCustomerLink}
-                  className={['w-full', showCustomerLink ? 'rounded-b-none' : ''].join(' ')}
-                  onClick={() => setShowCustomerLink((open) => !open)}
-                  size="lg"
-                  variant="default"
-                >
-                  <span>Customer View QR / Link</span>
-                  <ChevronDownIcon
-                    className={[
-                      'ml-auto transition-transform',
-                      showCustomerLink ? 'rotate-180' : '',
-                    ].join(' ')}
-                  />
+
+              <div className="mt-6 flex justify-end">
+                <Button className="px-6" disabled={busy} onClick={handleSave} size="lg">
+                  {busy ? 'Saving…' : 'Save'}
                 </Button>
-                {showCustomerLink && <CustomerLinkPanel eventId={event._id} />}
               </div>
-              <Link
-                className={[
-                  buttonVariants({ variant: 'default', size: 'lg' }),
-                  'w-full bg-success text-white hover:bg-success/90',
-                ].join(' ')}
-                to={paths.organizer.eventControlCenterAnalytics(event._id)}
-              >
-                Event Control Center
-              </Link>
             </CardContent>
           </Card>
-        </section>
 
-        {/* Event settings — core editable fields */}
-        <Card className="scroll-mt-24" id="settings">
-          <CardHeader>
-            <CardTitle className="text-lg">Event Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-5">
-              <TextField
-                id="event-name"
-                label="Event Name"
-                onChange={(e) => updateField('name', e.target.value)}
-                placeholder="Event name"
-                type="text"
-                value={form.name}
-              />
-
-              <TextField
-                id="event-date"
-                label="Event Date"
-                onChange={(e) => updateField('plannedDate', e.target.value)}
-                type="date"
-                value={form.plannedDate}
-              />
-
-              <EventLocationField
-                onChange={(location) => updateField('location', location)}
-                value={form.location}
-              />
-
-              <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
-                <label className="text-sm font-medium" htmlFor="ratings-enabled">
-                  Optional Product Rating
-                </label>
-                <Toggle
-                  checked={form.ratingsEnabled}
-                  id="ratings-enabled"
-                  label="Optional Product Rating"
-                  onChange={(value) => updateField('ratingsEnabled', value)}
-                />
-              </div>
-            </div>
-
-            {/* Branding */}
-            <div className="mt-6 space-y-5 border-t pt-6">
-              <div>
-                <p className="mb-2 block text-sm font-medium">Logo</p>
-                <Button disabled variant="outline">
-                  <UploadIcon /> <span className="ml-2">Upload</span>
+          {/* Stands & Products */}
+          <Card className="scroll-mt-24" id="stands-products">
+            <CardHeader>
+              <CardTitle className="text-lg">Stands &amp; Products</CardTitle>
+              <CardAction>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingStand(null);
+                    setIsStandDialogOpen(true);
+                  }}
+                >
+                  + Add Stand
                 </Button>
-              </div>
-
-              <ColorField
-                id="primary-color"
-                label="Primary Color"
-                onChange={(value) => updateField('primaryColor', value)}
-                value={form.primaryColor}
-              />
-              {/* secondaryColor in the backend = the button text color in the UI. */}
-              <ColorField
-                id="secondary-color"
-                label="Button Text Color"
-                onChange={(value) => updateField('secondaryColor', value)}
-                value={form.secondaryColor}
-              />
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <Button className="px-6" disabled={busy} onClick={handleSave} size="lg">
-                {busy ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stands & Products */}
-        <Card className="scroll-mt-24" id="stands-products">
-          <CardHeader>
-            <CardTitle className="text-lg">Stands &amp; Products</CardTitle>
-            <CardAction>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setEditingStand(null);
-                  setIsStandDialogOpen(true);
-                }}
-              >
-                + Add Stand
-              </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            {stands.length === 0 ? (
-              <div className="rounded-lg border-2 border-dashed border-border bg-background px-4 py-10 text-center">
-                <p className="text-sm font-medium">No stands configured yet</p>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  Add stands to this event to allow operators to fulfill orders.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {stands.map((stand) => (
-                  <div key={stand._id} className="rounded-lg border border-border bg-surface">
-                    {/* Stand header */}
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <div>
-                        <h3 className="font-medium text-text">{stand.standName}</h3>
-                        {stand.location.locationName && (
-                          <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
-                            <PinIcon className="h-4 w-4 text-text-muted" />{' '}
-                            {stand.location.locationName}
-                          </p>
-                        )}
+              </CardAction>
+            </CardHeader>
+            <CardContent className="@container">
+              {stands.length === 0 ? (
+                <div className="rounded-lg border-2 border-dashed border-border bg-background px-4 py-10 text-center">
+                  <p className="text-sm font-medium">No stands configured yet</p>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    Add stands to this event to allow operators to fulfill orders.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid items-start gap-3 @3xl:grid-cols-2">
+                  {stands.map((stand) => (
+                    <div key={stand._id} className="rounded-lg border border-border bg-surface">
+                      {/* Stand header */}
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <div>
+                          <h3 className="font-medium text-text">{stand.standName}</h3>
+                          {stand.location.locationName && (
+                            <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
+                              <PinIcon className="h-4 w-4 text-text-muted" />{' '}
+                              {stand.location.locationName}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              setEditingStand(stand);
+                              setIsStandDialogOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
+                            onClick={() => handleDeleteStand(stand._id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      {/* Products list */}
+                      {(productsByStand[stand._id] ?? []).map((product) => (
+                        <ProductRow
+                          key={product._id}
+                          product={product}
+                          onEdit={() => setProductDialog({ standId: stand._id, product })}
+                          onDelete={() => setPendingDeleteProduct(product)}
+                        />
+                      ))}
+
+                      {/* Products footer */}
+                      <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
+                        <span className="flex items-center gap-1.5 text-sm text-text-muted">
+                          <ProductsIcon />
+                          {(productsByStand[stand._id] ?? []).length} Products
+                        </span>
                         <Button
                           size="sm"
-                          variant="secondary"
-                          onClick={() => {
-                            setEditingStand(stand);
-                            setIsStandDialogOpen(true);
-                          }}
+                          variant="outline"
+                          onClick={() => setProductDialog({ standId: stand._id, product: null })}
                         >
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
-                          onClick={() => handleDeleteStand(stand._id)}
-                        >
-                          Delete
+                          + Add Product
                         </Button>
                       </div>
                     </div>
-                    {/* Products list */}
-                    {(productsByStand[stand._id] ?? []).map((product) => (
-                      <ProductRow
-                        key={product._id}
-                        product={product}
-                        onEdit={() => setProductDialog({ standId: stand._id, product })}
-                        onDelete={() => setPendingDeleteProduct(product)}
-                      />
-                    ))}
-
-                    {/* Products footer */}
-                    <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-                      <span className="flex items-center gap-1.5 text-sm text-text-muted">
-                        <ProductsIcon />
-                        {(productsByStand[stand._id] ?? []).length} Products
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setProductDialog({ standId: stand._id, product: null })}
-                      >
-                        + Add Product
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <StandDialog
           key={`${editingStand?._id ?? 'new'}-${String(isStandDialogOpen)}`}

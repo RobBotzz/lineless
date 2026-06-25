@@ -12,7 +12,6 @@ export default function OrganizerLayout() {
   });
   const eventControlCenterEventId = eventControlCenterMatch?.params.eventId;
   const eventControlCenterSection = eventControlCenterMatch?.params.section;
-  const isEventControlCenterRoute = Boolean(eventControlCenterMatch);
   const eventControlCenterLinks = eventControlCenterEventId
     ? [
         {
@@ -45,20 +44,12 @@ export default function OrganizerLayout() {
           activeCenterLinkTo={activeEventControlCenterLinkTo}
           centerLinks={eventControlCenterLinks}
           right={<AccountMenu isAuthenticated={true} onSignOut={() => logout(paths.home)} />}
-          widthClassName={
-            isEventControlCenterRoute
-              ? 'w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]'
-              : 'w-[calc(100%_-_3rem)] max-w-[calc(56rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(56rem-4rem)]'
-          }
+          // One consistent width for every organizer page (matches the event page),
+          // responsive down to narrow tablets via the calc() insets.
+          widthClassName="w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]"
         />
 
-        <main
-          className={
-            isEventControlCenterRoute
-              ? 'mx-auto max-w-7xl px-6 py-8 lg:px-8'
-              : 'mx-auto max-w-4xl px-6 py-8 lg:px-8'
-          }
-        >
+        <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
           <Outlet />
         </main>
       </div>
