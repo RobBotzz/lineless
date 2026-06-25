@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidIban } from "../../shared/iban";
 
 const emailSchema = z.email("Invalid email format");
 
@@ -41,7 +42,17 @@ export const updateAccountSchema = z
   .object({
     firstName: z.string().optional(),
     lastName: z.string().optional(),
-    iban: z.string().nullable().optional(),
+    // Allow null/empty to clear the IBAN; otherwise enforce the MOD-97 checksum.
+    iban: z
+      .string()
+      .nullable()
+      .optional()
+      .refine(
+        (value) => value == null || value.trim() === "" || isValidIban(value),
+        {
+          message: "Invalid IBAN",
+        }
+      ),
     ibanHolderName: z.string().nullable().optional(),
   })
   .strict();
