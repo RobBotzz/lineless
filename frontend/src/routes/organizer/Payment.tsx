@@ -2,50 +2,287 @@ import { useState } from 'react';
 import { useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
+import {
+  CalendarIcon,
+  CheckCircleIcon,
+  ChevronDownIcon,
+  CreditCardIcon,
+  DownloadIcon,
+  HistoryIcon,
+} from '@/components/icons';
 import { formatMoney } from '@/types/product';
-import type { EventPayoutBreakdown, EventStatus } from '@/types/payout';
+import type { EventPayoutBreakdown } from '@/types/payout';
 import type { PaymentActionBody, PaymentActionResult, PaymentLoaderData } from './Payment.data';
 
 function eur(cents: number): string {
-  return `EUR ${formatMoney(cents)}`;
+  return `€${formatMoney(cents)}`;
 }
 
-const statusLabel: Record<EventStatus, string> = {
-  DRAFT: 'Draft',
-  ACTIVE: 'Active',
-  STOPPED: 'Ended',
+// Derived per-event figures shaped for the breakdown table. Sales is revenue
+// before refunds so the row reads Sales − Fees − Refunds = Available.
+type EventRow = {
+  event: EventPayoutBreakdown;
+  salesCents: number;
+  feesCents: number;
+  refundsCents: number;
+  availableCents: number;
 };
+
+function toRow(event: EventPayoutBreakdown): EventRow {
+  const feesCents = event.stripeFeeCents + event.platformFeeCents;
+  return {
+    event,
+    salesCents: event.grossRevenueCents + event.cashRefundCents,
+    feesCents,
+    refundsCents: event.cashRefundCents,
+    availableCents: event.netPayoutCents,
+  };
+}
 
 export default function Payment() {
   const { overview } = useLoaderData() as PaymentLoaderData;
-  const breakdowns = overview.events;
+  const rows = overview.events.map(toRow);
+
+  const availableNow = rows.reduce((sum, r) => sum + r.availableCents, 0);
+  const pending = overview.events.reduce((sum, e) => sum + e.onHoldReadyCents, 0);
+  const reserve = overview.events.reduce((sum, e) => sum + e.onHoldAuthorizedCents, 0);
+
+  const bankReady = Boolean(overview.iban && overview.ibanHolderName);
+  const openTabEventIds = overview.events
+    .filter((e) => e.onHoldReadyCents > 0)
+    .map((e) => e.eventId);
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <p className="text-text-muted text-sm font-medium tracking-wide uppercase">Organizer</p>
-          <CardTitle className="text-3xl font-bold">Payout</CardTitle>
-          <CardDescription className="max-w-2xl">
-            Review the revenue, fees, and net payout for each of your events, close open tabs, and
-            set the bank account your payouts are transferred to.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div>
+        <h1 className="text-3xl font-bold text-text">Payment</h1>
+        <p className="mt-1 text-sm text-text-muted">
+          Manage payout details and request available event revenue.
+        </p>
+      </div>
 
-      <BankDetailsCard iban={overview.iban} ibanHolderName={overview.ibanHolderName} />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <AvailableForPayoutCard
+            availableNow={availableNow}
+            pending={pending}
+            reserve={reserve}
+            bankReady={bankReady}
+            openTabEventIds={openTabEventIds}
+          />
+          <EventBreakdownCard rows={rows} />
+        </div>
 
-      {breakdowns.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-text-muted">
+        <div className="space-y-6">
+          <BankDetailsCard iban={overview.iban} ibanHolderName={overview.ibanHolderName} />
+          <RecentPayoutsCard rows={rows} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-surface-muted px-5 py-4">
+      <p className="text-sm text-text-muted">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-text">{value}</p>
+    </div>
+  );
+}
+
+function AvailableForPayoutCard({
+  availableNow,
+  pending,
+  reserve,
+  bankReady,
+  openTabEventIds,
+}: {
+  availableNow: number;
+  pending: number;
+  reserve: number;
+  bankReady: boolean;
+  openTabEventIds: string[];
+}) {
+  const fetcher = useFetcher<PaymentActionResult>();
+  const busy = fetcher.state !== 'idle';
+  const settled = fetcher.state === 'idle' ? fetcher.data : undefined;
+  const result = settled?.ok && settled.intent === 'charge-all' ? settled : null;
+  const error = settled && !settled.ok ? settled.error : null;
+  const hasOpenTabs = openTabEventIds.length > 0;
+
+  function chargeAll() {
+    const payload: PaymentActionBody = { intent: 'charge-all', eventIds: openTabEventIds };
+    void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
+      method: 'post',
+      encType: 'application/json',
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <CreditCardIcon className="h-5 w-5 text-accent" />
+            Available for Payout
+          </CardTitle>
+          {bankReady ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">
+              <CheckCircleIcon className="h-4 w-4" />
+              Ready
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
+              Setup needed
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-text-muted">
+          Revenue becomes available after card settlements, refunds, and platform fees are cleared.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Stat label="Available now" value={eur(availableNow)} />
+          <Stat label="Pending" value={eur(pending)} />
+          <Stat label="Reserve" value={eur(reserve)} />
+        </div>
+
+        <div className="flex flex-col gap-4 rounded-xl border border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <CalendarIcon className="mt-0.5 h-5 w-5 text-accent" />
+            <div>
+              <p className="text-sm font-medium text-text">Open tabs</p>
+              <p className="text-sm text-text-muted">
+                {hasOpenTabs
+                  ? `${openTabEventIds.length} event(s) have ready tabs to settle.`
+                  : 'All tabs are settled. Open tabs also settle automatically after their hold window.'}
+              </p>
+            </div>
+          </div>
+          <Button onClick={chargeAll} disabled={busy || !hasOpenTabs} className="gap-2">
+            <DownloadIcon className="h-4 w-4" />
+            {busy ? 'Charging…' : 'Charge open tabs'}
+          </Button>
+        </div>
+
+        {error ? <p className="text-sm text-danger">{error}</p> : null}
+        {result ? (
+          <p className="text-sm text-success">
+            Charged {result.settled} {result.settled === 1 ? 'tab' : 'tabs'}
+            {result.skipped > 0 ? `, skipped ${result.skipped} (items not ready)` : ''}
+            {result.failed > 0 ? `, ${result.failed} failed` : ''}.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-xl">
+          <HistoryIcon className="h-5 w-5 text-accent" />
+          Event Breakdown
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="py-6 text-center text-sm text-text-muted">
             You have no events yet. Once guests start ordering, their revenue appears here.
-          </CardContent>
-        </Card>
-      ) : (
-        breakdowns.map((event) => <EventPayoutCard key={event.eventId} event={event} />)
-      )}
+          </p>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-muted text-text-muted">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">Event</th>
+                  <th className="px-4 py-3 text-right font-medium">Sales</th>
+                  <th className="px-4 py-3 text-right font-medium">Fees</th>
+                  <th className="px-4 py-3 text-right font-medium">Refunds</th>
+                  <th className="px-4 py-3 text-right font-medium">Available</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <EventBreakdownRow key={row.event.eventId} row={row} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function EventBreakdownRow({ row }: { row: EventRow }) {
+  const [open, setOpen] = useState(false);
+  const { event } = row;
+
+  return (
+    <>
+      <tr
+        className="cursor-pointer border-t border-border first:border-t-0 hover:bg-surface-muted/50"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <td className="px-4 py-3 text-text">
+          <span className="flex items-center gap-2">
+            <ChevronDownIcon
+              className={`h-4 w-4 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`}
+            />
+            {event.eventName}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-right text-text">{eur(row.salesCents)}</td>
+        <td className="px-4 py-3 text-right text-text">{eur(row.feesCents)}</td>
+        <td className="px-4 py-3 text-right text-text">{eur(row.refundsCents)}</td>
+        <td className="px-4 py-3 text-right font-semibold text-text">{eur(row.availableCents)}</td>
+      </tr>
+      {open ? (
+        <tr className="border-t border-border bg-surface-muted/30">
+          <td colSpan={5} className="px-4 py-3">
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Detail label="Card revenue" value={eur(event.cardRevenueCents)} />
+              <Detail label="Cash revenue" value={eur(event.cashRevenueCents)} />
+              <Detail label="Tax (your liability)" value={eur(event.taxCents)} />
+              <Detail label="Card processing fees" value={eur(event.stripeFeeCents)} />
+              <Detail label="Platform fee (5c/order)" value={eur(event.platformFeeCents)} />
+              <Detail label="On hold (not charged)" value={eur(event.onHoldReadyCents)} />
+            </div>
+            <p className="mt-3 mb-1 text-xs font-medium text-text-muted">Items sold</p>
+            {event.unitsSold.length === 0 ? (
+              <p className="text-sm text-text-muted">No items sold yet.</p>
+            ) : (
+              <ul className="space-y-1">
+                {event.unitsSold.map((item) => (
+                  <li key={item.productId} className="flex justify-between text-sm text-text">
+                    <span>
+                      {item.productName}
+                      <span className="text-text-muted"> × {item.unitsSold}</span>
+                    </span>
+                    <span>{eur(item.grossRevenueCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-text-muted">{label}</p>
+      <p className="text-sm font-medium text-text">{value}</p>
     </div>
   );
 }
@@ -66,6 +303,7 @@ function BankDetailsCard({
   const busy = fetcher.state !== 'idle';
   const saved = fetcher.data?.ok === true && fetcher.data.intent === 'save-bank';
   const error = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
+  const incomplete = !form.iban.trim() || !form.ibanHolderName.trim();
 
   function save() {
     const payload: PaymentActionBody = {
@@ -82,143 +320,71 @@ function BankDetailsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Payout bank account</CardTitle>
-        <CardDescription>
-          Payouts are transferred manually to this account. (Demo data — no real transfer.)
-        </CardDescription>
+        <CardTitle className="flex items-center gap-2 text-xl">
+          <CreditCardIcon className="h-5 w-5 text-accent" />
+          Bank Details
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField
-            id="ibanHolderName"
-            label="Account holder name"
-            value={form.ibanHolderName}
-            onChange={(e) => setForm((p) => ({ ...p, ibanHolderName: e.target.value }))}
-            placeholder="Jane Doe"
-          />
-          <TextField
-            id="iban"
-            label="IBAN"
-            value={form.iban}
-            onChange={(e) => setForm((p) => ({ ...p, iban: e.target.value }))}
-            placeholder="DE89 3704 0044 0532 0130 00"
-          />
-        </div>
+        <TextField
+          id="ibanHolderName"
+          label="Account holder"
+          value={form.ibanHolderName}
+          onChange={(e) => setForm((p) => ({ ...p, ibanHolderName: e.target.value }))}
+          placeholder="Emely"
+        />
+        <TextField
+          id="iban"
+          label="IBAN"
+          value={form.iban}
+          onChange={(e) => setForm((p) => ({ ...p, iban: e.target.value }))}
+          placeholder="DE89 3704 0044 0532 0130 00"
+          helperText="This IBAN is used for all organizer payouts."
+        />
+
+        {incomplete ? (
+          <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
+            Add account holder and IBAN before requesting a payout.
+          </div>
+        ) : null}
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         {saved ? <p className="text-sm text-success">Bank details saved.</p> : null}
-        <div>
-          <Button onClick={save} disabled={busy}>
-            {busy ? 'Saving…' : 'Save bank details'}
-          </Button>
-        </div>
+
+        <Button onClick={save} disabled={busy} className="w-full">
+          {busy ? 'Saving…' : 'Save bank details'}
+        </Button>
       </CardContent>
     </Card>
   );
 }
 
-function Figure({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div className="rounded-lg border border-border bg-surface px-4 py-3">
-      <p className="text-xs text-text-muted">{label}</p>
-      <p className={`text-lg font-semibold ${accent ? 'text-accent' : 'text-text'}`}>{value}</p>
-    </div>
-  );
-}
-
-function EventPayoutCard({ event }: { event: EventPayoutBreakdown }) {
-  const fetcher = useFetcher<PaymentActionResult>();
-  const busy = fetcher.state !== 'idle';
-
-  // The fetcher is scoped to this card, so its data is this event's result.
-  // Gate on idle so a previous result is hidden while a new charge is running.
-  const settled = fetcher.state === 'idle' ? fetcher.data : undefined;
-  const result = settled?.ok && settled.intent === 'charge-tabs' ? settled.result : null;
-  const error = settled && !settled.ok ? settled.error : null;
-
-  function chargeTabs() {
-    const payload: PaymentActionBody = { intent: 'charge-tabs', eventId: event.eventId };
-    void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
-      method: 'post',
-      encType: 'application/json',
-    });
-  }
+function RecentPayoutsCard({ rows }: { rows: EventRow[] }) {
+  const settled = rows.filter((r) => r.event.eventStatus === 'STOPPED' && r.availableCents > 0);
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle>{event.eventName}</CardTitle>
-          <span className="rounded-full bg-surface-muted px-3 py-1 text-xs font-medium text-text-muted">
-            {statusLabel[event.eventStatus]}
-          </span>
-        </div>
-        <CardDescription>
-          {event.paidOrderCount} paid {event.paidOrderCount === 1 ? 'order' : 'orders'}
-        </CardDescription>
+        <CardTitle className="text-xl">Recent Settlements</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Figure label="Gross revenue" value={eur(event.grossRevenueCents)} />
-          <Figure label="Net payout" value={eur(event.netPayoutCents)} accent />
-          <Figure label="On hold (not charged)" value={eur(event.onHoldReadyCents)} />
-          <Figure label="Card revenue" value={eur(event.cardRevenueCents)} />
-          <Figure label="Cash revenue" value={eur(event.cashRevenueCents)} />
-          <Figure label="Cash refunds" value={eur(event.cashRefundCents)} />
-          <Figure label="Card processing fees" value={eur(event.stripeFeeCents)} />
-          <Figure label="Platform fee (5c/order)" value={eur(event.platformFeeCents)} />
-          <Figure label="Tax (your liability)" value={eur(event.taxCents)} />
-        </div>
-
-        {event.onHoldAuthorizedCents > 0 ? (
-          <p className="text-xs text-text-muted">
-            Authorized on card but not yet captured: {eur(event.onHoldAuthorizedCents)}
-          </p>
-        ) : null}
-
-        <div>
-          <p className="mb-2 text-sm font-medium text-text">Items sold</p>
-          {event.unitsSold.length === 0 ? (
-            <p className="text-sm text-text-muted">No items sold yet.</p>
-          ) : (
-            <div className="overflow-hidden rounded-lg border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-surface-muted text-text-muted">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium">Product</th>
-                    <th className="px-4 py-2 text-right font-medium">Units</th>
-                    <th className="px-4 py-2 text-right font-medium">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {event.unitsSold.map((item) => (
-                    <tr key={item.productId} className="border-t border-border">
-                      <td className="px-4 py-2 text-text">{item.productName}</td>
-                      <td className="px-4 py-2 text-right text-text">{item.unitsSold}</td>
-                      <td className="px-4 py-2 text-right text-text">
-                        {eur(item.grossRevenueCents)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <CardContent className="space-y-3">
+        {settled.length === 0 ? (
+          <p className="text-sm text-text-muted">No settled events yet.</p>
+        ) : (
+          settled.slice(0, 6).map((row) => (
+            <div
+              key={row.event.eventId}
+              className="flex items-center justify-between rounded-lg bg-surface-muted px-4 py-3"
+            >
+              <div>
+                <p className="font-semibold text-text">{eur(row.availableCents)}</p>
+                <p className="text-xs text-text-muted">{row.event.eventName}</p>
+              </div>
+              <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
+                Settled
+              </span>
             </div>
-          )}
-        </div>
-
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-        {result ? (
-          <p className="text-sm text-success">
-            Charged {result.settled} {result.settled === 1 ? 'tab' : 'tabs'}
-            {result.skipped > 0 ? `, skipped ${result.skipped} (items not ready)` : ''}
-            {result.failed > 0 ? `, ${result.failed} failed` : ''}.
-          </p>
-        ) : null}
-
-        <div>
-          <Button onClick={chargeTabs} disabled={busy}>
-            {busy ? 'Charging…' : 'Charge all tabs'}
-          </Button>
-        </div>
+          ))
+        )}
       </CardContent>
     </Card>
   );
@@ -230,8 +396,8 @@ export function PaymentError() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Payout</CardTitle>
-        <CardDescription className="text-danger">{message}</CardDescription>
+        <CardTitle>Payment</CardTitle>
+        <p className="text-sm text-danger">{message}</p>
       </CardHeader>
     </Card>
   );

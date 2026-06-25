@@ -13,6 +13,9 @@ export default function OrganizerLayout() {
   const eventControlCenterEventId = eventControlCenterMatch?.params.eventId;
   const eventControlCenterSection = eventControlCenterMatch?.params.section;
   const isEventControlCenterRoute = Boolean(eventControlCenterMatch);
+  const paymentMatch = useMatch(paths.organizer.payment);
+  // Routes that use the full-width container (vs. the narrower default).
+  const isWideRoute = isEventControlCenterRoute || Boolean(paymentMatch);
   const eventControlCenterLinks = eventControlCenterEventId
     ? [
         {
@@ -46,7 +49,7 @@ export default function OrganizerLayout() {
           centerLinks={eventControlCenterLinks}
           right={<AccountMenu isAuthenticated={true} onSignOut={() => logout(paths.home)} />}
           widthClassName={
-            isEventControlCenterRoute
+            isWideRoute
               ? 'w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]'
               : 'w-[calc(100%_-_3rem)] max-w-[calc(56rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(56rem-4rem)]'
           }
@@ -54,7 +57,7 @@ export default function OrganizerLayout() {
 
         <main
           className={
-            isEventControlCenterRoute
+            isWideRoute
               ? 'mx-auto max-w-7xl px-6 py-8 lg:px-8'
               : 'mx-auto max-w-4xl px-6 py-8 lg:px-8'
           }
