@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
@@ -34,19 +34,6 @@ import type { EventActionResult, EventConfigurationLoaderData } from './data';
 const LocationPicker = lazy(() =>
   import('@/components/location/LocationPicker').then((m) => ({ default: m.LocationPicker })),
 );
-
-const SECTION_IDS = ['status', 'links', 'settings', 'stands-products'] as const;
-
-type SectionId = (typeof SECTION_IDS)[number];
-
-const SECTION_LINKS: { label: string; to: `#${SectionId}` }[] = [
-  { label: 'Status', to: '#status' },
-  { label: 'Links', to: '#links' },
-  { label: 'Settings', to: '#settings' },
-  { label: 'Stands & Products', to: '#stands-products' },
-];
-
-const ACTIVE_SECTION_OFFSET = 96;
 
 // Rendered as the route's errorElement when the loader throws.
 export function EventConfigurationError() {
@@ -97,7 +84,6 @@ export default function EventConfiguration() {
   const fetcher = useFetcher<EventActionResult>();
   const { logout } = useOrganizerAuth();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
-  const [activeSection, setActiveSection] = useState<SectionId>('status');
   const [showOperatorLink, setShowOperatorLink] = useState(false);
   const [showCustomerLink, setShowCustomerLink] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
@@ -117,51 +103,6 @@ export default function EventConfiguration() {
 
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
-
-  useEffect(() => {
-    let frameId: number | null = null;
-
-    function getActiveSection() {
-      if (window.scrollY <= 0) return 'status';
-
-      const referenceTop = window.scrollY + ACTIVE_SECTION_OFFSET;
-      let current: SectionId = 'status';
-
-      for (const id of SECTION_IDS) {
-        const section = document.getElementById(id);
-        if (!section) continue;
-
-        const sectionTop = section.getBoundingClientRect().top + window.scrollY;
-        if (sectionTop <= referenceTop) {
-          current = id;
-        }
-      }
-
-      return current;
-    }
-
-    function updateActiveSection() {
-      if (frameId !== null) return;
-
-      frameId = window.requestAnimationFrame(() => {
-        frameId = null;
-        setActiveSection(getActiveSection());
-      });
-    }
-
-    updateActiveSection();
-
-    window.addEventListener('scroll', updateActiveSection, { passive: true });
-    window.addEventListener('resize', updateActiveSection);
-
-    return () => {
-      window.removeEventListener('scroll', updateActiveSection);
-      window.removeEventListener('resize', updateActiveSection);
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId);
-      }
-    };
-  }, []);
 
   function updateField<K extends keyof EventForm>(key: K, value: EventForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -221,13 +162,6 @@ export default function EventConfiguration() {
   return (
     <div className="min-h-screen bg-background">
       <LandingPageNavbar
-        activeCenterLinkTo={`#${activeSection}`}
-        centerLinks={SECTION_LINKS}
-        onCenterLinkClick={(to) => {
-          const id = to.replace('#', '') as SectionId;
-          setActiveSection(id);
-          document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }}
         right={<AccountMenu isAuthenticated={true} onSignOut={() => logout(paths.home)} />}
         widthClassName="w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]"
       />
