@@ -3,6 +3,7 @@ import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
 import { AlertDialog } from '@/components/feedback';
+import { BackButton } from '@/components/shared';
 import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -167,6 +168,9 @@ export default function EventConfiguration() {
       />
 
       <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+        <BackButton to={paths.organizer.root} className="mb-6">
+          Events Dashboard
+        </BackButton>
         <div className="space-y-6">
           {/* Event status + links — side by side across the full width */}
           <div className="grid gap-6 lg:grid-cols-2">
