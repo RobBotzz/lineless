@@ -84,8 +84,10 @@ export async function computeEventPayout(
     (sum, p) => sum + p.capturedCentsAmount,
     0
   );
+  // lean() skips schema defaults, so holds captured before processingFeeCents
+  // existed read back undefined — coalesce to 0 so the sum never becomes NaN.
   const stripeFeeCents = capturedPayments.reduce(
-    (sum, p) => sum + p.processingFeeCents,
+    (sum, p) => sum + (p.processingFeeCents ?? 0),
     0
   );
 
