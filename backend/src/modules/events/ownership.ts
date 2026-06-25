@@ -37,13 +37,27 @@ export async function verifyActiveEvent(eventId: string): Promise<void> {
   if (!event) throw new EventNotFoundError();
 }
 
+// Operators may work an event in any lifecycle state — before it goes live
+// (setup), while it is live, and after it has ended (wind-down/reconciliation).
+// Only a missing or deleted event is rejected; the status is not restricted.
+export async function verifyOperableEvent(eventId: string): Promise<void> {
+  const event = await Event.findOne({
+    _id: eventId,
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+}
+
+// Validates the operator link key for any non-deleted event, regardless of
+// status. The status gate (DRAFT/ACTIVE allowed, STOPPED rejected) lives in the
+// service layer, where a proper error code can be returned — the auth guard
+// using this swallows thrown errors into a generic 401.
 export async function verifyOperatorAccessKey(
   eventId: string,
   key: string
 ): Promise<void> {
   const event = await Event.findOne({
     _id: eventId,
-    status: "ACTIVE",
     deletedAt: null,
   }).lean();
   if (!event || event.operatorAccessKey !== key) {

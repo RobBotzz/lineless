@@ -25,6 +25,7 @@ import {
   assertSessionOwnsEvent,
   verifyActiveEvent,
   verifyEventOwnership,
+  verifyOperableEvent,
 } from "../events/ownership";
 import { Event } from "../events/model";
 
@@ -186,7 +187,7 @@ export async function getStandForOperator(
   }
 
   const stand = await getStand(standId);
-  await verifyActiveEvent(stand.eventId);
+  await verifyOperableEvent(stand.eventId);
   if (
     stand.standType === "CASHIER" &&
     !(await isCashierEnabled(stand.eventId))
@@ -249,6 +250,7 @@ export async function resumeStand(
 export async function listStandsForEventLink(
   eventId: string
 ): Promise<SafeStand[]> {
+  await verifyOperableEvent(eventId);
   const stands = await Stand.find(listableStandFilter(eventId))
     .sort({ createdAt: 1 })
     .lean();
@@ -275,7 +277,6 @@ export async function loginOperator(
 
   const event = await Event.findOne({
     _id: stand.eventId,
-    status: "ACTIVE",
     deletedAt: null,
   }).lean();
   if (!event) {
@@ -309,9 +310,11 @@ export async function loginOperator(
   };
 }
 
-// Re-checks that a stand is still operable: it exists, its event is active, and
-// it is not a disabled cashier. Used on refresh, where the refresh token itself
-// is the proof of identity (no password/access key re-entry).
+// Re-checks that a stand is still operable: it exists, its event still exists,
+// and it is not a disabled cashier. The event status is intentionally not
+// restricted — operators may work a stand in any lifecycle state, including a
+// stopped event. Used on refresh, where the refresh token itself is the proof
+// of identity (no password/access key re-entry).
 async function assertStandOperable(standId: string): Promise<void> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
   if (!stand) {
@@ -320,7 +323,6 @@ async function assertStandOperable(standId: string): Promise<void> {
 
   const event = await Event.findOne({
     _id: stand.eventId,
-    status: "ACTIVE",
     deletedAt: null,
   }).lean();
   if (!event) {

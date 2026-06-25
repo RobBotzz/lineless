@@ -7,7 +7,11 @@ import {
   CashierStandProtectedError,
   StandNotFoundError,
 } from "../stands/errors";
-import { verifyActiveEvent, verifyEventOwnership } from "../events/ownership";
+import {
+  verifyActiveEvent,
+  verifyEventOwnership,
+  verifyOperableEvent,
+} from "../events/ownership";
 import { Event } from "../events/model";
 
 // The wire shape for a product: hides the raw rating aggregate and exposes the
@@ -59,7 +63,7 @@ async function verifyStandAccessForOperator(
 
   const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
   if (!stand) throw new StandNotFoundError();
-  await verifyActiveEvent(stand.eventId);
+  await verifyOperableEvent(stand.eventId);
 }
 
 async function verifyStandAccessForAttendee(
@@ -139,7 +143,7 @@ export async function listEventProductsForOrganizer(
 }
 
 // The operator token is scoped to one stand; allow the event-wide catalog only
-// when that stand belongs to the requested (active) event.
+// when that stand belongs to the requested event.
 export async function listEventProductsForOperator(
   eventId: string,
   operatorStandId: string
@@ -151,8 +155,7 @@ export async function listEventProductsForOperator(
   if (!stand || stand.eventId !== eventId || stand.standType !== "CASHIER")
     throw new StandNotFoundError();
   const event = await Event.findById(eventId).lean();
-  if (!event || event.status !== "ACTIVE" || !event.cashierEnabled)
-    throw new StandNotFoundError();
+  if (!event || !event.cashierEnabled) throw new StandNotFoundError();
   return liveProductsForEvent(eventId);
 }
 
