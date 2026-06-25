@@ -140,7 +140,11 @@ export default function TrackOrder() {
         if (found) setLiveOrder(found);
       } else if (event === 'order') {
         const updated = data as Order;
-        if (updated._id === orderId) setLiveOrder(updated);
+        if (updated._id === orderId) {
+          setLiveOrder((prev) =>
+            !prev || new Date(updated.updatedAt) >= new Date(prev.updatedAt) ? updated : prev,
+          );
+        }
       }
     },
   });

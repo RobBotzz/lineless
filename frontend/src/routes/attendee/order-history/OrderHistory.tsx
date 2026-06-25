@@ -29,6 +29,8 @@ export default function OrderHistory() {
         setOrders((prev) => {
           const idx = prev.findIndex((o) => o._id === updated._id);
           if (idx !== -1) {
+            // Only apply if the incoming update is not older than what we have.
+            if (new Date(updated.updatedAt) < new Date(prev[idx].updatedAt)) return prev;
             const next = [...prev];
             next[idx] = updated;
             return next;
