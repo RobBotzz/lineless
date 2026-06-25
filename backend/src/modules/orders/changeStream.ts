@@ -1,33 +1,55 @@
 import { Order, type OrderDoc } from "./model";
 import { publish } from "../../lib/realtimeBus";
 
-let stream: ReturnType<typeof Order.watch> | null = null;
 type ChangeWithFullDocument<T> = { fullDocument?: T | null };
 
-// Watch the orders collection and publish every insert/update onto the realtime
-// bus. This replaces explicit publish() calls at each write site: any path that
-// persists an order change — operator transitions, instant-item release, payment
-// confirmation, a future webhook, even a manual DB edit — is captured here.
-// Requires MongoDB running as a replica set.
+let stream: ReturnType<typeof Order.watch> | null = null;
+let reconnectTimer: NodeJS.Timeout | null = null;
+let reconnectDelay = 1_000;
+const MAX_RECONNECT_DELAY = 30_000;
+
 export function watchOrderChanges(): void {
+  // Cancel any pending retry so a manual call doesn't stack with an auto-retry.
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectDelay = 1_000;
+  startWatch();
+}
+
+function startWatch(): void {
   const s = Order.watch<OrderDoc>([], { fullDocument: "updateLookup" });
   stream = s;
 
   s.on("change", (change) => {
+    reconnectDelay = 1_000; // successful event — reset backoff
     const fullDocument = (change as ChangeWithFullDocument<OrderDoc>)
       .fullDocument;
     if (fullDocument) publish("order.changed", fullDocument);
   });
 
-  // A dropped change stream silently stops all live updates — re-establish it.
   s.on("error", (err) => {
-    console.error("Order change stream error — restarting:", err);
+    console.error(
+      "Order change stream error — restarting in",
+      reconnectDelay,
+      "ms:",
+      err
+    );
     void s.close().catch(() => undefined);
-    setTimeout(() => watchOrderChanges(), 1000);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      startWatch();
+    }, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
   });
 }
 
 export async function stopWatchingOrderChanges(): Promise<void> {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   await stream?.close();
   stream = null;
 }
