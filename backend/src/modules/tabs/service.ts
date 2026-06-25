@@ -18,6 +18,26 @@ import {
 
 const stripe = new Stripe(config.stripe.secretKey);
 
+// Reads the Stripe processing fee from a captured PaymentIntent whose
+// latest_charge.balance_transaction was expanded. Stripe only reports the fee
+// once the charge settles, so this is the single source of truth for fees.
+type CapturedIntent = Awaited<ReturnType<typeof stripe.paymentIntents.capture>>;
+
+function extractCaptureFee(intent: CapturedIntent): {
+  feeCents: number;
+  balanceTxnId: string | null;
+} {
+  const charge = intent.latest_charge;
+  if (!charge || typeof charge === "string") {
+    return { feeCents: 0, balanceTxnId: null };
+  }
+  const balanceTxn = charge.balance_transaction;
+  if (!balanceTxn || typeof balanceTxn === "string") {
+    return { feeCents: 0, balanceTxnId: null };
+  }
+  return { feeCents: balanceTxn.fee, balanceTxnId: balanceTxn.id };
+}
+
 export interface TabCheckoutResult {
   tabId: string;
   status: "PAID" | "SKIPPED" | "FAILED";
@@ -182,14 +202,21 @@ async function settleTab(tabId: string, filters: { eventId?: string }) {
     for (const payment of paymentsToCapture) {
       const captureAmount = Math.min(remaining, payment.authorizedCentsAmount);
       if (captureAmount > 0) {
-        await stripe.paymentIntents.capture(payment.stripePaymentIntentId, {
-          amount_to_capture: captureAmount,
-        });
+        const intent = await stripe.paymentIntents.capture(
+          payment.stripePaymentIntentId,
+          {
+            amount_to_capture: captureAmount,
+            expand: ["latest_charge.balance_transaction"],
+          }
+        );
+        const { feeCents, balanceTxnId } = extractCaptureFee(intent);
         await TabPayment.updateOne(
           { _id: payment._id },
           {
             tabPaymentStatus: "CAPTURED",
             capturedCentsAmount: captureAmount,
+            processingFeeCents: feeCents,
+            stripeBalanceTxnId: balanceTxnId,
           }
         );
         totalCaptured += captureAmount;

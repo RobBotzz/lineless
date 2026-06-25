@@ -21,6 +21,10 @@ export interface TabPaymentDoc {
   authorizedCentsAmount: number;
   /** Amount in integer cents actually captured. Set to authorizedCentsAmount on capture. */
   capturedCentsAmount: number;
+  /** Stripe processing fee in integer cents, read from the capture's balance transaction. */
+  processingFeeCents: number;
+  /** Stripe balance transaction the processing fee was read from. */
+  stripeBalanceTxnId: string | null;
   expiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -40,6 +44,8 @@ const TabPaymentSchema = new Schema<TabPaymentDoc>(
     },
     authorizedCentsAmount: { type: Number, required: true },
     capturedCentsAmount: { type: Number, default: 0 },
+    processingFeeCents: { type: Number, default: 0 },
+    stripeBalanceTxnId: { type: String, default: null },
     expiresAt: { type: Date, default: null },
   },
   { timestamps: true }
