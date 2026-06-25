@@ -20,7 +20,8 @@ import {
 import { EventControlCenterError } from './routes/organizer/event-control-center/EventControlCenter';
 import EventControlCenterRoute from './routes/organizer/event-control-center/EventControlCenterRoute';
 import { eventControlCenterLoader } from './routes/organizer/event-control-center/data';
-import OrganizerPayment from './routes/organizer/Payment';
+import OrganizerPayment, { PaymentError } from './routes/organizer/Payment';
+import { paymentAction, paymentLoader } from './routes/organizer/Payment.data';
 import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Settings';
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
 
@@ -65,7 +66,13 @@ export const router = createBrowserRouter(
           action={dashboardAction}
           errorElement={<DashboardError />}
         />
-        <Route path="payment" element={<OrganizerPayment />} />
+        <Route
+          path="payment"
+          element={<OrganizerPayment />}
+          loader={paymentLoader}
+          action={paymentAction}
+          errorElement={<PaymentError />}
+        />
         <Route
           path="settings"
           element={<OrganizerSettings />}
