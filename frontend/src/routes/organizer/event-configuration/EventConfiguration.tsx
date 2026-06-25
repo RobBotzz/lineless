@@ -161,6 +161,79 @@ export default function EventConfiguration() {
   const canStop = event.status === 'ACTIVE';
   const canDelete = event.status === 'DRAFT';
 
+  // Spread stands over two columns by always appending to the currently shorter
+  // column (height ≈ product count). This keeps both columns roughly equal so the
+  // section's overall height is as small as possible — unlike CSS multi-column,
+  // which can't reorder items to balance. Cheap enough to run every render.
+  const standColumns: Stand[][] = [[], []];
+  const standColumnWeights = [0, 0];
+  for (const stand of stands) {
+    const weight = 1 + (productsByStand[stand._id]?.length ?? 0);
+    const target = standColumnWeights[0] <= standColumnWeights[1] ? 0 : 1;
+    standColumns[target].push(stand);
+    standColumnWeights[target] += weight;
+  }
+
+  const renderStand = (stand: Stand) => (
+    <div key={stand._id} className="rounded-lg border border-border bg-surface">
+      {/* Stand header */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <div>
+          <h3 className="font-medium text-text">{stand.standName}</h3>
+          {stand.location.locationName && (
+            <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
+              <PinIcon className="h-4 w-4 text-text-muted" /> {stand.location.locationName}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setEditingStand(stand);
+              setIsStandDialogOpen(true);
+            }}
+          >
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
+            onClick={() => handleDeleteStand(stand._id)}
+          >
+            Delete
+          </Button>
+        </div>
+      </div>
+      {/* Products list */}
+      {(productsByStand[stand._id] ?? []).map((product) => (
+        <ProductRow
+          key={product._id}
+          product={product}
+          onEdit={() => setProductDialog({ standId: stand._id, product })}
+          onDelete={() => setPendingDeleteProduct(product)}
+        />
+      ))}
+
+      {/* Products footer */}
+      <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
+        <span className="flex items-center gap-1.5 text-sm text-text-muted">
+          <ProductsIcon />
+          {(productsByStand[stand._id] ?? []).length} Products
+        </span>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setProductDialog({ standId: stand._id, product: null })}
+        >
+          + Add Product
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <LandingPageNavbar
@@ -393,67 +466,16 @@ export default function EventConfiguration() {
                   </p>
                 </div>
               ) : (
-                <div className="grid items-start gap-3 @3xl:grid-cols-2">
-                  {stands.map((stand) => (
-                    <div key={stand._id} className="rounded-lg border border-border bg-surface">
-                      {/* Stand header */}
-                      <div className="flex items-center justify-between px-4 py-3">
-                        <div>
-                          <h3 className="font-medium text-text">{stand.standName}</h3>
-                          {stand.location.locationName && (
-                            <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
-                              <PinIcon className="h-4 w-4 text-text-muted" />{' '}
-                              {stand.location.locationName}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => {
-                              setEditingStand(stand);
-                              setIsStandDialogOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
-                            onClick={() => handleDeleteStand(stand._id)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
+                // Two height-balanced columns (see standColumns). They stack on a
+                // narrow card; empty columns are dropped so a lone stand spans full width.
+                <div className="flex flex-col gap-3 @3xl:flex-row @3xl:items-start">
+                  {standColumns
+                    .filter((column) => column.length > 0)
+                    .map((column, index) => (
+                      <div key={index} className="flex flex-1 flex-col gap-3">
+                        {column.map(renderStand)}
                       </div>
-                      {/* Products list */}
-                      {(productsByStand[stand._id] ?? []).map((product) => (
-                        <ProductRow
-                          key={product._id}
-                          product={product}
-                          onEdit={() => setProductDialog({ standId: stand._id, product })}
-                          onDelete={() => setPendingDeleteProduct(product)}
-                        />
-                      ))}
-
-                      {/* Products footer */}
-                      <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-                        <span className="flex items-center gap-1.5 text-sm text-text-muted">
-                          <ProductsIcon />
-                          {(productsByStand[stand._id] ?? []).length} Products
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setProductDialog({ standId: stand._id, product: null })}
-                        >
-                          + Add Product
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
             </CardContent>
