@@ -1,4 +1,5 @@
 import type { EventStatus } from "../events/model";
+import type { PayoutStatus } from "./model";
 
 export interface ProductUnitsSold {
   productId: string;
@@ -27,8 +28,22 @@ export interface EventPayoutBreakdown {
   computedAt: Date;
 }
 
+export interface PayoutRecord {
+  id: string;
+  amountCents: number;
+  ibanHolderName: string;
+  iban: string;
+  status: PayoutStatus;
+  createdAt: Date;
+}
+
 export interface PayoutOverview {
   iban: string | null;
   ibanHolderName: string | null;
+  /** Net payout across all events, minus payouts already requested. */
+  availableCents: number;
+  /** Total already requested/paid out. */
+  paidOutCents: number;
   events: EventPayoutBreakdown[];
+  payouts: PayoutRecord[];
 }

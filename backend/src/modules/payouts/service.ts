@@ -6,10 +6,12 @@ import { Tab } from "../tabs/model";
 import { TabPayment } from "../payments/model";
 import { Product } from "../products/model";
 import { Account } from "../accounts/model";
-import { EventPayout } from "./model";
+import { EventPayout, Payout } from "./model";
+import { MissingBankDetailsError, NoPayoutAvailableError } from "./errors";
 import type {
   EventPayoutBreakdown,
   PayoutOverview,
+  PayoutRecord,
   ProductUnitsSold,
 } from "./types";
 
@@ -222,10 +224,20 @@ export async function getPayoutOverview(
     breakdowns.push(await computeEventPayout(event._id, accountId));
   }
 
+  const totalNetCents = breakdowns.reduce(
+    (sum, e) => sum + e.netPayoutCents,
+    0
+  );
+  const payouts = await listPayouts(accountId);
+  const paidOutCents = payouts.reduce((sum, p) => sum + p.amountCents, 0);
+
   return {
     iban: account?.iban ?? null,
     ibanHolderName: account?.ibanHolderName ?? null,
+    availableCents: Math.max(totalNetCents - paidOutCents, 0),
+    paidOutCents,
     events: breakdowns,
+    payouts,
   };
 }
 
@@ -234,4 +246,52 @@ export async function getEventPayout(
   accountId: string
 ): Promise<EventPayoutBreakdown> {
   return computeEventPayout(eventId, accountId);
+}
+
+export async function listPayouts(accountId: string): Promise<PayoutRecord[]> {
+  const payouts = await Payout.find({ accountId })
+    .sort({ createdAt: -1 })
+    .lean();
+  return payouts.map((p) => ({
+    id: p._id,
+    amountCents: p.amountCents,
+    ibanHolderName: p.ibanHolderSnapshot,
+    iban: p.ibanSnapshot,
+    status: p.status,
+    createdAt: p.createdAt,
+  }));
+}
+
+// Records a payout for the organizer's currently available revenue. Payouts are
+// manual bank transfers, so this freezes the amount and bank details and marks
+// the entry PAID (the transfer is assumed done out of band).
+export async function requestPayout(accountId: string): Promise<PayoutRecord> {
+  const account = await Account.findOne({ accountId, deletedAt: null })
+    .select("iban ibanHolderName")
+    .lean();
+  if (!account?.iban || !account.ibanHolderName) {
+    throw new MissingBankDetailsError();
+  }
+
+  const overview = await getPayoutOverview(accountId);
+  if (overview.availableCents <= 0) {
+    throw new NoPayoutAvailableError();
+  }
+
+  const created = await Payout.create({
+    accountId,
+    amountCents: overview.availableCents,
+    ibanSnapshot: account.iban,
+    ibanHolderSnapshot: account.ibanHolderName,
+    status: "PAID",
+  });
+
+  return {
+    id: created._id,
+    amountCents: created.amountCents,
+    ibanHolderName: created.ibanHolderSnapshot,
+    iban: created.ibanSnapshot,
+    status: created.status,
+    createdAt: created.createdAt,
+  };
 }

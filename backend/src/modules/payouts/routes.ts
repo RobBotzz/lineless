@@ -1,7 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { authOrganizer } from "../../middleware/auth/guards";
 import { EventNotFoundError } from "../events/errors";
-import { getEventPayout, getPayoutOverview } from "./service";
+import { getEventPayout, getPayoutOverview, requestPayout } from "./service";
+import { MissingBankDetailsError, NoPayoutAvailableError } from "./errors";
 
 function accountId(req: Request): string {
   return req.organizer!.accountId;
@@ -10,6 +11,10 @@ function accountId(req: Request): string {
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
+  if (err instanceof MissingBankDetailsError)
+    return res.status(409).json({ error: err.message });
+  if (err instanceof NoPayoutAvailableError)
+    return res.status(409).json({ error: err.message });
   console.error("Payouts error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -25,6 +30,20 @@ payoutsRouter.get("/", authOrganizer, async (req: Request, res: Response) => {
     return handleError(err, res);
   }
 });
+
+// POST /payouts/request — record a payout for the available revenue.
+payoutsRouter.post(
+  "/request",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const payout = await requestPayout(accountId(req));
+      return res.status(201).json(payout);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  }
+);
 
 // GET /payouts/:eventId — full payout breakdown for one event.
 payoutsRouter.get(
