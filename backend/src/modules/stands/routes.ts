@@ -12,6 +12,8 @@ import {
   refreshOperatorSession,
   logoutOperator,
   updateStand,
+  pauseStand,
+  resumeStand,
   softDeleteStand,
 } from "./service";
 import {
@@ -157,6 +159,34 @@ standsRouter.get(
         : req.operator
           ? await getStandForOperator(standId(req), req.operator.standId)
           : await getStandForAttendee(standId(req), req.attendee!.eventId);
+      res.status(200).json(stand);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// POST /stands/:standId/pause
+standsRouter.post(
+  "/:standId/pause",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const stand = await pauseStand(standId(req), req.organizer!.accountId);
+      res.status(200).json(stand);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// POST /stands/:standId/resume
+standsRouter.post(
+  "/:standId/resume",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const stand = await resumeStand(standId(req), req.organizer!.accountId);
       res.status(200).json(stand);
     } catch (err) {
       handleError(err, res);
