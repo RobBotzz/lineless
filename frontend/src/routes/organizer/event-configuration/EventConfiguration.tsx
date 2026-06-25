@@ -17,6 +17,7 @@ import {
   PinIcon,
   ProductsIcon,
   SettingsIcon,
+  StandIcon,
   UploadIcon,
 } from '@/components/icons';
 import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
@@ -176,8 +177,8 @@ export default function EventConfiguration() {
 
   const renderStand = (stand: Stand) => (
     <div key={stand._id} className="rounded-lg border border-border bg-surface">
-      {/* Stand header */}
-      <div className="flex items-center justify-between px-4 py-3">
+      {/* Stand header — subtly raised (accent tint) so the start of each stand is easy to spot */}
+      <div className="flex items-center justify-between rounded-t-lg border-b border-accent/15 bg-accent/10 px-4 py-3">
         <div>
           <h3 className="font-medium text-text">{stand.standName}</h3>
           {stand.location.locationName && (
@@ -189,7 +190,7 @@ export default function EventConfiguration() {
         <div className="flex items-center gap-2">
           <Button
             size="sm"
-            variant="secondary"
+            variant="outline"
             onClick={() => {
               setEditingStand(stand);
               setIsStandDialogOpen(true);
@@ -199,7 +200,7 @@ export default function EventConfiguration() {
           </Button>
           <Button
             size="sm"
-            variant="secondary"
+            variant="outline"
             className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
             onClick={() => handleDeleteStand(stand._id)}
           >
@@ -444,7 +445,10 @@ export default function EventConfiguration() {
           {/* Stands & Products */}
           <Card className="scroll-mt-24" id="stands-products">
             <CardHeader>
-              <CardTitle className="text-lg">Stands &amp; Products</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <StandIcon className="h-5 w-5" />
+                Stands &amp; Products
+              </CardTitle>
               <CardAction>
                 <Button
                   size="sm"
