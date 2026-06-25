@@ -17,6 +17,8 @@ import { useOperatorNavbarActions } from '../operatorNavbarActions';
 
 type StandFilter = 'all' | string;
 
+const AUTO_SCROLL_PIXEL_STEPS = [1, 2, 4, 8, 14] as const;
+
 export default function PickupDashboard() {
   const { eventId } = useParams();
   const { setNavbarActions } = useOperatorNavbarActions();
@@ -87,6 +89,8 @@ export default function PickupDashboard() {
     }
 
     const topPauseMs = 1200;
+    const autoScrollStep =
+      AUTO_SCROLL_PIXEL_STEPS[autoScrollSpeed - 1] ?? AUTO_SCROLL_PIXEL_STEPS[0];
     let pauseUntil = 0;
 
     const scrollToTop = () => {
@@ -113,13 +117,13 @@ export default function PickupDashboard() {
         return;
       }
 
-      if (scrollingElement.scrollTop >= maxScrollTop - autoScrollSpeed) {
+      if (scrollingElement.scrollTop >= maxScrollTop - autoScrollStep) {
         scrollToTop();
         return;
       }
 
       scrollingElement.scrollTop = Math.min(
-        scrollingElement.scrollTop + autoScrollSpeed,
+        scrollingElement.scrollTop + autoScrollStep,
         maxScrollTop,
       );
     }, 35);
@@ -154,8 +158,10 @@ export default function PickupDashboard() {
               <button
                 aria-label="Increase auto scroll speed"
                 className="h-10 w-10 text-lg font-semibold text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={autoScrollSpeed === 5}
-                onClick={() => setAutoScrollSpeed((speed) => Math.min(5, speed + 1))}
+                disabled={autoScrollSpeed === AUTO_SCROLL_PIXEL_STEPS.length}
+                onClick={() =>
+                  setAutoScrollSpeed((speed) => Math.min(AUTO_SCROLL_PIXEL_STEPS.length, speed + 1))
+                }
                 type="button"
               >
                 +
@@ -338,7 +344,7 @@ function PickupOrderCard({
           <p className="truncate text-sm font-semibold text-text">{orderItem.productName}</p>
         </div>
       </div>
-      <p className="mt-4 truncate font-mono text-3xl font-bold tracking-tight text-text">
+      <p className="mt-4 truncate font-sans text-3xl font-extrabold tabular-nums tracking-normal text-text">
         #{orderItem.orderNumber}
       </p>
     </li>
