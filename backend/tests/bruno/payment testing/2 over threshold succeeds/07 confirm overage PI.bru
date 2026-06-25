@@ -1,0 +1,33 @@
+meta {
+  name: 11 confirm overage PI
+  type: http
+  seq: 11
+}
+
+post {
+  url: https://api.stripe.com/v1/payment_intents/{{overagePI}}/confirm?payment_method=pm_card_visa&return_url=https://example.com/return
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{stripeSecretKey}}
+}
+
+tests {
+  test("overage hold is now capturable", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.status).to.equal("requires_capture");
+  });
+
+  // The overage hold is topped up in whole baseline increments (EUR 10.00 /
+  // 1000 cents), not by the exact shortfall, so checkout reuses the headroom.
+  test("overage hold is a positive multiple of the baseline", function () {
+    expect(res.body.amount).to.be.a("number").and.greaterThan(0);
+    expect(res.body.amount % 1000).to.equal(0);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

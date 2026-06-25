@@ -1,0 +1,26 @@
+meta {
+  name: 06 confirm baseline PI
+  type: http
+  seq: 6
+}
+
+post {
+  url: https://api.stripe.com/v1/payment_intents/{{baselinePI}}/confirm?payment_method=pm_card_visa&return_url=https://example.com/return
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{stripeSecretKey}}
+}
+
+tests {
+  test("baseline hold is now capturable", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.status).to.equal("requires_capture");
+  });
+}
+
+settings {
+  encodeUrl: true
+}

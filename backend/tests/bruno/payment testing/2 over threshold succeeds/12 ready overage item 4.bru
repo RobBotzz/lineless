@@ -1,0 +1,27 @@
+meta {
+  name: 19 ready overage item 4
+  type: http
+  seq: 19
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{overOrderId}}/items/{{overageItemId4}}/ready
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{operatorToken}}
+}
+
+tests {
+  test("overage item 4 is ready", function () {
+    expect(res.status).to.equal(200);
+    const item = res.body.items.find(i => i._id === bru.getVar("overageItemId4"));
+    expect(item.readyAt).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

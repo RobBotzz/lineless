@@ -2,6 +2,7 @@ import { Event, generateOperatorAccessKey, type EventDoc } from "./model";
 import { EventNotFoundError, EventStateError } from "./errors";
 import { assertSessionOwnsEvent } from "./ownership";
 import { ensureCashierStand } from "../stands/service";
+import { finalizeEventTabs } from "../tabs/service";
 import type { CreateEventInput, UpdateEventInput } from "./types";
 
 type AttendeeEvent = Omit<EventDoc, "operatorAccessKey">;
@@ -23,6 +24,7 @@ export async function createEvent(
     ratingsEnabled: input.ratingsEnabled,
     cashierEnabled: input.cashierEnabled,
     offlineOrdersEnabled: input.offlineOrdersEnabled,
+    baselineHoldCents: input.baselineHoldCents,
     branding: input.branding,
     location: input.location,
   });
@@ -94,6 +96,9 @@ export async function updateEvent(
   if (patch.offlineOrdersEnabled !== undefined) {
     event.offlineOrdersEnabled = patch.offlineOrdersEnabled;
   }
+  if (patch.baselineHoldCents !== undefined) {
+    event.baselineHoldCents = patch.baselineHoldCents;
+  }
   if (patch.branding) {
     if (patch.branding.primaryColor !== undefined) {
       event.branding.primaryColor = patch.branding.primaryColor;
@@ -142,6 +147,7 @@ export async function stopEvent(
   event.status = "STOPPED";
   event.stoppedAt = new Date();
   await event.save();
+  await finalizeEventTabs(event._id);
   return event;
 }
 

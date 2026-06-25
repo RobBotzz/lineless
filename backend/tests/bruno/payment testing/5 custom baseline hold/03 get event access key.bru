@@ -1,0 +1,32 @@
+meta {
+  name: 03 get event access key
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.operatorAccessKey) {
+    bru.setVar("operatorAccessKey", res.body.operatorAccessKey);
+  }
+}
+
+tests {
+  test("event returns operator access key", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.operatorAccessKey).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

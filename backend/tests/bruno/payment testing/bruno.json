@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "payment testing",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}

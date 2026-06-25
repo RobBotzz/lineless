@@ -87,9 +87,11 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Payment
 
-| Method | URL     | Description                                           |
-| ------ | ------- | ----------------------------------------------------- |
-| POST   | `/tabs` | Open tab / start digital payment (redirect to Stripe) |
+| Method | URL                      | Description                                              |
+| ------ | ------------------------ | -------------------------------------------------------- |
+| POST   | `/tabs`                  | Open tab / start digital payment                         |
+| POST   | `/tabs/{tabId}/checkout` | Capture all authorized payments and mark tab as paid     |
+| POST   | `/webhooks/stripe`       | Stripe webhook receiver (signature-verified, idempotent) |
 
 ---
 
@@ -122,22 +124,24 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 
 ### Cashier (manual orders & cash payment)
 
-| Method | URL                              | Description                       |
-| ------ | -------------------------------- | --------------------------------- |
-| POST   | `/orders`                        | Create manual order (cashier)     |
-| POST   | `/orders/{orderId}/cash-payment` | Confirm cash payment for an order |
+| Method | URL                                     | Description                                              |
+| ------ | --------------------------------------- | -------------------------------------------------------- |
+| POST   | `/orders`                               | Create manual order (cashier)                            |
+| POST   | `/orders/{orderId}/cash-payment`        | Confirm cash received — marks order paid, releases items |
+| POST   | `/cash-payments/{cashPaymentId}/refund` | Issue a (partial) cash refund against a paid order       |
 
 ---
 
 ## Shared (used by multiple personas)
 
-| Method | URL                              | Description                                                      | Used by                       |
-| ------ | -------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
-| GET    | `/stands/{standId}`              | Get single stand                                                 | Organizer, Operator, Customer |
-| GET    | `/events/{eventId}/stands`       | List stands of an event                                          | Organizer, Customer           |
-| GET    | `/stands/{standId}/products`     | List products of a stand (menu / catalog)                        | Organizer, Operator, Customer |
-| POST   | `/orders`                        | Create order (customer app and cashier both use this)            | Customer, Operator            |
-| POST   | `/orders/{orderId}/cash-payment` | Cash payment (operator confirms, applies to customer orders too) | Operator                      |
+| Method | URL                                     | Description                                                      | Used by                       |
+| ------ | --------------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
+| GET    | `/stands/{standId}`                     | Get single stand                                                 | Organizer, Operator, Customer |
+| GET    | `/events/{eventId}/stands`              | List stands of an event                                          | Organizer, Customer           |
+| GET    | `/stands/{standId}/products`            | List products of a stand (menu / catalog)                        | Organizer, Operator, Customer |
+| POST   | `/orders`                               | Create order (customer app and cashier both use this)            | Customer, Operator            |
+| POST   | `/orders/{orderId}/cash-payment`        | Cash payment (operator confirms, applies to customer orders too) | Operator                      |
+| POST   | `/cash-payments/{cashPaymentId}/refund` | Issue a partial or full cash refund                              | Operator                      |
 
 > Note: `POST /orders` and `POST /orders/{orderId}/cash-payment` are listed under both
 > Customer/Operator sections for clarity but are the same endpoints.

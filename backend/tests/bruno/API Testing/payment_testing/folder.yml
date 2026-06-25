@@ -1,0 +1,21 @@
+info:
+  name: payment_testing
+  type: folder
+  seq: 2
+
+# Variables for the gated-tab payment flow.
+# - productId / authToken are stable: seed the product once (it persists in the
+#   mongo-data volume across restarts) and the token is signed with the dev JWT
+#   secret, so it never expires and never touches the DB.
+# - tabId / baselinePI / overagePI are filled automatically by the post-response
+#   scripts as you run the requests 1 -> 6 in order (use "Run Folder").
+request:
+  variables:
+    - name: productId
+      value: "00000000-0000-0000-0000-000000000001"
+    - name: authToken
+      value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJlbWFpbCI6InRlc3RAbGluZWxlc3MuZGV2IiwiaWF0IjoxNzgwMTcxMjE2LCJleHAiOjIwOTU1MzEyMTZ9.g61H8zFiNAj00_QvNcrX884olasQFCbQvaYQoU7XVzk
+# tabId / baselinePI / overagePI are NOT declared here on purpose — they are set
+# at runtime by each request's post-response script (bru.setVar). Declaring them
+# as request variables would re-apply the empty value before every request and
+# clobber the captured ids.

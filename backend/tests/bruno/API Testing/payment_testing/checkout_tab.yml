@@ -1,0 +1,23 @@
+info:
+  name: 6. Checkout and Settle Tab
+  type: http
+  seq: 6
+
+# Expects 200. Captures every AUTHORIZED hold via Stripe, sets the Tab to PAID
+# and stamps paidAt on all its orders.
+# Note: the captures hit the real Stripe API, so they only succeed if the
+# PaymentIntents were confirmed through real Stripe (e.g. the Stripe CLI), not
+# the simulated dev webhooks above.
+
+http:
+  method: POST
+  url: http://{{host}}:{{port}}/tabs/{{tabId}}/checkout
+  body:
+    type: none
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

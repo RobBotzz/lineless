@@ -1,0 +1,49 @@
+meta {
+  name: 10 submit order over limit
+  type: http
+  seq: 10
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders
+  body: json
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{paySessionId}}
+}
+
+body:json {
+  {
+    "eventId": "{{eventId}}",
+    "tabId": "{{tabId}}",
+    "items": [
+      { "productId": "{{productId}}" },
+      { "productId": "{{productId}}" },
+      { "productId": "{{productId}}" },
+      { "productId": "{{productId}}" },
+      { "productId": "{{productId}}" },
+      { "productId": "{{productId}}" }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 402 && res.body.clientSecret) {
+    bru.setVar("overagePI", res.body.clientSecret.split("_secret_")[0]);
+    bru.setVar("overOrderId", res.body.orderId);
+  }
+}
+
+tests {
+  test("order exceeding hold returns 402 with a client secret and orderId", function () {
+    expect(res.status).to.equal(402);
+    expect(res.body.clientSecret).to.be.a("string").and.not.empty;
+    expect(res.body.orderId).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

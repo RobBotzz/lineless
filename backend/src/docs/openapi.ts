@@ -9,8 +9,10 @@ import {
 } from "../modules/products/routes";
 import { ordersRouter } from "../modules/orders/routes";
 import sessionsRouter from "../modules/sessions/routes";
+import tabsRouter from "../modules/tabs/routes";
 import { eventControlCenterRouter } from "../modules/eventControlCenter/routes";
 import {
+  authAttendee,
   authOrganizer,
   authOrganizerOrAttendee,
   authOrganizerOrAttendeeOrEventLink,
@@ -49,12 +51,14 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
   },
   { base: "/api/products", router: productsRouter, tag: "Products" },
   { base: "/api/orders", router: ordersRouter, tag: "Orders" },
+  { base: "/api/tabs", router: tabsRouter, tag: "Tabs" },
 ];
 
 // Maps an auth middleware to the OpenAPI security requirement it enforces.
 type SecurityRequirement = Record<string, string[]>;
 const AUTH = new Map<unknown, SecurityRequirement[]>([
   [authOrganizer, [{ organizerAuth: [] }]],
+  [authAttendee, [{ attendeeSessionAuth: [] }]],
   [
     authOrganizerOrAttendeeOrEventLink,
     [
@@ -290,6 +294,10 @@ export const openapiSpec = {
       description: "Stand management and operator authentication",
     },
     { name: "Products", description: "Products offered at a stand" },
+    {
+      name: "Tabs",
+      description: "Attendee payment tabs (Stripe authorize-then-capture)",
+    },
   ],
   components: {
     securitySchemes: {
