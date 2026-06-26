@@ -270,20 +270,12 @@ export default function OperatorDashboard() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-4">
-          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
-        </div>
-
         <header className="mb-6">
           <div className="flex items-center gap-3">
+            <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
             <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
             <ConnectionBadge status={status} />
           </div>
-          <p className="mt-1 text-sm text-text-muted">
-            Tap an item to move it one stage forward · {items.length} item
-            {items.length === 1 ? '' : 's'} active
-          </p>
-
           {products.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {products.map((product) => (
@@ -454,9 +446,13 @@ function BoardItemCard({
         className="absolute inset-0 z-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent disabled:cursor-wait"
       />
 
-      <div className="pointer-events-none relative z-10 p-4">
-        <span className="block text-lg font-bold leading-tight text-text">{item.productName}</span>
-        <span className="mt-3 block text-xs font-medium text-text-muted">#{item.orderNumber}</span>
+      <div className="pointer-events-none relative z-10 p-3">
+        <span className="block break-words text-base font-bold leading-tight text-text">
+          {item.productName}
+        </span>
+        <span className="mt-1.5 block text-xs font-medium text-text-muted">
+          #{item.orderNumber}
+        </span>
       </div>
 
       {/* Collapsible customer comment, like the cart's note row. Lives above the
@@ -468,7 +464,7 @@ function BoardItemCard({
             type="button"
             onClick={() => setCommentOpen((open) => !open)}
             aria-expanded={commentOpen}
-            className="flex w-full items-center gap-2 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <ChatIcon className="h-3.5 w-3.5 shrink-0" />
             <span>Customer comment</span>
@@ -477,7 +473,7 @@ function BoardItemCard({
             />
           </button>
           {commentOpen && (
-            <p className="whitespace-pre-wrap break-words px-4 pb-3 text-sm leading-6 text-text">
+            <p className="whitespace-pre-wrap break-words px-3 pb-2.5 text-sm leading-5 text-text">
               {comment}
             </p>
           )}
