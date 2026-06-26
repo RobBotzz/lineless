@@ -3,7 +3,7 @@ import { skipToken, useQuery } from '@tanstack/react-query';
 
 import { loginOperator } from '@/api/stands';
 import { getOperatorStandToken } from '@/auth/keychain';
-import { operatorStandsQueryOptions, operatorQueryKeys } from '../operatorQueries';
+import { operatorCashierStandQueryOptions, operatorQueryKeys } from '../operatorQueries';
 
 // Context handed to every cashier page: the event and the CASHIER stand the
 // cashier acts as (its operator token is resolved/ensured here, once).
@@ -13,13 +13,14 @@ export interface CashierContext {
 }
 
 // Wraps the /cashier routes. The "Cashier" tile only navigates here; this layout
-// finds the event's CASHIER stand and ensures an operator token for it (the
-// stand has no password), so child pages can make operator-auth calls.
+// resolves the event's CASHIER stand via its dedicated endpoint (it's excluded
+// from the stand list) and ensures an operator token for it (the stand has no
+// password), so child pages can make operator-auth calls.
 export default function CashierLayout() {
   const { eventId } = useParams() as { eventId: string };
 
-  const standsQuery = useQuery(operatorStandsQueryOptions(eventId));
-  const cashierStand = standsQuery.data?.find((s) => s.standType === 'CASHIER');
+  const cashierStandQuery = useQuery(operatorCashierStandQueryOptions(eventId));
+  const cashierStand = cashierStandQuery.data;
 
   const sessionQuery = useQuery({
     queryKey: [...operatorQueryKeys.all, 'cashier-session', cashierStand?._id ?? ''],
@@ -31,11 +32,11 @@ export default function CashierLayout() {
       : skipToken,
   });
 
-  if (standsQuery.isPending || (cashierStand && sessionQuery.isPending)) {
+  if (cashierStandQuery.isPending || (cashierStand && sessionQuery.isPending)) {
     return <Centered>Opening cashier stand…</Centered>;
   }
 
-  if (standsQuery.isError || !cashierStand) {
+  if (cashierStandQuery.isError || !cashierStand) {
     return (
       <Centered>
         Cashier is not available for this event. Reopen the operator link and try again.
