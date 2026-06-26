@@ -49,7 +49,6 @@ export default function Payment() {
   // Pending = delivered-but-uncharged value + captured funds still settling on Stripe.
   const onHoldReady = overview.events.reduce((sum, e) => sum + e.onHoldReadyCents, 0);
   const pending = onHoldReady + overview.inTransitCents;
-  const reserve = overview.events.reduce((sum, e) => sum + e.onHoldAuthorizedCents, 0);
 
   const bankReady = Boolean(overview.iban && overview.ibanHolderName);
   const openTabEventIds = overview.events
@@ -71,7 +70,6 @@ export default function Payment() {
             availableNow={overview.availableCents}
             pending={pending}
             inTransit={overview.inTransitCents}
-            reserve={reserve}
             bankReady={bankReady}
             openTabEventIds={openTabEventIds}
           />
@@ -101,14 +99,12 @@ function AvailableForPayoutCard({
   availableNow,
   pending,
   inTransit,
-  reserve,
   bankReady,
   openTabEventIds,
 }: {
   availableNow: number;
   pending: number;
   inTransit: number;
-  reserve: number;
   bankReady: boolean;
   openTabEventIds: string[];
 }) {
@@ -168,14 +164,13 @@ function AvailableForPayoutCard({
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Stat label="Available now" value={eur(availableNow)} />
           <Stat
             label="Pending"
             value={eur(pending)}
             hint={inTransit > 0 ? `incl. ${eur(inTransit)} settling on Stripe` : undefined}
           />
-          <Stat label="Reserve" value={eur(reserve)} />
         </div>
 
         <div className="flex flex-col gap-3 rounded-xl border border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
