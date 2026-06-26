@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Outlet, useMatches } from 'react-router';
+import { Outlet, useMatch, useMatches } from 'react-router';
 
 import { OperatorNavbar } from '../../components/layout/navbars';
 import { OperatorOutletContext, type OperatorNavbarActions } from './operatorNavbarActions';
@@ -14,19 +14,24 @@ export default function OperatorLayout() {
     (matches.at(-1)?.handle as OperatorRouteHandle | undefined)?.title ?? 'Operator';
   const [navbarActions, setNavbarActions] = useState<OperatorNavbarActions>({});
   const outletContext = useMemo(() => ({ setNavbarActions }), []);
+  // The navbar only belongs on the operator landing page (stand selection,
+  // /operator/:eventId exactly). All deeper screens are full-bleed without it.
+  const isLandingPage = Boolean(useMatch({ path: '/operator/:eventId', end: true }));
 
   return (
     <div className="min-h-screen bg-background">
-      <OperatorNavbar
-        center={
-          <span className="text-center text-sm font-semibold text-text sm:text-base">
-            {navbarTitle}
-          </span>
-        }
-        left={<CustomerLogoPlaceholder />}
-        right={navbarActions.right}
-        widthClassName="w-[calc(100%_-_2rem)] max-w-[calc(80rem-2rem)] sm:w-[calc(100%_-_3rem)] sm:max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]"
-      />
+      {isLandingPage && (
+        <OperatorNavbar
+          center={
+            <span className="text-center text-sm font-semibold text-text sm:text-base">
+              {navbarTitle}
+            </span>
+          }
+          left={<CustomerLogoPlaceholder />}
+          right={navbarActions.right}
+          widthClassName="w-[calc(100%_-_2rem)] max-w-[calc(80rem-2rem)] sm:w-[calc(100%_-_3rem)] sm:max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]"
+        />
+      )}
       <main>
         <OperatorOutletContext.Provider value={outletContext}>
           <Outlet />
