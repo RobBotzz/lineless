@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFetcher, useLoaderData, useRouteError } from 'react-router';
 
+import { AlertDialog } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
@@ -12,13 +13,27 @@ import {
   DownloadIcon,
   HistoryIcon,
 } from '@/components/icons';
-import { isValidIban } from '@/lib/iban';
+import { formatIban, isValidIban, normalizeIban } from '@/lib/iban';
 import { formatMoney } from '@/types/product';
 import type { EventPayoutBreakdown, PayoutRecord } from '@/types/payout';
 import type { PaymentActionBody, PaymentActionResult, PaymentLoaderData } from './Payment.data';
 
 function eur(cents: number): string {
   return `€${formatMoney(cents)}`;
+}
+
+// Keep a settled fetcher banner visible briefly, then dismiss it so a stale
+// success/error message can't linger next to freshly revalidated figures. The
+// state is only written from the timer callback (never synchronously in the
+// effect body), so the react-hooks/set-state-in-effect rule stays happy.
+function useDismissAfter(token: unknown, ms = 6000): boolean {
+  const [dismissed, setDismissed] = useState<unknown>(null);
+  useEffect(() => {
+    if (token == null) return;
+    const timer = setTimeout(() => setDismissed(token), ms);
+    return () => clearTimeout(timer);
+  }, [token, ms]);
+  return token != null && dismissed !== token;
 }
 
 // Derived per-event figures shaped for the breakdown table. Sales is revenue
@@ -42,13 +57,60 @@ function toRow(event: EventPayoutBreakdown): EventRow {
   };
 }
 
+// Quote a CSV cell only when it contains a delimiter, quote, or newline.
+function csvCell(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+// Export the per-event breakdown as a spreadsheet-friendly CSV (major units, no
+// currency symbol) so organizers can drop it straight into their accounting.
+function downloadBreakdownCsv(rows: EventRow[]) {
+  const header = [
+    'Event',
+    'Status',
+    'Paid orders',
+    'Sales',
+    'Card revenue',
+    'Cash revenue',
+    'Cash refunds',
+    'Tax',
+    'Card processing fees',
+    'Platform fee',
+    'Fees total',
+    'Available',
+  ];
+  const lines = rows.map(({ event, salesCents, feesCents, refundsCents, availableCents }) =>
+    [
+      csvCell(event.eventName),
+      event.eventStatus,
+      String(event.paidOrderCount),
+      formatMoney(salesCents),
+      formatMoney(event.cardRevenueCents),
+      formatMoney(event.cashRevenueCents),
+      formatMoney(refundsCents),
+      formatMoney(event.taxCents),
+      formatMoney(event.stripeFeeCents),
+      formatMoney(event.platformFeeCents),
+      formatMoney(feesCents),
+      formatMoney(availableCents),
+    ].join(','),
+  );
+  const csv = [header.join(','), ...lines].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `lineless-payout-breakdown-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Payment() {
   const { overview } = useLoaderData() as PaymentLoaderData;
   const rows = overview.events.map(toRow);
 
-  // Pending = delivered-but-uncharged value + captured funds still settling on Stripe.
-  const onHoldReady = overview.events.reduce((sum, e) => sum + e.onHoldReadyCents, 0);
-  const pending = onHoldReady + overview.inTransitCents;
+  // Delivered-but-uncharged tab value the organizer can release by charging.
+  const openTabsReady = overview.events.reduce((sum, e) => sum + e.onHoldReadyCents, 0);
 
   const bankReady = Boolean(overview.iban && overview.ibanHolderName);
   const openTabEventIds = overview.events
@@ -68,7 +130,7 @@ export default function Payment() {
         <div className="space-y-6 lg:col-span-2">
           <AvailableForPayoutCard
             availableNow={overview.availableCents}
-            pending={pending}
+            openTabsReady={openTabsReady}
             inTransit={overview.inTransitCents}
             bankReady={bankReady}
             openTabEventIds={openTabEventIds}
@@ -97,19 +159,21 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 
 function AvailableForPayoutCard({
   availableNow,
-  pending,
+  openTabsReady,
   inTransit,
   bankReady,
   openTabEventIds,
 }: {
   availableNow: number;
-  pending: number;
+  openTabsReady: number;
   inTransit: number;
   bankReady: boolean;
   openTabEventIds: string[];
 }) {
   const chargeFetcher = useFetcher<PaymentActionResult>();
   const payoutFetcher = useFetcher<PaymentActionResult>();
+  // Which real-money action awaits confirmation, if any.
+  const [confirm, setConfirm] = useState<'charge' | 'payout' | null>(null);
   const hasOpenTabs = openTabEventIds.length > 0;
   const canPayout = bankReady && availableNow > 0;
 
@@ -118,12 +182,14 @@ function AvailableForPayoutCard({
   const chargeResult =
     chargeSettled?.ok && chargeSettled.intent === 'charge-all' ? chargeSettled : null;
   const chargeError = chargeSettled && !chargeSettled.ok ? chargeSettled.error : null;
+  const showCharge = useDismissAfter(chargeSettled);
 
   const payingOut = payoutFetcher.state !== 'idle';
   const payoutSettled = payoutFetcher.state === 'idle' ? payoutFetcher.data : undefined;
   const payoutDone =
     payoutSettled?.ok && payoutSettled.intent === 'request-payout' ? payoutSettled : null;
   const payoutError = payoutSettled && !payoutSettled.ok ? payoutSettled.error : null;
+  const showPayout = useDismissAfter(payoutSettled);
 
   function submit(fetcher: typeof chargeFetcher, payload: PaymentActionBody) {
     void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
@@ -132,12 +198,13 @@ function AvailableForPayoutCard({
     });
   }
 
-  function chargeAll() {
-    submit(chargeFetcher, { intent: 'charge-all', eventIds: openTabEventIds });
-  }
-
-  function payout() {
-    submit(payoutFetcher, { intent: 'request-payout' });
+  function confirmAction() {
+    if (confirm === 'charge') {
+      submit(chargeFetcher, { intent: 'charge-all', eventIds: openTabEventIds });
+    } else if (confirm === 'payout') {
+      submit(payoutFetcher, { intent: 'request-payout' });
+    }
+    setConfirm(null);
   }
 
   return (
@@ -164,12 +231,17 @@ function AvailableForPayoutCard({
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <Stat label="Available now" value={eur(availableNow)} />
           <Stat
-            label="Pending"
-            value={eur(pending)}
-            hint={inTransit > 0 ? `incl. ${eur(inTransit)} settling on Stripe` : undefined}
+            label="Open tabs"
+            value={eur(openTabsReady)}
+            hint={openTabsReady > 0 ? 'charge to release' : undefined}
+          />
+          <Stat
+            label="Settling on Stripe"
+            value={eur(inTransit)}
+            hint={inTransit > 0 ? 'clears automatically' : undefined}
           />
         </div>
 
@@ -184,13 +256,17 @@ function AvailableForPayoutCard({
                   : 'Add your bank details before requesting a payout.'}
             </p>
           </div>
-          <Button onClick={payout} disabled={payingOut || !canPayout} className="gap-2">
+          <Button
+            onClick={() => setConfirm('payout')}
+            disabled={payingOut || !canPayout}
+            className="gap-2"
+          >
             <DownloadIcon className="h-4 w-4" />
             {payingOut ? 'Requesting…' : 'Request payout'}
           </Button>
         </div>
-        {payoutError ? <p className="text-sm text-danger">{payoutError}</p> : null}
-        {payoutDone ? (
+        {showPayout && payoutError ? <p className="text-sm text-danger">{payoutError}</p> : null}
+        {showPayout && payoutDone ? (
           <p className="text-sm text-success">
             Payout of {eur(payoutDone.amountCents)} requested — it will be transferred to your IBAN.
           </p>
@@ -209,7 +285,7 @@ function AvailableForPayoutCard({
             </div>
           </div>
           <Button
-            onClick={chargeAll}
+            onClick={() => setConfirm('charge')}
             disabled={charging || !hasOpenTabs}
             variant="outline"
             className="gap-2"
@@ -217,8 +293,8 @@ function AvailableForPayoutCard({
             {charging ? 'Charging…' : 'Charge open tabs'}
           </Button>
         </div>
-        {chargeError ? <p className="text-sm text-danger">{chargeError}</p> : null}
-        {chargeResult ? (
+        {showCharge && chargeError ? <p className="text-sm text-danger">{chargeError}</p> : null}
+        {showCharge && chargeResult ? (
           <p className="text-sm text-success">
             Charged {chargeResult.settled} {chargeResult.settled === 1 ? 'tab' : 'tabs'}
             {chargeResult.skipped > 0 ? `, skipped ${chargeResult.skipped} (items not ready)` : ''}
@@ -226,18 +302,55 @@ function AvailableForPayoutCard({
           </p>
         ) : null}
       </CardContent>
+
+      <AlertDialog
+        message={
+          confirm === 'charge'
+            ? `This charges guests' cards across ${openTabEventIds.length} event(s) with ready tabs (${eur(openTabsReady)}). This can't be undone.`
+            : confirm === 'payout'
+              ? `Transfer ${eur(availableNow)} to your bank account? This records a payout request.`
+              : null
+        }
+        title={confirm === 'charge' ? 'Charge open tabs?' : 'Request payout?'}
+        acknowledgeLabel={confirm === 'charge' ? 'Charge now' : 'Request payout'}
+        onAcknowledge={confirmAction}
+        onCancel={() => setConfirm(null)}
+      />
     </Card>
   );
 }
 
 function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
+  const totals = rows.reduce(
+    (acc, row) => ({
+      sales: acc.sales + row.salesCents,
+      fees: acc.fees + row.feesCents,
+      refunds: acc.refunds + row.refundsCents,
+      available: acc.available + row.availableCents,
+    }),
+    { sales: 0, fees: 0, refunds: 0, available: 0 },
+  );
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <HistoryIcon className="h-5 w-5 text-accent" />
-          Event Breakdown
-        </CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <HistoryIcon className="h-5 w-5 text-accent" />
+            Event Breakdown
+          </CardTitle>
+          {rows.length > 0 ? (
+            <Button
+              onClick={() => downloadBreakdownCsv(rows)}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <DownloadIcon className="h-4 w-4" />
+              Export CSV
+            </Button>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
@@ -249,11 +362,21 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
             <table className="w-full text-sm">
               <thead className="bg-surface-muted text-text-muted">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">Event</th>
-                  <th className="px-4 py-3 text-right font-medium">Sales</th>
-                  <th className="px-4 py-3 text-right font-medium">Fees</th>
-                  <th className="px-4 py-3 text-right font-medium">Refunds</th>
-                  <th className="px-4 py-3 text-right font-medium">Available</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium">
+                    Event
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">
+                    Sales
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">
+                    Fees
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">
+                    Refunds
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">
+                    Available
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -261,6 +384,17 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
                   <EventBreakdownRow key={row.event.eventId} row={row} />
                 ))}
               </tbody>
+              {rows.length > 1 ? (
+                <tfoot className="border-t border-border bg-surface-muted font-semibold text-text">
+                  <tr>
+                    <td className="px-4 py-3 text-left">Total</td>
+                    <td className="px-4 py-3 text-right">{eur(totals.sales)}</td>
+                    <td className="px-4 py-3 text-right">{eur(totals.fees)}</td>
+                    <td className="px-4 py-3 text-right">{eur(totals.refunds)}</td>
+                    <td className="px-4 py-3 text-right">{eur(totals.available)}</td>
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
           </div>
         )}
@@ -272,6 +406,7 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
 function EventBreakdownRow({ row }: { row: EventRow }) {
   const [open, setOpen] = useState(false);
   const { event } = row;
+  const detailId = `event-breakdown-${event.eventId}`;
 
   return (
     <>
@@ -280,12 +415,22 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
         onClick={() => setOpen((v) => !v)}
       >
         <td className="px-4 py-3 text-text">
-          <span className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={detailId}
+            onClick={(e) => {
+              // The row already toggles; stop here so we don't toggle twice.
+              e.stopPropagation();
+              setOpen((v) => !v);
+            }}
+            className="flex items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
             <ChevronDownIcon
               className={`h-4 w-4 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`}
             />
             {event.eventName}
-          </span>
+          </button>
         </td>
         <td className="px-4 py-3 text-right text-text">{eur(row.salesCents)}</td>
         <td className="px-4 py-3 text-right text-text">{eur(row.feesCents)}</td>
@@ -293,7 +438,7 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
         <td className="px-4 py-3 text-right font-semibold text-text">{eur(row.availableCents)}</td>
       </tr>
       {open ? (
-        <tr className="border-t border-border bg-surface-muted/30">
+        <tr id={detailId} className="border-t border-border bg-surface-muted/30">
           <td colSpan={5} className="px-4 py-3">
             <div className="grid gap-2 sm:grid-cols-3">
               <Detail label="Card revenue" value={eur(event.cardRevenueCents)} />
@@ -345,13 +490,15 @@ function BankDetailsCard({
 }) {
   const fetcher = useFetcher<PaymentActionResult>();
   const [form, setForm] = useState({
-    iban: iban ?? '',
+    iban: formatIban(iban ?? ''),
     ibanHolderName: ibanHolderName ?? '',
   });
 
   const busy = fetcher.state !== 'idle';
-  const saved = fetcher.data?.ok === true && fetcher.data.intent === 'save-bank';
-  const error = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
+  const settled = fetcher.state === 'idle' ? fetcher.data : undefined;
+  const saved = settled?.ok === true && settled.intent === 'save-bank';
+  const error = settled && !settled.ok ? settled.error : null;
+  const showResult = useDismissAfter(settled);
   const incomplete = !form.iban.trim() || !form.ibanHolderName.trim();
   // Show the IBAN checksum error only once the field has content.
   const ibanError = form.iban.trim() !== '' && !isValidIban(form.iban) ? 'Invalid IBAN' : null;
@@ -360,7 +507,7 @@ function BankDetailsCard({
     if (ibanError) return;
     const payload: PaymentActionBody = {
       intent: 'save-bank',
-      iban: form.iban,
+      iban: normalizeIban(form.iban),
       ibanHolderName: form.ibanHolderName,
     };
     void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
@@ -389,7 +536,7 @@ function BankDetailsCard({
           id="iban"
           label="IBAN"
           value={form.iban}
-          onChange={(e) => setForm((p) => ({ ...p, iban: e.target.value }))}
+          onChange={(e) => setForm((p) => ({ ...p, iban: formatIban(e.target.value) }))}
           placeholder="DE89 3704 0044 0532 0130 00"
           helperText="This IBAN is used for all organizer payouts."
           error={ibanError}
@@ -400,8 +547,8 @@ function BankDetailsCard({
             Add account holder and IBAN before requesting a payout.
           </div>
         ) : null}
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-        {saved ? <p className="text-sm text-success">Bank details saved.</p> : null}
+        {showResult && error ? <p className="text-sm text-danger">{error}</p> : null}
+        {showResult && saved ? <p className="text-sm text-success">Bank details saved.</p> : null}
 
         <Button onClick={save} disabled={busy || Boolean(ibanError)} className="w-full">
           {busy ? 'Saving…' : 'Save bank details'}
@@ -427,22 +574,29 @@ function RecentPayoutsCard({ payouts }: { payouts: PayoutRecord[] }) {
         {payouts.length === 0 ? (
           <p className="text-sm text-text-muted">No payouts requested yet.</p>
         ) : (
-          payouts.slice(0, 6).map((payout) => (
-            <div
-              key={payout.id}
-              className="flex items-center justify-between rounded-lg bg-surface-muted px-4 py-3"
-            >
-              <div>
-                <p className="font-semibold text-text">{eur(payout.amountCents)}</p>
-                <p className="text-xs text-text-muted">
-                  {dateFmt.format(new Date(payout.createdAt))}
-                </p>
+          payouts.slice(0, 6).map((payout) => {
+            const paid = payout.status === 'PAID';
+            return (
+              <div
+                key={payout.id}
+                className="flex items-center justify-between rounded-lg bg-surface-muted px-4 py-3"
+              >
+                <div>
+                  <p className="font-semibold text-text">{eur(payout.amountCents)}</p>
+                  <p className="text-xs text-text-muted">
+                    {dateFmt.format(new Date(payout.createdAt))}
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                    paid ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
+                  }`}
+                >
+                  {paid ? 'Paid' : 'Requested'}
+                </span>
               </div>
-              <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-                {payout.status === 'PAID' ? 'Paid' : 'Requested'}
-              </span>
-            </div>
-          ))
+            );
+          })
         )}
       </CardContent>
     </Card>

@@ -9,6 +9,14 @@ export function normalizeIban(raw: string): string {
   return raw.replace(/\s+/g, '').toUpperCase();
 }
 
+// Display form: uppercase, spaced into groups of four (DE89 3704 0044 …).
+// Submit the normalized (space-free) value; this is for the input field only.
+export function formatIban(raw: string): string {
+  return normalizeIban(raw)
+    .replace(/(.{4})/g, '$1 ')
+    .trim();
+}
+
 export function isValidIban(raw: string): boolean {
   const iban = normalizeIban(raw);
   if (iban.length < 15 || iban.length > 34) return false;

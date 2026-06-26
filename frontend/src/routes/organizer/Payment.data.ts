@@ -38,15 +38,22 @@ export async function paymentAction({ request }: ActionFunctionArgs): Promise<Pa
         return { ok: true, intent: 'save-bank' };
       }
       case 'charge-all': {
-        // Settle every event with open tabs; aggregate the per-event results.
-        const results = await Promise.all(body.eventIds.map((id) => chargeAllTabs(id)));
-        return {
-          ok: true,
-          intent: 'charge-all',
-          settled: results.reduce((sum, r) => sum + r.settled, 0),
-          skipped: results.reduce((sum, r) => sum + r.skipped, 0),
-          failed: results.reduce((sum, r) => sum + r.failed, 0),
-        };
+        // Settle every event with open tabs. Use allSettled so one failing event
+        // doesn't discard the others' results — a rejected event counts as failed.
+        const results = await Promise.allSettled(body.eventIds.map((id) => chargeAllTabs(id)));
+        let settled = 0;
+        let skipped = 0;
+        let failed = 0;
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            settled += result.value.settled;
+            skipped += result.value.skipped;
+            failed += result.value.failed;
+          } else {
+            failed += 1;
+          }
+        }
+        return { ok: true, intent: 'charge-all', settled, skipped, failed };
       }
       case 'request-payout': {
         const payout = await requestPayout();
