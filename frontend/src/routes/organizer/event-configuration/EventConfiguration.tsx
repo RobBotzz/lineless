@@ -398,12 +398,12 @@ export default function EventConfiguration() {
 
                   <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
                     <label className="text-sm font-medium" htmlFor="ratings-enabled">
-                      Optional Product Rating
+                      Customer Product Ratings
                     </label>
                     <Toggle
                       checked={form.ratingsEnabled}
                       id="ratings-enabled"
-                      label="Optional Product Rating"
+                      label="Customer Product Ratings"
                       onChange={(value) => updateField('ratingsEnabled', value)}
                     />
                   </div>

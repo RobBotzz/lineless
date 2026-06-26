@@ -8,7 +8,14 @@ import { loginOperator } from '@/api/stands';
 import { clearOperatorCredential, getCredential } from '@/auth/keychain';
 import { Button } from '@/components/ui/button';
 import { PasswordTextField } from '@/components/ui/password-text-field';
-import { CashierIcon, LockIcon, PickupIcon, PinIcon, StandIcon } from '@/components/icons';
+import {
+  ArrowRightIcon,
+  CashierIcon,
+  LockIcon,
+  PickupIcon,
+  PinIcon,
+  StandIcon,
+} from '@/components/icons';
 import { paths } from '@/paths';
 import { hasCoordinates } from '@/types/location';
 import type { Stand } from '@/types/stand';
@@ -156,43 +163,61 @@ export default function StandSelection() {
         {loadState === 'loading' && <LoadingGrid />}
 
         {loadState === 'ready' && eventId && (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <SelectionTile
-                icon={<PickupIcon className="h-6 w-6" />}
-                meta="Orders ready for handoff"
-                onClick={() => navigateToSystemDashboard(paths.operator.pickupDashboard(eventId))}
-                title="Pick Up"
-              />
-              {cashierStand && (
+          <div className="space-y-8">
+            <header>
+              <h1 className="text-2xl font-bold tracking-tight text-text">Operator console</h1>
+              <p className="mt-1 text-sm text-text-muted">
+                Open a stand’s live board, or jump straight to pickup and cashier.
+              </p>
+            </header>
+
+            <section>
+              <SectionLabel>Tools</SectionLabel>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <SelectionTile
-                  icon={<CashierIcon className="h-6 w-6" />}
-                  meta="Manual orders and cash payments"
-                  onClick={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
-                  title="Cashier"
+                  icon={<PickupIcon className="h-6 w-6" />}
+                  meta="Orders ready for handoff"
+                  onClick={() => navigateToSystemDashboard(paths.operator.pickupDashboard(eventId))}
+                  title="Pick Up"
                 />
-              )}
-
-              {productStands.map((stand) => (
-                <StandSelectionTile
-                  key={stand._id}
-                  loggedIn={Boolean(loggedInStands[stand._id])}
-                  loading={loggingInStandId === stand._id}
-                  onClick={() => handleStandClick(stand)}
-                  stand={stand}
-                />
-              ))}
-            </div>
-
-            {productStands.length === 0 && (
-              <div className="mt-6 rounded-lg border-2 border-dashed border-border bg-surface px-4 py-10 text-center">
-                <p className="text-sm font-medium text-text">No stands configured yet</p>
-                <p className="mt-1 text-sm text-text-muted">
-                  Pick Up and Cashier are available, but this event has no stand dashboards.
-                </p>
+                {cashierStand && (
+                  <SelectionTile
+                    icon={<CashierIcon className="h-6 w-6" />}
+                    meta="Manual orders and cash payments"
+                    onClick={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
+                    title="Cashier"
+                  />
+                )}
               </div>
-            )}
-          </>
+            </section>
+
+            <section>
+              <SectionLabel count={productStands.length}>Stands</SectionLabel>
+              {productStands.length > 0 ? (
+                <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {productStands.map((stand) => (
+                    <StandSelectionTile
+                      key={stand._id}
+                      loggedIn={Boolean(loggedInStands[stand._id])}
+                      loading={loggingInStandId === stand._id}
+                      onClick={() => handleStandClick(stand)}
+                      stand={stand}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-lg border-2 border-dashed border-border bg-surface px-4 py-10 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
+                    <StandIcon className="h-6 w-6" />
+                  </div>
+                  <p className="mt-4 text-sm font-medium text-text">No stands configured yet</p>
+                  <p className="mt-1 text-sm text-text-muted">
+                    The tools above are available, but this event has no stand dashboards.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
         )}
       </div>
 
@@ -205,6 +230,19 @@ export default function StandSelection() {
         password={password}
         stand={selectedStand}
       />
+    </div>
+  );
+}
+
+function SectionLabel({ children, count }: { children: ReactNode; count?: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{children}</h2>
+      {typeof count === 'number' && (
+        <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-text-muted">
+          {count}
+        </span>
+      )}
     </div>
   );
 }
@@ -266,7 +304,7 @@ function SelectionTile({
 }) {
   return (
     <button
-      className="group min-h-36 rounded-lg border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
+      className="group flex min-h-36 flex-col rounded-lg border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
       disabled={loading}
       onClick={onClick}
       type="button"
@@ -286,15 +324,25 @@ function SelectionTile({
           </span>
         ) : null}
       </span>
+
       <span className="mt-5 block text-lg font-semibold text-text">
         {loading ? 'Signing in…' : title}
       </span>
-      {meta && (
-        <span className="mt-2 flex items-center gap-1.5 text-sm text-text-muted">
-          {metaIcon}
-          <span className="truncate">{meta}</span>
+
+      <span className="mt-auto flex items-center justify-between gap-2 pt-4 text-sm">
+        {meta ? (
+          <span className="flex min-w-0 items-center gap-1.5 text-text-muted">
+            {metaIcon}
+            <span className="truncate">{meta}</span>
+          </span>
+        ) : (
+          <span />
+        )}
+        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-text-muted transition-colors group-hover:text-accent">
+          Open
+          <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </span>
-      )}
+      </span>
     </button>
   );
 }

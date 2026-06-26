@@ -31,6 +31,8 @@ interface ColumnConfig {
   action: ColumnTransition;
   actionLabel: string;
   dotClassName: string;
+  // Tinted strip behind the column header, keyed to the column's state color.
+  headerClassName: string;
 }
 
 const COLUMNS: ColumnConfig[] = [
@@ -40,6 +42,7 @@ const COLUMNS: ColumnConfig[] = [
     action: startOrderItem,
     actionLabel: 'Start',
     dotClassName: 'bg-text-muted',
+    headerClassName: 'bg-surface-muted text-text',
   },
   {
     state: 'PREPARING',
@@ -47,6 +50,7 @@ const COLUMNS: ColumnConfig[] = [
     action: readyOrderItem,
     actionLabel: 'Report ready',
     dotClassName: 'bg-accent',
+    headerClassName: 'bg-accent-soft text-accent',
   },
   {
     state: 'READY',
@@ -54,6 +58,7 @@ const COLUMNS: ColumnConfig[] = [
     action: fulfillOrderItem,
     actionLabel: 'Pick up',
     dotClassName: 'bg-success',
+    headerClassName: 'bg-success/10 text-success',
   },
 ];
 
@@ -270,36 +275,35 @@ export default function OperatorDashboard() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-6">
-          <div className="flex items-center gap-3">
-            <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
-            <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
-            <ConnectionBadge status={status} />
-          </div>
-          {products.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {products.map((product) => (
-                <ProductFilterChip
-                  key={product.productId}
-                  product={product}
-                  color={colorOf(product.productId)}
-                  count={items.filter((item) => item.productId === product.productId).length}
-                  active={filters.has(product.productId)}
-                  onToggle={() => toggleFilter(product.productId)}
-                />
-              ))}
-              {filters.size > 0 && (
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-muted shadow-sm transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
-                >
-                  Clear filters
-                </button>
-              )}
-            </div>
-          )}
+        <header className="mb-5 flex items-center gap-3">
+          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
+          <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
+          <ConnectionBadge status={status} />
         </header>
+
+        {products.length > 0 && (
+          <div className="mb-5 flex flex-wrap gap-2">
+            {products.map((product) => (
+              <ProductFilterChip
+                key={product.productId}
+                product={product}
+                color={colorOf(product.productId)}
+                count={items.filter((item) => item.productId === product.productId).length}
+                active={filters.has(product.productId)}
+                onToggle={() => toggleFilter(product.productId)}
+              />
+            ))}
+            {filters.size > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-muted shadow-sm transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
 
         {actionError && (
           <div
@@ -310,21 +314,26 @@ export default function OperatorDashboard() {
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-4">
-          {COLUMNS.map((column) => (
-            <BoardColumn
-              key={column.state}
-              column={column}
-              items={visibleItems.filter((item) => item.state === column.state)}
-              pending={pending}
-              onAdvance={advance}
-              colorOf={colorOf}
-              recentlyMoved={recentlyMoved}
-              autoOpenComment={autoOpenComment}
-            />
-          ))}
+        {/* Board (the work) on the left; the products catalog/controls on the right.
+            On tablet and below the rail drops under the board as a responsive grid. */}
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+          <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {COLUMNS.map((column) => (
+              <BoardColumn
+                key={column.state}
+                column={column}
+                items={visibleItems.filter((item) => item.state === column.state)}
+                pending={pending}
+                onAdvance={advance}
+                colorOf={colorOf}
+                recentlyMoved={recentlyMoved}
+                autoOpenComment={autoOpenComment}
+              />
+            ))}
+          </div>
 
           <ProductsOverview
+            className="xl:w-72 xl:shrink-0"
             products={visibleProducts}
             colorOf={colorOf}
             onRequestPause={(product) => {
@@ -370,13 +379,18 @@ function BoardColumn({
   autoOpenComment: ReadonlySet<string>;
 }) {
   return (
-    <section className="flex flex-col rounded-lg border border-border bg-surface p-4 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
+    <section className="flex flex-col rounded-lg border border-border bg-surface p-3 shadow-sm">
+      <div
+        className={cn(
+          'mb-3 flex items-center justify-between rounded-md px-3 py-2',
+          column.headerClassName,
+        )}
+      >
         <div className="flex items-center gap-2">
           <span className={cn('h-2.5 w-2.5 rounded-full', column.dotClassName)} />
-          <h2 className="text-sm font-semibold text-text">{column.title}</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide">{column.title}</h2>
         </div>
-        <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-text-muted">
+        <span className="rounded-full bg-surface/80 px-2.5 py-0.5 text-xs font-bold text-text">
           {items.length}
         </span>
       </div>
@@ -638,26 +652,33 @@ function ProductsOverview({
   products,
   colorOf,
   onRequestPause,
+  className,
 }: {
   products: BoardProduct[];
   colorOf: (productId: string) => string;
   onRequestPause: (product: BoardProduct) => void;
+  className?: string;
 }) {
   // Reflects the products shown — when a filter is active these are only the
   // selected ones, so the count stays consistent with the rows below.
   const openCount = products.reduce((sum, product) => sum + product.openToDo, 0);
   return (
-    <section className="flex flex-col rounded-lg border border-border bg-surface p-4 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-          Overview · Products
-        </h2>
-        <p className="mt-1 text-sm font-semibold text-text">
+    <section
+      className={cn(
+        'flex flex-col rounded-lg border border-border bg-surface p-3 shadow-sm',
+        className,
+      )}
+    >
+      <div className="mb-3 flex items-baseline justify-between gap-2 px-1">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Products</h2>
+        <span className="text-xs font-semibold text-text-muted">
           {openCount} open item{openCount === 1 ? '' : 's'}
-        </p>
+        </span>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2">
+      {/* One column inside the narrow xl rail; a responsive grid when the section
+          drops under the board on tablet/desktop-narrow so rows don't stretch wide. */}
+      <div className="grid flex-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
         {products.length > 0 ? (
           products.map((product) => (
             <ProductSummaryRow
@@ -668,7 +689,7 @@ function ProductsOverview({
             />
           ))
         ) : (
-          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-text-muted">
+          <p className="col-span-full rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-text-muted">
             No products configured.
           </p>
         )}
@@ -808,10 +829,10 @@ function ConnectionBadge({ status }: { status: SseStatus }) {
 
 function LoadingBoard() {
   return (
-    <div className="mt-6 grid gap-4 lg:grid-cols-4" aria-busy="true">
-      {Array.from({ length: 4 }).map((_, column) => (
-        <div key={column} className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-          <div className="mb-4 h-4 w-24 animate-pulse rounded bg-surface-muted" />
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
+      {Array.from({ length: 3 }).map((_, column) => (
+        <div key={column} className="rounded-lg border border-border bg-surface p-3 shadow-sm">
+          <div className="mb-3 h-9 w-full animate-pulse rounded-md bg-surface-muted" />
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, card) => (
               <div key={card} className="h-20 animate-pulse rounded-md bg-surface-muted" />
