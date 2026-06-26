@@ -255,7 +255,7 @@ export default function EventConfiguration() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <CheckCircleIcon className="h-5 w-5" />
-                    Event Status
+                    Status
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -365,7 +365,7 @@ export default function EventConfiguration() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <SettingsIcon className="h-5 w-5" />
-                Event Settings
+                Settings
               </CardTitle>
             </CardHeader>
             {/* @container so the fields react to the card's own width (it sits in
