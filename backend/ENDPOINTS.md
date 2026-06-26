@@ -25,13 +25,14 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Stands
 
-| Method | URL                        | Description                                |
-| ------ | -------------------------- | ------------------------------------------ |
-| POST   | `/events/{eventId}/stands` | Create stand                               |
-| PATCH  | `/stands/{standId}`        | Update stand                               |
-| POST   | `/stands/{standId}/pause`  | Pause stand                                |
-| POST   | `/stands/{standId}/resume` | Resume stand                               |
-| DELETE | `/stands/{standId}`        | Delete stand (soft delete via `deletedAt`) |
+| Method | URL                                      | Description                                            |
+| ------ | ---------------------------------------- | ------------------------------------------------------ |
+| POST   | `/events/{eventId}/stands`               | Create stand                                           |
+| GET    | `/events/{eventId}/stands/cashier-stand` | Get the event's cashier stand (organizer / event link) |
+| PATCH  | `/stands/{standId}`                      | Update stand                                           |
+| POST   | `/stands/{standId}/pause`                | Pause stand                                            |
+| POST   | `/stands/{standId}/resume`               | Resume stand                                           |
+| DELETE | `/stands/{standId}`                      | Delete stand (soft delete via `deletedAt`)             |
 
 ### Products
 

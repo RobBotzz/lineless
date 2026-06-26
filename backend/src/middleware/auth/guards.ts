@@ -82,3 +82,7 @@ export const authOrganizerOrAttendeeOrEventLink = anyOf(
   tryAttendee,
   tryOperatorAccessKey
 );
+export const authOrganizerOrEventLink = anyOf(
+  tryOrganizer,
+  tryOperatorAccessKey
+);
