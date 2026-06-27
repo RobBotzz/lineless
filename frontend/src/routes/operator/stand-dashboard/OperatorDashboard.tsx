@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { ApiError } from '@/api/client';
@@ -18,7 +18,7 @@ import {
   type OperatorBoard,
 } from '@/types/operatorBoard';
 import { BackButton } from '@/components/shared';
-import { ChatIcon, ChevronDownIcon, PauseIcon, PlayIcon } from '@/components/icons';
+import { ChatIcon, ChevronDownIcon, LockIcon, PauseIcon, PlayIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { operatorStandQueryOptions } from '../operatorQueries';
 
@@ -69,6 +69,7 @@ function withoutKeys(set: ReadonlySet<string>, keys: readonly string[]): Readonl
 
 export default function OperatorDashboard() {
   const { eventId, standId } = useParams();
+  const navigate = useNavigate();
   const standQuery = useQuery(operatorStandQueryOptions(standId));
 
   const [board, setBoard] = useState<OperatorBoard | null>(null);
@@ -132,12 +133,17 @@ export default function OperatorDashboard() {
     setBoard(data);
   }, []);
 
-  const { status } = useSSE({
+  const { status, error } = useSSE({
     path: standId ? OPERATOR_BOARD_STREAM_PATH : null,
     auth: 'operator',
     standId,
     onMessage: handleMessage,
   });
+  // A 401 means the stand token is no longer valid (e.g. its password was
+  // changed) — the operator was signed out and must re-authenticate. The stream
+  // stops reconnecting on 401, so we surface a dedicated re-auth screen instead
+  // of the generic "connection lost" panel.
+  const isUnauthorized = error instanceof ApiError && error.status === 401;
 
   const runTransition = useCallback(
     (item: BoardItem, column: ColumnConfig) => {
@@ -243,6 +249,37 @@ export default function OperatorDashboard() {
       ? pauseMutation.error.message
       : PAUSE_ERROR
     : null;
+
+  // Signed out of this stand (401) — the board (if any) is now stale and every
+  // action would fail, so replace it with a clear prompt to re-authenticate.
+  if (isUnauthorized) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-background">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
+            Operator Console
+          </BackButton>
+          <section className="mt-6 rounded-lg border border-border bg-surface p-6 text-center shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-warning/15 text-text">
+              <LockIcon className="h-6 w-6" />
+            </div>
+            <h2 className="mt-5 text-xl font-semibold text-text">Signed out of this stand</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
+              Your access to this stand has ended — its password may have been changed. Sign in
+              again from the operator console to continue.
+            </p>
+            <Button
+              className="mt-6"
+              size="lg"
+              onClick={() => navigate(eventId ? paths.operator.root(eventId) : paths.home)}
+            >
+              Re-authenticate
+            </Button>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   // First connect, nothing to show yet.
   if (!board) {
