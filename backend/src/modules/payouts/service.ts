@@ -138,10 +138,17 @@ export async function computeEventPayout(
   const platformFeeCents = paidOrders.length * PLATFORM_FEE_PER_ORDER_CENTS;
   const netPayoutCents = grossRevenueCents - stripeFeeCents - platformFeeCents;
 
-  // Tax and units sold over charged (non-cancelled) items of paid orders.
+  // Tax and units sold reflect TOTAL revenue earned: charged (non-cancelled)
+  // items of paid orders plus delivered items still sitting on open tabs (their
+  // value is reported separately as onHoldReadyCents and bridged to the net
+  // payout on the client). Items not yet delivered are not counted as sold.
   const chargedItems = paidOrders.flatMap((o) => o.items.filter(isChargedItem));
-  const taxCents = chargedItems.reduce((sum, i) => sum + itemTaxCents(i), 0);
-  const unitsSold = await buildUnitsSold(chargedItems);
+  const openTabDeliveredItems = unpaidTabOrders.flatMap((o) =>
+    o.items.filter(isDeliveredItem)
+  );
+  const soldItems = [...chargedItems, ...openTabDeliveredItems];
+  const taxCents = soldItems.reduce((sum, i) => sum + itemTaxCents(i), 0);
+  const unitsSold = await buildUnitsSold(soldItems);
 
   const computedAt = new Date();
   await EventPayout.findOneAndUpdate(
