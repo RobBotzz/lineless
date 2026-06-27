@@ -30,9 +30,6 @@ interface ColumnConfig {
   title: string;
   action: ColumnTransition;
   actionLabel: string;
-  dotClassName: string;
-  // Tinted strip behind the column header, keyed to the column's state color.
-  headerClassName: string;
 }
 
 const COLUMNS: ColumnConfig[] = [
@@ -41,24 +38,18 @@ const COLUMNS: ColumnConfig[] = [
     title: 'To Do',
     action: startOrderItem,
     actionLabel: 'Start',
-    dotClassName: 'bg-text-muted',
-    headerClassName: 'bg-surface-muted text-text',
   },
   {
     state: 'PREPARING',
     title: 'In Progress',
     action: readyOrderItem,
     actionLabel: 'Report ready',
-    dotClassName: 'bg-accent',
-    headerClassName: 'bg-accent-soft text-accent',
   },
   {
     state: 'READY',
     title: 'Ready',
     action: fulfillOrderItem,
     actionLabel: 'Pick up',
-    dotClassName: 'bg-success',
-    headerClassName: 'bg-success/10 text-success',
   },
 ];
 
@@ -384,17 +375,9 @@ function BoardColumn({
 }) {
   return (
     <section className="flex flex-col rounded-lg border border-border bg-surface p-3 shadow-sm">
-      <div
-        className={cn(
-          'mb-3 flex items-center justify-between rounded-md px-3 py-2',
-          column.headerClassName,
-        )}
-      >
-        <div className="flex items-center gap-2">
-          <span className={cn('h-2.5 w-2.5 rounded-full', column.dotClassName)} />
-          <h2 className="text-sm font-semibold uppercase tracking-wide">{column.title}</h2>
-        </div>
-        <span className="rounded-full bg-surface/80 px-2.5 py-0.5 text-xs font-bold text-text">
+      <div className="mb-3 flex items-center justify-between rounded-md bg-surface-muted px-3 py-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-text">{column.title}</h2>
+        <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-bold text-text-muted">
           {items.length}
         </span>
       </div>
@@ -756,12 +739,7 @@ function ProductSummaryRow({
               type="button"
               onClick={onRequestPause}
               aria-label={paused ? `Resume ${product.productName}` : `Pause ${product.productName}`}
-              className={cn(
-                'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                paused
-                  ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
-                  : 'border-warning/50 bg-warning/20 text-text hover:bg-warning/40',
-              )}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold text-text-muted transition hover:bg-surface-muted hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {paused ? (
                 <PlayIcon className="h-3.5 w-3.5" />

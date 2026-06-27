@@ -238,6 +238,15 @@ export function CreditCardIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
+export function RefundIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M3 9h12a6 6 0 0 1 0 12h-3" />
+      <path d="m7 5-4 4 4 4" />
+    </svg>
+  );
+}
+
 export function HistoryIcon({ className = 'h-5 w-5' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>
