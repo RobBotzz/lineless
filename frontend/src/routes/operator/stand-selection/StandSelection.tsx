@@ -309,11 +309,11 @@ function SelectionTile({
           {icon}
         </span>
         {loggedIn ? (
-          <span className="inline-flex items-center rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent">
+          <span className="inline-flex items-center rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
             Logged in
           </span>
         ) : locked ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-text-muted">
+          <span className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger">
             <LockIcon className="h-3.5 w-3.5" />
             Password
           </span>
