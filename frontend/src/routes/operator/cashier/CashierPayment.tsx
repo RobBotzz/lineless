@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
-import { Button } from '@/components/ui/button';
 import { AlertDialog } from '../../../components/feedback/AlertDialog';
 import { SearchIcon } from '../../../components/icons';
 import { BackButton, DeleteIconButton } from '../../../components/shared';
@@ -82,35 +81,35 @@ export default function CashierPayment() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <BackButton to={paths.operator.cashier(eventId)}>Cashier Stand</BackButton>
 
-      <form
-        onSubmit={handleSearch}
-        className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm"
-      >
-        <label htmlFor="order-id" className="text-base font-semibold text-text">
-          Enter Order Number
-        </label>
-        <div className="mt-3 flex gap-3">
-          <input
-            id="order-id"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setSearchError(null);
-            }}
-            placeholder="e.g. A001"
-            className="h-11 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent"
-          />
-          <Button type="submit" size="lg" disabled={!trimmed}>
-            <SearchIcon className="mr-2 h-4 w-4" />
-            Search
-          </Button>
-        </div>
-        {searchError ? <p className="mt-3 text-sm text-danger">{searchError}</p> : null}
-      </form>
-
       <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-text">Active Unpaid Orders</h2>
-        <p className="mt-1 text-sm text-text-muted">Click on an order to select it for payment</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-text">Active Unpaid Orders</h2>
+            <p className="mt-1 text-sm text-text-muted">
+              Click on an order, or search by order number
+            </p>
+          </div>
+          <form onSubmit={handleSearch} className="sm:w-72">
+            <label htmlFor="order-id" className="sr-only">
+              Search by order number
+            </label>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+              <input
+                id="order-id"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setSearchError(null);
+                }}
+                placeholder="Search order no. (e.g. A001)"
+                className="h-11 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent"
+              />
+            </div>
+          </form>
+        </div>
+
+        {searchError ? <p className="mt-3 text-sm text-danger">{searchError}</p> : null}
 
         <div className="mt-4">
           {filteredOrders === null ? (
