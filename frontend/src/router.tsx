@@ -110,12 +110,12 @@ export const router = createBrowserRouter(
         <Route
           path=":eventId/link/:operatorAccessKey"
           element={<OperatorLinkEntry />}
-          handle={{ title: 'Stand Selection' }}
+          handle={{ title: 'Operator Console' }}
         />
         <Route
           path=":eventId"
           element={<OperatorStandSelection />}
-          handle={{ title: 'Stand Selection' }}
+          handle={{ title: 'Operator Console' }}
         />
         <Route
           path=":eventId/pickup"

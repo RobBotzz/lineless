@@ -164,13 +164,6 @@ export default function StandSelection() {
 
         {loadState === 'ready' && eventId && (
           <div className="space-y-8">
-            <header>
-              <h1 className="text-2xl font-bold tracking-tight text-text">Operator console</h1>
-              <p className="mt-1 text-sm text-text-muted">
-                Open a stand’s live board, or jump straight to pickup and cashier.
-              </p>
-            </header>
-
             <section>
               <SectionLabel>Tools</SectionLabel>
               <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -304,12 +297,14 @@ function SelectionTile({
 }) {
   return (
     <button
-      className="group flex min-h-36 flex-col rounded-lg border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
+      className="group flex min-h-44 flex-col rounded-lg border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
       disabled={loading}
       onClick={onClick}
       type="button"
     >
-      <span className="flex items-start justify-between gap-4">
+      {/* Fixed-height zones (icon · title · meta · footer) so every tile is laid
+          out identically whether or not it has a badge or a meta line. */}
+      <span className="flex h-12 shrink-0 items-start justify-between gap-4">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
           {icon}
         </span>
@@ -325,20 +320,22 @@ function SelectionTile({
         ) : null}
       </span>
 
-      <span className="mt-5 block text-lg font-semibold text-text">
+      <span className="mt-4 block shrink-0 truncate text-lg font-semibold leading-7 text-text">
         {loading ? 'Signing in…' : title}
       </span>
 
-      <span className="mt-auto flex items-center justify-between gap-2 pt-4 text-sm">
+      {/* Always reserved so cards align regardless of whether a meta line exists. */}
+      <span className="mt-1.5 flex h-5 min-w-0 shrink-0 items-center gap-1.5 text-sm text-text-muted">
         {meta ? (
-          <span className="flex min-w-0 items-center gap-1.5 text-text-muted">
+          <>
             {metaIcon}
             <span className="truncate">{meta}</span>
-          </span>
-        ) : (
-          <span />
-        )}
-        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-text-muted transition-colors group-hover:text-accent">
+          </>
+        ) : null}
+      </span>
+
+      <span className="mt-auto flex items-center justify-end pt-3 text-xs font-semibold text-text-muted transition-colors group-hover:text-accent">
+        <span className="inline-flex items-center gap-1">
           Open
           <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </span>
@@ -352,12 +349,12 @@ function LoadingGrid() {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
       {Array.from({ length: 5 }).map((_, index) => (
         <div
-          className="min-h-36 animate-pulse rounded-lg border border-border bg-surface p-5 shadow-sm"
+          className="h-44 animate-pulse rounded-lg border border-border bg-surface p-5 shadow-sm"
           key={index}
         >
           <div className="h-12 w-12 rounded-lg bg-surface-muted" />
-          <div className="mt-5 h-5 w-2/3 rounded bg-surface-muted" />
-          <div className="mt-3 h-4 w-1/2 rounded bg-surface-muted" />
+          <div className="mt-4 h-5 w-2/3 rounded bg-surface-muted" />
+          <div className="mt-2.5 h-4 w-1/2 rounded bg-surface-muted" />
         </div>
       ))}
     </div>
