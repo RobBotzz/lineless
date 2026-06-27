@@ -191,11 +191,21 @@ export async function computeEventPayout(
 async function buildUnitsSold(
   items: OrderItemDoc[]
 ): Promise<ProductUnitsSold[]> {
-  const byProduct = new Map<string, { units: number; gross: number }>();
+  const byProduct = new Map<
+    string,
+    { units: number; gross: number; tax: number; rates: Set<number> }
+  >();
   for (const item of items) {
-    const entry = byProduct.get(item.productId) ?? { units: 0, gross: 0 };
+    const entry = byProduct.get(item.productId) ?? {
+      units: 0,
+      gross: 0,
+      tax: 0,
+      rates: new Set<number>(),
+    };
     entry.units += 1;
     entry.gross += item.priceIncludingTaxAtPurchase;
+    entry.tax += itemTaxCents(item);
+    entry.rates.add(item.taxRateAtPurchase);
     byProduct.set(item.productId, entry);
   }
 
@@ -207,11 +217,15 @@ async function buildUnitsSold(
   const nameById = new Map(products.map((p) => [p._id, p.productName]));
 
   return [...byProduct.entries()]
-    .map(([productId, { units, gross }]) => ({
+    .map(([productId, { units, gross, tax, rates }]) => ({
       productId,
       productName: nameById.get(productId) ?? "Unknown product",
       unitsSold: units,
       grossRevenueCents: gross,
+      netRevenueCents: gross - tax,
+      taxCents: tax,
+      // Only a uniform rate can be shown as "(19%)"; mixed snapshots stay null.
+      taxRateBp: rates.size === 1 ? [...rates][0]! : null,
     }))
     .sort((a, b) => b.unitsSold - a.unitsSold);
 }
