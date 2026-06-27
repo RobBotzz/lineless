@@ -17,6 +17,14 @@ export function formatIban(raw: string): string {
     .trim();
 }
 
+// Masked display: keep the country/check prefix and last four, hide the middle
+// (DE89 •••• 3000). For showing which account a past payout went to.
+export function maskIban(raw: string): string {
+  const iban = normalizeIban(raw);
+  if (iban.length <= 8) return iban;
+  return `${iban.slice(0, 4)} •••• ${iban.slice(-4)}`;
+}
+
 export function isValidIban(raw: string): boolean {
   const iban = normalizeIban(raw);
   if (iban.length < 15 || iban.length > 34) return false;
