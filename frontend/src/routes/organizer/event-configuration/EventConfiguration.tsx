@@ -94,6 +94,7 @@ export default function EventConfiguration() {
   const [showOperatorLink, setShowOperatorLink] = useState(false);
   const [showCustomerLink, setShowCustomerLink] = useState(false);
   const [showHoldInfo, setShowHoldInfo] = useState(false);
+  const [showRatingsInfo, setShowRatingsInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
@@ -468,8 +469,46 @@ export default function EventConfiguration() {
                   />
 
                   <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
-                    <label className="text-sm font-medium" htmlFor="ratings-enabled">
+                    <label
+                      className="inline-flex items-center gap-1.5 text-sm font-medium"
+                      htmlFor="ratings-enabled"
+                    >
                       Customer Product Ratings
+                      <span className="relative inline-flex">
+                        <button
+                          type="button"
+                          aria-label="About customer product ratings"
+                          aria-expanded={showRatingsInfo}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowRatingsInfo((open) => !open);
+                          }}
+                          className="text-text-muted transition hover:text-text"
+                        >
+                          <InfoIcon />
+                        </button>
+                        {showRatingsInfo && (
+                          <>
+                            <button
+                              type="button"
+                              aria-hidden="true"
+                              tabIndex={-1}
+                              className="fixed inset-0 z-40 cursor-default"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setShowRatingsInfo(false);
+                              }}
+                            />
+                            <span
+                              role="tooltip"
+                              className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                            >
+                              When enabled, guests can rate the products they ordered, and the
+                              average rating is shown on each product.
+                            </span>
+                          </>
+                        )}
+                      </span>
                     </label>
                     <Toggle
                       checked={form.ratingsEnabled}
