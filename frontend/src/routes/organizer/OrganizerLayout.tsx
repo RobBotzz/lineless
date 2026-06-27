@@ -1,4 +1,4 @@
-import { Outlet, useMatch } from 'react-router';
+import { Outlet } from 'react-router';
 import { OrganizerRequireAuth } from '../../auth/organizer/OrganizerRequireAuth';
 import { useOrganizerAuth } from '../../auth/organizer/OrganizerAuthContext';
 import { AccountMenu, OrganizerNavbar } from '../../components/layout';
@@ -6,43 +6,13 @@ import { paths } from '../../paths';
 
 export default function OrganizerLayout() {
   const { logout } = useOrganizerAuth();
-  const eventControlCenterMatch = useMatch({
-    path: '/organizer/events/:eventId/event-control-center/:section',
-    end: false,
-  });
-  const eventControlCenterEventId = eventControlCenterMatch?.params.eventId;
-  const eventControlCenterSection = eventControlCenterMatch?.params.section;
-  const eventControlCenterLinks = eventControlCenterEventId
-    ? [
-        {
-          label: 'Analytics',
-          to: paths.organizer.eventControlCenterAnalytics(eventControlCenterEventId),
-        },
-        {
-          label: 'Management',
-          to: paths.organizer.eventControlCenterManagement(eventControlCenterEventId),
-        },
-        {
-          label: 'Settings',
-          to: paths.organizer.eventControlCenterSettings(eventControlCenterEventId),
-        },
-      ]
-    : [];
-  const activeEventControlCenterLinkTo =
-    eventControlCenterEventId && eventControlCenterSection === 'management'
-      ? paths.organizer.eventControlCenterManagement(eventControlCenterEventId)
-      : eventControlCenterEventId && eventControlCenterSection === 'settings'
-        ? paths.organizer.eventControlCenterSettings(eventControlCenterEventId)
-        : eventControlCenterEventId
-          ? paths.organizer.eventControlCenterAnalytics(eventControlCenterEventId)
-          : undefined;
 
   return (
     <OrganizerRequireAuth>
       <div className="min-h-screen bg-background">
+        {/* The event control center's section tabs live on the page itself (below
+            the header), not in the navbar — so the navbar stays free of them. */}
         <OrganizerNavbar
-          activeCenterLinkTo={activeEventControlCenterLinkTo}
-          centerLinks={eventControlCenterLinks}
           right={<AccountMenu isAuthenticated={true} onSignOut={() => logout(paths.home)} />}
           // One consistent width for every organizer page (matches the event page),
           // responsive down to narrow tablets via the calc() insets.

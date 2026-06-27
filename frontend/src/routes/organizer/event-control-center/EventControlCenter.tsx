@@ -5,6 +5,7 @@ import { ApiError } from '@/api/client';
 import type { EventControlCenterSettings } from '@/api/eventControlCenter';
 import { paths } from '@/paths';
 import { ControlCenterHeader } from './components/ControlCenterHeader';
+import { ControlCenterTabs } from './components/ControlCenterTabs';
 import type { EventControlCenterLoaderData } from './data';
 import { EventControlCenterAnalyticsPage } from './EventControlCenterAnalyticsPage';
 import { EventControlCenterManagementPage } from './EventControlCenterManagementPage';
@@ -98,6 +99,8 @@ export default function EventControlCenter() {
         streamError={liveData.streamError}
         streamStatus={liveData.streamStatus}
       />
+
+      <ControlCenterTabs eventId={event._id} active={activeSection} />
 
       {activeSection === 'analytics' ? (
         <EventControlCenterAnalyticsPage
