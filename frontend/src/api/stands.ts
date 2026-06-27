@@ -10,6 +10,10 @@ export function getOperatorStands(eventId: string): Promise<Stand[]> {
   return apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'operator-link' });
 }
 
+export function getOperatorCashierStand(eventId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/events/${eventId}/stands/cashier-stand`, { auth: 'operator-link' });
+}
+
 export function getAttendeeStands(eventId: string): Promise<Stand[]> {
   return apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'attendee', eventId });
 }
