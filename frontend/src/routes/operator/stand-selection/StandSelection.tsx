@@ -191,7 +191,7 @@ export default function StandSelection() {
               <SectionLabel>Tools</SectionLabel>
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
                 <ActionTile
-                  icon={<PickupIcon className="h-6 w-6" />}
+                  icon={<PickupIcon className="h-5 w-5" />}
                   meta="Orders ready for handoff"
                   onClick={() => navigateToSystemDashboard(paths.operator.pickupDashboard(eventId))}
                   title="Pick Up"
@@ -261,11 +261,11 @@ function ActionTile({
 }) {
   return (
     <button
-      className="group flex min-h-44 items-center gap-4 rounded-lg border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group flex min-h-32 items-center gap-4 rounded-lg border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       onClick={onClick}
       type="button"
     >
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
@@ -314,7 +314,7 @@ function StandSelectionTile({
 
   return (
     <SelectionTile
-      icon={<StandIcon className="h-6 w-6" />}
+      icon={<StandIcon className="h-5 w-5" />}
       loggedIn={loggedIn}
       locked={stand.requiresPassword}
       loading={loading}
@@ -334,7 +334,7 @@ function CashierTile({ state, onOpen }: { state: CashierTileState; onOpen: () =>
   if (state === 'available') {
     return (
       <ActionTile
-        icon={<CashierIcon className="h-6 w-6" />}
+        icon={<CashierIcon className="h-5 w-5" />}
         meta="Manual orders and cash payments"
         onClick={onOpen}
         title="Cashier"
@@ -346,12 +346,12 @@ function CashierTile({ state, onOpen }: { state: CashierTileState; onOpen: () =>
   return (
     <div
       className={[
-        'group relative flex min-h-44 items-center gap-4 overflow-hidden rounded-lg border border-dashed border-border bg-surface p-5',
+        'group relative flex min-h-32 items-center gap-4 overflow-hidden rounded-lg border border-dashed border-border bg-surface p-4',
         state === 'loading' ? 'animate-pulse' : '',
       ].join(' ')}
     >
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
-        <CashierIcon className="h-6 w-6" />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
+        <CashierIcon className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-base font-semibold text-text-muted">Cashier</span>
@@ -395,15 +395,15 @@ function SelectionTile({
 }) {
   return (
     <button
-      className="group flex min-h-44 flex-col rounded-lg border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
+      className="group flex min-h-32 flex-col rounded-lg border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
       disabled={loading}
       onClick={onClick}
       type="button"
     >
       {/* Fixed-height zones (icon · title · meta · footer) so every tile is laid
           out identically whether or not it has a badge or a meta line. */}
-      <span className="flex h-12 shrink-0 items-start justify-between gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
+      <span className="flex h-10 shrink-0 items-start justify-between gap-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
           {icon}
         </span>
         {loggedIn ? (
@@ -418,7 +418,7 @@ function SelectionTile({
         ) : null}
       </span>
 
-      <span className="mt-4 block shrink-0 truncate text-lg font-semibold leading-7 text-text">
+      <span className="mt-3 block shrink-0 truncate text-base font-semibold leading-6 text-text">
         {loading ? 'Signing in…' : title}
       </span>
 
@@ -432,7 +432,7 @@ function SelectionTile({
         ) : null}
       </span>
 
-      <span className="mt-auto flex items-center justify-end pt-3 text-xs font-semibold text-text-muted transition-colors group-hover:text-accent">
+      <span className="mt-auto flex items-center justify-end pt-2 text-xs font-semibold text-text-muted transition-colors group-hover:text-accent">
         <span className="inline-flex items-center gap-1">
           Open
           <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -447,12 +447,12 @@ function LoadingGrid() {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
       {Array.from({ length: 5 }).map((_, index) => (
         <div
-          className="h-44 animate-pulse rounded-lg border border-border bg-surface p-5 shadow-sm"
+          className="h-32 animate-pulse rounded-lg border border-border bg-surface p-4 shadow-sm"
           key={index}
         >
-          <div className="h-12 w-12 rounded-lg bg-surface-muted" />
-          <div className="mt-4 h-5 w-2/3 rounded bg-surface-muted" />
-          <div className="mt-2.5 h-4 w-1/2 rounded bg-surface-muted" />
+          <div className="h-10 w-10 rounded-lg bg-surface-muted" />
+          <div className="mt-3 h-5 w-2/3 rounded bg-surface-muted" />
+          <div className="mt-2 h-4 w-1/2 rounded bg-surface-muted" />
         </div>
       ))}
     </div>

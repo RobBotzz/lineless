@@ -19,19 +19,19 @@ export default function CashierHome() {
           to={paths.operator.cashierOrder(eventId)}
           icon={<CartIcon className="h-8 w-8" />}
           title="Manual Order"
-          description="Take order for customers"
+          description="Take orders for customers"
         />
         <ChoiceCard
           to={paths.operator.cashierPayment(eventId)}
           icon={<CreditCardIcon className="h-8 w-8" />}
           title="Cash Payment"
-          description="Pay existing order"
+          description="Confirm cash payments for orders"
         />
         {/* Placeholder for an upcoming feature — intentionally not linked. */}
         <ChoiceCard
           icon={<RefundIcon className="h-8 w-8" />}
           title="Cash Refund"
-          description="Refund an existing order"
+          description="Refund orders paid in cash"
         />
       </div>
     </div>
