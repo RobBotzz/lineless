@@ -57,52 +57,88 @@ function toRow(event: EventPayoutBreakdown): EventRow {
   };
 }
 
+// Tax rate basis points (1900) -> "19%". Trims any trailing zeros (1950 -> 19.5%).
+function formatTaxRate(bp: number): string {
+  return `${Number((bp / 100).toFixed(2))}%`;
+}
+
+// A payout statement reads top-to-bottom like an invoice: sales (incl. VAT),
+// an informational VAT line (the tax stays in the payout), then the deductions,
+// then the net payout. Built once and shared by the UI and the CSV export so the
+// two can never drift.
+type StatementLine = { label: string; cents: number; kind: 'add' | 'sub' | 'info' | 'total' };
+
+function eventStatement(row: EventRow): StatementLine[] {
+  const { event, salesCents, refundsCents, availableCents } = row;
+  const lines: StatementLine[] = [{ label: 'Sales (incl. VAT)', cents: salesCents, kind: 'add' }];
+  if (event.taxCents > 0) {
+    lines.push({ label: 'of which VAT (included)', cents: event.taxCents, kind: 'info' });
+  }
+  if (refundsCents > 0) {
+    lines.push({ label: 'Cash refunds', cents: refundsCents, kind: 'sub' });
+  }
+  lines.push(
+    { label: 'Card processing fees', cents: event.stripeFeeCents, kind: 'sub' },
+    { label: 'Platform fee (5¢/order)', cents: event.platformFeeCents, kind: 'sub' },
+    { label: 'Net payout', cents: availableCents, kind: 'total' },
+  );
+  return lines;
+}
+
 // Quote a CSV cell only when it contains a delimiter, quote, or newline.
 function csvCell(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-// Export the per-event breakdown as a spreadsheet-friendly CSV (major units, no
-// currency symbol) so organizers can drop it straight into their accounting.
-function downloadBreakdownCsv(rows: EventRow[]) {
-  const header = [
-    'Event',
-    'Status',
-    'Paid orders',
-    'Sales',
-    'Card revenue',
-    'Cash revenue',
-    'Cash refunds',
-    'Tax',
-    'Card processing fees',
-    'Platform fee',
-    'Fees total',
-    'Available',
-  ];
-  const lines = rows.map(({ event, salesCents, feesCents, refundsCents, availableCents }) =>
-    [
-      csvCell(event.eventName),
-      event.eventStatus,
-      String(event.paidOrderCount),
-      formatMoney(salesCents),
-      formatMoney(event.cardRevenueCents),
-      formatMoney(event.cashRevenueCents),
-      formatMoney(refundsCents),
-      formatMoney(event.taxCents),
-      formatMoney(event.stripeFeeCents),
-      formatMoney(event.platformFeeCents),
-      formatMoney(feesCents),
-      formatMoney(availableCents),
-    ].join(','),
-  );
-  const csv = [header.join(','), ...lines].join('\n');
+// Build a CSV from a 2-D grid (empty rows render as blank separator lines) and
+// trigger a browser download. Shared by both the summary and per-event exports.
+function downloadCsv(filename: string, grid: (string | number)[][]) {
+  const csv = grid.map((row) => row.map((cell) => csvCell(String(cell))).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `lineless-payout-breakdown-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+function slug(value: string): string {
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'event'
+  );
+}
+
+// Export a single event as an invoice-style statement: header, per-item lines
+// (net / VAT / gross), then the top-to-bottom payout statement.
+function downloadEventCsv(row: EventRow) {
+  const { event } = row;
+  const grid: (string | number)[][] = [
+    ['Event', event.eventName],
+    ['Status', event.eventStatus],
+    ['Paid orders', event.paidOrderCount],
+    [],
+    ['Item', 'Units', 'Net', 'VAT', 'VAT rate', 'Gross'],
+    ...event.unitsSold.map((item) => [
+      item.productName,
+      item.unitsSold,
+      formatMoney(item.netRevenueCents),
+      formatMoney(item.taxCents),
+      item.taxRateBp == null ? 'mixed' : formatTaxRate(item.taxRateBp),
+      formatMoney(item.grossRevenueCents),
+    ]),
+    [],
+    ...eventStatement(row).map((line) => [
+      line.label,
+      `${line.kind === 'sub' ? '-' : ''}${formatMoney(line.cents)}`,
+    ]),
+  ];
+  downloadCsv(`lineless-${slug(event.eventName)}-payout-${today()}.csv`, grid);
 }
 
 export default function Payment() {
@@ -213,16 +249,16 @@ function AvailableForPayoutCard({
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-xl">
             <CreditCardIcon className="h-5 w-5 text-accent" />
-            Available for Payout
+            Payout Overview
           </CardTitle>
           {bankReady ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">
               <CheckCircleIcon className="h-4 w-4" />
-              Ready
+              Bank ready
             </span>
           ) : (
             <span className="inline-flex items-center rounded-full bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
-              Setup needed
+              Bank setup needed
             </span>
           )}
         </div>
@@ -334,23 +370,10 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <HistoryIcon className="h-5 w-5 text-accent" />
-            Event Breakdown
-          </CardTitle>
-          {rows.length > 0 ? (
-            <Button
-              onClick={() => downloadBreakdownCsv(rows)}
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
-              <DownloadIcon className="h-4 w-4" />
-              Export CSV
-            </Button>
-          ) : null}
-        </div>
+        <CardTitle className="flex items-center gap-2 text-xl">
+          <HistoryIcon className="h-5 w-5 text-accent" />
+          Event Breakdown
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
@@ -439,36 +462,99 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
       </tr>
       {open ? (
         <tr id={detailId} className="border-t border-border bg-surface-muted/30">
-          <td colSpan={5} className="px-4 py-3">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Detail label="Card revenue" value={eur(event.cardRevenueCents)} />
-              <Detail label="Cash revenue" value={eur(event.cashRevenueCents)} />
-              <Detail label="Tax (your liability)" value={eur(event.taxCents)} />
-              <Detail label="Card processing fees" value={eur(event.stripeFeeCents)} />
-              <Detail label="Platform fee (5c/order)" value={eur(event.platformFeeCents)} />
-              <Detail label="On hold (not charged)" value={eur(event.onHoldReadyCents)} />
-              <Detail label="Settling on Stripe" value={eur(event.inTransitCents)} />
+          <td colSpan={5} className="space-y-4 px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-text-muted">Items sold</p>
+              {event.unitsSold.length > 0 ? (
+                <Button
+                  onClick={() => downloadEventCsv(row)}
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                  Export CSV
+                </Button>
+              ) : null}
             </div>
-            <p className="mt-3 mb-1 text-xs font-medium text-text-muted">Items sold</p>
+
             {event.unitsSold.length === 0 ? (
               <p className="text-sm text-text-muted">No items sold yet.</p>
             ) : (
-              <ul className="space-y-1">
-                {event.unitsSold.map((item) => (
-                  <li key={item.productId} className="flex justify-between text-sm text-text">
-                    <span>
-                      {item.productName}
-                      <span className="text-text-muted"> × {item.unitsSold}</span>
-                    </span>
-                    <span>{eur(item.grossRevenueCents)}</span>
-                  </li>
-                ))}
-              </ul>
+              <table className="w-full text-sm">
+                <thead className="text-text-muted">
+                  <tr>
+                    <th scope="col" className="py-1 text-left font-medium">
+                      Item
+                    </th>
+                    <th scope="col" className="py-1 text-right font-medium">
+                      Units
+                    </th>
+                    <th scope="col" className="py-1 text-right font-medium">
+                      Net
+                    </th>
+                    <th scope="col" className="py-1 text-right font-medium">
+                      VAT
+                    </th>
+                    <th scope="col" className="py-1 text-right font-medium">
+                      Gross
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {event.unitsSold.map((item) => (
+                    <tr key={item.productId} className="border-t border-border/60">
+                      <td className="py-1 pr-2 text-text">{item.productName}</td>
+                      <td className="py-1 text-right text-text-muted">{item.unitsSold}</td>
+                      <td className="py-1 text-right text-text">{eur(item.netRevenueCents)}</td>
+                      <td className="py-1 text-right text-text">
+                        {eur(item.taxCents)}
+                        {item.taxRateBp != null ? (
+                          <span className="text-text-muted">
+                            {' '}
+                            ({formatTaxRate(item.taxRateBp)})
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-1 text-right font-medium text-text">
+                        {eur(item.grossRevenueCents)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
+
+            <dl className="rounded-lg border border-border bg-surface px-4 py-3">
+              {eventStatement(row).map((line) => (
+                <StatementRow key={line.label} line={line} />
+              ))}
+            </dl>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Detail label="Card revenue" value={eur(event.cardRevenueCents)} />
+              <Detail label="Cash revenue" value={eur(event.cashRevenueCents)} />
+              <Detail label="On hold (not charged)" value={eur(event.onHoldReadyCents)} />
+              <Detail label="Settling on Stripe" value={eur(event.inTransitCents)} />
+            </div>
           </td>
         </tr>
       ) : null}
     </>
+  );
+}
+
+function StatementRow({ line }: { line: StatementLine }) {
+  const isTotal = line.kind === 'total';
+  const isInfo = line.kind === 'info';
+  const amount = `${line.kind === 'sub' ? '−' : ''}${eur(line.cents)}`;
+  return (
+    <div
+      className={`flex justify-between py-1 ${isTotal ? 'mt-1 border-t border-border pt-2 text-base font-semibold text-text' : 'text-sm'} ${isInfo ? 'text-text-muted' : 'text-text'}`}
+    >
+      <dt className={isInfo ? 'pl-3' : ''}>{line.label}</dt>
+      <dd>{amount}</dd>
+    </div>
   );
 }
 

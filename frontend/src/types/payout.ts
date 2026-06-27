@@ -6,6 +6,10 @@ export interface ProductUnitsSold {
   productName: string;
   unitsSold: number;
   grossRevenueCents: number;
+  netRevenueCents: number;
+  taxCents: number;
+  // Tax rate in basis points (1900 = 19%), or null when the line mixes rates.
+  taxRateBp: number | null;
 }
 
 export interface EventPayoutBreakdown {
