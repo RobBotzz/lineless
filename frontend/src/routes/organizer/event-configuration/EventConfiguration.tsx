@@ -13,6 +13,7 @@ import {
   ArrowRightIcon,
   CheckCircleIcon,
   ChevronDownIcon,
+  InfoIcon,
   LinkIcon,
   PinIcon,
   ProductsIcon,
@@ -58,6 +59,8 @@ type EventForm = {
   name: string;
   plannedDate: string;
   ratingsEnabled: boolean;
+  // Baseline hold is stored as integer cents on the backend but edited in euros.
+  baselineHold: string;
   primaryColor: string;
   secondaryColor: string;
   location: Location;
@@ -76,6 +79,7 @@ function toForm(event: Event): EventForm {
     name: event.name,
     plannedDate: toDateInputValue(event.plannedDate),
     ratingsEnabled: event.ratingsEnabled,
+    baselineHold: String(Math.round(event.baselineHoldCents / 100)),
     primaryColor: event.branding.primaryColor,
     secondaryColor: event.branding.secondaryColor,
     location: event.location ?? emptyLocation,
@@ -89,6 +93,7 @@ export default function EventConfiguration() {
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
   const [showCustomerLink, setShowCustomerLink] = useState(false);
+  const [showHoldInfo, setShowHoldInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
@@ -96,6 +101,7 @@ export default function EventConfiguration() {
   const [editingStand, setEditingStand] = useState<Stand | null>(null);
   const [pendingDeleteStandId, setPendingDeleteStandId] = useState<string | null>(null);
   const [pendingDeleteEvent, setPendingDeleteEvent] = useState(false);
+  const [pendingCompleteEvent, setPendingCompleteEvent] = useState(false);
 
   // Product dialog: track which stand we're adding to / which product we're editing.
   const [productDialog, setProductDialog] = useState<{
@@ -106,6 +112,11 @@ export default function EventConfiguration() {
 
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
+
+  // Baseline hold is entered in whole euros (multiples of €1); backend requires
+  // at least 100 cents (€1.00).
+  const baselineHoldEuros = Number(form.baselineHold);
+  const baselineHoldValid = Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1;
 
   function updateField<K extends keyof EventForm>(key: K, value: EventForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -145,12 +156,18 @@ export default function EventConfiguration() {
     setPendingDeleteEvent(false);
   }
 
+  function confirmCompleteEvent() {
+    submit({ intent: 'stop' });
+    setPendingCompleteEvent(false);
+  }
+
   function handleSave() {
     const patch: UpdateEventInput = {
       name: form.name,
       // Send undefined rather than an empty string to leave the date unchanged.
       plannedDate: form.plannedDate || undefined,
       ratingsEnabled: form.ratingsEnabled,
+      baselineHoldCents: Math.round(baselineHoldEuros * 100),
       branding: { primaryColor: form.primaryColor, secondaryColor: form.secondaryColor },
       location: form.location,
     };
@@ -270,7 +287,7 @@ export default function EventConfiguration() {
                   <Button
                     className="w-full"
                     disabled={!canStop || busy}
-                    onClick={() => submit({ intent: 'stop' })}
+                    onClick={() => setPendingCompleteEvent(true)}
                     size="lg"
                     variant="secondary"
                   >
@@ -396,6 +413,60 @@ export default function EventConfiguration() {
                     value={form.location}
                   />
 
+                  <TextField
+                    id="baseline-hold"
+                    label={
+                      <span className="inline-flex items-center gap-1.5">
+                        Card pre-authorization hold (€)
+                        <span className="relative inline-flex">
+                          <button
+                            type="button"
+                            aria-label="About the card pre-authorization hold"
+                            aria-expanded={showHoldInfo}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setShowHoldInfo((open) => !open);
+                            }}
+                            className="text-text-muted transition hover:text-text"
+                          >
+                            <InfoIcon />
+                          </button>
+                          {showHoldInfo && (
+                            <>
+                              <button
+                                type="button"
+                                aria-hidden="true"
+                                tabIndex={-1}
+                                className="fixed inset-0 z-40 cursor-default"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setShowHoldInfo(false);
+                                }}
+                              />
+                              <span
+                                role="tooltip"
+                                className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                              >
+                                {
+                                  "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
+                                }
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      </span>
+                    }
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    step="1"
+                    value={form.baselineHold}
+                    onChange={(e) => updateField('baselineHold', e.target.value)}
+                    error={
+                      baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
+                    }
+                  />
+
                   <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
                     <label className="text-sm font-medium" htmlFor="ratings-enabled">
                       Customer Product Ratings
@@ -435,7 +506,12 @@ export default function EventConfiguration() {
               </div>
 
               <div className="mt-6 flex justify-end">
-                <Button className="px-6" disabled={busy} onClick={handleSave} size="lg">
+                <Button
+                  className="px-6"
+                  disabled={busy || !baselineHoldValid}
+                  onClick={handleSave}
+                  size="lg"
+                >
                   {busy ? 'Saving…' : 'Save'}
                 </Button>
               </div>
@@ -521,6 +597,19 @@ export default function EventConfiguration() {
           onAcknowledge={confirmDeleteEvent}
           onCancel={() => setPendingDeleteEvent(false)}
           title="Delete event?"
+        />
+
+        <AlertDialog
+          acknowledgeLabel="Complete Event"
+          cancelLabel="Cancel"
+          message={
+            pendingCompleteEvent
+              ? 'Completing the event closes every open tab and charges each guest for the items they received. Items that are not yet ready or fulfilled will not be charged, and the remaining card holds are released. This cannot be undone.'
+              : null
+          }
+          onAcknowledge={confirmCompleteEvent}
+          onCancel={() => setPendingCompleteEvent(false)}
+          title="Complete event?"
         />
 
         <AlertDialog

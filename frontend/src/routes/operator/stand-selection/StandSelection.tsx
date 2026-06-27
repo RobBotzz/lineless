@@ -19,13 +19,18 @@ import {
 import { paths } from '@/paths';
 import { hasCoordinates } from '@/types/location';
 import type { Stand } from '@/types/stand';
-import { operatorStandsQueryOptions } from '../operatorQueries';
+import { operatorCashierStandQueryOptions, operatorStandsQueryOptions } from '../operatorQueries';
+
+// Shown when the cashier endpoint reports the cashier as unavailable (403/404).
+const CASHIER_DISABLED_MESSAGE =
+  'The cashier is disabled for this event. The organizer must enable it in the event settings to allow manual orders and cash payments.';
 
 const LINK_EXPIRED_MESSAGE = 'Link expired. Please reopen the operator link.';
 const LOGIN_FAILED_MESSAGE = 'Login failed. Please try again.';
 const WRONG_PASSWORD_OR_LINK_MESSAGE = 'Wrong password or invalid link.';
 
 type LoadState = 'loading' | 'ready' | 'invalid' | 'error';
+type CashierTileState = 'available' | 'loading' | 'unavailable';
 
 export default function StandSelection() {
   const { eventId } = useParams();
@@ -38,6 +43,12 @@ export default function StandSelection() {
 
   const operatorStandsQuery = useQuery({
     ...operatorStandsQueryOptions(eventId),
+    enabled: hasSessionForEvent && !!operatorAccessKey,
+  });
+  // The cashier has its own endpoint (it's excluded from the stand list). A 403/404
+  // here means "disabled/none" — we still show the tile, just greyed out.
+  const cashierStandQuery = useQuery({
+    ...operatorCashierStandQueryOptions(eventId),
     enabled: hasSessionForEvent && !!operatorAccessKey,
   });
   const [selectedStand, setSelectedStand] = useState<Stand | null>(null);
@@ -82,10 +93,15 @@ export default function StandSelection() {
         : 'error';
   }
   const stands = operatorStandsQuery.data ?? [];
-  // The cashier is a dedicated stand; surface it via its own tile and keep it out
-  // of the regular stand-dashboard list (it would otherwise render twice).
-  const cashierStand = stands.find((stand) => stand.standType === 'CASHIER');
+  // The cashier never appears in the stand list (backend excludes it); the
+  // dedicated query decides its tile state: active when enabled, greyed when
+  // disabled/missing (403/404), loading until it resolves.
   const productStands = stands.filter((stand) => stand.standType !== 'CASHIER');
+  const cashierState: CashierTileState = cashierStandQuery.data
+    ? 'available'
+    : cashierStandQuery.isError
+      ? 'unavailable'
+      : 'loading';
 
   const canUseOperatorSession = loadState === 'ready' && !!eventId && hasSessionForEvent;
 
@@ -180,14 +196,10 @@ export default function StandSelection() {
                   onClick={() => navigateToSystemDashboard(paths.operator.pickupDashboard(eventId))}
                   title="Pick Up"
                 />
-                {cashierStand && (
-                  <ActionTile
-                    icon={<CashierIcon className="h-6 w-6" />}
-                    meta="Manual orders and cash payments"
-                    onClick={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
-                    title="Cashier"
-                  />
-                )}
+                <CashierTile
+                  state={cashierState}
+                  onOpen={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
+                />
               </div>
             </section>
 
@@ -311,6 +323,54 @@ function StandSelectionTile({
       onClick={onClick}
       title={stand.standName}
     />
+  );
+}
+
+// Mirrors ActionTile's horizontal layout so the Tools row stays consistent. When
+// available it's a normal action card; otherwise it's a greyed, dashed card —
+// "Checking availability…" while loading, and on hover an explanation when the
+// cashier is disabled (403/404).
+function CashierTile({ state, onOpen }: { state: CashierTileState; onOpen: () => void }) {
+  if (state === 'available') {
+    return (
+      <ActionTile
+        icon={<CashierIcon className="h-6 w-6" />}
+        meta="Manual orders and cash payments"
+        onClick={onOpen}
+        title="Cashier"
+      />
+    );
+  }
+
+  const unavailable = state === 'unavailable';
+  return (
+    <div
+      className={[
+        'group relative flex min-h-44 items-center gap-4 overflow-hidden rounded-lg border border-dashed border-border bg-surface p-5',
+        state === 'loading' ? 'animate-pulse' : '',
+      ].join(' ')}
+    >
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
+        <CashierIcon className="h-6 w-6" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-semibold text-text-muted">Cashier</span>
+        {unavailable ? (
+          <span className="mt-1 inline-flex items-center rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-text-muted">
+            Not available
+          </span>
+        ) : (
+          <span className="mt-0.5 block text-sm text-text-muted">Checking availability…</span>
+        )}
+      </span>
+
+      {/* Explanation fades in while the cursor is over the tile (hover only). */}
+      {unavailable && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-surface p-4 text-center opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          <p className="text-sm leading-6 text-text-muted">{CASHIER_DISABLED_MESSAGE}</p>
+        </div>
+      )}
+    </div>
   );
 }
 

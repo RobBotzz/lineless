@@ -14,7 +14,8 @@ import { ATTENDEE_WIDTH } from '../column';
 import { CartIcon } from '@/components/icons';
 import { CartCard } from '@/features/cart/CartCard';
 import { PaymentMethodToggle } from '@/features/cart/PaymentMethodToggle';
-import { mockProcessPayment, type PaymentMethod } from '@/features/orders/mockPayment';
+import { CardCheckoutDialog, type PaymentMethod } from '@/features/payment';
+import type { Order } from '@/types/order';
 import { useCart } from './cart-context';
 
 export default function Cart() {
@@ -24,40 +25,62 @@ export default function Cart() {
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  // Non-null while the card flow runs: the items the dialog is paying for.
+  const [cardItems, setCardItems] = useState<OrderItemView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const backTo = eventId ? paths.attendee.event(eventId) : paths.home;
 
+  // Joins each cart line with its stand name for display on the confirmation.
+  async function buildOrderItems(currentEventId: string): Promise<OrderItemView[]> {
+    const stands = await getAttendeeStands(currentEventId);
+    const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+    return items.map((item) => ({
+      productId: item.product._id,
+      productName: item.product.productName,
+      standName: standNameById.get(item.product.standId) ?? '',
+      unitPrice: item.product.priceIncludingTax,
+      quantity: item.quantity,
+      comments: item.comments.map((c) => c.trim()),
+    }));
+  }
+
   async function handleCheckout() {
-    if (items.length === 0 || !eventId) return;
+    if (items.length === 0 || !eventId || isCheckingOut) return;
+    setError(null);
     setIsCheckingOut(true);
     try {
-      const stands = await getAttendeeStands(eventId);
-      const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
-      const orderItems: OrderItemView[] = items.map((item) => ({
-        productId: item.product._id,
-        productName: item.product.productName,
-        standName: standNameById.get(item.product.standId) ?? '',
-        unitPrice: item.product.priceIncludingTax,
-        quantity: item.quantity,
-        comments: item.comments.map((c) => c.trim()),
-      }));
-
-      const [order] = await Promise.all([
-        createOrder(eventId, orderItems),
-        mockProcessPayment(paymentMethod),
-      ]);
-
+      const orderItems = await buildOrderItems(eventId);
+      if (paymentMethod === 'CARD') {
+        // Hand off to the card dialog, which opens/uses the tab and places the
+        // order; it reports back through onCardSuccess.
+        setCardItems(orderItems);
+        return;
+      }
+      const order = await createOrder(eventId, orderItems);
       clear();
-      const destination =
-        paymentMethod === 'CASH'
-          ? paths.attendee.checkoutPending(eventId, order._id)
-          : paths.attendee.checkoutConfirmed(eventId, order._id);
-      navigate(destination, { state: { order, items: orderItems } });
+      navigate(paths.attendee.checkoutPending(eventId, order._id), {
+        state: { order, items: orderItems },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not place the order.');
       setIsCheckingOut(false);
     }
+  }
+
+  function handleCardSuccess(order: Order) {
+    const orderItems = cardItems ?? [];
+    setCardItems(null);
+    clear();
+    if (!eventId) return;
+    navigate(paths.attendee.checkoutConfirmed(eventId, order._id), {
+      state: { order, items: orderItems },
+    });
+  }
+
+  function handleCardClose() {
+    setCardItems(null);
+    setIsCheckingOut(false);
   }
 
   return (
@@ -122,6 +145,15 @@ export default function Cart() {
             </div>
           </div>
         </>
+      )}
+
+      {cardItems && eventId && (
+        <CardCheckoutDialog
+          eventId={eventId}
+          items={cardItems}
+          onSuccess={handleCardSuccess}
+          onClose={handleCardClose}
+        />
       )}
 
       <AlertDialog
