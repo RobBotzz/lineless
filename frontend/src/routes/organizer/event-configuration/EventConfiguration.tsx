@@ -59,6 +59,7 @@ type EventForm = {
   name: string;
   plannedDate: string;
   ratingsEnabled: boolean;
+  cashierEnabled: boolean;
   // Baseline hold is stored as integer cents on the backend but edited in euros.
   baselineHold: string;
   primaryColor: string;
@@ -79,6 +80,7 @@ function toForm(event: Event): EventForm {
     name: event.name,
     plannedDate: toDateInputValue(event.plannedDate),
     ratingsEnabled: event.ratingsEnabled,
+    cashierEnabled: event.cashierEnabled,
     baselineHold: String(Math.round(event.baselineHoldCents / 100)),
     primaryColor: event.branding.primaryColor,
     secondaryColor: event.branding.secondaryColor,
@@ -98,6 +100,7 @@ export default function EventConfiguration() {
   const [showCustomerLink, setShowCustomerLink] = useState(false);
   const [showHoldInfo, setShowHoldInfo] = useState(false);
   const [showRatingsInfo, setShowRatingsInfo] = useState(false);
+  const [showCashierInfo, setShowCashierInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
@@ -165,17 +168,12 @@ export default function EventConfiguration() {
     setPendingCompleteEvent(false);
   }
 
-  // --- Auto-save -----------------------------------------------------------
-  // The settings form persists automatically: any change is debounced and sent
-  // via saveFetcher. Invalid input (e.g. an out-of-range hold) is held back
-  // until it's corrected.
-  // The snapshot doubles as the dirty-check key and (parsed back) the payload,
-  // so the debounce effect depends only on the snapshot + validity.
   const settingsSnapshot = JSON.stringify({
     name: form.name,
     // Send undefined rather than an empty string to leave the date unchanged.
     plannedDate: form.plannedDate || undefined,
     ratingsEnabled: form.ratingsEnabled,
+    cashierEnabled: form.cashierEnabled,
     baselineHoldCents: Math.round(baselineHoldEuros * 100),
     branding: { primaryColor: form.primaryColor, secondaryColor: form.secondaryColor },
     location: form.location,
@@ -565,6 +563,56 @@ export default function EventConfiguration() {
                       id="ratings-enabled"
                       label="Customer Product Ratings"
                       onChange={(value) => updateField('ratingsEnabled', value)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
+                    <label
+                      className="inline-flex items-center gap-1.5 text-sm font-medium"
+                      htmlFor="cashier-enabled"
+                    >
+                      Cashier
+                      <span className="relative inline-flex">
+                        <button
+                          type="button"
+                          aria-label="About the cashier"
+                          aria-expanded={showCashierInfo}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowCashierInfo((open) => !open);
+                          }}
+                          className="text-text-muted transition hover:text-text"
+                        >
+                          <InfoIcon />
+                        </button>
+                        {showCashierInfo && (
+                          <>
+                            <button
+                              type="button"
+                              aria-hidden="true"
+                              tabIndex={-1}
+                              className="fixed inset-0 z-40 cursor-default"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setShowCashierInfo(false);
+                              }}
+                            />
+                            <span
+                              role="tooltip"
+                              className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                            >
+                              When enabled, operators get a cashier station to take manual orders
+                              and collect cash payments at the event.
+                            </span>
+                          </>
+                        )}
+                      </span>
+                    </label>
+                    <Toggle
+                      checked={form.cashierEnabled}
+                      id="cashier-enabled"
+                      label="Cashier"
+                      onChange={(value) => updateField('cashierEnabled', value)}
                     />
                   </div>
                 </div>
