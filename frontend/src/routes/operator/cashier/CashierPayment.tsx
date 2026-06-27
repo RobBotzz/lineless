@@ -80,7 +80,7 @@ export default function CashierPayment() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <BackButton to={paths.operator.cashier(eventId)}>Back to Cashier Stand</BackButton>
+      <BackButton to={paths.operator.cashier(eventId)}>Cashier Stand</BackButton>
 
       <form
         onSubmit={handleSearch}
