@@ -142,7 +142,7 @@ export default function StandSelection() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 pb-12 pt-14 sm:px-6 lg:px-8">
         {loadState === 'invalid' && (
           <StatePanel
             title="Invalid operator link"
@@ -164,17 +164,24 @@ export default function StandSelection() {
 
         {loadState === 'ready' && eventId && (
           <div className="space-y-8">
+            <header>
+              <h1 className="text-3xl font-bold tracking-tight text-text">Operator Console</h1>
+              <p className="mt-2 text-base text-text-muted">
+                Open a stand’s live board, or jump straight to pickup and cashier.
+              </p>
+            </header>
+
             <section>
               <SectionLabel>Tools</SectionLabel>
-              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <SelectionTile
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <ActionTile
                   icon={<PickupIcon className="h-6 w-6" />}
                   meta="Orders ready for handoff"
                   onClick={() => navigateToSystemDashboard(paths.operator.pickupDashboard(eventId))}
                   title="Pick Up"
                 />
                 {cashierStand && (
-                  <SelectionTile
+                  <ActionTile
                     icon={<CashierIcon className="h-6 w-6" />}
                     meta="Manual orders and cash payments"
                     onClick={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
@@ -224,6 +231,37 @@ export default function StandSelection() {
         stand={selectedStand}
       />
     </div>
+  );
+}
+
+// Compact horizontal card for the event-wide tools (Pick Up, Cashier). Kept short
+// so a single tool doesn't leave a tall empty gap like the vertical stand tiles do.
+function ActionTile({
+  icon,
+  meta,
+  onClick,
+  title,
+}: {
+  icon: ReactNode;
+  meta: string;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      className="group flex min-h-44 items-center gap-4 rounded-lg border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      onClick={onClick}
+      type="button"
+    >
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-semibold text-text">{title}</span>
+        <span className="mt-0.5 block truncate text-sm text-text-muted">{meta}</span>
+      </span>
+      <ArrowRightIcon className="h-5 w-5 shrink-0 text-text-muted transition group-hover:translate-x-0.5 group-hover:text-accent" />
+    </button>
   );
 }
 
