@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
@@ -89,6 +89,9 @@ function toForm(event: Event): EventForm {
 export default function EventConfiguration() {
   const { event, stands, productsByStand } = useLoaderData() as EventConfigurationLoaderData;
   const fetcher = useFetcher<EventActionResult>();
+  // Dedicated fetcher for the auto-saving settings form, kept separate from the
+  // lifecycle/stand/product actions so its state drives the "saved" indicator.
+  const saveFetcher = useFetcher<EventActionResult>();
   const { logout } = useOrganizerAuth();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
@@ -162,18 +165,65 @@ export default function EventConfiguration() {
     setPendingCompleteEvent(false);
   }
 
-  function handleSave() {
-    const patch: UpdateEventInput = {
-      name: form.name,
-      // Send undefined rather than an empty string to leave the date unchanged.
-      plannedDate: form.plannedDate || undefined,
-      ratingsEnabled: form.ratingsEnabled,
-      baselineHoldCents: Math.round(baselineHoldEuros * 100),
-      branding: { primaryColor: form.primaryColor, secondaryColor: form.secondaryColor },
-      location: form.location,
-    };
-    submit({ intent: 'save', patch });
-  }
+  // --- Auto-save -----------------------------------------------------------
+  // The settings form persists automatically: any change is debounced and sent
+  // via saveFetcher. Invalid input (e.g. an out-of-range hold) is held back
+  // until it's corrected.
+  // The snapshot doubles as the dirty-check key and (parsed back) the payload,
+  // so the debounce effect depends only on the snapshot + validity.
+  const settingsSnapshot = JSON.stringify({
+    name: form.name,
+    // Send undefined rather than an empty string to leave the date unchanged.
+    plannedDate: form.plannedDate || undefined,
+    ratingsEnabled: form.ratingsEnabled,
+    baselineHoldCents: Math.round(baselineHoldEuros * 100),
+    branding: { primaryColor: form.primaryColor, secondaryColor: form.secondaryColor },
+    location: form.location,
+  });
+  // Last successfully-persisted snapshot, kept in state so the render can derive
+  // the dirty flag (reading a ref during render is disallowed).
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState(settingsSnapshot);
+  const pendingSnapshotRef = useRef<string | null>(null);
+  // Mirror the latest fetcher into a ref (updated in an effect, never during
+  // render) so the debounce effect can call it without depending on its identity.
+  const saveFetcherRef = useRef(saveFetcher);
+  useEffect(() => {
+    saveFetcherRef.current = saveFetcher;
+  });
+
+  useEffect(() => {
+    if (!baselineHoldValid) return;
+    if (settingsSnapshot === lastSavedSnapshot) return;
+    const handle = setTimeout(() => {
+      pendingSnapshotRef.current = settingsSnapshot;
+      saveFetcherRef.current.submit(
+        {
+          intent: 'save',
+          patch: JSON.parse(settingsSnapshot) as UpdateEventInput,
+        } as unknown as Parameters<typeof saveFetcherRef.current.submit>[0],
+        { method: 'post', encType: 'application/json' },
+      );
+    }, 800);
+    return () => clearTimeout(handle);
+  }, [settingsSnapshot, lastSavedSnapshot, baselineHoldValid]);
+
+  // Mark the just-sent snapshot as saved once the request succeeds; on failure
+  // it stays "dirty" so the next edit retries.
+  useEffect(() => {
+    if (
+      saveFetcher.state === 'idle' &&
+      saveFetcher.data?.ok &&
+      pendingSnapshotRef.current !== null
+    ) {
+      setLastSavedSnapshot(pendingSnapshotRef.current);
+      pendingSnapshotRef.current = null;
+    }
+  }, [saveFetcher]);
+
+  const settingsDirty = settingsSnapshot !== lastSavedSnapshot;
+  const isSavingSettings = saveFetcher.state !== 'idle';
+  const settingsSaveError =
+    saveFetcher.data && !saveFetcher.data.ok ? saveFetcher.data.error : null;
 
   // Lifecycle rules mirror the backend: start only from DRAFT, stop only from ACTIVE.
   const canStart = event.status === 'DRAFT';
@@ -544,15 +594,22 @@ export default function EventConfiguration() {
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end">
-                <Button
-                  className="px-6"
-                  disabled={busy || !baselineHoldValid}
-                  onClick={handleSave}
-                  size="lg"
-                >
-                  {busy ? 'Saving…' : 'Save'}
-                </Button>
+              {/* No save button — the form auto-saves; this just reflects status. */}
+              <div className="mt-6 flex justify-end text-sm" aria-live="polite">
+                {!baselineHoldValid && settingsDirty ? (
+                  <span className="text-danger">Fix the highlighted field to save.</span>
+                ) : settingsSaveError ? (
+                  <span className="text-danger">
+                    Couldn’t save changes — edit a field to retry.
+                  </span>
+                ) : isSavingSettings || settingsDirty ? (
+                  <span className="text-text-muted">Saving…</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-text-muted">
+                    <CheckCircleIcon className="h-4 w-4 text-success" />
+                    All changes saved
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
