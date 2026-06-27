@@ -36,6 +36,52 @@ function useDismissAfter(token: unknown, ms = 6000): boolean {
   return token != null && dismissed !== token;
 }
 
+type ChargeResult = Extract<PaymentActionResult, { intent: 'charge-all' }>;
+
+// Charging open tabs is the same action whether it targets every event or one:
+// a single fetcher posting `charge-all` with the event ids to settle. Shared by
+// the global payout card and the per-event breakdown rows so they behave alike.
+function useChargeTabs() {
+  const fetcher = useFetcher<PaymentActionResult>();
+  const charging = fetcher.state !== 'idle';
+  const settled = fetcher.state === 'idle' ? fetcher.data : undefined;
+  const result = settled?.ok && settled.intent === 'charge-all' ? settled : null;
+  const error = settled && !settled.ok ? settled.error : null;
+  const show = useDismissAfter(settled);
+
+  function charge(eventIds: string[]) {
+    const payload: PaymentActionBody = { intent: 'charge-all', eventIds };
+    void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
+      method: 'post',
+      encType: 'application/json',
+    });
+  }
+
+  return { charge, charging, show, result, error };
+}
+
+function ChargeResultMessage({
+  show,
+  result,
+  error,
+}: {
+  show: boolean;
+  result: ChargeResult | null;
+  error: string | null;
+}) {
+  if (!show) return null;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (result)
+    return (
+      <p className="text-sm text-success">
+        Charged {result.settled} {result.settled === 1 ? 'tab' : 'tabs'}
+        {result.skipped > 0 ? `, skipped ${result.skipped} (items not ready)` : ''}
+        {result.failed > 0 ? `, ${result.failed} failed` : ''}.
+      </p>
+    );
+  return null;
+}
+
 // Derived per-event figures shaped for the breakdown table. Sales is revenue
 // before refunds so the row reads Sales − Fees − Refunds = Available.
 type EventRow = {
@@ -206,19 +252,12 @@ function AvailableForPayoutCard({
   bankReady: boolean;
   openTabEventIds: string[];
 }) {
-  const chargeFetcher = useFetcher<PaymentActionResult>();
+  const charge = useChargeTabs();
   const payoutFetcher = useFetcher<PaymentActionResult>();
   // Which real-money action awaits confirmation, if any.
   const [confirm, setConfirm] = useState<'charge' | 'payout' | null>(null);
   const hasOpenTabs = openTabEventIds.length > 0;
   const canPayout = bankReady && availableNow > 0;
-
-  const charging = chargeFetcher.state !== 'idle';
-  const chargeSettled = chargeFetcher.state === 'idle' ? chargeFetcher.data : undefined;
-  const chargeResult =
-    chargeSettled?.ok && chargeSettled.intent === 'charge-all' ? chargeSettled : null;
-  const chargeError = chargeSettled && !chargeSettled.ok ? chargeSettled.error : null;
-  const showCharge = useDismissAfter(chargeSettled);
 
   const payingOut = payoutFetcher.state !== 'idle';
   const payoutSettled = payoutFetcher.state === 'idle' ? payoutFetcher.data : undefined;
@@ -227,18 +266,15 @@ function AvailableForPayoutCard({
   const payoutError = payoutSettled && !payoutSettled.ok ? payoutSettled.error : null;
   const showPayout = useDismissAfter(payoutSettled);
 
-  function submit(fetcher: typeof chargeFetcher, payload: PaymentActionBody) {
-    void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
-      method: 'post',
-      encType: 'application/json',
-    });
-  }
-
   function confirmAction() {
     if (confirm === 'charge') {
-      submit(chargeFetcher, { intent: 'charge-all', eventIds: openTabEventIds });
+      charge.charge(openTabEventIds);
     } else if (confirm === 'payout') {
-      submit(payoutFetcher, { intent: 'request-payout' });
+      const payload: PaymentActionBody = { intent: 'request-payout' };
+      void payoutFetcher.submit(payload as unknown as Parameters<typeof payoutFetcher.submit>[0], {
+        method: 'post',
+        encType: 'application/json',
+      });
     }
     setConfirm(null);
   }
@@ -322,21 +358,14 @@ function AvailableForPayoutCard({
           </div>
           <Button
             onClick={() => setConfirm('charge')}
-            disabled={charging || !hasOpenTabs}
+            disabled={charge.charging || !hasOpenTabs}
             variant="outline"
             className="gap-2"
           >
-            {charging ? 'Charging…' : 'Charge open tabs'}
+            {charge.charging ? 'Charging…' : 'Charge open tabs'}
           </Button>
         </div>
-        {showCharge && chargeError ? <p className="text-sm text-danger">{chargeError}</p> : null}
-        {showCharge && chargeResult ? (
-          <p className="text-sm text-success">
-            Charged {chargeResult.settled} {chargeResult.settled === 1 ? 'tab' : 'tabs'}
-            {chargeResult.skipped > 0 ? `, skipped ${chargeResult.skipped} (items not ready)` : ''}
-            {chargeResult.failed > 0 ? `, ${chargeResult.failed} failed` : ''}.
-          </p>
-        ) : null}
+        <ChargeResultMessage show={charge.show} result={charge.result} error={charge.error} />
       </CardContent>
 
       <AlertDialog
@@ -428,8 +457,11 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
 
 function EventBreakdownRow({ row }: { row: EventRow }) {
   const [open, setOpen] = useState(false);
+  const [confirmCharge, setConfirmCharge] = useState(false);
+  const charge = useChargeTabs();
   const { event } = row;
   const detailId = `event-breakdown-${event.eventId}`;
+  const hasOpenTabs = event.onHoldReadyCents > 0;
 
   return (
     <>
@@ -438,22 +470,29 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
         onClick={() => setOpen((v) => !v)}
       >
         <td className="px-4 py-3 text-text">
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls={detailId}
-            onClick={(e) => {
-              // The row already toggles; stop here so we don't toggle twice.
-              e.stopPropagation();
-              setOpen((v) => !v);
-            }}
-            className="flex items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <ChevronDownIcon
-              className={`h-4 w-4 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`}
-            />
-            {event.eventName}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-controls={detailId}
+              onClick={(e) => {
+                // The row already toggles; stop here so we don't toggle twice.
+                e.stopPropagation();
+                setOpen((v) => !v);
+              }}
+              className="flex items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <ChevronDownIcon
+                className={`h-4 w-4 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`}
+              />
+              {event.eventName}
+            </button>
+            {hasOpenTabs ? (
+              <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
+                Open tabs
+              </span>
+            ) : null}
+          </div>
         </td>
         <td className="px-4 py-3 text-right text-text">{eur(row.salesCents)}</td>
         <td className="px-4 py-3 text-right text-text">{eur(row.feesCents)}</td>
@@ -463,6 +502,28 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
       {open ? (
         <tr id={detailId} className="border-t border-border bg-surface-muted/30">
           <td colSpan={5} className="space-y-4 px-4 py-3">
+            {hasOpenTabs ? (
+              <div className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-2">
+                  <CalendarIcon className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                  <p className="text-sm text-text">
+                    <span className="font-medium">{eur(event.onHoldReadyCents)}</span> on open tabs
+                    is ready to charge.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => setConfirmCharge(true)}
+                  disabled={charge.charging}
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-2"
+                >
+                  {charge.charging ? 'Charging…' : 'Charge open tabs'}
+                </Button>
+              </div>
+            ) : null}
+            <ChargeResultMessage show={charge.show} result={charge.result} error={charge.error} />
+
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-medium text-text-muted">Items sold</p>
               {event.unitsSold.length > 0 ? (
@@ -537,6 +598,21 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
               <Detail label="On hold (not charged)" value={eur(event.onHoldReadyCents)} />
               <Detail label="Settling on Stripe" value={eur(event.inTransitCents)} />
             </div>
+
+            <AlertDialog
+              message={
+                confirmCharge
+                  ? `This charges guests' cards for "${event.eventName}" (${eur(event.onHoldReadyCents)} on ready tabs). This can't be undone.`
+                  : null
+              }
+              title="Charge open tabs?"
+              acknowledgeLabel="Charge now"
+              onAcknowledge={() => {
+                charge.charge([event.eventId]);
+                setConfirmCharge(false);
+              }}
+              onCancel={() => setConfirmCharge(false)}
+            />
           </td>
         </tr>
       ) : null}
