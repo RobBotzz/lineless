@@ -12,7 +12,7 @@ export default function CashierHome() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-      <BackButton to={paths.operator.root(eventId)}>Stand Selection</BackButton>
+      <BackButton to={paths.operator.root(eventId)}>Operator Console</BackButton>
 
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         <ChoiceCard

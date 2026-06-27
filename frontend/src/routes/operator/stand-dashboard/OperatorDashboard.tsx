@@ -258,7 +258,9 @@ export default function OperatorDashboard() {
     return (
       <div className="min-h-[calc(100vh-4rem)] bg-background">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
+          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
+            Operator Console
+          </BackButton>
           {status === 'error' ? (
             <StatePanel
               title="Live board unavailable"
@@ -276,7 +278,9 @@ export default function OperatorDashboard() {
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-5 flex items-center gap-3">
-          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
+          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
+            Operator Console
+          </BackButton>
           <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
           <ConnectionBadge status={status} />
         </header>

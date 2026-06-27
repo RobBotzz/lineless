@@ -128,21 +128,21 @@ export default function CashierPayment() {
                   <button
                     type="button"
                     onClick={() => navigate(paths.operator.cashierPaymentOrder(eventId, order._id))}
-                    className="h-full w-full rounded-lg border border-border bg-surface p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    className="flex h-full w-full flex-col rounded-lg border border-border bg-surface p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
-                    <div className="flex items-start justify-between gap-2 pr-7">
-                      <span className="text-base font-semibold text-accent">
-                        {order.orderNumber}
-                      </span>
-                      <span className="shrink-0 text-base font-semibold text-accent">
-                        EUR {formatMoney(computeTotal(order))}
-                      </span>
-                    </div>
+                    <span className="block pr-7 text-base font-semibold text-accent">
+                      {order.orderNumber}
+                    </span>
                     <div className="mt-1 flex items-center justify-between gap-2 text-xs text-text-muted">
                       <span>{order.pickupCode}</span>
                       <span>{formatOrderTime(order.createdAt)}</span>
                     </div>
-                    <p className="mt-0.5 text-xs text-text-muted">{order.items.length} items</p>
+                    <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+                      <span className="text-xs text-text-muted">{order.items.length} items</span>
+                      <span className="text-base font-semibold text-accent">
+                        EUR {formatMoney(computeTotal(order))}
+                      </span>
+                    </div>
                   </button>
                   <DeleteIconButton
                     label={`Delete order ${order.orderNumber}`}
