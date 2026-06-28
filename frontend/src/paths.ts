@@ -6,6 +6,8 @@ export const paths = {
   auth: '/auth',
   forgotPassword: '/auth/forgot-password',
   resetPassword: '/reset-password',
+  imprint: '/imprint',
+  privacy: '/privacy',
   organizer: {
     root: '/organizer',
     payment: '/organizer/payment',

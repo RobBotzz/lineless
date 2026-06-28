@@ -10,7 +10,6 @@ import { paths } from '@/paths';
 import type { OrderItemView } from '@/types/order';
 import { formatMoney } from '@/types/product';
 
-import { ATTENDEE_WIDTH } from '../column';
 import { CartIcon } from '@/components/icons';
 import { CartCard } from '@/features/cart/CartCard';
 import { PaymentMethodToggle } from '@/features/cart/PaymentMethodToggle';
@@ -114,11 +113,10 @@ export default function Cart() {
             ))}
           </div>
 
-          {/* Sticky checkout bar — total + checkout, aligned to the column. */}
-          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-4">
-            <div
-              className={`pointer-events-auto mx-auto ${ATTENDEE_WIDTH} rounded-2xl border border-border bg-surface/95 p-3 shadow-[0_8px_24px_rgba(2,8,135,0.18)] backdrop-blur`}
-            >
+          {/* Sticky checkout bar — pinned to the viewport bottom while scrolling,
+              parking below the last item (above the footer) at the end. */}
+          <div className="pointer-events-none sticky bottom-0 z-20 pb-4 pt-3">
+            <div className="pointer-events-auto rounded-2xl border border-border bg-surface/95 p-3 shadow-[0_8px_24px_rgba(2,8,135,0.18)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm text-text-muted">Total</span>
                 <span className="text-base font-bold text-accent">€{formatMoney(totalCents)}</span>
