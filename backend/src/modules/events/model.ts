@@ -27,7 +27,6 @@ export interface EventDoc {
   operatorAccessKey: string;
   ratingsEnabled: boolean;
   cashierEnabled: boolean;
-  offlineOrdersEnabled: boolean;
   baselineHoldCents: number;
   branding: EventBranding;
   location: Location;
@@ -66,7 +65,6 @@ const eventSchema = new Schema<EventDoc>(
     },
     ratingsEnabled: { type: Boolean, default: false },
     cashierEnabled: { type: Boolean, default: true },
-    offlineOrdersEnabled: { type: Boolean, default: true },
     baselineHoldCents: {
       type: Number,
       required: true,

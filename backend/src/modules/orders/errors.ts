@@ -47,13 +47,6 @@ export class EventNotActiveError extends Error {
   }
 }
 
-export class OfflineOrdersDisabledError extends Error {
-  constructor() {
-    super("Cash orders are not enabled for this event");
-    this.name = "OfflineOrdersDisabledError";
-  }
-}
-
 export class CashierDisabledError extends Error {
   constructor() {
     super("Cashier mode is not enabled for this event");
