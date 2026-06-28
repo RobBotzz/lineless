@@ -1,0 +1,35 @@
+meta {
+  name: 01 login organizer
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/account/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{organizerEmail}}",
+    "password": "{{organizerPassword}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.token) {
+    bru.setVar("organizerToken", res.body.token);
+  }
+}
+
+tests {
+  test("organizer login returns token", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.token).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

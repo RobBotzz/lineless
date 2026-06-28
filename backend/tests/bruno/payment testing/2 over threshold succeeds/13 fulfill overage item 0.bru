@@ -1,0 +1,27 @@
+meta {
+  name: 21 fulfill overage item 0
+  type: http
+  seq: 21
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{overOrderId}}/items/{{overageItemId0}}/fulfill
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{operatorToken}}
+}
+
+tests {
+  test("overage item 0 is fulfilled", function () {
+    expect(res.status).to.equal(200);
+    const item = res.body.items.find(i => i._id === bru.getVar("overageItemId0"));
+    expect(item.fulfilledAt).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

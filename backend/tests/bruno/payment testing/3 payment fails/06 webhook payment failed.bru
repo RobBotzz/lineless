@@ -1,0 +1,36 @@
+meta {
+  name: 07 webhook payment failed
+  type: http
+  seq: 7
+}
+
+post {
+  url: http://{{host}}:{{port}}/webhooks/stripe
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "id": "evt_failed_{{overagePI}}",
+    "type": "payment_intent.payment_failed",
+    "data": {
+      "object": {
+        "id": "{{overagePI}}"
+      }
+    }
+  }
+}
+
+tests {
+  // Marks the overage TabPayment FAILED and reopens the tab (no PENDING holds
+  // left). The captured total in the next request confirms it was never charged.
+  test("payment_failed accepted", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.received).to.equal(true);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

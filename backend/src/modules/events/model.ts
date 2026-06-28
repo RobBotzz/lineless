@@ -4,6 +4,10 @@ import { locationSchema, type Location } from "../../shared/location";
 
 export type EventStatus = "DRAFT" | "ACTIVE" | "STOPPED";
 
+// Default authorization hold placed on a new tab and the increment by which a
+// tab's authorization is topped up when an order exceeds it (€10.00 in cents).
+export const DEFAULT_BASELINE_HOLD_CENTS = 1000;
+
 export function generateOperatorAccessKey(): string {
   return uuidv4();
 }
@@ -24,6 +28,7 @@ export interface EventDoc {
   ratingsEnabled: boolean;
   cashierEnabled: boolean;
   offlineOrdersEnabled: boolean;
+  baselineHoldCents: number;
   branding: EventBranding;
   location: Location;
   startedAt?: Date;
@@ -62,6 +67,11 @@ const eventSchema = new Schema<EventDoc>(
     ratingsEnabled: { type: Boolean, default: false },
     cashierEnabled: { type: Boolean, default: true },
     offlineOrdersEnabled: { type: Boolean, default: true },
+    baselineHoldCents: {
+      type: Number,
+      required: true,
+      default: DEFAULT_BASELINE_HOLD_CENTS,
+    },
     branding: { type: brandingSchema, default: () => ({}) },
     location: { type: locationSchema, default: () => ({}) },
     startedAt: { type: Date },

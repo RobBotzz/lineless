@@ -1,0 +1,27 @@
+info:
+  name: 1. Create Tab
+  type: http
+  seq: 1
+
+# Opens a tab and places the baseline Stripe hold.
+# Captures tabId + the baseline PaymentIntent id for the following requests.
+
+http:
+  method: POST
+  url: http://{{host}}:{{port}}/tabs
+  body:
+    type: json
+    data: |-
+      {}
+  auth: inherit
+
+scripts:
+  postResponse: |-
+    bru.setVar("tabId", res.body.tabId);
+    bru.setVar("baselinePI", res.body.stripePaymentIntentId);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

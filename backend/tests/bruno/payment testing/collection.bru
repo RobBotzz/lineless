@@ -1,0 +1,45 @@
+meta {
+  name: payment testing
+}
+
+docs {
+  # Payment testing collection
+
+  Four self-contained scenarios for the tab / Stripe authorize-then-capture
+  flow. Each subfolder logs in the organizer, creates its own attendee session
+  + tab, and uses organizer checkout, so any folder can be run on its own. Run
+  with the Bruno runner; requests within a folder reuse runtime vars
+  (`bru.setVar`) set by earlier ones.
+
+  IMPORTANT: select the **Dev** environment first, otherwise `{{host}}` /
+  `{{port}}` are empty and URLs are invalid.
+
+  ## Why the Stripe "confirm" steps exist
+  Checkout calls the real `stripe.paymentIntents.capture()`. Simulating our own
+  webhook only flips the TabPayment to AUTHORIZED in our DB; on Stripe's side the
+  PaymentIntent is still unconfirmed and not capturable, so checkout would 500.
+  Each hold that gets captured is therefore first confirmed against the real
+  Stripe test API with `pm_card_visa`. The webhook simulation is still needed to
+  update our DB, since Stripe cannot reach localhost without the Stripe CLI.
+
+  Prerequisites:
+  - Dev env: `eventId` is an ACTIVE event with `standId` / `productId` under it;
+    product price well below the EUR 10.00 (1000 cents) baseline hold.
+  - Dev env organizer credentials own `eventId`; operator password logs into
+    `standId` and, if configured, the event's CASHIER stand.
+  - `stripeSecretKey` (Dev env) is the project's Stripe TEST secret key.
+  - Backend runs in dev so /webhooks/stripe accepts unsigned JSON.
+
+  ## Folders
+  1. order under baseline — one item within the hold; operator marks it ready;
+     organizer checkout captures only the ready item amount.
+  2. over threshold skips unready — under-order, then an order over the hold
+     whose overage hold is authorized; organizer checkout skips the tab because
+     the overage items are not ready.
+  3. payment fails — order over the hold whose overage payment fails; organizer
+     checkout skips the tab because the failed order still has non-cancelled
+     items that are not ready.
+  4. cash payments — cashier creates a cash order; attendee confirmation is
+     rejected; organizer confirmation, duplicate rejection, cash refund,
+     over-refund rejection, and tab-order cash confirmation rejection are tested.
+}

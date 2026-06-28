@@ -1,0 +1,41 @@
+meta {
+  name: 06 create tab
+  type: http
+  seq: 6
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/tabs
+  body: json
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{paySessionId}}
+}
+
+body:json {
+  {
+    "eventId": "{{eventId}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("tabId", res.body.tabId);
+    bru.setVar("baselinePI", res.body.stripePaymentIntentId);
+  }
+}
+
+tests {
+  test("tab created with custom baseline hold", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.tabId).to.be.a("string").and.not.empty;
+    expect(res.body.stripePaymentIntentId).to.be.a("string").and.not.empty;
+    expect(res.body.clientSecret).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

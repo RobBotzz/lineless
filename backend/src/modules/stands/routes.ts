@@ -5,6 +5,8 @@ import {
   listStands,
   listStandsForAttendee,
   listStandsForEventLink,
+  getCashierStandForOrganizer,
+  getCashierStandForEventLink,
   getStandForAttendee,
   getStandForOrganizer,
   getStandForOperator,
@@ -18,6 +20,7 @@ import {
 } from "./service";
 import {
   CashierStandDisabledError,
+  CashierStandProtectedError,
   OperatorInvalidCredentialsError,
   StandNotFoundError,
 } from "./errors";
@@ -32,6 +35,7 @@ import {
 import {
   authOrganizer,
   authOrganizerOrAttendeeOrEventLink,
+  authOrganizerOrEventLink,
   authOrganizerOrOperatorOrAttendee,
 } from "../../middleware/auth/guards";
 
@@ -51,6 +55,8 @@ function handleError(err: unknown, res: Response): unknown {
   if (err instanceof OperatorInvalidCredentialsError)
     return res.status(401).json({ error: err.message });
   if (err instanceof CashierStandDisabledError)
+    return res.status(403).json({ error: err.message });
+  if (err instanceof CashierStandProtectedError)
     return res.status(403).json({ error: err.message });
   if (err instanceof RefreshTokenInvalidError)
     return res.status(401).json({ error: err.message });
@@ -96,6 +102,29 @@ eventStandsRouter.get(
           ? await listStandsForAttendee(eventId(req), req.attendee.eventId)
           : await listStandsForEventLink(eventId(req));
       res.status(200).json(stands);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// GET /events/:eventId/stands/cashier-stand — the event's single cashier stand.
+// It is intentionally absent from the stand listing above, so this is the
+// dedicated entry point the operator onboarding (event link) uses to discover
+// the cashier stand it can log into. Organizer-readable too; never exposed to
+// attendees. Responds 403 (CashierStandDisabledError) when the cashier is off.
+eventStandsRouter.get(
+  "/cashier-stand",
+  authOrganizerOrEventLink,
+  async (req: Request, res: Response) => {
+    try {
+      const stand = req.organizer
+        ? await getCashierStandForOrganizer(
+            eventId(req),
+            req.organizer.accountId
+          )
+        : await getCashierStandForEventLink(eventId(req));
+      res.status(200).json(stand);
     } catch (err) {
       handleError(err, res);
     }

@@ -1,0 +1,35 @@
+info:
+  name: 2. Authorize Baseline Hold (Webhook)
+  type: http
+  seq: 2
+
+# Simulates the Stripe webhook confirming the baseline hold.
+# Moves the baseline TabPayment PENDING -> AUTHORIZED and the Tab back to OPEN.
+# In dev the signature check is skipped, so no stripe-signature header is needed.
+
+http:
+  method: POST
+  url: http://{{host}}:{{port}}/webhooks/stripe
+  body:
+    type: json
+    data: |-
+      {
+        "id": "evt_baseline_{{tabId}}",
+        "type": "payment_intent.amount_capturable_updated",
+        "data": {
+          "object": {
+            "id": "{{baselinePI}}",
+            "amount_capturable": 1000,
+            "metadata": {
+              "tabId": "{{tabId}}"
+            }
+          }
+        }
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
