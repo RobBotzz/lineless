@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, apiFetchAllowing } from './client';
 import { getAttendeeStandProducts, getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
 import type { Order, OrderItemView } from '../types/order';
@@ -60,10 +60,6 @@ export function cancelOrderItems(orderId: string, itemIds: string[]): Promise<un
 // orderId must be the UUID _id, not the human-readable orderNumber.
 export function getOrder(orderId: string, standId: string): Promise<Order> {
   return apiFetch<Order>(`/orders/${orderId}`, { auth: 'operator', standId });
-}
-
-export function getAttendeeOrder(orderId: string, eventId: string): Promise<Order> {
-  return apiFetch<Order>(`/orders/${orderId}`, { auth: 'attendee', eventId });
 }
 
 // Builds enriched view items for display. The cashier spans the whole event, so
@@ -152,26 +148,80 @@ function flattenOrderItems(items: OrderItemView[]) {
 }
 
 // POST /api/orders — creates a cashier order (operator auth, no attendee session).
-export function createManualOrder(
+export async function createManualOrder(
   input: { eventId: string; items: OrderItemView[] },
   standId: string,
 ): Promise<Order> {
-  return apiFetch<Order>('/orders', {
+  // POST /orders wraps the created order as { order }, so unwrap it here rather
+  // than treating the body as the order itself.
+  const { order } = await apiFetch<{ order: Order }>('/orders', {
     method: 'POST',
     auth: 'operator',
     standId,
     body: JSON.stringify({ eventId: input.eventId, items: flattenOrderItems(input.items) }),
   });
+  return order;
 }
 
 // POST /api/orders — creates an order for the attendee's own cart (attendee session auth).
-export function createOrder(eventId: string, items: OrderItemView[]): Promise<Order> {
-  return apiFetch<Order>('/orders', {
+export async function createOrder(eventId: string, items: OrderItemView[]): Promise<Order> {
+  // POST /orders wraps the created order as { order } (same shape createCardOrder
+  // reads), so unwrap it here rather than treating the body as the order itself.
+  const { order } = await apiFetch<{ order: Order }>('/orders', {
     method: 'POST',
     auth: 'attendee',
     eventId,
     body: JSON.stringify({ eventId, items: flattenOrderItems(items) }),
   });
+  return order;
+}
+
+// Outcome of placing a card order against a tab. `created` means the order fit
+// the existing authorized hold and is live. `authorizationRequired` means the
+// order exceeded the hold: the backend already created it (gated) and minted a
+// top-up PaymentIntent whose clientSecret must be confirmed to release it.
+export type CardOrderResult =
+  | { status: 'created'; order: Order }
+  | { status: 'authorizationRequired'; clientSecret: string; orderId: string };
+
+// POST /api/orders with a tabId — places a card order against an OPEN tab.
+// A 402 is an expected branch (top-up needed), not an error, so we let the
+// client resolve it and read the clientSecret from the body.
+export async function createCardOrder(
+  eventId: string,
+  items: OrderItemView[],
+  tabId: string,
+): Promise<CardOrderResult> {
+  const { status, data } = await apiFetchAllowing<{
+    order?: Order;
+    clientSecret?: string;
+    orderId?: string;
+  }>(
+    '/orders',
+    {
+      method: 'POST',
+      auth: 'attendee',
+      eventId,
+      body: JSON.stringify({ eventId, tabId, items: flattenOrderItems(items) }),
+    },
+    [402],
+  );
+
+  if (status === 402) {
+    return {
+      status: 'authorizationRequired',
+      clientSecret: data.clientSecret as string,
+      orderId: data.orderId as string,
+    };
+  }
+  return { status: 'created', order: data.order as Order };
+}
+
+// GET /api/orders/:orderId — the attendee's own order by id. Used to hydrate the
+// confirmation screen after a top-up authorization, where the order was created
+// by the backend during the 402 and is not in hand client-side.
+export function getAttendeeOrder(orderId: string, eventId: string): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}`, { auth: 'attendee', eventId });
 }
 
 // GET /api/orders/cashier — unpaid orders for the cashier's event.
