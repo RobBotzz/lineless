@@ -26,7 +26,7 @@ export type StandRevenueSeries = {
 export type StandQueueMetric = {
   standId: string;
   queueLength: number;
-  averageWaitMinutes: number;
+  averageWaitMinutes: number | null;
   alert: boolean;
 };
 
