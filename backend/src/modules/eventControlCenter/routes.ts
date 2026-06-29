@@ -14,6 +14,7 @@ import {
   standBelongsToEvent,
 } from "./service";
 import { EventNotFoundError } from "../events/errors";
+import { StandNotFoundError } from "../stands/errors";
 import {
   getEventControlCenterSettings,
   InvalidEventControlCenterSettingsError,
@@ -35,6 +36,8 @@ function accountId(req: Request): string {
 
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof InvalidEventControlCenterSettingsError)
     return res.status(400).json({ error: err.message });
