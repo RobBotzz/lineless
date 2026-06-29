@@ -25,7 +25,6 @@ export interface CreateProductInput {
   productDescription?: string | null;
   priceIncludingTax: number;
   taxRate: number;
-  productImageUrl?: string | null;
   instantProduct?: boolean;
   productStock?: number;
 }
@@ -36,7 +35,6 @@ export interface UpdateProductInput {
   productDescription?: string | null;
   priceIncludingTax?: number;
   taxRate?: number;
-  productImageUrl?: string | null;
   instantProduct?: boolean;
   productStock?: number;
 }
@@ -49,4 +47,18 @@ export function priceExclTax(product: Pick<Product, 'priceIncludingTax' | 'taxRa
 // Integer cents -> "12.50" style string (major units, no currency symbol).
 export function formatMoney(cents: number): string {
   return (cents / 100).toFixed(2);
+}
+
+// The image is served from a stable URL (/api/products/:id/image) with a long
+// cache lifetime, so replacing it would otherwise keep showing the stale image.
+// Appending the product's updatedAt as a version busts the cache whenever the
+// product (and thus its image) changes. Returns null when there is no image.
+export function productImageSrc(
+  product: Pick<Product, 'productImageUrl' | 'updatedAt'>,
+): string | null {
+  if (!product.productImageUrl) return null;
+  const version = Date.parse(product.updatedAt);
+  return Number.isNaN(version)
+    ? product.productImageUrl
+    : `${product.productImageUrl}?v=${version}`;
 }

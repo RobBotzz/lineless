@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { EditIcon, ImageIcon } from '@/components/icons';
 import { DeleteIconButton } from '@/components/shared';
-import { formatMoney, priceExclTax, type Product } from '@/types/product';
+import { formatMoney, priceExclTax, productImageSrc, type Product } from '@/types/product';
 
 interface ProductRowProps {
   product: Product;
@@ -13,7 +13,8 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
   // Fall back to the placeholder when there is no URL or the image fails to load.
   const [imageOk, setImageOk] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const showImage = !!product.productImageUrl && imageOk;
+  const imageSrc = productImageSrc(product);
+  const showImage = !!imageSrc && imageOk;
 
   const exclTax = priceExclTax(product);
 
@@ -32,7 +33,7 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
               alt=""
               className="h-full w-full object-cover"
               onError={() => setImageOk(false)}
-              src={product.productImageUrl!}
+              src={imageSrc!}
             />
           </button>
         ) : (
@@ -45,7 +46,7 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
       {showImage && lightboxOpen && (
         <ImageLightbox
           alt={product.productName}
-          src={product.productImageUrl!}
+          src={imageSrc!}
           onClose={() => setLightboxOpen(false)}
         />
       )}

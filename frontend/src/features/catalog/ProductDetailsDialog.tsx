@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { formatMoney, type Product } from '@/types/product';
+import { formatMoney, productImageSrc, type Product } from '@/types/product';
 
 import { ImageIcon } from '@/components/icons';
 import { Rating } from './Rating';
@@ -20,7 +20,8 @@ export function ProductDetailsDialog({
   onClose,
 }: ProductDetailsDialogProps) {
   const [imageOk, setImageOk] = useState(true);
-  const showImage = !!product.productImageUrl && imageOk;
+  const imageSrc = productImageSrc(product);
+  const showImage = !!imageSrc && imageOk;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -50,7 +51,7 @@ export function ProductDetailsDialog({
               alt=""
               className="h-full w-full object-cover"
               onError={() => setImageOk(false)}
-              src={product.productImageUrl!}
+              src={imageSrc!}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-text-muted">

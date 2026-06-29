@@ -1,14 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
-import { useFetcher } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { useRevalidator } from 'react-router';
+
+import { ApiError } from '@/api/client';
+import {
+  createProduct,
+  deleteProductImage,
+  updateProduct,
+  uploadProductImage,
+} from '@/api/products';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
+import { ImageDropzone } from '@/components/shared';
 import {
   formatMoney,
+  productImageSrc,
   type CreateProductInput,
   type Product,
   type UpdateProductInput,
 } from '@/types/product';
-import type { EventActionResult } from './data';
+
+// Mirrors the backend upload limits (config.upload). The server is the source of
+// truth (it also checks the magic bytes); these just give instant feedback.
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 interface ProductDialogProps {
   product: Product | null; // null = create mode
@@ -48,7 +62,7 @@ function parseStock(value: string): number | null {
 }
 
 export function ProductDialog({ product, standId, isOpen, onClose }: ProductDialogProps) {
-  const fetcher = useFetcher<EventActionResult>();
+  const revalidator = useRevalidator();
 
   const [productName, setProductName] = useState(product?.productName ?? '');
   const [price, setPrice] = useState(product ? formatMoney(product.priceIncludingTax) : '');
@@ -56,112 +70,123 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
   const [instantProduct, setInstantProduct] = useState(product?.instantProduct ?? false);
   const [stock, setStock] = useState(product ? String(product.productStock) : '0');
   const [description, setDescription] = useState(product?.productDescription ?? '');
-  const [imageUrl, setImageUrl] = useState(product?.productImageUrl ?? '');
-  // Reset on each URL edit so a new URL gets a fresh load attempt.
-  const [previewBroken, setPreviewBroken] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
 
-  function handleImageUrlChange(value: string) {
-    setImageUrl(value);
-    setPreviewBroken(false);
-  }
+  // Image state: a freshly picked file (uploaded on save), and a flag to drop the
+  // existing image. The preview is derived from these below.
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [removeExistingImage, setRemoveExistingImage] = useState(false);
+
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Object URL for the picked file, revoked when it changes / on unmount.
+  const filePreview = useMemo(
+    () => (imageFile ? URL.createObjectURL(imageFile) : null),
+    [imageFile],
+  );
+  useEffect(() => {
+    if (!filePreview) return;
+    return () => URL.revokeObjectURL(filePreview);
+  }, [filePreview]);
 
   useEffect(() => {
     if (!isOpen) return;
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !saving) onClose();
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  const wasSubmittingRef = useRef(false);
-  const isHandlingSubmitRef = useRef(false);
-
-  useEffect(() => {
-    if (fetcher.state === 'submitting') {
-      wasSubmittingRef.current = true;
-    } else if (fetcher.state === 'idle') {
-      isHandlingSubmitRef.current = false;
-      if (wasSubmittingRef.current) {
-        wasSubmittingRef.current = false;
-        if (fetcher.data?.ok) onClose();
-      }
-    }
-  }, [fetcher.state, fetcher.data, onClose]);
+  }, [isOpen, onClose, saving]);
 
   if (!isOpen) return null;
 
   const isEdit = !!product;
-  const busy = fetcher.state !== 'idle';
-  const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
+  // New file wins; otherwise show the existing image unless it's marked for removal.
+  const previewUrl =
+    filePreview ?? (removeExistingImage || !product ? null : productImageSrc(product));
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSelectImage(file: File) {
+    setError(null);
+    setRemoveExistingImage(false);
+    setImageFile(file);
+  }
+
+  function handleRemoveImage() {
+    setError(null);
+    setImageFile(null);
+    // Only existing (already-saved) images need an explicit delete on save.
+    if (product?.productImageUrl) setRemoveExistingImage(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (isHandlingSubmitRef.current) return;
+    if (saving) return;
 
     const name = productName.trim();
     if (!name) {
-      setValidationError('Product name is required');
+      setError('Product name is required');
       return;
     }
     const priceIncludingTax = parseCents(price);
     if (priceIncludingTax === null) {
-      setValidationError('Enter a valid price with at most two decimals (e.g. 12.50 or 12,50)');
+      setError('Enter a valid price with at most two decimals (e.g. 12.50 or 12,50)');
       return;
     }
     const taxRateBp = parseTaxRate(taxRate);
     if (taxRateBp === null) {
-      setValidationError('Enter a valid tax rate between 0 and 100 (e.g. 19 or 19,5)');
+      setError('Enter a valid tax rate between 0 and 100 (e.g. 19 or 19,5)');
       return;
     }
     const productStock = parseStock(stock);
     if (productStock === null) {
-      setValidationError('Enter a valid initial stock amount');
+      setError('Enter a valid initial stock amount');
       return;
     }
-    setValidationError(null);
 
-    const description_ = description.trim() || null;
-    const productImageUrl = imageUrl.trim() || null;
+    const productDescription = description.trim() || null;
+    setError(null);
+    setSaving(true);
 
-    isHandlingSubmitRef.current = true;
-    if (isEdit) {
-      const patch: UpdateProductInput = {
-        productName: name,
-        productDescription: description_,
-        priceIncludingTax,
-        taxRate: taxRateBp,
-        productImageUrl,
-        instantProduct,
-        productStock,
-      };
-      fetcher.submit(
-        { intent: 'updateProduct', productId: product._id, patch } as unknown as Parameters<
-          typeof fetcher.submit
-        >[0],
-        { method: 'post', encType: 'application/json' },
-      );
-    } else {
-      const patch: CreateProductInput = {
-        productName: name,
-        productDescription: description_,
-        priceIncludingTax,
-        taxRate: taxRateBp,
-        productImageUrl,
-        instantProduct,
-        productStock,
-      };
-      fetcher.submit(
-        { intent: 'createProduct', standId, patch } as unknown as Parameters<
-          typeof fetcher.submit
-        >[0],
-        { method: 'post', encType: 'application/json' },
-      );
+    try {
+      if (isEdit) {
+        const patch: UpdateProductInput = {
+          productName: name,
+          productDescription,
+          priceIncludingTax,
+          taxRate: taxRateBp,
+          instantProduct,
+          productStock,
+        };
+        await updateProduct(product._id, patch);
+        // Image is a separate endpoint: upload a new one, or drop the old one.
+        if (imageFile) {
+          await uploadProductImage(product._id, imageFile);
+        } else if (removeExistingImage && product.productImageUrl) {
+          await deleteProductImage(product._id);
+        }
+      } else {
+        const patch: CreateProductInput = {
+          productName: name,
+          productDescription,
+          priceIncludingTax,
+          taxRate: taxRateBp,
+          instantProduct,
+          productStock,
+        };
+        // Create first to get the id, then attach the image if one was picked.
+        const created = await createProduct(standId, patch);
+        if (imageFile) {
+          await uploadProductImage(created._id, imageFile);
+        }
+      }
+
+      await revalidator.revalidate();
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+      setSaving(false);
     }
   }
-
-  const error = validationError ?? actionError;
 
   return (
     // z-[1100] sits above the navbar (z-[1001])
@@ -294,39 +319,28 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                 </div>
 
                 <div>
-                  <TextField
-                    id="product-image-url"
-                    label="Image URL (Optional)"
-                    value={imageUrl}
-                    onChange={(e) => handleImageUrlChange(e.target.value)}
-                    placeholder="https://…"
-                    type="url"
+                  <span className="mb-2 block text-sm font-medium text-text">
+                    Product Image (Optional)
+                  </span>
+                  <ImageDropzone
+                    previewUrl={previewUrl}
+                    onSelect={handleSelectImage}
+                    onRemove={handleRemoveImage}
+                    onError={setError}
+                    acceptedTypes={ACCEPTED_IMAGE_TYPES}
+                    maxBytes={MAX_IMAGE_BYTES}
+                    disabled={saving}
                   />
-                  {imageUrl.trim() &&
-                    (previewBroken ? (
-                      <p className="mt-2 text-xs text-text-muted">
-                        Preview unavailable — check the URL.
-                      </p>
-                    ) : (
-                      <div className="mt-2 h-40 overflow-hidden rounded-lg border border-border bg-surface-muted">
-                        <img
-                          alt="Product preview"
-                          className="h-full w-full object-contain"
-                          onError={() => setPreviewBroken(true)}
-                          src={imageUrl.trim()}
-                        />
-                      </div>
-                    ))}
                 </div>
               </div>
             </div>
 
             <div className="mt-6 flex justify-end gap-3 border-t pt-4">
-              <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+              <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={busy}>
-                {busy ? 'Saving...' : 'Save'}
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Saving...' : 'Save'}
               </Button>
             </div>
           </form>
