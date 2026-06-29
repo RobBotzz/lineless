@@ -82,30 +82,26 @@ function ChargeResultMessage({
   return null;
 }
 
-// Derived per-event figures shaped for the breakdown table. Figures use TOTAL
-// revenue earned: totalSales = charged sales + value still on open tabs. The row
-// then reads Total sales − Open tabs − Fees − Refunds = Available (net payout).
+// Derived per-event figures for the breakdown table. Sales and payout are kept
+// separate on purpose: totalSales is delivered revenue (card + cash, = the
+// items-sold table), while netPayout is the card money wired to the bank. They
+// are not the same number — cash is already in the organizer's hands — so the
+// row never pretends one subtracts down to the other.
 type EventRow = {
   event: EventPayoutBreakdown;
-  salesCents: number; // charged revenue, before refunds
-  openTabsCents: number; // delivered value on tabs not yet charged
-  totalSalesCents: number; // salesCents + openTabsCents
-  feesCents: number;
-  refundsCents: number;
-  availableCents: number;
+  totalSalesCents: number; // delivered gross (card + cash)
+  cashSalesCents: number; // of which paid in cash (already collected)
+  netPayoutCents: number; // card money to the bank
+  openTabsCents: number; // delivered card value not yet charged
 };
 
 function toRow(event: EventPayoutBreakdown): EventRow {
-  const feesCents = event.stripeFeeCents + event.platformFeeCents;
-  const salesCents = event.grossRevenueCents + event.cashRefundCents;
   return {
     event,
-    salesCents,
+    totalSalesCents: event.grossSalesCents,
+    cashSalesCents: event.cashSalesCents,
+    netPayoutCents: event.netPayoutCents,
     openTabsCents: event.onHoldReadyCents,
-    totalSalesCents: salesCents + event.onHoldReadyCents,
-    feesCents,
-    refundsCents: event.cashRefundCents,
-    availableCents: event.netPayoutCents,
   };
 }
 
@@ -127,31 +123,34 @@ function itemsSubtotal(items: ProductUnitsSold[]): { net: number; tax: number; g
   );
 }
 
-// A payout statement reads top-to-bottom like an invoice: total sales (incl.
-// tax), an informational tax line (the tax stays in the payout), then the
-// deductions — open tabs not yet charged, refunds, and fees — down to the net
-// payout. Built once and shared by the UI and the CSV export so the two can
-// never drift. Total sales − Open tabs − Refunds − Fees = Net payout.
-type StatementLine = { label: string; cents: number; kind: 'add' | 'sub' | 'info' | 'total' };
+// The statement is two clearly separated sections so capture timing can never
+// masquerade as a sales figure. SALES reports what was delivered (this matches
+// the items-sold table exactly); CARD PAYOUT is the money actually wired —
+// captured card minus Stripe fees minus the platform fee on every charged order
+// (cash included, netted out of the card pool). Built once and shared by the UI
+// and the CSV export so the two can never drift.
+//   Card sales captured − fees − platform fee = Net payout.
+type StatementKind = 'header' | 'add' | 'sub' | 'info' | 'total';
+type StatementLine = { label: string; cents: number | null; kind: StatementKind };
 
 function eventStatement(row: EventRow): StatementLine[] {
-  const { event, totalSalesCents, openTabsCents, refundsCents, availableCents } = row;
+  const { event, totalSalesCents, cashSalesCents } = row;
   const lines: StatementLine[] = [
+    { label: 'Sales', cents: null, kind: 'header' },
     { label: 'Total sales (incl. tax)', cents: totalSalesCents, kind: 'add' },
   ];
   if (event.taxCents > 0) {
     lines.push({ label: 'of which tax (included)', cents: event.taxCents, kind: 'info' });
   }
-  if (openTabsCents > 0) {
-    lines.push({ label: 'On open tabs (not yet charged)', cents: openTabsCents, kind: 'sub' });
-  }
-  if (refundsCents > 0) {
-    lines.push({ label: 'Cash refunds', cents: refundsCents, kind: 'sub' });
+  if (cashSalesCents > 0) {
+    lines.push({ label: 'of which paid in cash', cents: cashSalesCents, kind: 'info' });
   }
   lines.push(
+    { label: 'Card payout', cents: null, kind: 'header' },
+    { label: 'Card sales captured', cents: event.capturedCardCents, kind: 'add' },
     { label: 'Card processing fees', cents: event.stripeFeeCents, kind: 'sub' },
     { label: 'Platform fee (5¢/order)', cents: event.platformFeeCents, kind: 'sub' },
-    { label: 'Net payout', cents: availableCents, kind: 'total' },
+    { label: 'Net payout (to your bank)', cents: event.netPayoutCents, kind: 'total' },
   );
   return lines;
 }
@@ -213,10 +212,11 @@ function downloadEventCsv(row: EventRow) {
       formatMoney(subtotal.gross),
     ],
     [],
-    ...eventStatement(row).map((line) => [
-      line.label,
-      `${line.kind === 'sub' ? '-' : ''}${formatMoney(line.cents)}`,
-    ]),
+    ...eventStatement(row).map((line) =>
+      line.cents == null
+        ? [line.label]
+        : [line.label, `${line.kind === 'sub' ? '-' : ''}${formatMoney(line.cents)}`],
+    ),
   ];
   downloadCsv(`lineless-${slug(event.eventName)}-payout-${today()}.csv`, grid);
 }
@@ -386,12 +386,11 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
   const totals = rows.reduce(
     (acc, row) => ({
       sales: acc.sales + row.totalSalesCents,
+      cash: acc.cash + row.cashSalesCents,
+      payout: acc.payout + row.netPayoutCents,
       openTabs: acc.openTabs + row.openTabsCents,
-      fees: acc.fees + row.feesCents,
-      refunds: acc.refunds + row.refundsCents,
-      available: acc.available + row.availableCents,
     }),
-    { sales: 0, openTabs: 0, fees: 0, refunds: 0, available: 0 },
+    { sales: 0, cash: 0, payout: 0, openTabs: 0 },
   );
 
   return (
@@ -416,19 +415,16 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
                     Event
                   </th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">
-                    Sales
+                    Total sales
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">
+                    Cash
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">
+                    Card payout
                   </th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">
                     Open tabs
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">
-                    Fees
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">
-                    Refunds
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">
-                    Available
                   </th>
                 </tr>
               </thead>
@@ -442,10 +438,9 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
                   <tr>
                     <td className="px-4 py-3 text-left">Total</td>
                     <td className="px-4 py-3 text-right">{eur(totals.sales)}</td>
+                    <td className="px-4 py-3 text-right">{eur(totals.cash)}</td>
+                    <td className="px-4 py-3 text-right">{eur(totals.payout)}</td>
                     <td className="px-4 py-3 text-right">{eur(totals.openTabs)}</td>
-                    <td className="px-4 py-3 text-right">{eur(totals.fees)}</td>
-                    <td className="px-4 py-3 text-right">{eur(totals.refunds)}</td>
-                    <td className="px-4 py-3 text-right">{eur(totals.available)}</td>
                   </tr>
                 </tfoot>
               ) : null}
@@ -499,15 +494,16 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
         </td>
         <td className="px-4 py-3 text-right text-text">{eur(row.totalSalesCents)}</td>
         <td className="px-4 py-3 text-right text-text">
+          {row.cashSalesCents > 0 ? eur(row.cashSalesCents) : '—'}
+        </td>
+        <td className="px-4 py-3 text-right font-semibold text-text">{eur(row.netPayoutCents)}</td>
+        <td className="px-4 py-3 text-right text-text">
           {row.openTabsCents > 0 ? eur(row.openTabsCents) : '—'}
         </td>
-        <td className="px-4 py-3 text-right text-text">{eur(row.feesCents)}</td>
-        <td className="px-4 py-3 text-right text-text">{eur(row.refundsCents)}</td>
-        <td className="px-4 py-3 text-right font-semibold text-text">{eur(row.availableCents)}</td>
       </tr>
       {open ? (
         <tr id={detailId} className="border-t border-border bg-surface-muted/30">
-          <td colSpan={6} className="space-y-4 px-4 py-3">
+          <td colSpan={5} className="space-y-4 px-4 py-3">
             {hasOpenTabs ? (
               <div className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-2">
@@ -607,10 +603,12 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
               ))}
             </dl>
 
+            {/* Cash-flow timing context — not part of the sales or payout totals
+                above, just where the money currently sits. */}
             <div className="grid gap-2 sm:grid-cols-3">
-              <Detail label="Card revenue" value={eur(event.cardRevenueCents)} />
-              <Detail label="Cash revenue" value={eur(event.cashRevenueCents)} />
+              <Detail label="On open tabs (ready to charge)" value={eur(event.onHoldReadyCents)} />
               <Detail label="Settling on Stripe" value={eur(event.inTransitCents)} />
+              <Detail label="Cash refunds" value={eur(event.cashRefundCents)} />
             </div>
 
             <AlertDialog
@@ -635,9 +633,16 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
 }
 
 function StatementRow({ line }: { line: StatementLine }) {
+  if (line.kind === 'header') {
+    return (
+      <div className="pt-3 pb-1 text-xs font-semibold tracking-wide text-text-muted uppercase first:pt-0">
+        {line.label}
+      </div>
+    );
+  }
   const isTotal = line.kind === 'total';
   const isInfo = line.kind === 'info';
-  const amount = `${line.kind === 'sub' ? '−' : ''}${eur(line.cents)}`;
+  const amount = `${line.kind === 'sub' ? '−' : ''}${eur(line.cents ?? 0)}`;
   return (
     <div
       className={`flex justify-between py-1 ${isTotal ? 'mt-1 border-t border-border pt-2 text-base font-semibold text-text' : 'text-sm'} ${isInfo ? 'text-text-muted' : 'text-text'}`}

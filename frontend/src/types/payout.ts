@@ -12,16 +12,22 @@ export interface ProductUnitsSold {
   taxRateBp: number | null;
 }
 
+// Sales are recognized on delivery and method-agnostic, so grossSalesCents
+// equals the items-sold table total. netPayoutCents is card money only:
+// captured card minus Stripe fees minus the platform fee on every charged
+// order (cash included — netted out of the card pool, since cash never flows
+// through the platform).
 export interface EventPayoutBreakdown {
   eventId: string;
   eventName: string;
   eventStatus: EventStatus;
   paidOrderCount: number;
-  grossRevenueCents: number;
-  cardRevenueCents: number;
-  cashRevenueCents: number;
-  cashRefundCents: number;
+  chargedOrderCount: number;
+  grossSalesCents: number;
+  cashSalesCents: number;
   taxCents: number;
+  cashRefundCents: number;
+  capturedCardCents: number;
   stripeFeeCents: number;
   platformFeeCents: number;
   netPayoutCents: number;
