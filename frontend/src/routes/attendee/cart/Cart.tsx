@@ -37,6 +37,7 @@ export default function Cart() {
     return items.map((item) => ({
       productId: item.product._id,
       productName: item.product.productName,
+      standId: item.product.standId,
       standName: standNameById.get(item.product.standId) ?? '',
       unitPrice: item.product.priceIncludingTax,
       quantity: item.quantity,

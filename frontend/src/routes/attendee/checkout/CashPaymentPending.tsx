@@ -28,7 +28,7 @@ export default function CashPaymentPending() {
   // is ready for the payments ticket that adds order polling.
   useEffect(() => {
     if (state && isPaid) {
-      navigate(paths.attendee.checkoutConfirmed(eventId, state.order._id), {
+      navigate(paths.attendee.trackOrder(eventId, state.order._id), {
         replace: true,
         state,
       });

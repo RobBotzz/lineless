@@ -2,6 +2,8 @@ import 'leaflet/dist/leaflet.css';
 
 import { MapContainer, Marker, TileLayer } from 'react-leaflet';
 
+import { ExternalLinkIcon } from '@/components/icons';
+
 import { markerIcon } from './markerIcon';
 
 interface StaticLocationMapProps {
@@ -34,12 +36,13 @@ export function StaticLocationMap({
         </MapContainer>
       </div>
       <a
-        className="text-sm font-medium text-accent hover:underline"
+        className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
         href={mapsUrl}
         rel="noreferrer"
         target="_blank"
       >
         Open in Maps
+        <ExternalLinkIcon className="h-3.5 w-3.5" />
       </a>
     </div>
   );
