@@ -91,7 +91,7 @@ type EventRow = {
   event: EventPayoutBreakdown;
   totalSalesCents: number; // delivered gross (card + cash)
   cashSalesCents: number; // of which paid in cash (already collected)
-  netPayoutCents: number; // card money to the bank
+  cardSalesCents: number; // card portion of sales (captured + still on open tabs)
 };
 
 function toRow(event: EventPayoutBreakdown): EventRow {
@@ -99,7 +99,7 @@ function toRow(event: EventPayoutBreakdown): EventRow {
     event,
     totalSalesCents: event.grossSalesCents,
     cashSalesCents: event.cashSalesCents,
-    netPayoutCents: event.netPayoutCents,
+    cardSalesCents: event.grossSalesCents - event.cashSalesCents,
   };
 }
 
@@ -399,9 +399,9 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
     (acc, row) => ({
       sales: acc.sales + row.totalSalesCents,
       cash: acc.cash + row.cashSalesCents,
-      payout: acc.payout + row.netPayoutCents,
+      card: acc.card + row.cardSalesCents,
     }),
-    { sales: 0, cash: 0, payout: 0 },
+    { sales: 0, cash: 0, card: 0 },
   );
 
   return (
@@ -447,7 +447,7 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
                     <td className="px-4 py-3 text-left">Total</td>
                     <td className="px-4 py-3 text-right">{eur(totals.sales)}</td>
                     <td className="px-4 py-3 text-right">{eur(totals.cash)}</td>
-                    <td className="px-4 py-3 text-right">{eur(totals.payout)}</td>
+                    <td className="px-4 py-3 text-right">{eur(totals.card)}</td>
                   </tr>
                 </tfoot>
               ) : null}
@@ -502,7 +502,7 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
         <td className="px-4 py-3 text-right text-text">
           {row.cashSalesCents > 0 ? eur(row.cashSalesCents) : '—'}
         </td>
-        <td className="px-4 py-3 text-right font-semibold text-text">{eur(row.netPayoutCents)}</td>
+        <td className="px-4 py-3 text-right font-semibold text-text">{eur(row.cardSalesCents)}</td>
       </tr>
       {open ? (
         <tr id={detailId} className="border-t border-border bg-surface-muted/30">
