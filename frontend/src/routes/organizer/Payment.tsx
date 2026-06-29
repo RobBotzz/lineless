@@ -477,7 +477,7 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
                     Cashier
                   </th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">
-                    Online
+                    Online payments
                   </th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">
                     Total sales
