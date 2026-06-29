@@ -16,7 +16,6 @@ export const createProductSchema = z.object({
   productDescription: z.string().min(1).nullable().default(null),
   priceIncludingTax: cents,
   taxRate: taxRate,
-  productImageUrl: z.url().nullable().default(null),
   instantProduct: z.boolean().default(false),
   productStock: stock.default(0),
 });
@@ -26,7 +25,6 @@ export const updateProductSchema = z.object({
   productDescription: z.string().min(1).nullable().optional(),
   priceIncludingTax: cents.optional(),
   taxRate: taxRate.optional(),
-  productImageUrl: z.url().nullable().optional(),
   instantProduct: z.boolean().optional(),
   productStock: stock.optional(),
 });

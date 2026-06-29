@@ -109,7 +109,6 @@ export async function createProduct(
     productDescription: input.productDescription,
     priceIncludingTax: input.priceIncludingTax,
     taxRate: input.taxRate,
-    productImageUrl: input.productImageUrl,
     instantProduct: input.instantProduct,
     productStock: input.productStock,
   });
@@ -248,9 +247,6 @@ export async function updateProduct(
   if (patch.priceIncludingTax !== undefined)
     product.priceIncludingTax = patch.priceIncludingTax;
   if (patch.taxRate !== undefined) product.taxRate = patch.taxRate;
-  if (patch.productImageUrl !== undefined) {
-    product.productImageUrl = patch.productImageUrl;
-  }
   if (patch.instantProduct !== undefined) {
     product.instantProduct = patch.instantProduct;
   }
