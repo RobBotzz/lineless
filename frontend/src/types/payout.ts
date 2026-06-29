@@ -25,6 +25,7 @@ export interface EventPayoutBreakdown {
   chargedOrderCount: number;
   grossSalesCents: number;
   cashSalesCents: number;
+  pendingSalesCents: number;
   taxCents: number;
   cashRefundCents: number;
   capturedCardCents: number;
@@ -34,7 +35,10 @@ export interface EventPayoutBreakdown {
   onHoldReadyCents: number;
   onHoldAuthorizedCents: number;
   inTransitCents: number;
+  // Delivered items grouped by product (drive the sales figures).
   unitsSold: ProductUnitsSold[];
+  // Ordered, not-yet-ready items grouped by product (the operator pipeline).
+  pendingUnits: ProductUnitsSold[];
   computedAt: string;
 }
 

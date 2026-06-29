@@ -459,7 +459,6 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
   const { event } = row;
   const detailId = `event-breakdown-${event.eventId}`;
   const hasOpenTabs = event.onHoldReadyCents > 0;
-  const subtotal = itemsSubtotal(event.unitsSold);
 
   return (
     <>
@@ -542,60 +541,22 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
             </div>
 
             {event.unitsSold.length === 0 ? (
-              <p className="text-sm text-text-muted">No items sold yet.</p>
+              <p className="text-sm text-text-muted">No items delivered yet.</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="text-text-muted">
-                  <tr>
-                    <th scope="col" className="py-1 text-left font-medium">
-                      Item
-                    </th>
-                    <th scope="col" className="py-1 text-right font-medium">
-                      Units
-                    </th>
-                    <th scope="col" className="py-1 text-right font-medium">
-                      Net
-                    </th>
-                    <th scope="col" className="py-1 text-right font-medium">
-                      Tax
-                    </th>
-                    <th scope="col" className="py-1 text-right font-medium">
-                      Gross
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {event.unitsSold.map((item) => (
-                    <tr key={item.productId} className="border-t border-border/60">
-                      <td className="py-1 pr-2 text-text">{item.productName}</td>
-                      <td className="py-1 text-right text-text-muted">{item.unitsSold}</td>
-                      <td className="py-1 text-right text-text">{eur(item.netRevenueCents)}</td>
-                      <td className="py-1 text-right text-text">
-                        {eur(item.taxCents)}
-                        {item.taxRateBp != null ? (
-                          <span className="text-text-muted">
-                            {' '}
-                            ({formatTaxRate(item.taxRateBp)})
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="py-1 text-right font-medium text-text">
-                        {eur(item.grossRevenueCents)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t border-border font-medium text-text">
-                  <tr>
-                    <td className="py-1 pr-2">Subtotal</td>
-                    <td className="py-1 text-right" />
-                    <td className="py-1 text-right">{eur(subtotal.net)}</td>
-                    <td className="py-1 text-right">{eur(subtotal.tax)}</td>
-                    <td className="py-1 text-right">{eur(subtotal.gross)}</td>
-                  </tr>
-                </tfoot>
-              </table>
+              <UnitsTable items={event.unitsSold} />
             )}
+
+            {event.pendingUnits.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-text-muted">
+                  Being prepared (ordered, not yet ready)
+                </p>
+                <UnitsTable items={event.pendingUnits} />
+                <p className="text-xs text-text-muted">
+                  Not counted as sales until delivered — shown so nothing ordered is hidden.
+                </p>
+              </div>
+            ) : null}
 
             <dl className="rounded-lg border border-border bg-surface px-4 py-3">
               {eventStatement(row).map((line) => (
@@ -659,6 +620,60 @@ function Detail({ label, value }: { label: string; value: string }) {
       <p className="text-xs text-text-muted">{label}</p>
       <p className="text-sm font-medium text-text">{value}</p>
     </div>
+  );
+}
+
+// Per-product units table with a subtotal, shared by the delivered ("Items
+// sold") and the not-yet-ready ("Being prepared") breakdowns.
+function UnitsTable({ items }: { items: ProductUnitsSold[] }) {
+  const subtotal = itemsSubtotal(items);
+  return (
+    <table className="w-full text-sm">
+      <thead className="text-text-muted">
+        <tr>
+          <th scope="col" className="py-1 text-left font-medium">
+            Item
+          </th>
+          <th scope="col" className="py-1 text-right font-medium">
+            Units
+          </th>
+          <th scope="col" className="py-1 text-right font-medium">
+            Net
+          </th>
+          <th scope="col" className="py-1 text-right font-medium">
+            Tax
+          </th>
+          <th scope="col" className="py-1 text-right font-medium">
+            Gross
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((item) => (
+          <tr key={item.productId} className="border-t border-border/60">
+            <td className="py-1 pr-2 text-text">{item.productName}</td>
+            <td className="py-1 text-right text-text-muted">{item.unitsSold}</td>
+            <td className="py-1 text-right text-text">{eur(item.netRevenueCents)}</td>
+            <td className="py-1 text-right text-text">
+              {eur(item.taxCents)}
+              {item.taxRateBp != null ? (
+                <span className="text-text-muted"> ({formatTaxRate(item.taxRateBp)})</span>
+              ) : null}
+            </td>
+            <td className="py-1 text-right font-medium text-text">{eur(item.grossRevenueCents)}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot className="border-t border-border font-medium text-text">
+        <tr>
+          <td className="py-1 pr-2">Subtotal</td>
+          <td className="py-1 text-right" />
+          <td className="py-1 text-right">{eur(subtotal.net)}</td>
+          <td className="py-1 text-right">{eur(subtotal.tax)}</td>
+          <td className="py-1 text-right">{eur(subtotal.gross)}</td>
+        </tr>
+      </tfoot>
+    </table>
   );
 }
 
