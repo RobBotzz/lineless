@@ -3,7 +3,6 @@ import { Link } from 'react-router';
 import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
 import { AccountMenu, LandingPageNavbar } from '../components/layout/navbars';
 import { buttonVariants } from '../components/ui/button';
-import OrganizerFooter from '../components/layout/OperatorFooter';
 import { paths } from '../paths';
 
 const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
@@ -142,8 +141,6 @@ export default function Home() {
             </p>
           </div>
         </section>
-
-        <OrganizerFooter />
       </main>
     </div>
   );

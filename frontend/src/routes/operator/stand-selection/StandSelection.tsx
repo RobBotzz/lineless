@@ -8,17 +8,29 @@ import { loginOperator } from '@/api/stands';
 import { clearOperatorCredential, getCredential } from '@/auth/keychain';
 import { Button } from '@/components/ui/button';
 import { PasswordTextField } from '@/components/ui/password-text-field';
-import { CashierIcon, LockIcon, PickupIcon, PinIcon, StandIcon } from '@/components/icons';
+import {
+  ArrowRightIcon,
+  CashierIcon,
+  LockIcon,
+  PickupIcon,
+  PinIcon,
+  StandIcon,
+} from '@/components/icons';
 import { paths } from '@/paths';
 import { hasCoordinates } from '@/types/location';
 import type { Stand } from '@/types/stand';
-import { operatorStandsQueryOptions } from '../operatorQueries';
+import { operatorCashierStandQueryOptions, operatorStandsQueryOptions } from '../operatorQueries';
+
+// Shown when the cashier endpoint reports the cashier as unavailable (403/404).
+const CASHIER_DISABLED_MESSAGE =
+  'The cashier is disabled for this event. The organizer must enable it in the event settings to allow manual orders and cash payments.';
 
 const LINK_EXPIRED_MESSAGE = 'Link expired. Please reopen the operator link.';
 const LOGIN_FAILED_MESSAGE = 'Login failed. Please try again.';
 const WRONG_PASSWORD_OR_LINK_MESSAGE = 'Wrong password or invalid link.';
 
 type LoadState = 'loading' | 'ready' | 'invalid' | 'error';
+type CashierTileState = 'available' | 'loading' | 'unavailable';
 
 export default function StandSelection() {
   const { eventId } = useParams();
@@ -31,6 +43,12 @@ export default function StandSelection() {
 
   const operatorStandsQuery = useQuery({
     ...operatorStandsQueryOptions(eventId),
+    enabled: hasSessionForEvent && !!operatorAccessKey,
+  });
+  // The cashier has its own endpoint (it's excluded from the stand list). A 403/404
+  // here means "disabled/none" — we still show the tile, just greyed out.
+  const cashierStandQuery = useQuery({
+    ...operatorCashierStandQueryOptions(eventId),
     enabled: hasSessionForEvent && !!operatorAccessKey,
   });
   const [selectedStand, setSelectedStand] = useState<Stand | null>(null);
@@ -75,10 +93,15 @@ export default function StandSelection() {
         : 'error';
   }
   const stands = operatorStandsQuery.data ?? [];
-  // The cashier is a dedicated stand; surface it via its own tile and keep it out
-  // of the regular stand-dashboard list (it would otherwise render twice).
-  const cashierStand = stands.find((stand) => stand.standType === 'CASHIER');
+  // The cashier never appears in the stand list (backend excludes it); the
+  // dedicated query decides its tile state: active when enabled, greyed when
+  // disabled/missing (403/404), loading until it resolves.
   const productStands = stands.filter((stand) => stand.standType !== 'CASHIER');
+  const cashierState: CashierTileState = cashierStandQuery.data
+    ? 'available'
+    : cashierStandQuery.isError
+      ? 'unavailable'
+      : 'loading';
 
   const canUseOperatorSession = loadState === 'ready' && !!eventId && hasSessionForEvent;
 
@@ -135,7 +158,7 @@ export default function StandSelection() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 pb-12 pt-14 sm:px-6 lg:px-8">
         {loadState === 'invalid' && (
           <StatePanel
             title="Invalid operator link"
@@ -156,43 +179,57 @@ export default function StandSelection() {
         {loadState === 'loading' && <LoadingGrid />}
 
         {loadState === 'ready' && eventId && (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <SelectionTile
-                icon={<PickupIcon className="h-6 w-6" />}
-                meta="Orders ready for handoff"
-                onClick={() => navigateToSystemDashboard(paths.operator.pickupDashboard(eventId))}
-                title="Pick Up"
-              />
-              {cashierStand && (
-                <SelectionTile
-                  icon={<CashierIcon className="h-6 w-6" />}
-                  meta="Manual orders and cash payments"
-                  onClick={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
-                  title="Cashier"
-                />
-              )}
+          <div className="space-y-8">
+            <header>
+              <h1 className="text-3xl font-bold tracking-tight text-text">Operator Console</h1>
+              <p className="mt-2 text-base text-text-muted">
+                Open a stand’s live board, or jump straight to pickup and cashier.
+              </p>
+            </header>
 
-              {productStands.map((stand) => (
-                <StandSelectionTile
-                  key={stand._id}
-                  loggedIn={Boolean(loggedInStands[stand._id])}
-                  loading={loggingInStandId === stand._id}
-                  onClick={() => handleStandClick(stand)}
-                  stand={stand}
+            <section>
+              <SectionLabel>Tools</SectionLabel>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <ActionTile
+                  icon={<PickupIcon className="h-5 w-5" />}
+                  meta="Orders ready for handoff"
+                  onClick={() => navigateToSystemDashboard(paths.operator.pickupDashboard(eventId))}
+                  title="Pick Up"
                 />
-              ))}
-            </div>
-
-            {productStands.length === 0 && (
-              <div className="mt-6 rounded-lg border-2 border-dashed border-border bg-surface px-4 py-10 text-center">
-                <p className="text-sm font-medium text-text">No stands configured yet</p>
-                <p className="mt-1 text-sm text-text-muted">
-                  Pick Up and Cashier are available, but this event has no stand dashboards.
-                </p>
+                <CashierTile
+                  state={cashierState}
+                  onOpen={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
+                />
               </div>
-            )}
-          </>
+            </section>
+
+            <section>
+              <SectionLabel count={productStands.length}>Stands</SectionLabel>
+              {productStands.length > 0 ? (
+                <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {productStands.map((stand) => (
+                    <StandSelectionTile
+                      key={stand._id}
+                      loggedIn={Boolean(loggedInStands[stand._id])}
+                      loading={loggingInStandId === stand._id}
+                      onClick={() => handleStandClick(stand)}
+                      stand={stand}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-lg border-2 border-dashed border-border bg-surface px-4 py-10 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
+                    <StandIcon className="h-6 w-6" />
+                  </div>
+                  <p className="mt-4 text-sm font-medium text-text">No stands configured yet</p>
+                  <p className="mt-1 text-sm text-text-muted">
+                    The tools above are available, but this event has no stand dashboards.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
         )}
       </div>
 
@@ -205,6 +242,50 @@ export default function StandSelection() {
         password={password}
         stand={selectedStand}
       />
+    </div>
+  );
+}
+
+// Compact horizontal card for the event-wide tools (Pick Up, Cashier). Kept short
+// so a single tool doesn't leave a tall empty gap like the vertical stand tiles do.
+function ActionTile({
+  icon,
+  meta,
+  onClick,
+  title,
+}: {
+  icon: ReactNode;
+  meta: string;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      className="group flex min-h-32 items-center gap-4 rounded-lg border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      onClick={onClick}
+      type="button"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-semibold text-text">{title}</span>
+        <span className="mt-0.5 block truncate text-sm text-text-muted">{meta}</span>
+      </span>
+      <ArrowRightIcon className="h-5 w-5 shrink-0 text-text-muted transition group-hover:translate-x-0.5 group-hover:text-accent" />
+    </button>
+  );
+}
+
+function SectionLabel({ children, count }: { children: ReactNode; count?: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{children}</h2>
+      {typeof count === 'number' && (
+        <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-text-muted">
+          {count}
+        </span>
+      )}
     </div>
   );
 }
@@ -233,7 +314,7 @@ function StandSelectionTile({
 
   return (
     <SelectionTile
-      icon={<StandIcon className="h-6 w-6" />}
+      icon={<StandIcon className="h-5 w-5" />}
       loggedIn={loggedIn}
       locked={stand.requiresPassword}
       loading={loading}
@@ -242,6 +323,54 @@ function StandSelectionTile({
       onClick={onClick}
       title={stand.standName}
     />
+  );
+}
+
+// Mirrors ActionTile's horizontal layout so the Tools row stays consistent. When
+// available it's a normal action card; otherwise it's a greyed, dashed card —
+// "Checking availability…" while loading, and on hover an explanation when the
+// cashier is disabled (403/404).
+function CashierTile({ state, onOpen }: { state: CashierTileState; onOpen: () => void }) {
+  if (state === 'available') {
+    return (
+      <ActionTile
+        icon={<CashierIcon className="h-5 w-5" />}
+        meta="Manual orders and cash payments"
+        onClick={onOpen}
+        title="Cashier"
+      />
+    );
+  }
+
+  const unavailable = state === 'unavailable';
+  return (
+    <div
+      className={[
+        'group relative flex min-h-32 items-center gap-4 overflow-hidden rounded-lg border border-dashed border-border bg-surface p-4',
+        state === 'loading' ? 'animate-pulse' : '',
+      ].join(' ')}
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
+        <CashierIcon className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-semibold text-text-muted">Cashier</span>
+        {unavailable ? (
+          <span className="mt-1 inline-flex items-center rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-text-muted">
+            Not available
+          </span>
+        ) : (
+          <span className="mt-0.5 block text-sm text-text-muted">Checking availability…</span>
+        )}
+      </span>
+
+      {/* Explanation fades in while the cursor is over the tile (hover only). */}
+      {unavailable && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-surface p-4 text-center opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          <p className="text-sm leading-6 text-text-muted">{CASHIER_DISABLED_MESSAGE}</p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -266,35 +395,49 @@ function SelectionTile({
 }) {
   return (
     <button
-      className="group min-h-36 rounded-lg border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
+      className="group flex min-h-32 flex-col rounded-lg border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
       disabled={loading}
       onClick={onClick}
       type="button"
     >
-      <span className="flex items-start justify-between gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
+      {/* Fixed-height zones (icon · title · meta · footer) so every tile is laid
+          out identically whether or not it has a badge or a meta line. */}
+      <span className="flex h-10 shrink-0 items-start justify-between gap-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
           {icon}
         </span>
         {loggedIn ? (
-          <span className="inline-flex items-center rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent">
+          <span className="inline-flex items-center rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
             Logged in
           </span>
         ) : locked ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-text-muted">
+          <span className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger">
             <LockIcon className="h-3.5 w-3.5" />
             Password
           </span>
         ) : null}
       </span>
-      <span className="mt-5 block text-lg font-semibold text-text">
+
+      <span className="mt-3 block shrink-0 truncate text-base font-semibold leading-6 text-text">
         {loading ? 'Signing in…' : title}
       </span>
-      {meta && (
-        <span className="mt-2 flex items-center gap-1.5 text-sm text-text-muted">
-          {metaIcon}
-          <span className="truncate">{meta}</span>
+
+      {/* Always reserved so cards align regardless of whether a meta line exists. */}
+      <span className="mt-1.5 flex h-5 min-w-0 shrink-0 items-center gap-1.5 text-sm text-text-muted">
+        {meta ? (
+          <>
+            {metaIcon}
+            <span className="truncate">{meta}</span>
+          </>
+        ) : null}
+      </span>
+
+      <span className="mt-auto flex items-center justify-end pt-2 text-xs font-semibold text-text-muted transition-colors group-hover:text-accent">
+        <span className="inline-flex items-center gap-1">
+          Open
+          <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </span>
-      )}
+      </span>
     </button>
   );
 }
@@ -304,12 +447,12 @@ function LoadingGrid() {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
       {Array.from({ length: 5 }).map((_, index) => (
         <div
-          className="min-h-36 animate-pulse rounded-lg border border-border bg-surface p-5 shadow-sm"
+          className="h-32 animate-pulse rounded-lg border border-border bg-surface p-4 shadow-sm"
           key={index}
         >
-          <div className="h-12 w-12 rounded-lg bg-surface-muted" />
-          <div className="mt-5 h-5 w-2/3 rounded bg-surface-muted" />
-          <div className="mt-3 h-4 w-1/2 rounded bg-surface-muted" />
+          <div className="h-10 w-10 rounded-lg bg-surface-muted" />
+          <div className="mt-3 h-5 w-2/3 rounded bg-surface-muted" />
+          <div className="mt-2 h-4 w-1/2 rounded bg-surface-muted" />
         </div>
       ))}
     </div>

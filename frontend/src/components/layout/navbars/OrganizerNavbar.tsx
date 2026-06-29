@@ -31,7 +31,8 @@ export function OrganizerNavbar({
   activeCenterLinkTo,
 }: OrganizerNavbarProps) {
   const left = (
-    <Link className="inline-flex items-center" to={paths.home}>
+    // Organizer navbar: the logo returns to the events overview, not the public home.
+    <Link className="inline-flex items-center" to={paths.organizer.root}>
       {logoSrc ? (
         <img alt={title} className="h-10 w-10 object-contain" src={logoSrc} />
       ) : title === 'lineless' ? (

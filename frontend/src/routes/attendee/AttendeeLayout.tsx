@@ -21,7 +21,7 @@ export default function AttendeeLayout() {
             right={<NavbarActions eventId={eventId} />}
             widthClassName={ATTENDEE_WIDTH}
           />
-          <main className={`mx-auto ${ATTENDEE_WIDTH} pb-28 pt-4`}>
+          <main className={`mx-auto ${ATTENDEE_WIDTH} pb-6 pt-4`}>
             <Outlet />
           </main>
         </div>
