@@ -14,7 +14,9 @@ export type {
   ProductRating,
   ProductStockAlert,
   RevenuePoint,
+  RevenueProductBreakdown,
   StandAlertThreshold,
+  StandRevenuePoint,
   StandQueueMetric,
   StandRevenueSeries,
 } from '@/types/eventControlCenter';

@@ -43,8 +43,22 @@ export type RevenueIntervalPoint = {
 export type RevenueStandSeries = {
   color: string;
   data: number[];
+  intervals: RevenueStandIntervalPoint[];
   standId: string;
   standName: string;
+};
+
+export type RevenueStandIntervalPoint = {
+  orderCount: number;
+  products: RevenueStandIntervalProduct[];
+  revenueCents: number;
+};
+
+export type RevenueStandIntervalProduct = {
+  productId: string;
+  productName: string;
+  quantitySold: number;
+  revenueCents: number;
 };
 
 export type RevenueChartModel = {
@@ -102,16 +116,21 @@ export function createRevenueChartModel(
     bucketMinutes,
     windowStartMinutes,
   );
-  const standSeries = rankedStandEntries.map((stand, index) => ({
-    color: getRevenueStandColor(index),
-    data: createStandRevenueData(
+  const standSeries = rankedStandEntries.map((stand, index) => {
+    const intervals = createStandRevenueIntervalPoints(
       standRevenue.find((series) => series.standId === stand.standId)?.points ?? [],
       bucketMinutes,
       intervalPoints,
-    ),
-    standId: stand.standId,
-    standName: stand.standName,
-  }));
+    );
+
+    return {
+      color: getRevenueStandColor(index),
+      data: intervals.map((interval) => interval.revenueCents),
+      intervals,
+      standId: stand.standId,
+      standName: stand.standName,
+    };
+  });
   const totalBreakdownInput = rankedStandEntries
     .map((stand, index) => {
       const revenueCents = standRevenueCentsById.get(stand.standId) ?? 0;
@@ -219,12 +238,19 @@ function createRevenueIntervalPoints(
   return intervalPoints;
 }
 
-function createStandRevenueData(
-  points: RevenuePoint[],
+function createStandRevenueIntervalPoints(
+  points: StandRevenueSeries['points'],
   bucketMinutes: number,
   intervalPoints: RevenueIntervalPoint[],
-): number[] {
-  const revenueByStartMinute = new Map<number, number>();
+): RevenueStandIntervalPoint[] {
+  const bucketByStartMinute = new Map<
+    number,
+    {
+      orderCount: number;
+      productsById: Map<string, RevenueStandIntervalProduct>;
+      revenueCents: number;
+    }
+  >();
   const firstInterval = intervalPoints[0];
   if (!firstInterval) return [];
 
@@ -235,15 +261,50 @@ function createStandRevenueData(
     if (bucketIndex < 0 || bucketIndex >= intervalPoints.length) continue;
 
     const bucketStartMinute = windowStartMinutes + bucketIndex * bucketMinutes;
-    revenueByStartMinute.set(
-      bucketStartMinute,
-      (revenueByStartMinute.get(bucketStartMinute) ?? 0) + point.intervalRevenueCents,
-    );
+    const bucket = bucketByStartMinute.get(bucketStartMinute) ?? {
+      orderCount: 0,
+      productsById: new Map<string, RevenueStandIntervalProduct>(),
+      revenueCents: 0,
+    };
+
+    bucket.orderCount += point.orderCount;
+    bucket.revenueCents += point.intervalRevenueCents;
+    for (const product of point.products) {
+      const productBucket = bucket.productsById.get(product.productId) ?? {
+        productId: product.productId,
+        productName: product.productName,
+        quantitySold: 0,
+        revenueCents: 0,
+      };
+
+      productBucket.quantitySold += product.quantitySold;
+      productBucket.revenueCents += product.revenueCents;
+      bucket.productsById.set(product.productId, productBucket);
+    }
+    bucketByStartMinute.set(bucketStartMinute, bucket);
   }
 
-  return intervalPoints.map(
-    (intervalPoint) => revenueByStartMinute.get(intervalPoint.intervalStartMinutes) ?? 0,
-  );
+  return intervalPoints.map((intervalPoint) => {
+    const bucket = bucketByStartMinute.get(intervalPoint.intervalStartMinutes);
+    if (!bucket) {
+      return {
+        orderCount: 0,
+        products: [],
+        revenueCents: 0,
+      };
+    }
+
+    return {
+      orderCount: bucket.orderCount,
+      products: [...bucket.productsById.values()].sort(
+        (left, right) =>
+          right.revenueCents - left.revenueCents ||
+          right.quantitySold - left.quantitySold ||
+          left.productName.localeCompare(right.productName),
+      ),
+      revenueCents: bucket.revenueCents,
+    };
+  });
 }
 
 function getStandRevenueCents(series: StandRevenueSeries): number {

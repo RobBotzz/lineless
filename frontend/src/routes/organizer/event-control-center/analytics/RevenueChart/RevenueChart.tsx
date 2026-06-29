@@ -32,8 +32,15 @@ type RevenueChartOption = ComposeOption<
 
 type TooltipParam = {
   dataIndex?: number;
+  seriesIndex?: number;
   seriesName?: string;
   value?: number | string | Array<number | string | null>;
+};
+
+type ChartHoverEvent = {
+  componentType?: string;
+  seriesIndex?: number;
+  seriesType?: string;
 };
 
 export function RevenueChart({
@@ -49,6 +56,7 @@ export function RevenueChart({
 }) {
   const chartElementRef = useRef<HTMLDivElement | null>(null);
   const chartInstanceRef = useRef<ECharts | null>(null);
+  const hoveredSeriesIndexRef = useRef<number | null>(null);
   const [timeRangeMinutes, setTimeRangeMinutes] = useState<RevenueTimeRangeMinutes>(
     REVENUE_TIME_RANGE_OPTIONS[0]!.minutes,
   );
@@ -57,7 +65,6 @@ export function RevenueChart({
       createRevenueChartModel(points, standRevenue, standNameById, eventStartAt, timeRangeMinutes),
     [eventStartAt, points, standNameById, standRevenue, timeRangeMinutes],
   );
-  const chartOption = useMemo(() => createRevenueChartOption(model), [model]);
   const hasRevenueInSelectedRange = model.points.some((point) => point.revenueCents > 0);
   const hasTotalRevenue = model.totalBreakdown.some((entry) => entry.revenueCents > 0);
 
@@ -67,19 +74,53 @@ export function RevenueChart({
 
     const chart = echarts.init(element, undefined, { renderer: 'svg' });
     chartInstanceRef.current = chart;
+    const clearHoveredSeries = () => {
+      hoveredSeriesIndexRef.current = null;
+    };
+    const setHoveredSeries = (event: unknown) => {
+      const hoverEvent = normalizeChartHoverEvent(event);
+      if (
+        hoverEvent?.componentType !== 'series' ||
+        hoverEvent.seriesType !== 'line' ||
+        typeof hoverEvent.seriesIndex !== 'number'
+      ) {
+        return;
+      }
+
+      hoveredSeriesIndexRef.current = hoverEvent.seriesIndex;
+    };
+    const clearHoveredLineSeries = (event: unknown) => {
+      const hoverEvent = normalizeChartHoverEvent(event);
+      if (hoverEvent?.componentType !== 'series' || hoverEvent.seriesType !== 'line') return;
+
+      clearHoveredSeries();
+    };
+
+    chart.on('mouseover', setHoveredSeries);
+    chart.on('mouseout', clearHoveredLineSeries);
+    chart.on('globalout', clearHoveredSeries);
     const resizeObserver = new ResizeObserver(() => chart.resize());
     resizeObserver.observe(element);
 
     return () => {
       resizeObserver.disconnect();
+      chart.off('mouseover', setHoveredSeries);
+      chart.off('mouseout', clearHoveredLineSeries);
+      chart.off('globalout', clearHoveredSeries);
       chart.dispose();
       chartInstanceRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    chartInstanceRef.current?.setOption(chartOption, { notMerge: true });
-  }, [chartOption]);
+    hoveredSeriesIndexRef.current = null;
+    chartInstanceRef.current?.setOption(
+      createRevenueChartOption(model, () => hoveredSeriesIndexRef.current),
+      {
+        notMerge: true,
+      },
+    );
+  }, [model]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background">
@@ -115,7 +156,10 @@ export function RevenueChart({
   );
 }
 
-function createRevenueChartOption(model: RevenueChartModel): RevenueChartOption {
+function createRevenueChartOption(
+  model: RevenueChartModel,
+  getHoveredSeriesIndex: () => number | null,
+): RevenueChartOption {
   return {
     animationDuration: 650,
     color: model.standSeries.map((series) => series.color),
@@ -135,7 +179,7 @@ function createRevenueChartOption(model: RevenueChartModel): RevenueChartOption 
       className: 'revenue-chart-tooltip',
       confine: true,
       extraCssText: 'box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);',
-      formatter: (params: unknown) => formatRevenueTooltip(params, model),
+      formatter: (params: unknown) => formatRevenueTooltip(params, model, getHoveredSeriesIndex()),
       padding: 0,
       trigger: 'axis',
       triggerOn: 'mousemove|click|mousewheel',
@@ -335,7 +379,11 @@ function RevenueEmptyState({ hasTotalRevenue }: { hasTotalRevenue: boolean }) {
   );
 }
 
-function formatRevenueTooltip(params: unknown, model: RevenueChartModel): string {
+function formatRevenueTooltip(
+  params: unknown,
+  model: RevenueChartModel,
+  hoveredSeriesIndex: number | null,
+): string {
   const tooltipParams = normalizeTooltipParams(params);
   const dataIndex = tooltipParams.find((param) => typeof param.dataIndex === 'number')?.dataIndex;
   if (typeof dataIndex !== 'number') return '';
@@ -343,16 +391,28 @@ function formatRevenueTooltip(params: unknown, model: RevenueChartModel): string
   const point = model.points[dataIndex];
   if (!point) return '';
 
-  const averageOrderValueCents =
-    point.orderCount > 0 ? Math.round(point.revenueCents / point.orderCount) : 0;
+  const hoveredSeries =
+    typeof hoveredSeriesIndex === 'number' ? model.standSeries[hoveredSeriesIndex] : undefined;
+  const hoveredSeriesInterval = hoveredSeries?.intervals[dataIndex];
+  const revenueCents = hoveredSeriesInterval?.revenueCents ?? point.revenueCents;
+  const orderCount = hoveredSeriesInterval?.orderCount ?? point.orderCount;
+  const averageOrderValueCents = orderCount > 0 ? Math.round(revenueCents / orderCount) : 0;
   const entries = model.standSeries
     .map((series) => ({
       color: series.color,
-      revenueCents: series.data[dataIndex] ?? 0,
+      revenueCents: series.intervals[dataIndex]?.revenueCents ?? 0,
       standName: series.standName,
     }))
     .filter((entry) => entry.revenueCents > 0)
     .sort((left, right) => right.revenueCents - left.revenueCents);
+  const focusedStandBadge = hoveredSeries
+    ? `
+      <div class="mt-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-text">
+        <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:${hoveredSeries.color}"></span>
+        <span class="truncate">${escapeHtml(hoveredSeries.standName)}</span>
+      </div>
+    `
+    : '';
   const standRows =
     entries.length > 0
       ? entries
@@ -369,28 +429,54 @@ function formatRevenueTooltip(params: unknown, model: RevenueChartModel): string
           )
           .join('')
       : '<p class="mt-2 text-text-muted">No stand revenue in this interval</p>';
+  const productRows = hoveredSeriesInterval
+    ? hoveredSeriesInterval.products.length > 0
+      ? hoveredSeriesInterval.products
+          .map(
+            (product) => `
+              <div class="mt-2 flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="truncate text-text">${escapeHtml(product.productName)}</p>
+                  <p class="text-xs text-text-muted">Qty ${product.quantitySold}</p>
+                </div>
+                <span class="shrink-0 font-semibold tabular-nums text-text">EUR ${formatMoney(product.revenueCents)}</span>
+              </div>
+            `,
+          )
+          .join('')
+      : '<p class="mt-2 text-text-muted">No product sales in this interval</p>'
+    : '';
+  const breakdownMarkup = hoveredSeries
+    ? `
+      <div class="mt-3 border-t border-border pt-2">
+        <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Products sold</p>
+        ${productRows}
+      </div>
+    `
+    : `<div class="mt-3 border-t border-border pt-2">${standRows}</div>`;
 
   return `
-    <div class="w-64 rounded-md bg-background p-3 text-sm text-text">
+    <div class="w-72 rounded-md bg-background p-3 text-sm text-text">
       <p class="text-xs font-medium tabular-nums text-text-muted">${formatIntervalLabel(
         point.intervalStartAt,
         point.intervalEndAt,
       )}</p>
+      ${focusedStandBadge}
       <div class="mt-2 space-y-1.5">
         <div class="flex justify-between gap-3">
           <span class="text-text-muted">Revenue</span>
-          <span class="font-semibold tabular-nums text-text">EUR ${formatMoney(point.revenueCents)}</span>
+          <span class="font-semibold tabular-nums text-text">EUR ${formatMoney(revenueCents)}</span>
         </div>
         <div class="flex justify-between gap-3">
           <span class="text-text-muted">Orders</span>
-          <span class="font-semibold tabular-nums text-text">${point.orderCount}</span>
+          <span class="font-semibold tabular-nums text-text">${orderCount}</span>
         </div>
         <div class="flex justify-between gap-3">
           <span class="text-text-muted">AOV</span>
           <span class="font-semibold tabular-nums text-text">EUR ${formatMoney(averageOrderValueCents)}</span>
         </div>
       </div>
-      <div class="mt-3 border-t border-border pt-2">${standRows}</div>
+      ${breakdownMarkup}
     </div>
   `;
 }
@@ -401,6 +487,12 @@ function normalizeTooltipParams(params: unknown): TooltipParam[] {
   return rawParams.filter((param): param is TooltipParam => {
     return typeof param === 'object' && param !== null;
   });
+}
+
+function normalizeChartHoverEvent(event: unknown): ChartHoverEvent | null {
+  if (typeof event !== 'object' || event === null) return null;
+
+  return event as ChartHoverEvent;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
