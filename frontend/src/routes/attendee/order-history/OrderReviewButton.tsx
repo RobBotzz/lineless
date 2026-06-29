@@ -24,7 +24,7 @@ export function OrderReviewButton({ orderId, eventId, rateableProductIds }: Prop
     rateableProductIds.length > 0 && rateableProductIds.every((id) => ratedIds.has(id));
 
   return (
-    <Link to={paths.attendee.reviewOrder(eventId, orderId)} className="mt-2 block">
+    <Link to={paths.attendee.reviewOrder(eventId, orderId)} className="block">
       <Button
         variant="default"
         className="w-full h-12 rounded-xl gap-2 shadow-[0_8px_24px_rgba(2,8,135,0.25)]"
