@@ -11,6 +11,7 @@ import { ordersRouter } from "../modules/orders/routes";
 import sessionsRouter from "../modules/sessions/routes";
 import tabsRouter from "../modules/tabs/routes";
 import { eventControlCenterRouter } from "../modules/eventControlCenter/routes";
+import { pickupBoardRouter } from "../modules/pickupBoard/routes";
 import {
   authAttendee,
   authOrganizer,
@@ -18,6 +19,7 @@ import {
   authOrganizerOrAttendeeOrEventLink,
   authOrganizerOrOperator,
   authOrganizerOrOperatorOrAttendee,
+  authOperatorLink,
 } from "../middleware/auth/guards";
 
 // =============================================================================
@@ -37,6 +39,11 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
     base: "/api/events/:eventId/event-control-center",
     router: eventControlCenterRouter,
     tag: "Event Control Center",
+  },
+  {
+    base: "/api/events/:eventId/pickup-board",
+    router: pickupBoardRouter,
+    tag: "PickUp Board",
   },
   {
     base: "/api/events/:eventId/stands",
@@ -59,6 +66,7 @@ type SecurityRequirement = Record<string, string[]>;
 const AUTH = new Map<unknown, SecurityRequirement[]>([
   [authOrganizer, [{ organizerAuth: [] }]],
   [authAttendee, [{ attendeeSessionAuth: [] }]],
+  [authOperatorLink, [{ operatorAccessKey: [] }]],
   [
     authOrganizerOrAttendeeOrEventLink,
     [
@@ -288,6 +296,10 @@ export const openapiSpec = {
     {
       name: "Event Control Center",
       description: "Organizer live operations, analytics, and controls",
+    },
+    {
+      name: "PickUp Board",
+      description: "Event-wide live pickup monitor for operators",
     },
     {
       name: "Stands",

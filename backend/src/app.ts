@@ -20,6 +20,7 @@ import {
 } from "./modules/ratings/routes";
 import { operatorRouter } from "./modules/operator/routes";
 import { eventControlCenterRouter } from "./modules/eventControlCenter/routes";
+import { pickupBoardRouter } from "./modules/pickupBoard/routes";
 import { openapiSpec } from "./docs/openapi";
 
 const app = express();
@@ -50,6 +51,7 @@ app.use("/api/account", accountRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/events/:eventId/event-control-center", eventControlCenterRouter);
+app.use("/api/events/:eventId/pickup-board", pickupBoardRouter);
 app.use("/api/events/:eventId/stands", eventStandsRouter);
 app.use("/api/events/:eventId/products", eventProductsRouter);
 app.use("/api/stands/:standId/products", standProductsRouter);

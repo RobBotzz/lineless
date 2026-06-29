@@ -22,6 +22,8 @@
 | Events   | `GET /api/events/:eventId/event-control-center/stream`        | no     | own event | no             | no            |
 | Events   | `GET /api/events/:eventId/event-control-center/orders`        | no     | own event | no             | no            |
 | Events   | `GET /api/events/:eventId/event-control-center/orders/stream` | no     | own event | no             | no            |
+| Events   | `GET /api/events/:eventId/pickup-board`                       | no     | no        | event link key | no            |
+| Events   | `GET /api/events/:eventId/pickup-board/stream`                | no     | no        | event link key | no            |
 | Orders   | `POST /api/orders/:orderId/cancel`                            | no     | own event | no             | no            |
 | Orders   | `POST /api/orders/:orderId/items/cancel`                      | no     | own event | no             | no            |
 | Stands   | `POST /api/events/:eventId/stands`                            | no     | own event | no             | no            |
