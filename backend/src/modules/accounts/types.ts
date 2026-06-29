@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isValidIban } from "../../shared/iban";
+import { isValidIban, normalizeIban } from "../../shared/iban";
 
 const emailSchema = z.email("Invalid email format");
 
@@ -43,6 +43,9 @@ export const updateAccountSchema = z
     firstName: z.string().optional(),
     lastName: z.string().optional(),
     // Allow null/empty to clear the IBAN; otherwise enforce the MOD-97 checksum.
+    // A blank/whitespace value clears it (null) rather than being stored as an
+    // unusable transfer destination; a valid value is canonicalized (no spaces,
+    // uppercase). `undefined` is preserved so an omitted field is not a clear.
     iban: z
       .string()
       .nullable()
@@ -52,6 +55,13 @@ export const updateAccountSchema = z
         {
           message: "Invalid IBAN",
         }
+      )
+      .transform((value) =>
+        value == null
+          ? value
+          : value.trim() === ""
+            ? null
+            : normalizeIban(value)
       ),
     // Trim and bound the holder name; a blank/whitespace value clears it (null)
     // rather than being stored as an unusable transfer destination.
