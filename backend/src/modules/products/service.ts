@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Product, type ProductDoc } from "./model";
 import { ProductImage, type ProductImageDoc } from "./image.model";
 import {
@@ -372,12 +373,8 @@ export async function deleteProductImage(
   await verifyStandOwnership(product.standId, accountId);
 
   await ProductImage.deleteOne({ productId });
-  // Only clear the field if it pointed at our endpoint — never clobber an
-  // external URL the organizer may have set instead.
-  if (product.productImageUrl === productImageServeUrl(productId)) {
-    product.productImageUrl = null;
-    await product.save();
-  }
+  product.productImageUrl = null;
+  await product.save();
   return product.toObject();
 }
 
@@ -388,7 +385,18 @@ export async function softDeleteProduct(
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
   await verifyStandOwnership(product.standId, accountId);
-  product.deletedAt = new Date();
-  await product.save();
-  await ProductImage.deleteOne({ productId });
+
+  // Soft-deleting the product and dropping its (heavy) image binary must be
+  // atomic — otherwise a crash between the two writes leaves either an orphaned
+  // ProductImage or a live product pointing at a missing image.
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      product.deletedAt = new Date();
+      await product.save({ session: dbSession });
+      await ProductImage.deleteOne({ productId }, { session: dbSession });
+    });
+  } finally {
+    await dbSession.endSession();
+  }
 }
