@@ -144,6 +144,9 @@ export function clearOperatorCredential(): void {
 export interface AttendeeSession {
   sessionId: string;
   expiresAt: string;
+  // Email the attendee gave at checkout, remembered so we don't ask again while
+  // the same session is active (the backend has no read endpoint for it).
+  email?: string;
 }
 
 export interface AttendeeTab {
@@ -164,7 +167,11 @@ function parseAttendee(data: Record<string, unknown>): AttendeeCredential | null
   if (isRecord(data.sessions)) {
     for (const [eventId, value] of Object.entries(data.sessions)) {
       if (isRecord(value) && isString(value.sessionId) && isString(value.expiresAt)) {
-        sessions[eventId] = { sessionId: value.sessionId, expiresAt: value.expiresAt };
+        sessions[eventId] = {
+          sessionId: value.sessionId,
+          expiresAt: value.expiresAt,
+          ...(isString(value.email) ? { email: value.email } : {}),
+        };
       }
     }
   }
@@ -204,6 +211,15 @@ function emptyAttendeeCredential(): AttendeeCredential {
 export function setAttendeeSession(eventId: string, sessionId: string, expiresAt: string): void {
   const credential = getCredential('attendee') ?? emptyAttendeeCredential();
   credential.sessions[eventId] = { sessionId, expiresAt };
+  write(KEYS.attendee, credential);
+  notifyAttendee();
+}
+
+export function rememberAttendeeEmail(eventId: string, email: string): void {
+  const credential = getCredential('attendee');
+  const session = credential?.sessions[eventId];
+  if (!credential || !session) return;
+  credential.sessions[eventId] = { ...session, email };
   write(KEYS.attendee, credential);
   notifyAttendee();
 }
