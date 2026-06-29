@@ -225,13 +225,11 @@ export default function Payment() {
   const { overview } = useLoaderData() as PaymentLoaderData;
   const rows = overview.events.map(toRow);
 
-  // Delivered-but-uncharged tab value the organizer can release by charging.
+  // Delivered-but-uncharged tab value, surfaced as a stat. Charging happens
+  // per-event in the breakdown below.
   const openTabsReady = overview.events.reduce((sum, e) => sum + e.onHoldReadyCents, 0);
 
   const bankReady = Boolean(overview.iban && overview.ibanHolderName);
-  const openTabEventIds = overview.events
-    .filter((e) => e.onHoldReadyCents > 0)
-    .map((e) => e.eventId);
 
   return (
     <div className="space-y-6">
@@ -249,7 +247,6 @@ export default function Payment() {
             openTabsReady={openTabsReady}
             inTransit={overview.inTransitCents}
             bankReady={bankReady}
-            openTabEventIds={openTabEventIds}
           />
           <EventBreakdownCard rows={rows} />
         </div>
@@ -278,19 +275,14 @@ function AvailableForPayoutCard({
   openTabsReady,
   inTransit,
   bankReady,
-  openTabEventIds,
 }: {
   availableNow: number;
   openTabsReady: number;
   inTransit: number;
   bankReady: boolean;
-  openTabEventIds: string[];
 }) {
-  const charge = useChargeTabs();
   const payoutFetcher = useFetcher<PaymentActionResult>();
-  // Which real-money action awaits confirmation, if any.
-  const [confirm, setConfirm] = useState<'charge' | 'payout' | null>(null);
-  const hasOpenTabs = openTabEventIds.length > 0;
+  const [confirmPayout, setConfirmPayout] = useState(false);
   const canPayout = bankReady && availableNow > 0;
 
   const payingOut = payoutFetcher.state !== 'idle';
@@ -300,17 +292,13 @@ function AvailableForPayoutCard({
   const payoutError = payoutSettled && !payoutSettled.ok ? payoutSettled.error : null;
   const showPayout = useDismissAfter(payoutSettled);
 
-  function confirmAction() {
-    if (confirm === 'charge') {
-      charge.charge(openTabEventIds);
-    } else if (confirm === 'payout') {
-      const payload: PaymentActionBody = { intent: 'request-payout' };
-      void payoutFetcher.submit(payload as unknown as Parameters<typeof payoutFetcher.submit>[0], {
-        method: 'post',
-        encType: 'application/json',
-      });
-    }
-    setConfirm(null);
+  function requestPayout() {
+    const payload: PaymentActionBody = { intent: 'request-payout' };
+    void payoutFetcher.submit(payload as unknown as Parameters<typeof payoutFetcher.submit>[0], {
+      method: 'post',
+      encType: 'application/json',
+    });
+    setConfirmPayout(false);
   }
 
   return (
@@ -363,7 +351,7 @@ function AvailableForPayoutCard({
             </p>
           </div>
           <Button
-            onClick={() => setConfirm('payout')}
+            onClick={() => setConfirmPayout(true)}
             disabled={payingOut || !canPayout}
             className="gap-2"
           >
@@ -377,43 +365,18 @@ function AvailableForPayoutCard({
             Payout of {eur(payoutDone.amountCents)} requested — it will be transferred to your IBAN.
           </p>
         ) : null}
-
-        <div className="flex flex-col gap-3 rounded-xl border border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <CalendarIcon className="mt-0.5 h-5 w-5 text-accent" />
-            <div>
-              <p className="text-sm font-medium text-text">Open tabs</p>
-              <p className="text-sm text-text-muted">
-                {hasOpenTabs
-                  ? `${openTabEventIds.length} event(s) have ready tabs to settle.`
-                  : 'All tabs are settled. Open tabs also settle automatically after their hold window.'}
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={() => setConfirm('charge')}
-            disabled={charge.charging || !hasOpenTabs}
-            variant="outline"
-            className="gap-2"
-          >
-            {charge.charging ? 'Charging…' : 'Charge open tabs'}
-          </Button>
-        </div>
-        <ChargeResultMessage show={charge.show} result={charge.result} error={charge.error} />
       </CardContent>
 
       <AlertDialog
         message={
-          confirm === 'charge'
-            ? `This charges guests' cards across ${openTabEventIds.length} event(s) with ready tabs (${eur(openTabsReady)}). This can't be undone.`
-            : confirm === 'payout'
-              ? `Transfer ${eur(availableNow)} to your bank account? This records a payout request.`
-              : null
+          confirmPayout
+            ? `Transfer ${eur(availableNow)} to your bank account? This records a payout request.`
+            : null
         }
-        title={confirm === 'charge' ? 'Charge open tabs?' : 'Request payout?'}
-        acknowledgeLabel={confirm === 'charge' ? 'Charge now' : 'Request payout'}
-        onAcknowledge={confirmAction}
-        onCancel={() => setConfirm(null)}
+        title="Request payout?"
+        acknowledgeLabel="Request payout"
+        onAcknowledge={requestPayout}
+        onCancel={() => setConfirmPayout(false)}
       />
     </Card>
   );
