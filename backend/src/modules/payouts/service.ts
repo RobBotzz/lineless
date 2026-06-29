@@ -131,15 +131,17 @@ export async function computeEventPayout(
     .flatMap((o) => o.items.filter(isDeliveredItem))
     .reduce((sum, i) => sum + i.priceIncludingTaxAtPurchase, 0);
 
-  // The platform fee accrues only on orders actually charged: cash orders
-  // (collected upfront) and card orders whose tab has settled. Aligning the fee
-  // with realized revenue means a live event holding only authorizations never
-  // shows a negative payout.
+  // The platform fee is billed per order that actually produced revenue: it must
+  // be paid, realized (cash collected, or its card tab settled), and have at
+  // least one delivered item. This excludes gated/unconfirmed orders and orders
+  // that delivered nothing, and keeps the fee from ever preceding the revenue it
+  // rides on — so a live event holding only authorizations never goes negative.
   const paidOrderCount = orders.filter((o) => o.paidAt != null).length;
   const chargedOrderCount = orders.filter(
     (o) =>
       o.paidAt != null &&
-      (o.tabId === null || tabStatusById.get(o.tabId) === "PAID")
+      (o.tabId === null || tabStatusById.get(o.tabId) === "PAID") &&
+      o.items.some(isDeliveredItem)
   ).length;
   const platformFeeCents = chargedOrderCount * PLATFORM_FEE_PER_ORDER_CENTS;
 
