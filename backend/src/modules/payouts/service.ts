@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Event } from "../events/model";
 import { EventNotFoundError } from "../events/errors";
 import { verifyEventOwnership } from "../events/ownership";
@@ -338,6 +339,13 @@ export async function listPayouts(accountId: string): Promise<PayoutRecord[]> {
 // Records a payout for the organizer's currently available revenue. Payouts are
 // manual bank transfers, so this freezes the amount and bank details and marks
 // the entry PAID (the transfer is assumed done out of band).
+//
+// Concurrency: the entitlement (net revenue minus in-transit funds) is computed
+// once up front, then the amount is finalized inside a transaction that bumps
+// `Account.payoutLockVersion`. Two concurrent requests both write that same
+// account document, so Mongo aborts one with a write conflict; withTransaction
+// retries it, and on retry the prior payout is committed — so the recomputed
+// amount is 0 and the duplicate is rejected. This prevents double payouts.
 export async function requestPayout(accountId: string): Promise<PayoutRecord> {
   const account = await Account.findOne({ accountId, deletedAt: null })
     .select("iban ibanHolderName")
@@ -345,26 +353,67 @@ export async function requestPayout(accountId: string): Promise<PayoutRecord> {
   if (!account?.iban || !account.ibanHolderName) {
     throw new MissingBankDetailsError();
   }
+  // Capture as locals so the non-null narrowing survives into the closure below.
+  const { iban, ibanHolderName } = account;
 
   const overview = await getPayoutOverview(accountId);
   if (overview.availableCents <= 0) {
     throw new NoPayoutAvailableError();
   }
+  // What the organizer is entitled to in total, independent of prior payouts:
+  // available = max(entitlement - paidOut, 0), and available > 0 here.
+  const entitlementCents = overview.availableCents + overview.paidOutCents;
 
-  const created = await Payout.create({
-    accountId,
-    amountCents: overview.availableCents,
-    ibanSnapshot: account.iban,
-    ibanHolderSnapshot: account.ibanHolderName,
-    status: "PAID",
-  });
+  const dbSession = await mongoose.startSession();
+  try {
+    let created: Awaited<ReturnType<typeof Payout.create>>[number] | undefined;
+    await dbSession.withTransaction(async () => {
+      // Serialization point: forces concurrent payout requests for this account
+      // to conflict so only one can commit per recomputed entitlement.
+      await Account.updateOne(
+        { accountId },
+        { $inc: { payoutLockVersion: 1 } },
+        { session: dbSession }
+      );
 
-  return {
-    id: created._id,
-    amountCents: created.amountCents,
-    ibanHolderName: created.ibanHolderSnapshot,
-    iban: created.ibanSnapshot,
-    status: created.status,
-    createdAt: created.createdAt,
-  };
+      const priorPayouts = await Payout.find({ accountId })
+        .select("amountCents")
+        .session(dbSession);
+      const paidOutCents = priorPayouts.reduce(
+        (sum, p) => sum + p.amountCents,
+        0
+      );
+      const amountCents = entitlementCents - paidOutCents;
+      if (amountCents <= 0) {
+        throw new NoPayoutAvailableError();
+      }
+
+      const docs = await Payout.create(
+        [
+          {
+            accountId,
+            amountCents,
+            ibanSnapshot: iban,
+            ibanHolderSnapshot: ibanHolderName,
+            status: "PAID",
+          },
+        ],
+        { session: dbSession }
+      );
+      created = docs[0];
+    });
+
+    // created is always set when the transaction commits without throwing.
+    const payout = created!;
+    return {
+      id: payout._id,
+      amountCents: payout.amountCents,
+      ibanHolderName: payout.ibanHolderSnapshot,
+      iban: payout.ibanSnapshot,
+      status: payout.status,
+      createdAt: payout.createdAt,
+    };
+  } finally {
+    await dbSession.endSession();
+  }
 }
