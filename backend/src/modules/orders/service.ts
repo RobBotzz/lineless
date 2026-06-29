@@ -21,7 +21,6 @@ import {
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
   EventNotActiveError,
-  OfflineOrdersDisabledError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
   OrderItemStateError,
@@ -75,10 +74,7 @@ export async function submitOrder(
   const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
   if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
 
-  // The offline-orders flag only gates attendee orders placed without a tab;
-  // cashier (operator) cash orders are governed separately by cashierEnabled.
-  if (!tabId && sessionId !== null && !event.offlineOrdersEnabled)
-    throw new OfflineOrdersDisabledError();
+  if (!tabId && !event.cashierEnabled) throw new CashierDisabledError();
 
   if (sessionId !== null) {
     const session = await AttendeeSession.findById(sessionId).lean();
@@ -151,10 +147,6 @@ export async function submitOrder(
   const pickupCode = generatePickupCode();
 
   if (!tabId) {
-    if (!event.cashierEnabled && sessionId === null) {
-      throw new CashierDisabledError();
-    }
-
     const dbSession = await mongoose.startSession();
     let createdOrder;
     await dbSession.withTransaction(async () => {

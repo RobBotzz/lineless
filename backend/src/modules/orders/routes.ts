@@ -23,7 +23,6 @@ import {
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
   EventNotActiveError,
-  OfflineOrdersDisabledError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
   OrderItemStateError,
@@ -70,8 +69,6 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(409).json({ error: err.message });
   if (err instanceof OrderValidationError)
     return res.status(400).json({ error: err.message });
-  if (err instanceof OfflineOrdersDisabledError)
-    return res.status(403).json({ error: err.message });
   if (err instanceof CashierDisabledError)
     return res.status(403).json({ error: err.message });
   if (err instanceof OrderAlreadyPaidError)

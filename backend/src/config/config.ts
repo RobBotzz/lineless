@@ -53,19 +53,19 @@ export const config: Config = {
       ? Number(process.env["BCRYPT_ROUNDS"])
       : 10,
     organizer: {
-      accessTokenExpiresIn: process.env["JWT_EXPIRES_IN"] ?? "5m",
+      accessTokenExpiresIn: process.env["JWT_EXPIRES_IN"] ?? "2m",
       refreshTokenTtlDays: process.env["REFRESH_TOKEN_TTL_DAYS"]
         ? Number(process.env["REFRESH_TOKEN_TTL_DAYS"])
-        : 30,
+        : 2,
       passwordResetTtlMinutes: process.env["PASSWORD_RESET_TTL_MINUTES"]
         ? Number(process.env["PASSWORD_RESET_TTL_MINUTES"])
         : 60,
     },
     operator: {
-      accessTokenExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "5m",
+      accessTokenExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "2m",
       refreshTokenTtlDays: process.env["OPERATOR_REFRESH_TOKEN_TTL_DAYS"]
         ? Number(process.env["OPERATOR_REFRESH_TOKEN_TTL_DAYS"])
-        : 7,
+        : 2,
     },
   },
   appBaseUrl: process.env["APP_BASE_URL"] ?? "http://localhost:3000",
