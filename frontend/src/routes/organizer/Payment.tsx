@@ -12,6 +12,7 @@ import {
   CreditCardIcon,
   DownloadIcon,
   HistoryIcon,
+  InfoIcon,
 } from '@/components/icons';
 import { formatIban, isValidIban, maskIban, normalizeIban } from '@/lib/iban';
 import { formatMoney } from '@/types/product';
@@ -289,12 +290,38 @@ export default function Payment() {
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+// Info icon that reveals its text on hover and keyboard focus. Uses a real
+// positioned tooltip (not the flaky native `title`), so it actually shows up.
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        aria-label={text}
+        className="text-text-muted/70 hover:text-text-muted cursor-help rounded-full focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+      >
+        <InfoIcon className="h-3.5 w-3.5" />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 w-56 -translate-x-1/2 rounded-lg border border-border bg-surface px-3 py-2 text-xs leading-snug font-normal text-text opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+// `info` is revealed through an InfoTooltip next to the label instead of a
+// subtitle, keeping the stat compact.
+function Stat({ label, value, info }: { label: string; value: string; info?: string }) {
   return (
     <div className="rounded-xl bg-surface-muted px-5 py-4">
-      <p className="text-sm text-text-muted">{label}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-sm text-text-muted">{label}</p>
+        {info ? <InfoTooltip text={info} /> : null}
+      </div>
       <p className="mt-1 text-2xl font-bold text-text">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-text-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -355,16 +382,20 @@ function AvailableForPayoutCard({
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-3">
-          <Stat label="Available now" value={eur(availableNow)} />
           <Stat
-            label="Open tabs"
-            value={eur(openTabsReady)}
-            hint={openTabsReady > 0 ? 'charge to release' : undefined}
+            label="Available now"
+            value={eur(availableNow)}
+            info="Money that has cleared and can be paid out to your bank right now."
           />
           <Stat
             label="Settling on Stripe"
             value={eur(inTransit)}
-            hint={inTransit > 0 ? 'clears automatically' : undefined}
+            info="Card payments already charged but still clearing in Stripe. They move to ‘Available now’ automatically once cleared, usually within a few days."
+          />
+          <Stat
+            label="Open tabs"
+            value={eur(openTabsReady)}
+            info="Delivered orders on tabs you haven’t charged yet. Charge them to capture the money and move it toward your payout."
           />
         </div>
 
