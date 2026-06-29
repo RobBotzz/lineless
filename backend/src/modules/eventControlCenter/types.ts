@@ -89,7 +89,7 @@ export interface StandQueueMetric {
   standName: string;
   standStatus: "LIVE" | "PAUSED";
   queueLength: number;
-  averageWaitMinutes: number;
+  averageWaitMinutes: number | null;
   alert: boolean;
 }
 

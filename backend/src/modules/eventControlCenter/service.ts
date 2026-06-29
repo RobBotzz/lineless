@@ -332,7 +332,7 @@ function buildStandQueueMetrics(
     const averageWaitMinutes =
       stats.readyItemCount > 0
         ? Math.round(stats.totalWaitMinutes / stats.readyItemCount)
-        : 0;
+        : null;
     const thresholds = settings.standAlertThresholds[stand._id]!;
 
     return {
@@ -343,7 +343,8 @@ function buildStandQueueMetrics(
       averageWaitMinutes,
       alert:
         stats.queueLength >= thresholds.queueLengthAlertThreshold ||
-        averageWaitMinutes >= thresholds.averageWaitAlertThresholdMinutes,
+        (averageWaitMinutes !== null &&
+          averageWaitMinutes >= thresholds.averageWaitAlertThresholdMinutes),
     };
   });
 }
