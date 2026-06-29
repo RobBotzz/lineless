@@ -1,14 +1,13 @@
 import { useState } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router';
+import { useParams } from 'react-router';
 
 import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
-import { StarIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
-import { Button } from '@/components/ui/button';
 import { StandTrackGroup, type StandItem } from '@/features/orders/StandTrackGroup';
+import { OrderReviewButton } from './OrderReviewButton';
 import { useSSE } from '@/hooks/useSSE';
 import { getItemStatus } from '@/lib/order-utils';
 import { cn } from '@/lib/utils';
@@ -126,7 +125,6 @@ function StatusOverview({ items }: { items: OrderItem[] }) {
 
 export default function TrackOrder() {
   const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
-  const navigate = useNavigate();
 
   const [liveOrder, setLiveOrder] = useState<Order | null>(null);
 
@@ -265,15 +263,20 @@ export default function TrackOrder() {
 
       {/* Reviews require a fulfilled item (backend eligibility) — only surface the
           entry point once at least one item has been collected. */}
-      {order.items.some((i) => i.fulfilledAt && !i.cancelledAt) && (
-        <Button
-          className="w-full gap-2"
-          onClick={() => navigate(paths.attendee.reviewOrder(eventId, orderId))}
-        >
-          <StarIcon className="h-4 w-4" />
-          Leave a review
-        </Button>
-      )}
+      {(() => {
+        const rateableProductIds = [
+          ...new Set(
+            order.items.filter((i) => i.fulfilledAt && !i.cancelledAt).map((i) => i.productId),
+          ),
+        ];
+        return rateableProductIds.length > 0 ? (
+          <OrderReviewButton
+            orderId={orderId}
+            eventId={eventId}
+            rateableProductIds={rateableProductIds}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

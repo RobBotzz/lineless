@@ -9,17 +9,6 @@ import { useAddGuard } from '@/lib/useAddGuard';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { Rating } from '@/features/catalog/Rating';
 
-// TODO: dev-only placeholder until the backend exposes an aggregate product
-// rating. Once `product.rating` is populated from the API, drop this helper and
-// read `product.rating ?? null` directly. For now it deterministically leaves
-// ~half of the products unrated so the "no rating yet" state stays visible.
-function resolveRating(product: Product): number | null {
-  if (typeof product.rating === 'number') return product.rating;
-  const seed = product._id.charCodeAt(product._id.length - 1);
-  if (seed % 2 === 0) return null;
-  return Math.round((3.6 + (seed % 14) / 10) * 10) / 10;
-}
-
 interface ProductCardProps {
   product: Product;
   standName: string;
@@ -41,8 +30,7 @@ export function ProductCard({
   const soldOut = product.productStock <= 0;
   const atStockLimit = !soldOut && cartQuantity >= product.productStock;
 
-  // TODO: currently null when the product has no rating yet (see resolveRating).
-  const rating = resolveRating(product);
+  const rating = product.rating ?? null;
 
   // Guards a single tap firing twice (duplicate/ghost events on some browsers).
   const runGuarded = useAddGuard();

@@ -51,23 +51,23 @@ function NavbarActions({ eventId }: { eventId?: string }) {
   return (
     <div className="flex items-center gap-1">
       <Link
-        to={eventId ? paths.attendee.cart(eventId) : '#'}
-        className={iconButton}
-        aria-label="Shopping cart"
-      >
-        <CartIcon />
-        {totalCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold leading-4 text-[var(--color-button-text)]">
-            {totalCount}
-          </span>
-        )}
-      </Link>
-      <Link
         to={eventId ? paths.attendee.orders(eventId) : '#'}
         className={iconButton}
         aria-label="Order history"
       >
-        <HistoryIcon />
+        <HistoryIcon className="h-5 w-5" />
+      </Link>
+      <Link
+        to={eventId ? paths.attendee.cart(eventId) : '#'}
+        className={iconButton}
+        aria-label="Shopping cart"
+      >
+        <CartIcon className="h-5 w-5" />
+        {totalCount > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold leading-4 text-button-text">
+            {totalCount}
+          </span>
+        )}
       </Link>
     </div>
   );

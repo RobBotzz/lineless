@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import type { ProductRating } from '@/api/eventControlCenter';
 import { ImageIcon } from '@/components/icons';
-import { StarRating } from '@/components/shared';
+import { Rating } from '@/features/catalog/Rating';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
@@ -228,7 +228,7 @@ function ProductRatingCard({ rating }: { rating: ProductRating }) {
                 <span className="truncate">{rating.standName}</span>
               </span>
             </div>
-            <StarRating rating={rating.stars} className="shrink-0" />
+            <Rating value={rating.stars} className="shrink-0" />
           </div>
           {rating.comment ? (
             <p className="mt-3 text-sm leading-6 text-text">{rating.comment}</p>

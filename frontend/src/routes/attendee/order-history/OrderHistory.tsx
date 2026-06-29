@@ -9,6 +9,7 @@ import { computeTotal, deriveOrderStatus, type Order } from '@/types/order';
 import { getItemStatus } from '@/lib/order-utils';
 import { formatMoney } from '@/types/product';
 import { ArrowRightIcon, ChevronDownIcon } from '@/components/icons';
+import { OrderReviewButton } from './OrderReviewButton';
 import { cn } from '@/lib/utils';
 import { useSSE } from '@/hooks/useSSE';
 
@@ -209,11 +210,33 @@ export default function OrderHistory() {
                   </div>
 
                   <Link to={paths.attendee.trackOrder(eventId, order._id)}>
-                    <Button variant="default" className="w-full py-6 gap-2">
+                    <Button
+                      variant="default"
+                      className="w-full h-12 rounded-xl gap-2 shadow-[0_8px_24px_rgba(2,8,135,0.25)]"
+                    >
                       Track Order
                       <ArrowRightIcon className="h-4 w-4" />
                     </Button>
                   </Link>
+
+                  {/* Quick entry to reviews — only once at least one item is
+                      fulfilled (matches Track Order / backend eligibility). */}
+                  {(() => {
+                    const rateableProductIds = [
+                      ...new Set(
+                        order.items
+                          .filter((i) => i.fulfilledAt && !i.cancelledAt)
+                          .map((i) => i.productId),
+                      ),
+                    ];
+                    return rateableProductIds.length > 0 ? (
+                      <OrderReviewButton
+                        orderId={order._id}
+                        eventId={eventId}
+                        rateableProductIds={rateableProductIds}
+                      />
+                    ) : null;
+                  })()}
                 </div>
               )}
             </div>

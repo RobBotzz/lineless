@@ -279,6 +279,7 @@ export default function EventConfiguration() {
         <ProductRow
           key={product._id}
           product={product}
+          eventId={event.ratingsEnabled ? event._id : undefined}
           onEdit={() => setProductDialog({ standId: stand._id, product })}
           onDelete={() => setPendingDeleteProduct(product)}
         />
