@@ -358,7 +358,7 @@ function AvailableForPayoutCard({
               {canPayout
                 ? `Transfer ${eur(availableNow)} to your bank account.`
                 : bankReady
-                  ? 'No revenue is available yet. Charge open tabs to make it available.'
+                  ? 'No revenue is available yet. Wait for settlements.'
                   : 'Add your bank details before requesting a payout.'}
             </p>
           </div>
@@ -426,13 +426,13 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
                     Event
                   </th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">
-                    Total sales
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">
                     Cash
                   </th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">
                     Card payments
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium">
+                    Total sales
                   </th>
                 </tr>
               </thead>
@@ -445,9 +445,9 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
                 <tfoot className="border-t border-border bg-surface-muted font-semibold text-text">
                   <tr>
                     <td className="px-4 py-3 text-left">Total</td>
-                    <td className="px-4 py-3 text-right">{eur(totals.sales)}</td>
                     <td className="px-4 py-3 text-right">{eur(totals.cash)}</td>
                     <td className="px-4 py-3 text-right">{eur(totals.card)}</td>
+                    <td className="px-4 py-3 text-right">{eur(totals.sales)}</td>
                   </tr>
                 </tfoot>
               ) : null}
@@ -498,11 +498,11 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
             ) : null}
           </div>
         </td>
-        <td className="px-4 py-3 text-right text-text">{eur(row.totalSalesCents)}</td>
         <td className="px-4 py-3 text-right text-text">
           {row.cashSalesCents > 0 ? eur(row.cashSalesCents) : '—'}
         </td>
-        <td className="px-4 py-3 text-right font-semibold text-text">{eur(row.cardSalesCents)}</td>
+        <td className="px-4 py-3 text-right text-text">{eur(row.cardSalesCents)}</td>
+        <td className="px-4 py-3 text-right font-semibold text-text">{eur(row.totalSalesCents)}</td>
       </tr>
       {open ? (
         <tr id={detailId} className="border-t border-border bg-surface-muted/30">
@@ -530,7 +530,7 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
             <ChargeResultMessage show={charge.show} result={charge.result} error={charge.error} />
 
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium text-text-muted">Items sold</p>
+              <p className="text-base font-semibold text-text">Items sold</p>
               {event.unitsSold.length > 0 ? (
                 <Button
                   onClick={() => downloadEventCsv(row)}
@@ -552,7 +552,7 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
 
             {event.pendingUnits.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-text-muted">
+                <p className="text-base font-semibold text-text">
                   Being prepared (ordered, not yet ready)
                 </p>
                 <UnitsTable items={event.pendingUnits} />
@@ -562,11 +562,14 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
               </div>
             ) : null}
 
-            <dl className="rounded-lg border border-border bg-surface px-4 py-3">
-              {eventStatement(row).map((line) => (
-                <StatementRow key={line.label} line={line} />
-              ))}
-            </dl>
+            <div className="space-y-2">
+              <p className="text-base font-semibold text-text">Sales &amp; payout</p>
+              <dl className="rounded-lg border border-border bg-surface px-4 py-3">
+                {eventStatement(row).map((line) => (
+                  <StatementRow key={line.label} line={line} />
+                ))}
+              </dl>
+            </div>
 
             {/* Cash-flow timing context — not part of the sales or payout totals
                 above, just where the money currently sits. */}
