@@ -20,6 +20,10 @@ export class SseConnection {
 
   // Send a named event carrying a JSON payload.
   send(event: string, data: unknown): void {
+    if (/[\r\n]/.test(event))
+      throw new Error(
+        `SSE event name must not contain newlines: ${JSON.stringify(event)}`
+      );
     this.res.write(`event: ${event}\n`);
     this.res.write(`data: ${JSON.stringify(data)}\n\n`);
   }

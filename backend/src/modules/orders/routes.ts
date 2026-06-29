@@ -186,14 +186,21 @@ ordersRouter.get(
       const sse = new SseConnection(res);
       sse.send("snapshot", initial);
 
+      let closed = false;
+
       const unsub = subscribe("order.changed", (order) => {
         if (order.sessionId !== sessionId || !order.paidAt) return;
         enrichOrderForAttendee(order)
-          .then((enriched) => sse.send("order", enriched))
+          .then((enriched) => {
+            if (!closed) sse.send("order", enriched);
+          })
           .catch((err) => console.error("Attendee order stream error:", err));
       });
 
-      sse.onClose(() => unsub());
+      sse.onClose(() => {
+        closed = true;
+        unsub();
+      });
     } catch (err) {
       console.error("Attendee order stream error:", err);
       res.status(500).json({ error: "Internal server error" });
