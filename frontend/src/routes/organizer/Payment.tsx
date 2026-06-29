@@ -557,7 +557,7 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
                 </p>
                 <UnitsTable items={event.pendingUnits} />
                 <p className="text-xs text-text-muted">
-                  Not counted as sales until delivered — shown so nothing ordered is hidden.
+                  Not counted as sales until ready — shown so nothing ordered is hidden.
                 </p>
               </div>
             ) : null}

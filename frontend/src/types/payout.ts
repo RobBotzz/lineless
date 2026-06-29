@@ -22,7 +22,7 @@ export interface EventPayoutBreakdown {
   eventName: string;
   eventStatus: EventStatus;
   paidOrderCount: number;
-  chargedOrderCount: number;
+  soldOrderCount: number;
   grossSalesCents: number;
   cashSalesCents: number;
   pendingSalesCents: number;
