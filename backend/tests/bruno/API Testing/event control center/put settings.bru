@@ -1,0 +1,42 @@
+meta {
+  name: put settings
+  type: http
+  seq: 2
+}
+
+put {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/event-control-center/settings
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {
+    "stockAlertThreshold": 7,
+    "standAlertThresholds": {
+      "{{standId}}": {
+        "queueLengthAlertThreshold": 12,
+        "averageWaitAlertThresholdMinutes": 18
+      }
+    }
+  }
+}
+
+tests {
+  test("persists and materializes thresholds", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.stockAlertThreshold).to.equal(7);
+    expect(res.body.standAlertThresholds[bru.getEnvVar("standId")]).to.deep.equal({
+      queueLengthAlertThreshold: 12,
+      averageWaitAlertThresholdMinutes: 18
+    });
+  });
+}
+
+settings {
+  encodeUrl: true
+}

@@ -6,6 +6,7 @@ import { watchOrderChanges } from "./modules/orders/changeStream";
 import { watchProductChanges } from "./modules/products/changeStream";
 import { watchRatingChanges } from "./modules/ratings/changeStream";
 import { watchStandChanges } from "./modules/stands/changeStream";
+import { watchEventControlCenterSettingsChanges } from "./modules/eventControlCenter/settings.changeStream";
 import { checkoutDueTabs } from "./modules/tabs/service";
 
 const TAB_CHECKOUT_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -30,6 +31,7 @@ async function start(): Promise<void> {
   watchProductChanges();
   watchRatingChanges();
   watchStandChanges();
+  watchEventControlCenterSettingsChanges();
   scheduleTabCheckoutSweep();
   app.listen(config.port, () => {
     console.log(`Server läuft auf Port ${config.port}`);

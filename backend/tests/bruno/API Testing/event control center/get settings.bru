@@ -1,0 +1,27 @@
+meta {
+  name: get settings
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/event-control-center/settings
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+tests {
+  test("returns effective event control center settings", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.stockAlertThreshold).to.be.a("number");
+    expect(res.body.standAlertThresholds).to.be.an("object");
+  });
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,0 +1,30 @@
+meta {
+  name: delete settings
+  type: http
+  seq: 3
+}
+
+delete {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/event-control-center/settings
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+tests {
+  test("resets thresholds to defaults", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.stockAlertThreshold).to.equal(5);
+    expect(res.body.standAlertThresholds[bru.getEnvVar("standId")]).to.deep.equal({
+      queueLengthAlertThreshold: 10,
+      averageWaitAlertThresholdMinutes: 15
+    });
+  });
+}
+
+settings {
+  encodeUrl: true
+}
