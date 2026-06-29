@@ -294,7 +294,7 @@ function StatusLane({
       <div className="flex items-center justify-between">
         <h3
           className={cn(
-            'text-sm font-bold uppercase tracking-wide',
+            'text-base font-bold uppercase tracking-wide',
             intent === 'ready' ? 'text-success' : 'text-text-muted',
           )}
         >
