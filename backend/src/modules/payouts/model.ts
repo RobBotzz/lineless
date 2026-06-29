@@ -13,6 +13,8 @@ export interface EventPayoutDoc {
   grossSalesCents: number;
   /** Delivered gross paid in cash (subset of grossSalesCents), integer cents. */
   cashSalesCents: number;
+  /** Ordered, paid, non-cancelled items not yet ready/fulfilled, integer cents. */
+  pendingSalesCents: number;
   /** Sum of cash refunds, integer cents. */
   cashRefundCents: number;
   /** Tax contained in the delivered gross (organizer liability, not deducted). */
@@ -47,6 +49,7 @@ const EventPayoutSchema = new Schema<EventPayoutDoc>(
     accountId: { type: String, required: true, index: true },
     grossSalesCents: { type: Number, default: 0 },
     cashSalesCents: { type: Number, default: 0 },
+    pendingSalesCents: { type: Number, default: 0 },
     cashRefundCents: { type: Number, default: 0 },
     taxCents: { type: Number, default: 0 },
     capturedCardCents: { type: Number, default: 0 },

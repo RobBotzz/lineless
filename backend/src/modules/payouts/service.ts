@@ -73,6 +73,21 @@ export async function computeEventPayout(
   const taxCents = deliveredItems.reduce((sum, i) => sum + itemTaxCents(i), 0);
   const unitsSold = await buildUnitsSold(deliveredItems);
 
+  // Committed but not-yet-ready items on paid orders — the operator pipeline.
+  // Surfaced so the payout view shows everything ordered, not only what was
+  // delivered; it is NOT counted as sales until delivered. Gated/unpaid orders
+  // are excluded since they are cancelled at settlement.
+  const pendingItems = orders
+    .filter((o) => o.paidAt != null)
+    .flatMap((o) =>
+      o.items.filter((i) => !i.cancelledAt && !i.readyAt && !i.fulfilledAt)
+    );
+  const pendingSalesCents = pendingItems.reduce(
+    (sum, i) => sum + i.priceIncludingTaxAtPurchase,
+    0
+  );
+  const pendingUnits = await buildUnitsSold(pendingItems);
+
   // Cash sales are recognized on delivery like card, for one consistent rule,
   // and reported separately so the organizer sees what is already in hand.
   const cashSalesCents = orders
@@ -157,6 +172,7 @@ export async function computeEventPayout(
         accountId,
         grossSalesCents,
         cashSalesCents,
+        pendingSalesCents,
         cashRefundCents,
         taxCents,
         capturedCardCents,
@@ -182,6 +198,7 @@ export async function computeEventPayout(
     chargedOrderCount,
     grossSalesCents,
     cashSalesCents,
+    pendingSalesCents,
     taxCents,
     cashRefundCents,
     capturedCardCents,
@@ -192,6 +209,7 @@ export async function computeEventPayout(
     onHoldAuthorizedCents,
     inTransitCents,
     unitsSold,
+    pendingUnits,
     computedAt,
   };
 }

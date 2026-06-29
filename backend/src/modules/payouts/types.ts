@@ -32,6 +32,8 @@ export interface EventPayoutBreakdown {
   grossSalesCents: number;
   /** Delivered gross paid in cash (subset of grossSalesCents), informational. */
   cashSalesCents: number;
+  /** Ordered, paid, non-cancelled items not yet ready/fulfilled (pipeline). */
+  pendingSalesCents: number;
   /** Tax contained in the delivered gross (organizer liability, not deducted). */
   taxCents: number;
   /** Sum of cash refunds, integer cents (informational). */
@@ -50,7 +52,10 @@ export interface EventPayoutBreakdown {
   onHoldAuthorizedCents: number;
   /** Captured funds still settling on Stripe (available_on in future), net cents. */
   inTransitCents: number;
+  /** Delivered items grouped by product (drives the sales figures). */
   unitsSold: ProductUnitsSold[];
+  /** Not-yet-ready items grouped by product (the operator pipeline). */
+  pendingUnits: ProductUnitsSold[];
   computedAt: Date;
 }
 
