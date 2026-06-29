@@ -333,6 +333,11 @@ export async function setProductImage(
   );
 
   product.productImageUrl = productImageServeUrl(productId);
+  // The serve URL is stable, so on a *replace* productImageUrl doesn't actually
+  // change — mark it modified so `updatedAt` still bumps. The frontend uses
+  // updatedAt as a cache-busting version (the image URL is otherwise cached), so
+  // without this a replaced image keeps showing the stale picture.
+  product.markModified("productImageUrl");
   await product.save();
   return product.toObject();
 }
