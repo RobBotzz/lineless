@@ -20,7 +20,9 @@ export class SseConnection {
 
   // Send a named event carrying a JSON payload.
   send(event: string, data: unknown): void {
-    this.res.write(`event: ${event}\n`);
+    // Newlines in the event name would corrupt SSE framing.
+    const safeEvent = event.replace(/[\r\n]/g, "");
+    this.res.write(`event: ${safeEvent}\n`);
     this.res.write(`data: ${JSON.stringify(data)}\n\n`);
   }
 

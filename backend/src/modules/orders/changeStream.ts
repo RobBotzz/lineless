@@ -19,6 +19,7 @@ export function watchOrderChanges(): void {
 }
 
 function startWatch(): void {
+  void stream?.close().catch(() => undefined);
   const s = Order.watch<OrderDoc>([], { fullDocument: "updateLookup" });
   stream = s;
 

@@ -57,7 +57,6 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
 // Maps an auth middleware to the OpenAPI security requirement it enforces.
 type SecurityRequirement = Record<string, string[]>;
 const AUTH = new Map<unknown, SecurityRequirement[]>([
-  [authAttendee, [{ attendeeSessionAuth: [] }]],
   [authOrganizer, [{ organizerAuth: [] }]],
   [authAttendee, [{ attendeeSessionAuth: [] }]],
   [
