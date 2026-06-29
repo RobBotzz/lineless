@@ -57,11 +57,13 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Account / Payments
 
-| Method | URL                 | Description                                |
-| ------ | ------------------- | ------------------------------------------ |
-| GET    | `/account/payments` | Get payment overview / financial breakdown |
-| PATCH  | `/account`          | Update bank account details                |
-| POST   | `/account/payments` | Trigger payout                             |
+| Method | URL                               | Description                                                      |
+| ------ | --------------------------------- | ---------------------------------------------------------------- |
+| PATCH  | `/account/update`                 | Update bank account details (IBAN, holder name)                  |
+| GET    | `/payouts`                        | Payout overview: bank details, per-event summary, payout history |
+| GET    | `/payouts/{eventId}`              | Full payout breakdown for one event                              |
+| POST   | `/payouts/request`                | Record a payout request for the currently available revenue      |
+| POST   | `/events/{eventId}/tabs/checkout` | Charge all ready tabs for an event (bulk settle online payments) |
 
 ---
 

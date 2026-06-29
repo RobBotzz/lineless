@@ -53,7 +53,16 @@ export const updateAccountSchema = z
           message: "Invalid IBAN",
         }
       ),
-    ibanHolderName: z.string().nullable().optional(),
+    // Trim and bound the holder name; a blank/whitespace value clears it (null)
+    // rather than being stored as an unusable transfer destination.
+    ibanHolderName: z
+      .string()
+      .max(140, "Account holder name is too long")
+      .nullable()
+      .optional()
+      .transform((value) =>
+        value == null ? value : value.trim() === "" ? null : value.trim()
+      ),
   })
   .strict();
 

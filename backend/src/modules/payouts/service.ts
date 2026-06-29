@@ -120,9 +120,16 @@ export async function computeEventPayout(
   // Captured funds still held by Stripe (available_on in the future) have not
   // cleared yet, so they count as pending, not available. Use the net amount —
   // what Stripe actually holds in the pending balance.
+  //
+  // Fail closed on unknown settlement: a capture with no availableOn (Stripe
+  // didn't return the balance transaction, or a legacy hold predating these
+  // fields) is treated as still in transit, never as cleared — otherwise its
+  // gross would inflate availableCents and let the organizer request money
+  // Stripe hasn't released. Such holds stay in transit until the metadata is
+  // backfilled/retrieved from Stripe.
   const now = new Date();
   const inTransitCents = capturedPayments
-    .filter((p) => p.availableOn != null && p.availableOn > now)
+    .filter((p) => p.availableOn == null || p.availableOn > now)
     .reduce(
       (sum, p) => sum + (p.capturedCentsAmount - (p.processingFeeCents ?? 0)),
       0
@@ -336,9 +343,12 @@ export async function listPayouts(accountId: string): Promise<PayoutRecord[]> {
   }));
 }
 
-// Records a payout for the organizer's currently available revenue. Payouts are
-// manual bank transfers, so this freezes the amount and bank details and marks
-// the entry PAID (the transfer is assumed done out of band).
+// Records a payout request for the organizer's currently available revenue.
+// Payouts are manual bank transfers, so this freezes the amount and bank details
+// and records the entry as REQUESTED — the actual transfer happens out of band
+// and is marked PAID by a later completion step. We deliberately do NOT mark it
+// PAID here: no money has moved yet, and claiming otherwise would misreport a
+// completed transfer.
 //
 // Concurrency: the entitlement (net revenue minus in-transit funds) is computed
 // once up front, then the amount is finalized inside a transaction that bumps
@@ -353,8 +363,14 @@ export async function requestPayout(accountId: string): Promise<PayoutRecord> {
   if (!account?.iban || !account.ibanHolderName) {
     throw new MissingBankDetailsError();
   }
-  // Capture as locals so the non-null narrowing survives into the closure below.
-  const { iban, ibanHolderName } = account;
+  // Trim defends against whitespace-only values (direct API clients, legacy
+  // rows): a blank IBAN or holder name is not a usable transfer destination.
+  // Locals also keep the non-null narrowing alive inside the closure below.
+  const iban = account.iban.trim();
+  const ibanHolderName = account.ibanHolderName.trim();
+  if (!iban || !ibanHolderName) {
+    throw new MissingBankDetailsError();
+  }
 
   const overview = await getPayoutOverview(accountId);
   if (overview.availableCents <= 0) {
@@ -395,7 +411,7 @@ export async function requestPayout(accountId: string): Promise<PayoutRecord> {
             amountCents,
             ibanSnapshot: iban,
             ibanHolderSnapshot: ibanHolderName,
-            status: "PAID",
+            status: "REQUESTED",
           },
         ],
         { session: dbSession }
