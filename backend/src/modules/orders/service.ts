@@ -69,7 +69,8 @@ export async function submitOrder(
   sessionId: string | null,
   input: CreateOrderInput
 ) {
-  const { eventId, tabId, customerEmail, items } = input;
+  const { eventId, tabId, items } = input;
+  let customerEmail: string | null = null;
 
   const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
   if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
@@ -80,6 +81,7 @@ export async function submitOrder(
     const session = await AttendeeSession.findById(sessionId).lean();
     if (!session || session.eventId !== eventId)
       throw new OrderValidationError("Session does not belong to this event");
+    customerEmail = session.email ?? null;
   }
 
   if (tabId) {
