@@ -7,15 +7,16 @@ interface StarRatingProps {
   value: number; // 0 = unrated, 1–5 = rated
   onChange: (rating: number) => void;
   readOnly?: boolean;
+  className?: string;
 }
 
-export function StarRating({ value, onChange, readOnly = false }: StarRatingProps) {
+export function StarRating({ value, onChange, readOnly = false, className }: StarRatingProps) {
   const [hovered, setHovered] = useState(0);
 
   const effective = hovered > 0 ? hovered : value;
 
   return (
-    <div className="flex gap-1" role="group" aria-label="Star rating">
+    <div className={cn('flex gap-1', className)} role="group" aria-label="Star rating">
       {[1, 2, 3, 4, 5].map((star) => (
         <button
           key={star}

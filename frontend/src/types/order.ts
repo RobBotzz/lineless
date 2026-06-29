@@ -1,7 +1,9 @@
-// Mirrors OrderItemDoc from backend (modules/orders/model.ts).
+// Mirrors AttendeeOrderItem from backend (modules/orders/service.ts).
 export interface OrderItem {
   _id: string;
   productId: string;
+  productName: string;
+  standName: string;
   customerComment: string | null; // single note per unit; null when none
   priceIncludingTaxAtPurchase: number; // integer cents, incl. tax
   taxRateAtPurchase: number; // basis points, e.g. 1900 for 19%
@@ -48,8 +50,17 @@ export type AttendeeOrder = Omit<Order, 'items'> & { items: AttendeeOrderItem[] 
 export interface OrderItemView {
   productId: string;
   productName: string;
+  standId: string;
   standName: string;
   unitPrice: number; // integer cents (priceIncludingTaxAtPurchase)
   quantity: number;
   comments: string[]; // per-unit; index i = comment for unit #(i+1), '' if none
+}
+
+// Derive order status: fulfilled only if all non-cancelled items are fulfilled.
+export function deriveOrderStatus(order: Order): 'in-preparation' | 'fulfilled' | 'cancelled' {
+  const nonCancelledItems = order.items.filter((item) => !item.cancelledAt);
+  if (nonCancelledItems.length === 0) return 'cancelled';
+  const allFulfilled = nonCancelledItems.every((item) => item.fulfilledAt);
+  return allFulfilled ? 'fulfilled' : 'in-preparation';
 }

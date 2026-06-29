@@ -50,6 +50,7 @@ export default function CashierManualOrder() {
       const orderItems: OrderItemView[] = items.map((item) => ({
         productId: item.product._id,
         productName: item.product.productName,
+        standId: item.product.standId,
         standName: standNameFor(item.product),
         unitPrice: item.product.priceIncludingTax,
         quantity: item.quantity,
@@ -66,15 +67,17 @@ export default function CashierManualOrder() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <BackButton to={paths.operator.cashier(eventId)}>Back to Cashier Stand</BackButton>
+    <div className="mx-auto flex max-w-7xl flex-col px-4 py-6 sm:px-6 lg:h-screen lg:px-8">
+      <BackButton to={paths.operator.cashier(eventId)} className="self-start">
+        Cashier Stand
+      </BackButton>
 
       {isLoading ? (
         <p className="mt-10 text-center text-sm text-text-muted">Loading products…</p>
       ) : (
-        <div className="mt-6 flex flex-col gap-6 lg:flex-row">
-          <div className="flex-1">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+        <div className="mt-6 flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
+          <div className="flex-1 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 xl:grid-cols-5">
               {products.length === 0 ? (
                 <p className="col-span-full py-12 text-center text-sm text-text-muted">
                   No products available.
@@ -92,13 +95,13 @@ export default function CashierManualOrder() {
             </div>
           </div>
 
-          <aside className="flex w-full flex-col lg:w-80 lg:border-l lg:border-border lg:pl-6">
+          <aside className="flex w-full flex-col lg:h-full lg:w-80 lg:border-l lg:border-border lg:pl-6">
             <div className="flex items-center gap-2 border-b border-border pb-4 text-text">
               <CartIcon className="h-5 w-5" />
               <span className="font-semibold">Cart</span>
             </div>
 
-            <div className="flex-1 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto py-4 lg:-mr-4 lg:pr-4">
               {items.length === 0 ? (
                 <EmptyCart />
               ) : (
@@ -187,15 +190,15 @@ function ProductTile({
             </div>
           )}
         </div>
-        <div className="flex items-center justify-between gap-2 p-3">
+        <div className="flex items-center justify-between gap-2 p-2.5">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-text">{product.productName}</p>
             <p className="text-sm font-semibold text-accent">
               €{formatMoney(product.priceIncludingTax)}
             </p>
           </div>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-accent transition-colors group-hover:bg-accent-soft">
-            <PlusIcon className="h-5 w-5" />
+          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text transition-colors group-hover:bg-surface-muted">
+            <PlusIcon className="h-4 w-4" />
           </span>
         </div>
       </button>
@@ -204,16 +207,16 @@ function ProductTile({
         type="button"
         onClick={() => setDetailsOpen(true)}
         aria-label={`Details for ${product.productName}`}
-        className="absolute left-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-surface/90 text-text-muted shadow-sm transition-colors hover:bg-surface hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-surface/90 text-text-muted shadow-sm transition-colors hover:bg-surface hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <InfoIcon className="h-4 w-4" />
+        <InfoIcon className="h-3.5 w-3.5" />
       </button>
 
       {detailsOpen && (
         <ProductDetailsDialog
           product={product}
           standName={standName}
-          rating={product.rating}
+          rating={product.rating ?? null}
           onClose={() => setDetailsOpen(false)}
         />
       )}

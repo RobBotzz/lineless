@@ -3,7 +3,6 @@ import { Link } from 'react-router';
 import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
 import { AccountMenu, LandingPageNavbar } from '../components/layout/navbars';
 import { buttonVariants } from '../components/ui/button';
-import OrganizerFooter from '../components/layout/OperatorFooter';
 import { paths } from '../paths';
 
 const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
@@ -80,7 +79,7 @@ export default function Home() {
 
               <p className="mt-5 max-w-lg text-lg leading-relaxed text-text-muted">
                 lineless connects guest ordering, cashier payments, operator queues, pickup screens
-                and live analytics in one branded event workflow.
+                and an event control center in one branded event workflow.
               </p>
 
               <div className="mt-8 flex items-center gap-4">
@@ -142,8 +141,6 @@ export default function Home() {
             </p>
           </div>
         </section>
-
-        <OrganizerFooter />
       </main>
     </div>
   );

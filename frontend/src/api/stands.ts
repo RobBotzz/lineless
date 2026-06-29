@@ -10,6 +10,10 @@ export function getOperatorStands(eventId: string): Promise<Stand[]> {
   return apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'operator-link' });
 }
 
+export function getOperatorCashierStand(eventId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/events/${eventId}/stands/cashier-stand`, { auth: 'operator-link' });
+}
+
 export function getAttendeeStands(eventId: string): Promise<Stand[]> {
   return apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'attendee', eventId });
 }
@@ -78,6 +82,20 @@ export function updateStand(standId: string, patch: UpdateStandInput): Promise<v
   return apiFetch<void>(`/stands/${standId}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
+    auth: 'organizer',
+  });
+}
+
+export function pauseStand(standId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/stands/${standId}/pause`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+export function resumeStand(standId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/stands/${standId}/resume`, {
+    method: 'POST',
     auth: 'organizer',
   });
 }

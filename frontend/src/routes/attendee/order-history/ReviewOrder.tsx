@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { getAttendeeOrder } from '@/api/orders';
@@ -9,18 +9,16 @@ import { ApiError } from '@/api/client';
 import { BackButton } from '@/components/shared';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { CheckCircleIcon } from '@/components/icons';
-import { paths } from '@/paths';
-
-import { ATTENDEE_WIDTH } from '../column';
-import { ProductReviewCard } from './ProductReviewCard';
+import { ProductReviewCard } from '../review/ProductReviewCard';
 
 interface RatingState {
   stars: number;
   comment: string;
 }
 
-export default function AttendeeReview() {
+export default function ReviewOrder() {
   const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
+  const navigate = useNavigate();
 
   const [ratings, setRatings] = useState<Record<string, RatingState>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,12 +34,14 @@ export default function AttendeeReview() {
     queryKey: ['attendee', 'order', orderId],
     queryFn: () => getAttendeeOrder(orderId, eventId),
     refetchInterval: 15_000,
+    refetchOnMount: 'always',
   });
 
   const existingRatingsQuery = useQuery({
     queryKey: ['attendee', 'order', orderId, 'ratings'],
     queryFn: () => getMyOrderRatings(orderId, eventId),
-    staleTime: Infinity,
+    // Refetch on every visit so already-reviewed products show without a hard reload.
+    refetchOnMount: 'always',
   });
 
   const existingRatings = useMemo(() => {
@@ -130,7 +130,7 @@ export default function AttendeeReview() {
 
   if (submitted) {
     return (
-      <div className={`mx-auto ${ATTENDEE_WIDTH} space-y-4`}>
+      <div className="space-y-4">
         <div className="rounded-xl border border-border bg-surface p-8 text-center shadow-sm">
           <CheckCircleIcon className="mx-auto h-12 w-12 text-green-500" />
           <h1 className="mt-3 text-lg font-semibold text-text">Thanks for your ratings!</h1>
@@ -141,17 +141,17 @@ export default function AttendeeReview() {
               : 'products'}
             .
           </p>
-          <Link to={paths.attendee.event(eventId)} className={`${buttonVariants()} mt-6 w-full`}>
-            Back to event
-          </Link>
+          <button className={`${buttonVariants()} mt-6 w-full`} onClick={() => navigate(-1)}>
+            Back
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`mx-auto ${ATTENDEE_WIDTH} space-y-4`}>
-      <BackButton to={paths.attendee.event(eventId)}>Back</BackButton>
+    <div className="space-y-4">
+      <BackButton onClick={() => navigate(-1)}>Back</BackButton>
 
       <div>
         <h1 className="text-lg font-semibold text-text">Share Your Feedback</h1>
@@ -210,9 +210,9 @@ export default function AttendeeReview() {
                   <p className="mb-3 text-center text-sm text-text-muted">
                     You have already reviewed all products in this order.
                   </p>
-                  <Link to={paths.attendee.event(eventId)} className={`${buttonVariants()} w-full`}>
-                    Back to event
-                  </Link>
+                  <button className={`${buttonVariants()} w-full`} onClick={() => navigate(-1)}>
+                    Back
+                  </button>
                 </>
               ) : (
                 <>

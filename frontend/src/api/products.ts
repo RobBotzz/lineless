@@ -35,9 +35,31 @@ export function updateProduct(productId: string, patch: UpdateProductInput): Pro
   });
 }
 
+export function updateProductStock(productId: string, productStock: number): Promise<Product> {
+  return apiFetch<Product>(`/products/${productId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ productStock }),
+    auth: 'organizer',
+  });
+}
+
 export function deleteProduct(productId: string): Promise<void> {
   return apiFetch<void>(`/products/${productId}`, {
     method: 'DELETE',
+    auth: 'organizer',
+  });
+}
+
+export function pauseProduct(productId: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${productId}/pause`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+export function resumeProduct(productId: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${productId}/resume`, {
+    method: 'POST',
     auth: 'organizer',
   });
 }

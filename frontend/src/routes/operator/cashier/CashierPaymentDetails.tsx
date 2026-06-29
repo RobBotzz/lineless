@@ -27,7 +27,7 @@ export default function CashierPaymentDetails() {
     setConfirmOpen(false);
     setIsPaying(true);
     try {
-      await confirmCashPayment(order._id);
+      await confirmCashPayment(order._id, standId);
       navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
     } catch (err) {
       setPayError(err instanceof Error ? err.message : 'Could not confirm the payment.');
@@ -39,7 +39,7 @@ export default function CashierPaymentDetails() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <BackButton to={paths.operator.cashierPayment(eventId)}>Back to orders</BackButton>
+      <BackButton to={paths.operator.cashierPayment(eventId)}>Orders</BackButton>
 
       {isLoading ? (
         <p className="mt-10 text-center text-sm text-text-muted">Loading order…</p>

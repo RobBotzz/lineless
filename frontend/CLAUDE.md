@@ -53,7 +53,7 @@ Key facts:
   token). Keep operator query keys centralized instead of rebuilding
   requestKey/status/cancelled state by hand in each screen.
 - **SSE streams are NOT loaders.** Live data (`/orders/{id}/stream`,
-  `/events/{id}/analytics/stream`, `/stands/{id}/orders/stream`) goes through a
+  `/events/{id}/event-control-center/stream`, `/stands/{id}/orders/stream`) goes through a
   dedicated `useSSE` hook inside the component. Loaders = route one-shot
   fetches, TanStack Query = cached operator client fetches, streams = live
   updates. Keep this separation.

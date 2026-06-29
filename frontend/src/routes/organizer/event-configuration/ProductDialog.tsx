@@ -170,7 +170,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
         <section
           aria-labelledby="product-dialog-title"
           aria-modal="true"
-          className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(31,41,55,0.2)]"
+          className="w-full max-w-3xl rounded-lg border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(31,41,55,0.2)]"
           role="dialog"
         >
           <h2 id="product-dialog-title" className="mb-4 text-xl font-semibold text-text">
@@ -182,127 +182,143 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <TextField
-              id="product-name"
-              label="Product Name *"
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
-              placeholder="e.g. Lager 0.5L"
-            />
+            {/* Two columns on wider viewports so the dialog stays short and uses
+                the available width instead of forcing a long scroll. */}
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              {/* Left column — core product fields */}
+              <div className="space-y-4">
+                <TextField
+                  id="product-name"
+                  label="Product Name *"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  placeholder="e.g. Lager 0.5L"
+                />
 
-            <div className="grid grid-cols-2 gap-4">
-              <TextField
-                id="product-price"
-                label="Price incl. tax *"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="0.00"
-                inputMode="decimal"
-              />
-              <TextField
-                id="product-tax"
-                label="Tax rate (%) *"
-                value={taxRate}
-                onChange={(e) => setTaxRate(e.target.value)}
-                placeholder="19"
-                inputMode="decimal"
-              />
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <TextField
+                    id="product-price"
+                    label="Price incl. tax *"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="0.00"
+                    inputMode="decimal"
+                  />
+                  <TextField
+                    id="product-tax"
+                    label="Tax rate (%) *"
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(e.target.value)}
+                    placeholder="19"
+                    inputMode="decimal"
+                  />
+                </div>
 
-            <TextField
-              id="product-stock"
-              label="Initial Stock *"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-              placeholder="0"
-              inputMode="numeric"
-            />
+                <TextField
+                  id="product-stock"
+                  label="Initial Stock *"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                  placeholder="0"
+                  inputMode="numeric"
+                />
 
-            {/* Fulfillment type — instant (served immediately) vs manufactured. */}
-            <fieldset>
-              <legend className="mb-2 block text-sm font-medium text-text">Fulfillment type</legend>
-              <div className="space-y-2">
-                {[
-                  {
-                    value: true,
-                    title: 'Instant',
-                    description: 'Available immediately, no preparation',
-                  },
-                  {
-                    value: false,
-                    title: 'Manufactured',
-                    description: 'Requires preparation before pickup',
-                  },
-                ].map((option) => {
-                  const selected = instantProduct === option.value;
-                  return (
-                    <label
-                      key={option.title}
-                      className={[
-                        'flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition',
-                        selected
-                          ? 'border-accent bg-accent-soft'
-                          : 'border-border bg-surface hover:bg-surface-muted',
-                      ].join(' ')}
-                    >
-                      <input
-                        type="radio"
-                        name="product-fulfillment"
-                        className="h-4 w-4 shrink-0 accent-accent"
-                        checked={selected}
-                        onChange={() => setInstantProduct(option.value)}
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-text">{option.title}</span>
-                        <span className="block text-xs text-text-muted">{option.description}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <div>
-              <label
-                className="mb-2 block text-sm font-medium text-text"
-                htmlFor="product-description"
-              >
-                Description (Optional)
-              </label>
-              <textarea
-                id="product-description"
-                className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Short description shown to customers"
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <TextField
-                id="product-image-url"
-                label="Image URL (Optional)"
-                value={imageUrl}
-                onChange={(e) => handleImageUrlChange(e.target.value)}
-                placeholder="https://…"
-                type="url"
-              />
-              {imageUrl.trim() &&
-                (previewBroken ? (
-                  <p className="mt-2 text-xs text-text-muted">
-                    Preview unavailable — check the URL.
-                  </p>
-                ) : (
-                  <div className="mt-2 h-40 overflow-hidden rounded-lg border border-border bg-surface-muted">
-                    <img
-                      alt="Product preview"
-                      className="h-full w-full object-contain"
-                      onError={() => setPreviewBroken(true)}
-                      src={imageUrl.trim()}
-                    />
+                {/* Fulfillment type — instant (served immediately) vs manufactured. */}
+                <fieldset>
+                  <legend className="mb-2 block text-sm font-medium text-text">
+                    Fulfillment type
+                  </legend>
+                  <div className="space-y-2">
+                    {[
+                      {
+                        value: true,
+                        title: 'Instant',
+                        description: 'Available immediately, no preparation',
+                      },
+                      {
+                        value: false,
+                        title: 'Manufactured',
+                        description: 'Requires preparation before pickup',
+                      },
+                    ].map((option) => {
+                      const selected = instantProduct === option.value;
+                      return (
+                        <label
+                          key={option.title}
+                          className={[
+                            'flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition',
+                            selected
+                              ? 'border-accent bg-accent-soft'
+                              : 'border-border bg-surface hover:bg-surface-muted',
+                          ].join(' ')}
+                        >
+                          <input
+                            type="radio"
+                            name="product-fulfillment"
+                            className="h-4 w-4 shrink-0 accent-accent"
+                            checked={selected}
+                            onChange={() => setInstantProduct(option.value)}
+                          />
+                          <span>
+                            <span className="block text-sm font-medium text-text">
+                              {option.title}
+                            </span>
+                            <span className="block text-xs text-text-muted">
+                              {option.description}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
-                ))}
+                </fieldset>
+              </div>
+
+              {/* Right column — description and image */}
+              <div className="space-y-4">
+                <div>
+                  <label
+                    className="mb-2 block text-sm font-medium text-text"
+                    htmlFor="product-description"
+                  >
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    id="product-description"
+                    className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Short description shown to customers"
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <TextField
+                    id="product-image-url"
+                    label="Image URL (Optional)"
+                    value={imageUrl}
+                    onChange={(e) => handleImageUrlChange(e.target.value)}
+                    placeholder="https://…"
+                    type="url"
+                  />
+                  {imageUrl.trim() &&
+                    (previewBroken ? (
+                      <p className="mt-2 text-xs text-text-muted">
+                        Preview unavailable — check the URL.
+                      </p>
+                    ) : (
+                      <div className="mt-2 h-40 overflow-hidden rounded-lg border border-border bg-surface-muted">
+                        <img
+                          alt="Product preview"
+                          className="h-full w-full object-contain"
+                          onError={() => setPreviewBroken(true)}
+                          src={imageUrl.trim()}
+                        />
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
 
             <div className="mt-6 flex justify-end gap-3 border-t pt-4">

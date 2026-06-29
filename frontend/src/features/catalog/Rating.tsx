@@ -15,10 +15,9 @@ export function Rating({ value, className = '' }: RatingProps) {
       </span>
     );
   }
-
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-medium text-text ${className}`}>
-      <StarIcon className="h-3.5 w-3.5 text-amber-400" />
+      <StarIcon className="h-3.5 w-3.5 text-amber-400" filled />
       {value.toFixed(1)}
     </span>
   );

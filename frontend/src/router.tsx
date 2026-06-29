@@ -1,7 +1,10 @@
 import { createBrowserRouter, createRoutesFromElements, Route } from 'react-router';
 
+import RootLayout from './routes/RootLayout';
 import Home from './routes/Home';
 import NotFound from './routes/NotFound';
+import Imprint from './routes/legal/Imprint';
+import PrivacyPolicy from './routes/legal/PrivacyPolicy';
 
 import OrganizerAuth from './routes/auth/OrganizerAuth';
 import { OrganizerRequireAuth } from './auth/organizer/OrganizerRequireAuth';
@@ -17,6 +20,9 @@ import {
   eventConfigurationLoader,
   eventConfigurationAction,
 } from './routes/organizer/event-configuration/data';
+import { EventControlCenterError } from './routes/organizer/event-control-center/EventControlCenter';
+import EventControlCenterRoute from './routes/organizer/event-control-center/EventControlCenterRoute';
+import { eventControlCenterLoader } from './routes/organizer/event-control-center/data';
 import OrganizerPayment from './routes/organizer/Payment';
 import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Settings';
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
@@ -30,7 +36,9 @@ import AttendeeCart from './routes/attendee/cart/Cart';
 import AttendeeOrderConfirmed from './routes/attendee/checkout/OrderConfirmed';
 import AttendeeCashPaymentPending from './routes/attendee/checkout/CashPaymentPending';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
-import AttendeeReview from './routes/attendee/review/AttendeeReview';
+import AttendeeTrackOrder from './routes/attendee/order-history/TrackOrder';
+import AttendeeReviewOrder from './routes/attendee/order-history/ReviewOrder';
+import { ordersLoader } from './routes/attendee/order-history/data';
 
 import OperatorLayout from './routes/operator/OperatorLayout';
 import OperatorLinkEntry from './routes/operator/link-entry/OperatorLinkEntry';
@@ -46,13 +54,16 @@ import CashierPaymentConfirmed from './routes/operator/cashier/CashierPaymentCon
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route path="/">
+    <Route path="/" element={<RootLayout />}>
       <Route index element={<Home />} />
 
       {/* Auth sits outside the guarded layout to avoid a redirect loop. */}
       <Route path="auth" element={<OrganizerAuth />} />
       <Route path="auth/forgot-password" element={<ForgotPassword />} />
       <Route path="reset-password" element={<ResetPassword />} />
+
+      <Route path="imprint" element={<Imprint />} />
+      <Route path="privacy" element={<PrivacyPolicy />} />
 
       <Route path="organizer" element={<OrganizerLayout />}>
         <Route
@@ -69,6 +80,12 @@ export const router = createBrowserRouter(
           loader={settingsLoader}
           action={settingsAction}
           errorElement={<SettingsError />}
+        />
+        <Route
+          path="events/:eventId/event-control-center/:section"
+          element={<EventControlCenterRoute />}
+          loader={eventControlCenterLoader}
+          errorElement={<EventControlCenterError />}
         />
       </Route>
 
@@ -94,20 +111,21 @@ export const router = createBrowserRouter(
         <Route path="cart" element={<AttendeeCart />} />
         <Route path="checkout/:orderId/confirmed" element={<AttendeeOrderConfirmed />} />
         <Route path="checkout/:orderId/pending" element={<AttendeeCashPaymentPending />} />
-        <Route path="orders" element={<AttendeeOrderHistory />} />
-        <Route path="review/:orderId" element={<AttendeeReview />} />
+        <Route path="orders" element={<AttendeeOrderHistory />} loader={ordersLoader} />
+        <Route path="orders/:orderId" element={<AttendeeTrackOrder />} />
+        <Route path="orders/:orderId/review" element={<AttendeeReviewOrder />} />
       </Route>
 
       <Route path="operator" element={<OperatorLayout />} handle={{ title: 'Operator' }}>
         <Route
           path=":eventId/link/:operatorAccessKey"
           element={<OperatorLinkEntry />}
-          handle={{ title: 'Stand Selection' }}
+          handle={{ title: 'Operator Console' }}
         />
         <Route
           path=":eventId"
           element={<OperatorStandSelection />}
-          handle={{ title: 'Stand Selection' }}
+          handle={{ title: 'Operator Console' }}
         />
         <Route
           path=":eventId/pickup"

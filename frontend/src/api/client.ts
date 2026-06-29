@@ -71,13 +71,32 @@ interface ApiFetchOptions extends RequestInit {
 }
 
 export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promise<T> {
-  return doFetch<T>(path, options, false);
+  const { data } = await doFetch<T>(path, options, false, []);
+  return data;
+}
+
+// Like apiFetch, but resolves (instead of throwing) for the listed non-2xx
+// statuses, returning the status so the caller can branch on it. Used for
+// POST /orders, where a 402 is not an error but a Stripe authorization step
+// whose body carries the clientSecret to confirm.
+export async function apiFetchAllowing<T>(
+  path: string,
+  options: ApiFetchOptions,
+  allowStatuses: number[],
+): Promise<{ status: number; data: T }> {
+  return doFetch<T>(path, options, false, allowStatuses);
 }
 
 // `isRetry` guards against a refresh loop: we attempt at most one refresh +
 // retry per request. The refreshed token is re-read from the keychain by
-// attachAuthHeader on the retry, so options stay untouched.
-async function doFetch<T>(path: string, options: ApiFetchOptions, isRetry: boolean): Promise<T> {
+// attachAuthHeader on the retry, so options stay untouched. `allowStatuses`
+// lists non-2xx codes the caller handles itself (returned, not thrown).
+async function doFetch<T>(
+  path: string,
+  options: ApiFetchOptions,
+  isRetry: boolean,
+  allowStatuses: number[],
+): Promise<{ status: number; data: T }> {
   const { auth, standId, eventId, headers, body, ...rest } = options;
 
   const finalHeaders = new Headers(headers);
@@ -94,17 +113,17 @@ async function doFetch<T>(path: string, options: ApiFetchOptions, isRetry: boole
 
   if (res.status === 401 && auth !== 'public') {
     if (await tryRefreshOr401(auth, isRetry, { standId, eventId })) {
-      return doFetch<T>(path, options, true);
+      return doFetch<T>(path, options, true, allowStatuses);
     }
   }
 
-  if (!res.ok) {
+  if (!res.ok && !allowStatuses.includes(res.status)) {
     const message = await extractError(res);
     throw new ApiError(res.status, message);
   }
 
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  if (res.status === 204) return { status: res.status, data: undefined as T };
+  return { status: res.status, data: (await res.json()) as T };
 }
 
 function attachAuthHeader(headers: Headers, auth: ApiAuthMode, ids: ScopeIds): void {
@@ -174,7 +193,7 @@ export interface StreamSseOptions extends Omit<ApiFetchOptions, 'body' | 'method
   onOpen?: () => void;
 }
 
-// Low-level Server-Sent-Events transport — the streaming sibling of apiFetch.
+// Low-level Server-Sent-Events transport: the streaming sibling of apiFetch.
 // It attaches the same persona credential (attachAuthHeader), performs the same
 // one-shot refresh + onUnauthorized on a 401, then keeps the connection open and
 // hands every decoded frame to onMessage until the server closes, the caller
@@ -195,7 +214,11 @@ async function doStream(path: string, options: StreamSseOptions, isRetry: boolea
   finalHeaders.set('Accept', 'text/event-stream');
   attachAuthHeader(finalHeaders, auth, { standId, eventId });
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...rest, headers: finalHeaders, signal });
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...rest,
+    headers: finalHeaders,
+    signal,
+  });
 
   if (res.status === 401 && auth !== 'public') {
     if (await tryRefreshOr401(auth, isRetry, { standId, eventId })) {
@@ -225,8 +248,8 @@ async function readSseStream(
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
 
+      buffer += decoder.decode(value, { stream: true });
       let boundary = buffer.indexOf('\n\n');
       while (boundary !== -1) {
         const frame = parseSseFrame(buffer.slice(0, boundary));

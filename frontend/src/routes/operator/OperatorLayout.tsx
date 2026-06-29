@@ -1,45 +1,13 @@
-import { useMemo, useState } from 'react';
-import { Outlet, useMatches } from 'react-router';
-
-import { OperatorNavbar } from '../../components/layout/navbars';
-import { OperatorOutletContext, type OperatorNavbarActions } from './operatorNavbarActions';
-
-type OperatorRouteHandle = {
-  title?: string;
-};
+import { Outlet } from 'react-router';
 
 export default function OperatorLayout() {
-  const matches = useMatches();
-  const navbarTitle =
-    (matches.at(-1)?.handle as OperatorRouteHandle | undefined)?.title ?? 'Operator';
-  const [navbarActions, setNavbarActions] = useState<OperatorNavbarActions>({});
-  const outletContext = useMemo(() => ({ setNavbarActions }), []);
-
+  // The operator area renders no navbar; each page brings its own left-aligned
+  // header and any controls it needs.
   return (
     <div className="min-h-screen bg-background">
-      <OperatorNavbar
-        center={
-          <span className="text-center text-sm font-semibold text-text sm:text-base">
-            {navbarTitle}
-          </span>
-        }
-        left={<CustomerLogoPlaceholder />}
-        right={navbarActions.right}
-        widthClassName="w-[calc(100%_-_2rem)] max-w-[calc(80rem-2rem)] sm:w-[calc(100%_-_3rem)] sm:max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]"
-      />
       <main>
-        <OperatorOutletContext.Provider value={outletContext}>
-          <Outlet />
-        </OperatorOutletContext.Provider>
+        <Outlet />
       </main>
-    </div>
-  );
-}
-
-function CustomerLogoPlaceholder() {
-  return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-border bg-surface-muted text-xs font-semibold text-text-muted">
-      Logo
     </div>
   );
 }

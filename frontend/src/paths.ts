@@ -6,11 +6,19 @@ export const paths = {
   auth: '/auth',
   forgotPassword: '/auth/forgot-password',
   resetPassword: '/reset-password',
+  imprint: '/imprint',
+  privacy: '/privacy',
   organizer: {
     root: '/organizer',
     payment: '/organizer/payment',
     settings: '/organizer/settings',
     event: (eventId: string) => `/organizer/events/${eventId}`,
+    eventControlCenterAnalytics: (eventId: string) =>
+      `/organizer/events/${eventId}/event-control-center/analytics`,
+    eventControlCenterManagement: (eventId: string) =>
+      `/organizer/events/${eventId}/event-control-center/management`,
+    eventControlCenterSettings: (eventId: string) =>
+      `/organizer/events/${eventId}/event-control-center/settings`,
   },
   attendee: {
     event: (eventId: string) => `/event/${eventId}`,
@@ -20,7 +28,8 @@ export const paths = {
     checkoutPending: (eventId: string, orderId: string) =>
       `/event/${eventId}/checkout/${orderId}/pending`,
     orders: (eventId: string) => `/event/${eventId}/orders`,
-    review: (eventId: string, orderId: string) => `/event/${eventId}/review/${orderId}`,
+    trackOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}`,
+    reviewOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}/review`,
   },
   operator: {
     root: (eventId: string) => `/operator/${eventId}`,
