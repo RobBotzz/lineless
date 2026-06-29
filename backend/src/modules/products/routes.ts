@@ -1,5 +1,12 @@
-import { Router, type Request, type Response } from "express";
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
+import multer from "multer";
 import { validateBody } from "../../middleware/validate";
+import { config } from "../../config/config";
 import {
   createProduct,
   listProductsForOrganizer,
@@ -12,10 +19,19 @@ import {
   softDeleteProduct,
   pauseProduct,
   resumeProduct,
+  setProductImage,
+  getProductImage,
+  deleteProductImage,
   toProductResponse,
   type ProductControlAuth,
 } from "./service";
-import { ProductNotFoundError, ProductStateError } from "./errors";
+import {
+  ImageTooLargeError,
+  InvalidImageError,
+  ProductImageNotFoundError,
+  ProductNotFoundError,
+  ProductStateError,
+} from "./errors";
 import {
   CashierStandProtectedError,
   StandNotFoundError,
@@ -61,8 +77,53 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(409).json({ error: err.message });
   if (err instanceof CashierStandProtectedError)
     return res.status(403).json({ error: err.message });
+  if (err instanceof ProductImageNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof InvalidImageError)
+    return res.status(400).json({ error: err.message });
+  if (err instanceof ImageTooLargeError)
+    return res.status(413).json({ error: err.message });
   console.error("Products error:", err);
   return res.status(500).json({ error: "Internal server error" });
+}
+
+// Memory-storage upload: the bytes go straight into MongoDB, never to disk. The
+// size cap is enforced by multer; the MIME whitelist here is a cheap first pass
+// (the real format check happens against the magic bytes in the service).
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: config.upload.maxImageBytes },
+  fileFilter: (_req, file, cb) => {
+    if (config.upload.allowedImageMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new InvalidImageError(`Unsupported image type: ${file.mimetype}`));
+    }
+  },
+});
+
+// Runs the multer middleware and maps its errors onto our domain errors so the
+// route's handleError produces consistent JSON status codes.
+function uploadProductImage(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  imageUpload.single("image")(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        handleError(new ImageTooLargeError(), res);
+      } else {
+        handleError(new InvalidImageError(err.message), res);
+      }
+      return;
+    }
+    if (err) {
+      handleError(err, res);
+      return;
+    }
+    next();
+  });
 }
 
 // =============================================================================
@@ -224,6 +285,58 @@ productsRouter.delete(
     try {
       await softDeleteProduct(productId(req), req.organizer!.accountId);
       res.status(204).send();
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// PUT /products/:productId/image — organizer uploads/replaces the product image.
+// multipart/form-data with a single file field named "image".
+productsRouter.put(
+  "/:productId/image",
+  authOrganizer,
+  uploadProductImage,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file) throw new InvalidImageError("No image file provided");
+      const product = await setProductImage(
+        productId(req),
+        req.organizer!.accountId,
+        { buffer: req.file.buffer, mimeType: req.file.mimetype }
+      );
+      res.status(200).json(toProductResponse(product));
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// GET /products/:productId/image — public; serves the raw image bytes so the
+// frontend can use it directly as an <img> src. Cached and ETag'd.
+productsRouter.get("/:productId/image", async (req: Request, res: Response) => {
+  try {
+    const image = await getProductImage(productId(req));
+    res.set("Content-Type", image.contentType);
+    res.set("Cache-Control", "public, max-age=86400");
+    res.set("ETag", `"${image._id}-${image.updatedAt.getTime()}"`);
+    res.send(image.data);
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// DELETE /products/:productId/image — organizer removes the uploaded image.
+productsRouter.delete(
+  "/:productId/image",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const product = await deleteProductImage(
+        productId(req),
+        req.organizer!.accountId
+      );
+      res.status(200).json(toProductResponse(product));
     } catch (err) {
       handleError(err, res);
     }

@@ -34,6 +34,12 @@ interface Config {
     /** Dev-only escape hatch to accept unsigned webhooks (e.g. Bruno). */
     allowUnsignedWebhooks: boolean;
   };
+  upload: {
+    /** Hard size cap for an uploaded product image, in bytes. */
+    maxImageBytes: number;
+    /** MIME types accepted for product images (validated against magic bytes). */
+    allowedImageMimeTypes: readonly string[];
+  };
 }
 
 export const config: Config = {
@@ -85,5 +91,11 @@ export const config: Config = {
     // be left open in production just because NODE_ENV was not set.
     allowUnsignedWebhooks:
       process.env["STRIPE_ALLOW_UNSIGNED_WEBHOOKS"] === "true",
+  },
+  upload: {
+    maxImageBytes: process.env["UPLOAD_MAX_IMAGE_BYTES"]
+      ? Number(process.env["UPLOAD_MAX_IMAGE_BYTES"])
+      : 5 * 1024 * 1024,
+    allowedImageMimeTypes: ["image/jpeg", "image/png", "image/webp"],
   },
 };
