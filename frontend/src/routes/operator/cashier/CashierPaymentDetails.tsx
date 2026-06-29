@@ -27,7 +27,7 @@ export default function CashierPaymentDetails() {
     setConfirmOpen(false);
     setIsPaying(true);
     try {
-      await confirmCashPayment(order._id);
+      await confirmCashPayment(order._id, standId);
       navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
     } catch (err) {
       setPayError(err instanceof Error ? err.message : 'Could not confirm the payment.');

@@ -8,7 +8,6 @@ import {
   getEventControlCenter,
   getEventOrders,
   type EventControlCenterData,
-  type EventControlCenterSettings,
   type LiveOrder,
 } from '@/api/eventControlCenter';
 import { cancelOrder, cancelOrderItems } from '@/api/orders';
@@ -20,14 +19,12 @@ import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
 
 export function useEventControlCenterLiveData({
-  controlCenterSettings,
   eventId,
   initialAnalytics,
   initialLiveOrders,
   initialProductsByStand,
   initialStands,
 }: {
-  controlCenterSettings: EventControlCenterSettings;
   eventId: string;
   initialAnalytics: EventControlCenterData;
   initialLiveOrders: LiveOrder[];
@@ -40,10 +37,7 @@ export function useEventControlCenterLiveData({
   const [stands, setStands] = useState(initialStands);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(() => new Date());
   const [mutationError, setMutationError] = useState<string | null>(null);
-  const analyticsStreamPath = useMemo(
-    () => eventControlCenterStreamPath(eventId, controlCenterSettings),
-    [controlCenterSettings, eventId],
-  );
+  const analyticsStreamPath = useMemo(() => eventControlCenterStreamPath(eventId), [eventId]);
   const ordersStreamPath = useMemo(() => eventOrdersStreamPath(eventId), [eventId]);
 
   const analyticsStream = useSSE({
@@ -71,7 +65,7 @@ export function useEventControlCenterLiveData({
 
   async function refreshSnapshot() {
     const [nextAnalytics, nextLiveOrders] = await Promise.all([
-      getEventControlCenter(eventId, controlCenterSettings),
+      getEventControlCenter(eventId),
       getEventOrders(eventId),
     ]);
     setAnalytics(nextAnalytics);

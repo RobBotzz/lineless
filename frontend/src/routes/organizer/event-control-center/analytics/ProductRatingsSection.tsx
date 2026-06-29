@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import type { ProductRating } from '@/api/eventControlCenter';
 import { ImageIcon } from '@/components/icons';
-import { StarRating } from '@/components/shared';
+import { Rating } from '@/features/catalog/Rating';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
@@ -204,7 +204,7 @@ function ProductRatingCard({ rating }: { rating: ProductRating }) {
   const showImage = !!rating.productImageUrl && imageOk;
 
   return (
-    <article className="rounded-lg border border-border bg-surface p-3 shadow-sm">
+    <article className="min-w-0 rounded-lg border border-border bg-surface p-3 shadow-sm">
       <div className="flex gap-3">
         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-muted">
           {showImage ? (
@@ -222,16 +222,18 @@ function ProductRatingCard({ rating }: { rating: ProductRating }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h4 className="truncate text-sm font-semibold text-text">{rating.productName}</h4>
-              <span className="mt-1 inline-flex max-w-full rounded-full border border-border bg-background px-2 py-0.5 text-xs font-medium text-text-muted">
-                <span className="truncate">{rating.standName}</span>
+            <div className="min-w-0 flex-1">
+              <h4 className="break-words text-sm font-semibold text-text">{rating.productName}</h4>
+              <span className="mt-1 inline-flex min-w-0 max-w-full rounded-full border border-border bg-background px-2 py-0.5 text-xs font-medium text-text-muted">
+                <span className="min-w-0 break-words whitespace-normal">{rating.standName}</span>
               </span>
             </div>
-            <StarRating rating={rating.stars} className="shrink-0" />
+            <Rating value={rating.stars} className="shrink-0" />
           </div>
           {rating.comment ? (
-            <p className="mt-3 text-sm leading-6 text-text">{rating.comment}</p>
+            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-text">
+              {rating.comment}
+            </p>
           ) : (
             <p className="mt-3 text-sm italic leading-6 text-text-muted">No message provided.</p>
           )}

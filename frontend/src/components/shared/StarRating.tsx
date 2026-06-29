@@ -1,24 +1,40 @@
+import { useState } from 'react';
+
 import { StarIcon } from '@/components/icons';
+import { cn } from '@/lib/utils';
 
 interface StarRatingProps {
-  rating: number | null;
+  value: number; // 0 = unrated, 1–5 = rated
+  onChange: (rating: number) => void;
+  readOnly?: boolean;
   className?: string;
 }
 
-export function StarRating({ rating, className = '' }: StarRatingProps) {
-  if (rating === null) {
-    return (
-      <span className={`inline-flex items-center gap-1 text-xs text-text-muted ${className}`}>
-        <StarIcon filled={false} className="h-3.5 w-3.5" />
-        No rating yet
-      </span>
-    );
-  }
+export function StarRating({ value, onChange, readOnly = false, className }: StarRatingProps) {
+  const [hovered, setHovered] = useState(0);
+
+  const effective = hovered > 0 ? hovered : value;
 
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium text-text ${className}`}>
-      <StarIcon className="h-3.5 w-3.5 text-amber-400" />
-      {rating.toFixed(1)}
-    </span>
+    <div className={cn('flex gap-1', className)} role="group" aria-label="Star rating">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          aria-label={`${star} star${star > 1 ? 's' : ''}`}
+          disabled={readOnly}
+          className={cn(
+            'text-warning transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
+            !readOnly && 'cursor-pointer hover:scale-110',
+            readOnly && 'cursor-default',
+          )}
+          onClick={() => !readOnly && onChange(star)}
+          onMouseEnter={() => !readOnly && setHovered(star)}
+          onMouseLeave={() => !readOnly && setHovered(0)}
+        >
+          <StarIcon className="h-7 w-7" filled={star <= effective} />
+        </button>
+      ))}
+    </div>
   );
 }

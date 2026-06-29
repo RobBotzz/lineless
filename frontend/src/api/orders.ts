@@ -1,7 +1,7 @@
 import { apiFetch, apiFetchAllowing } from './client';
 import { getAttendeeStandProducts, getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
-import type { Order, OrderItemView } from '../types/order';
+import type { AttendeeOrder, Order, OrderItemView } from '../types/order';
 import type { Stand } from '../types/stand';
 
 // Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED.
@@ -220,11 +220,10 @@ export async function createCardOrder(
   return { status: 'created', order: data.order as Order };
 }
 
-// GET /api/orders/:orderId — the attendee's own order by id. Used to hydrate the
-// confirmation screen after a top-up authorization, where the order was created
-// by the backend during the 402 and is not in hand client-side.
-export function getAttendeeOrder(orderId: string, eventId: string): Promise<Order> {
-  return apiFetch<Order>(`/orders/${orderId}`, { auth: 'attendee', eventId });
+// GET /api/orders/:orderId — the attendee's own order by id. Items include
+// productName + standName joined by the backend.
+export function getAttendeeOrder(orderId: string, eventId: string): Promise<AttendeeOrder> {
+  return apiFetch<AttendeeOrder>(`/orders/${orderId}`, { auth: 'attendee', eventId });
 }
 
 // GET /api/orders/cashier — unpaid orders for the cashier's event.
@@ -243,10 +242,12 @@ export function deleteUnpaidOrder(orderId: string, standId: string): Promise<voi
   });
 }
 
-// Mocked: the real POST /api/orders/:orderId/cash-payment (mark paid + release
-// instant items) lands in a follow-up MR — payments are out of scope here.
-export function confirmCashPayment(_orderId: string): Promise<void> {
-  return Promise.resolve();
+export function confirmCashPayment(orderId: string, standId: string): Promise<void> {
+  return apiFetch<void>(`/orders/${orderId}/cash-payment`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+  });
 }
 
 // GET /api/orders — attendee's order history (paid orders only).

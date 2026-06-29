@@ -2,8 +2,10 @@ import type { LoaderFunctionArgs } from 'react-router';
 
 import {
   getEventControlCenter,
+  getEventControlCenterSettings,
   getEventOrders,
   type EventControlCenterData,
+  type EventControlCenterSettings,
   type LiveOrder,
 } from '@/api/eventControlCenter';
 import { getEvent } from '@/api/events';
@@ -17,6 +19,7 @@ export interface EventControlCenterLoaderData {
   analytics: EventControlCenterData;
   event: Event;
   liveOrders: LiveOrder[];
+  settings: EventControlCenterSettings;
   stands: Stand[];
   productsByStand: Record<string, Product[]>;
 }
@@ -27,10 +30,11 @@ export async function eventControlCenterLoader({
   const eventId = params.eventId;
   if (!eventId) throw new Error('Missing event id.');
 
-  const [analytics, event, liveOrders, stands] = await Promise.all([
+  const [analytics, event, liveOrders, settings, stands] = await Promise.all([
     getEventControlCenter(eventId),
     getEvent(eventId),
     getEventOrders(eventId),
+    getEventControlCenterSettings(eventId),
     getEventStands(eventId),
   ]);
 
@@ -45,6 +49,7 @@ export async function eventControlCenterLoader({
     analytics,
     event,
     liveOrders,
+    settings,
     stands,
     productsByStand: Object.fromEntries(productsByStandEntries),
   };

@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react';
 import { Navigate, useLoaderData, useParams, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import type { EventControlCenterSettings } from '@/api/eventControlCenter';
 import { paths } from '@/paths';
 import { ControlCenterHeader } from './components/ControlCenterHeader';
 import { ControlCenterTabs } from './components/ControlCenterTabs';
@@ -10,12 +8,6 @@ import type { EventControlCenterLoaderData } from './data';
 import { EventControlCenterAnalyticsPage } from './EventControlCenterAnalyticsPage';
 import { EventControlCenterManagementPage } from './EventControlCenterManagementPage';
 import { EventControlCenterSettingsPage } from './EventControlCenterSettingsPage';
-import {
-  createSettingsForStands,
-  normalizeControlCenterSettings,
-  readControlCenterSettings,
-  writeControlCenterSettings,
-} from './eventControlCenterSettingsStorage';
 import { useEventControlCenterLiveData } from './hooks/useEventControlCenterLiveData';
 
 export function EventControlCenterError() {
@@ -38,15 +30,9 @@ export default function EventControlCenter() {
     event,
     liveOrders: initialLiveOrders,
     productsByStand: initialProductsByStand,
+    settings,
     stands: initialStands,
   } = useLoaderData() as EventControlCenterLoaderData;
-  const [controlCenterSettingsState, setControlCenterSettingsState] = useState<{
-    eventId: string;
-    settings: EventControlCenterSettings;
-  }>(() => ({
-    eventId: event._id,
-    settings: readControlCenterSettings(event._id),
-  }));
   const { section } = useParams();
   const activeSection =
     section === 'management' ? 'management' : section === 'settings' ? 'settings' : 'analytics';
@@ -57,34 +43,13 @@ export default function EventControlCenter() {
     section !== 'management' &&
     section !== 'settings';
 
-  const controlCenterSettings = useMemo(
-    () =>
-      createSettingsForStands(
-        controlCenterSettingsState.eventId === event._id
-          ? controlCenterSettingsState.settings
-          : readControlCenterSettings(event._id),
-        initialStands,
-      ),
-    [controlCenterSettingsState, event._id, initialStands],
-  );
-
   const liveData = useEventControlCenterLiveData({
-    controlCenterSettings,
     eventId: event._id,
     initialAnalytics,
     initialLiveOrders,
     initialProductsByStand,
     initialStands,
   });
-
-  function handleControlCenterSettingsChange(settings: EventControlCenterSettings) {
-    const normalizedSettings = createSettingsForStands(
-      normalizeControlCenterSettings(settings),
-      liveData.stands,
-    );
-    writeControlCenterSettings(event._id, normalizedSettings);
-    setControlCenterSettingsState({ eventId: event._id, settings: normalizedSettings });
-  }
 
   if (hasInvalidSection) {
     return <Navigate replace to={paths.organizer.eventControlCenterAnalytics(event._id)} />;
@@ -111,10 +76,10 @@ export default function EventControlCenter() {
         />
       ) : activeSection === 'settings' ? (
         <EventControlCenterSettingsPage
+          eventId={event._id}
           key={event._id}
-          settings={controlCenterSettings}
+          settings={settings}
           stands={liveData.stands}
-          onChange={handleControlCenterSettingsChange}
         />
       ) : (
         <EventControlCenterManagementPage
