@@ -9,7 +9,7 @@ export default function ReviewOrder() {
 
   return (
     <div className="space-y-4">
-      <BackButton to={paths.attendee.trackOrder(eventId, orderId)}>Back</BackButton>
+      <BackButton to={paths.attendee.trackOrder(eventId, orderId)}>Track order</BackButton>
 
       <div className="flex items-center gap-2">
         <StarIcon className="h-5 w-5 text-amber-400" />

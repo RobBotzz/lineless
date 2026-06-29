@@ -26,6 +26,15 @@ const STATUS_LABEL: Record<ItemStatus, string> = {
   CANCELLED: 'Cancelled',
 };
 
+// Display order within a stand: actionable (ready) first, cancelled last.
+const STATUS_ORDER: Record<ItemStatus, number> = {
+  READY: 0,
+  PREPARING: 1,
+  PENDING: 2,
+  FULFILLED: 3,
+  CANCELLED: 4,
+};
+
 // Each status maps to a badge style plus a leading dot color (currentColor).
 const STATUS_CLASS: Record<ItemStatus, string> = {
   PENDING: 'bg-surface-muted text-text-muted',
@@ -60,9 +69,9 @@ function StandItemRow({ si, idx }: { si: StandItem; idx: number }) {
   const hasComment = !!si.orderItem.customerComment?.trim();
 
   return (
-    <li className="flex items-start justify-between gap-3 px-4 py-3.5">
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-2">
+    <li className="px-4 py-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-baseline gap-2">
           <span className="shrink-0 text-xs font-semibold tabular-nums text-text-muted">
             {idx + 1}
           </span>
@@ -75,31 +84,29 @@ function StandItemRow({ si, idx }: { si: StandItem; idx: number }) {
             {si.productName}
           </p>
         </div>
-        {hasComment && (
-          <>
-            <button
-              type="button"
-              onClick={() => setCommentOpen((o) => !o)}
-              aria-expanded={commentOpen}
-              className="mt-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text"
-            >
-              <CommentIcon className="h-4 w-4" />
-              <span>Item comment</span>
-              <ChevronDownIcon
-                className={cn('h-4 w-4 transition-transform', commentOpen && 'rotate-180')}
-              />
-            </button>
-            {commentOpen && (
-              <p className="mt-1 rounded-lg bg-surface-muted px-3 py-2 text-xs text-text-muted">
-                {si.orderItem.customerComment}
-              </p>
-            )}
-          </>
-        )}
-      </div>
-      <div className="mt-0.5">
         <StatusBadge status={status} />
       </div>
+      {hasComment && (
+        <>
+          <button
+            type="button"
+            onClick={() => setCommentOpen((o) => !o)}
+            aria-expanded={commentOpen}
+            className="mt-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text"
+          >
+            <CommentIcon className="h-4 w-4" />
+            <span>Item comment</span>
+            <ChevronDownIcon
+              className={cn('h-4 w-4 transition-transform', commentOpen && 'rotate-180')}
+            />
+          </button>
+          {commentOpen && (
+            <p className="mt-1 rounded-lg bg-surface-muted px-3 py-2 text-xs text-text-muted">
+              {si.orderItem.customerComment}
+            </p>
+          )}
+        </>
+      )}
     </li>
   );
 }
@@ -108,6 +115,9 @@ export function StandTrackGroup({ stand, items }: StandTrackGroupProps) {
   const [mapOpen, setMapOpen] = useState(false);
   const latLng = toLatLng(stand.location);
   const activeCount = items.filter((si) => getItemStatus(si.orderItem) !== 'CANCELLED').length;
+  const sortedItems = [...items].sort(
+    (a, b) => STATUS_ORDER[getItemStatus(a.orderItem)] - STATUS_ORDER[getItemStatus(b.orderItem)],
+  );
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
@@ -150,7 +160,7 @@ export function StandTrackGroup({ stand, items }: StandTrackGroupProps) {
       )}
 
       <ul className="divide-y divide-border">
-        {items.map((si, idx) => (
+        {sortedItems.map((si, idx) => (
           <StandItemRow key={si.orderItem._id} si={si} idx={idx} />
         ))}
       </ul>

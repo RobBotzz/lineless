@@ -170,7 +170,7 @@ export default function TrackOrder() {
   if (orderQuery.isPending || standsQuery.isPending) {
     return (
       <div className="space-y-4">
-        <BackButton to={paths.attendee.orders(eventId)}>Back</BackButton>
+        <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
         <p className="rounded-xl bg-surface-muted p-4 text-center text-sm text-text-muted">
           Loading your order…
         </p>
@@ -181,7 +181,7 @@ export default function TrackOrder() {
   if (orderQuery.isError || !orderQuery.data || standsQuery.isError) {
     return (
       <div className="space-y-4">
-        <BackButton to={paths.attendee.orders(eventId)}>Back</BackButton>
+        <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
         <p className="rounded-xl bg-surface-muted p-4 text-center text-sm text-text-muted">
           Could not load order. Please try again.
         </p>
@@ -210,7 +210,7 @@ export default function TrackOrder() {
 
   return (
     <div className="space-y-4">
-      <BackButton to={paths.attendee.orders(eventId)}>Back</BackButton>
+      <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
 
       <p className="text-xs text-text-muted">Placed {createdAt}</p>
 
@@ -237,7 +237,8 @@ export default function TrackOrder() {
           </div>
         </div>
         <p className="bg-accent-raised px-4 py-2 text-center text-xs text-button-text/80">
-          Show this when collecting your order
+          Use your <strong>Order ID</strong> to identify your order and show the{' '}
+          <strong>Pickup Code</strong> while collecting.
         </p>
       </div>
 
