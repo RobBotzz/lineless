@@ -23,7 +23,6 @@ export async function createEvent(
     plannedDate: input.plannedDate,
     ratingsEnabled: input.ratingsEnabled,
     cashierEnabled: input.cashierEnabled,
-    offlineOrdersEnabled: input.offlineOrdersEnabled,
     baselineHoldCents: input.baselineHoldCents,
     branding: input.branding,
     location: input.location,
@@ -92,9 +91,6 @@ export async function updateEvent(
   if (patch.cashierEnabled !== undefined) {
     event.cashierEnabled = patch.cashierEnabled;
     if (patch.cashierEnabled) await ensureCashierStand(event._id);
-  }
-  if (patch.offlineOrdersEnabled !== undefined) {
-    event.offlineOrdersEnabled = patch.offlineOrdersEnabled;
   }
   if (patch.baselineHoldCents !== undefined) {
     event.baselineHoldCents = patch.baselineHoldCents;
