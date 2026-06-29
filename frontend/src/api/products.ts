@@ -19,18 +19,41 @@ export function getOperatorEventProducts(eventId: string, standId: string): Prom
   return apiFetch<Product[]>(`/events/${eventId}/products`, { auth: 'operator', standId });
 }
 
-export function createProduct(standId: string, patch: CreateProductInput): Promise<void> {
-  return apiFetch<void>(`/stands/${standId}/products`, {
+// Returns the created product so callers can chain an image upload (the image is
+// a separate endpoint that needs the new product id).
+export function createProduct(standId: string, patch: CreateProductInput): Promise<Product> {
+  return apiFetch<Product>(`/stands/${standId}/products`, {
     method: 'POST',
     body: JSON.stringify(patch),
     auth: 'organizer',
   });
 }
 
-export function updateProduct(productId: string, patch: UpdateProductInput): Promise<void> {
-  return apiFetch<void>(`/products/${productId}`, {
+export function updateProduct(productId: string, patch: UpdateProductInput): Promise<Product> {
+  return apiFetch<Product>(`/products/${productId}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
+    auth: 'organizer',
+  });
+}
+
+// Uploads (or replaces) the product image — multipart/form-data, single field
+// "image". Returns the updated product (productImageUrl now points at the served
+// image). The browser sets the multipart boundary, so no Content-Type is forced.
+export function uploadProductImage(productId: string, file: File): Promise<Product> {
+  const formData = new FormData();
+  formData.append('image', file);
+  return apiFetch<Product>(`/products/${productId}/image`, {
+    method: 'PUT',
+    body: formData,
+    auth: 'organizer',
+  });
+}
+
+// Removes the uploaded product image. Returns the updated product.
+export function deleteProductImage(productId: string): Promise<Product> {
+  return apiFetch<Product>(`/products/${productId}/image`, {
+    method: 'DELETE',
     auth: 'organizer',
   });
 }
