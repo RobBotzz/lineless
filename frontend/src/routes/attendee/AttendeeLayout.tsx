@@ -1,30 +1,35 @@
-import { Link, Outlet, useParams } from 'react-router';
+import { Link, Outlet, useLoaderData, useParams } from 'react-router';
 
 import { AttendeeNavbar } from '@/components/layout/navbars';
 import { Wordmark } from '@/components/shared';
 import { paths } from '@/paths';
+import { BrandingProvider } from '@/features/branding/BrandingContext';
 
 import { CartProvider, useCart } from './cart/cart-context';
 import { ATTENDEE_WIDTH } from './column';
+import type { AttendeeLayoutLoaderData } from './data';
 import { CartIcon, HistoryIcon } from '@/components/icons';
 import { AttendeeRequireSession } from '@/auth/attendee/AttendeeRequireSession';
 
 export default function AttendeeLayout() {
   const { eventId } = useParams();
+  const { event } = useLoaderData() as AttendeeLayoutLoaderData;
 
   return (
     <CartProvider key={eventId ?? ''} eventId={eventId ?? ''}>
       <AttendeeRequireSession eventId={eventId ?? ''}>
-        <div className="min-h-screen bg-background">
-          <AttendeeNavbar
-            left={<Logo eventId={eventId} />}
-            right={<NavbarActions eventId={eventId} />}
-            widthClassName={ATTENDEE_WIDTH}
-          />
-          <main className={`mx-auto ${ATTENDEE_WIDTH} pb-6 pt-4`}>
-            <Outlet />
-          </main>
-        </div>
+        <BrandingProvider branding={event.branding}>
+          <div className="min-h-screen bg-background">
+            <AttendeeNavbar
+              left={<Logo eventId={eventId} />}
+              right={<NavbarActions eventId={eventId} />}
+              widthClassName={ATTENDEE_WIDTH}
+            />
+            <main className={`mx-auto ${ATTENDEE_WIDTH} pb-6 pt-4`}>
+              <Outlet />
+            </main>
+          </div>
+        </BrandingProvider>
       </AttendeeRequireSession>
     </CartProvider>
   );

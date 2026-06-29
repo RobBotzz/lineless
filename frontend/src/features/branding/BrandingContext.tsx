@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useLayoutEffect, type ReactNode } from 'react';
 
 import { applyBranding, resetBranding, type Branding } from './applyBranding';
 
@@ -11,24 +11,17 @@ export function BrandingProvider({
   branding: Branding;
   children: ReactNode;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (el) applyBranding(el, branding);
-    return () => {
-      if (el) resetBranding(el);
-    };
+  // Apply on the document root (not a wrapper) so the :root color-mix() tokens
+  // recompute. useLayoutEffect runs before paint, so the brand colors land on the
+  // first frame — no flash of the default theme. Reset on unmount keeps branding
+  // scoped to the attendee subtree (no leak into organizer/operator views).
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    applyBranding(root, branding);
+    return () => resetBranding(root);
   }, [branding]);
 
-  return (
-    <BrandingContext.Provider value={branding}>
-      {/* display:contents — no layout impact, just a CSS variable scope boundary */}
-      <div ref={ref} style={{ display: 'contents' }}>
-        {children}
-      </div>
-    </BrandingContext.Provider>
-  );
+  return <BrandingContext.Provider value={branding}>{children}</BrandingContext.Provider>;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components

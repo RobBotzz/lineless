@@ -122,7 +122,7 @@ export function StandTrackGroup({ stand, items }: StandTrackGroupProps) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
       <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-contrast">
           <StandIcon className="h-4 w-4" />
         </span>
         <span className="min-w-0 flex-1 truncate font-semibold text-text">{stand.standName}</span>
@@ -134,7 +134,7 @@ export function StandTrackGroup({ stand, items }: StandTrackGroupProps) {
       {latLng && (
         <div className="border-b border-border">
           <button
-            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-accent transition-colors hover:bg-accent-soft/50"
+            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-soft/50"
             onClick={() => setMapOpen((o) => !o)}
             aria-expanded={mapOpen}
             type="button"

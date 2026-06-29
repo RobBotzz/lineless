@@ -22,9 +22,12 @@
   /* Border */
   --color-border: #d8dbe6;
 
-  /* Brand — these three are overridden at runtime for per-event branding */
+  /* Brand — overridden at runtime for per-event branding (see features/branding) */
   --color-accent: #020887;
   --color-button-text: #ffffff;
+  /* Accent used as text/icons on light surfaces. Defaults to the accent; branding
+     darkens it only when the raw accent fails AA contrast against the background. */
+  --color-accent-contrast: var(--color-accent);
   --color-accent-soft: color-mix(in srgb, var(--color-accent) 12%, transparent);
   --color-accent-raised: color-mix(in srgb, var(--color-accent) 75%, #ffffff 25%);
 
@@ -73,6 +76,7 @@
   --color-border: var(--color-border);
   --color-accent: var(--color-accent);
   --color-button-text: var(--color-button-text);
+  --color-accent-contrast: var(--color-accent-contrast);
   --color-accent-soft: var(--color-accent-soft);
   --color-accent-raised: var(--color-accent-raised);
   --color-success: var(--color-success);
