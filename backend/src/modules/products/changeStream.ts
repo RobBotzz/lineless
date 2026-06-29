@@ -2,7 +2,27 @@ import { Product, type ProductDoc } from "./model";
 import { publish } from "../../lib/realtimeBus";
 
 let stream: ReturnType<typeof Product.watch> | null = null;
-type ChangeWithFullDocument<T> = { fullDocument?: T | null };
+type ProductChange = {
+  fullDocument?: ProductDoc | null;
+  operationType?: string;
+  updateDescription?: {
+    removedFields?: string[];
+    updatedFields?: Record<string, unknown>;
+  };
+};
+
+function onlyRatingAggregateChanged(change: ProductChange): boolean {
+  if (change.operationType !== "update") return false;
+  const fields = [
+    ...Object.keys(change.updateDescription?.updatedFields ?? {}),
+    ...(change.updateDescription?.removedFields ?? []),
+  ];
+  const ratingFields = new Set(["ratingCount", "ratingSum"]);
+  return (
+    fields.some((field) => ratingFields.has(field)) &&
+    fields.every((field) => ratingFields.has(field) || field === "updatedAt")
+  );
+}
 
 // Watch the products collection and publish every insert/update onto the realtime
 // bus. Mirrors watchOrderChanges: any path that persists a product change — a
@@ -13,10 +33,15 @@ export function watchProductChanges(): void {
   const s = Product.watch<ProductDoc>([], { fullDocument: "updateLookup" });
   stream = s;
 
-  s.on("change", (change) => {
-    const fullDocument = (change as ChangeWithFullDocument<ProductDoc>)
-      .fullDocument;
-    if (fullDocument) publish("product.changed", fullDocument);
+  s.on("change", (rawChange) => {
+    const change = rawChange as ProductChange;
+    const product = change.fullDocument;
+    if (!product) return;
+
+    publish("product.changed", product);
+    if (!onlyRatingAggregateChanged(change)) {
+      publish("product.catalog.changed", product);
+    }
   });
 
   // A dropped change stream silently stops all live updates — re-establish it.

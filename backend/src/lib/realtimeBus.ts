@@ -14,6 +14,7 @@ import type { StandDoc } from "../modules/stands/model";
 // the same publish()/subscribe() API.
 interface RealtimeEvents {
   "order.changed": OrderDoc;
+  "product.catalog.changed": ProductDoc;
   "product.changed": ProductDoc;
   "rating.changed": RatingDoc;
   "stand.changed": StandDoc;

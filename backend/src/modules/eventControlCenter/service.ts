@@ -341,12 +341,25 @@ function buildStandQueueMetrics(
       standStatus: stand.standStatus,
       queueLength: stats.queueLength,
       averageWaitMinutes,
-      alert:
-        stats.queueLength >= thresholds.queueLengthAlertThreshold ||
-        (averageWaitMinutes !== null &&
-          averageWaitMinutes >= thresholds.averageWaitAlertThresholdMinutes),
+      alert: standQueueHasAlert(
+        stats.queueLength,
+        averageWaitMinutes,
+        thresholds
+      ),
     };
   });
+}
+
+function standQueueHasAlert(
+  queueLength: number,
+  averageWaitMinutes: number | null,
+  thresholds: EventControlCenterSettings["standAlertThresholds"][string]
+): boolean {
+  return (
+    queueLength >= thresholds.queueLengthAlertThreshold ||
+    (averageWaitMinutes !== null &&
+      averageWaitMinutes >= thresholds.averageWaitAlertThresholdMinutes)
+  );
 }
 
 function toLiveOrder(
@@ -695,6 +708,62 @@ export async function getEventControlCenter(
     standQueues,
     productStockAlerts,
     productRatings,
+  };
+}
+
+export async function getEventControlCenterProductRatings(
+  eventId: string,
+  accountId: string
+): Promise<ProductRating[]> {
+  const { stands } = await loadEventControlCenterContext(eventId, accountId);
+  return loadProductRatingsForEvent(
+    eventId,
+    stands.map((stand) => stand._id)
+  );
+}
+
+export async function getEventControlCenterAlertState(
+  eventId: string,
+  accountId: string,
+  currentStandQueues: StandQueueMetric[]
+): Promise<
+  Pick<
+    EventControlCenterData,
+    "activeAlertCount" | "productStockAlerts" | "standQueues"
+  >
+> {
+  const { stands } = await loadEventControlCenterContext(eventId, accountId);
+  const standIds = stands.map((stand) => stand._id);
+  const settings = await loadEffectiveEventControlCenterSettings(
+    eventId,
+    standIds
+  );
+  const productStockAlerts = await loadProductStockAlertsForEvent(
+    eventId,
+    standIds,
+    settings.stockAlertThreshold
+  );
+  const standQueues = currentStandQueues.flatMap((queue) => {
+    const thresholds = settings.standAlertThresholds[queue.standId];
+    if (!thresholds) return [];
+    return [
+      {
+        ...queue,
+        alert: standQueueHasAlert(
+          queue.queueLength,
+          queue.averageWaitMinutes,
+          thresholds
+        ),
+      },
+    ];
+  });
+
+  return {
+    activeAlertCount:
+      standQueues.filter((queue) => queue.alert).length +
+      productStockAlerts.length,
+    productStockAlerts,
+    standQueues,
   };
 }
 

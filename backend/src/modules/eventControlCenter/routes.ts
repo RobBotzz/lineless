@@ -10,6 +10,8 @@ import { subscribe } from "../../lib/realtimeBus";
 import { SseConnection } from "../../lib/sse";
 import {
   getEventControlCenter,
+  getEventControlCenterAlertState,
+  getEventControlCenterProductRatings,
   listLiveOrdersForEventControlCenter,
   standBelongsToEvent,
 } from "./service";
@@ -24,6 +26,7 @@ import {
 import {
   eventControlCenterSettingsSchema,
   liveOrdersQuerySchema,
+  type EventControlCenterData,
 } from "./types";
 
 function eventId(req: Request): string {
@@ -59,24 +62,28 @@ function eventControlCenterErrorHandler(
   handleError(err, res);
 }
 
-function createQueuedSnapshotSender<T>(
-  loadSnapshot: () => Promise<T>,
+function createQueuedSnapshotSender<T, TReason = void>(
+  loadSnapshot: (reasons: ReadonlySet<TReason>) => Promise<T>,
   sendSnapshot: (snapshot: T) => void,
   logLabel: string
-): { send: () => void; close: () => void } {
+): { send: (reason?: TReason) => void; close: () => void } {
   let inFlight = false;
   let queued = false;
   let closed = false;
+  let queuedReasons = new Set<TReason>();
 
-  const send = (): void => {
+  const send = (reason?: TReason): void => {
     if (closed) return;
+    if (reason !== undefined) queuedReasons.add(reason);
     if (inFlight) {
       queued = true;
       return;
     }
 
+    const reasons = queuedReasons;
+    queuedReasons = new Set<TReason>();
     inFlight = true;
-    void loadSnapshot()
+    void loadSnapshot(reasons)
       .then((snapshot) => {
         if (!closed) sendSnapshot(snapshot);
       })
@@ -95,9 +102,12 @@ function createQueuedSnapshotSender<T>(
     close: () => {
       closed = true;
       queued = false;
+      queuedReasons.clear();
     },
   };
 }
+
+type EventControlCenterInvalidation = "alerts" | "full" | "ratings";
 
 export const eventControlCenterRouter = Router({ mergeParams: true });
 
@@ -168,59 +178,99 @@ eventControlCenterRouter.get("/stream", authOrganizer, async (req, res) => {
   res.once("close", handleEarlyClose);
 
   try {
-    const loadSnapshot = () =>
+    const loadFullSnapshot = () =>
       getEventControlCenter(targetEventId, organizerAccountId);
-    let refreshQueued = false;
-    let sendLatest: { send: () => void; close: () => void } | null = null;
-    const invalidateSnapshot = (): void => {
+    let currentSnapshot: EventControlCenterData | null = null;
+    const loadSnapshot = async (
+      reasons: ReadonlySet<EventControlCenterInvalidation>
+    ): Promise<EventControlCenterData> => {
+      if (!currentSnapshot || reasons.has("full")) {
+        currentSnapshot = await loadFullSnapshot();
+        return currentSnapshot;
+      }
+
+      const snapshot = currentSnapshot;
+      const [productRatings, alertState] = await Promise.all([
+        reasons.has("ratings")
+          ? getEventControlCenterProductRatings(
+              targetEventId,
+              organizerAccountId
+            )
+          : undefined,
+        reasons.has("alerts")
+          ? getEventControlCenterAlertState(
+              targetEventId,
+              organizerAccountId,
+              snapshot.standQueues
+            )
+          : undefined,
+      ]);
+      currentSnapshot = {
+        ...snapshot,
+        ...(productRatings !== undefined ? { productRatings } : {}),
+        ...alertState,
+      };
+      return currentSnapshot;
+    };
+    const queuedInvalidations = new Set<EventControlCenterInvalidation>();
+    let sendLatest: {
+      send: (reason: EventControlCenterInvalidation) => void;
+      close: () => void;
+    } | null = null;
+    const invalidateSnapshot = (
+      reason: EventControlCenterInvalidation
+    ): void => {
       if (sendLatest) {
-        sendLatest.send();
+        sendLatest.send(reason);
         return;
       }
-      refreshQueued = true;
+      queuedInvalidations.add(reason);
     };
 
     const eventStandIds = new Set<string>();
     const ignoredStandIds = new Set<string>();
     const unsubscribe = subscribe("order.changed", (order) => {
       if (order.eventId !== targetEventId) return;
-      invalidateSnapshot();
+      invalidateSnapshot("full");
     });
     const unsubscribeRatings = subscribe("rating.changed", (rating) => {
       if (rating.eventId !== targetEventId) return;
-      invalidateSnapshot();
+      invalidateSnapshot("ratings");
     });
-    const unsubscribeProducts = subscribe("product.changed", (product) => {
-      if (eventStandIds.has(product.standId)) {
-        invalidateSnapshot();
-        return;
-      }
-      if (ignoredStandIds.has(product.standId)) return;
+    const unsubscribeProducts = subscribe(
+      "product.catalog.changed",
+      (product) => {
+        if (eventStandIds.has(product.standId)) {
+          invalidateSnapshot("full");
+          return;
+        }
+        if (ignoredStandIds.has(product.standId)) return;
 
-      void standBelongsToEvent(targetEventId, product.standId)
-        .then((belongsToEvent) => {
-          if (!belongsToEvent) {
-            ignoredStandIds.add(product.standId);
-            return;
-          }
-          eventStandIds.add(product.standId);
-          invalidateSnapshot();
-        })
-        .catch((err) =>
-          console.error("Event control center product stream error:", err)
-        );
-    });
+        void standBelongsToEvent(targetEventId, product.standId)
+          .then((belongsToEvent) => {
+            if (!belongsToEvent) {
+              ignoredStandIds.add(product.standId);
+              return;
+            }
+            eventStandIds.add(product.standId);
+            invalidateSnapshot("full");
+          })
+          .catch((err) =>
+            console.error("Event control center product stream error:", err)
+          );
+      }
+    );
     const unsubscribeStands = subscribe("stand.changed", (stand) => {
       if (stand.eventId !== targetEventId) return;
       eventStandIds.add(stand._id);
       ignoredStandIds.delete(stand._id);
-      invalidateSnapshot();
+      invalidateSnapshot("full");
     });
     const unsubscribeSettings = subscribe(
       "eventControlCenterSettings.changed",
       (settings) => {
         if (settings.eventId !== targetEventId) return;
-        invalidateSnapshot();
+        invalidateSnapshot("alerts");
       }
     );
     cleanupSubscriptions = () => {
@@ -231,8 +281,9 @@ eventControlCenterRouter.get("/stream", authOrganizer, async (req, res) => {
       unsubscribeSettings();
     };
 
-    const initial = await loadSnapshot();
+    const initial = await loadFullSnapshot();
     if (requestClosed) return;
+    currentSnapshot = initial;
     for (const series of initial.standRevenue) {
       eventStandIds.add(series.standId);
     }
@@ -245,11 +296,15 @@ eventControlCenterRouter.get("/stream", authOrganizer, async (req, res) => {
       (snapshot) => sse.send("control-center", snapshot),
       "Event control center"
     );
-    if (refreshQueued) {
-      refreshQueued = false;
-      sendLatest.send();
+    if (queuedInvalidations.has("full")) {
+      sendLatest.send("full");
+    } else {
+      for (const reason of queuedInvalidations) sendLatest.send(reason);
     }
-    const refreshInterval = setInterval(invalidateSnapshot, 60_000);
+    const refreshInterval = setInterval(
+      () => invalidateSnapshot("full"),
+      60_000
+    );
 
     sse.onClose(() => {
       sendLatest?.close();
