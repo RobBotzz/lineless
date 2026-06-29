@@ -130,7 +130,7 @@ export async function buildAttendeeOrderViewItems(
     groups.set(item.productId, {
       productId: item.productId,
       productName: product?.productName ?? item.productName,
-      standId: product?.standId ?? `__paused__:${item.standName}`,
+      standId: product?.standId ?? `__paused__:${item.standName}:${item.productId}`,
       standName: product ? (standNameById.get(product.standId) ?? item.standName) : item.standName,
       unitPrice: item.priceIncludingTaxAtPurchase,
       quantity: 1,

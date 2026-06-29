@@ -47,7 +47,7 @@ function buildStandGroups(
     const groupKey = info.standId || UNAVAILABLE_STAND._id;
     const resolvedStand: Stand = stand ?? {
       ...UNAVAILABLE_STAND,
-      standName: info.standName || 'Stand unavailable',
+      standName: info.standName ?? 'Stand unavailable',
     };
 
     const existing = groups.get(groupKey);
