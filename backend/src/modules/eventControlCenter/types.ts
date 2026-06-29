@@ -1,36 +1,29 @@
 import { z } from "zod";
 
-const alertThreshold = z.coerce.number().int().min(0);
+export const DEFAULT_STOCK_ALERT_THRESHOLD = 5;
+export const DEFAULT_QUEUE_LENGTH_ALERT_THRESHOLD = 10;
+export const DEFAULT_AVERAGE_WAIT_ALERT_THRESHOLD_MINUTES = 15;
+
+const alertThreshold = z.number().int().min(0);
 const standAlertThresholdSchema = z.object({
-  queueLengthAlertThreshold: alertThreshold.default(10),
-  averageWaitAlertThresholdMinutes: alertThreshold.default(15),
+  queueLengthAlertThreshold: alertThreshold,
+  averageWaitAlertThresholdMinutes: alertThreshold,
 });
 
-const standAlertThresholdsQuerySchema = z.preprocess((value) => {
-  if (value === undefined) return {};
-  if (Array.isArray(value)) value = value[0];
-  if (typeof value !== "string") return value;
-
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return parsed;
-  } catch {
-    return value;
-  }
-}, z.record(z.uuid(), standAlertThresholdSchema).default({}));
-
-export const eventControlCenterQuerySchema = z.object({
-  standAlertThresholds: standAlertThresholdsQuerySchema,
-  stockAlertThreshold: alertThreshold.default(5),
+export const eventControlCenterSettingsSchema = z.object({
+  standAlertThresholds: z.record(z.uuid(), standAlertThresholdSchema),
+  stockAlertThreshold: alertThreshold,
 });
 
 export const liveOrdersQuerySchema = z.object({
   standId: z.uuid().optional(),
 });
 
-export type EventControlCenterQuery = z.infer<
-  typeof eventControlCenterQuerySchema
+export type EventControlCenterSettings = z.infer<
+  typeof eventControlCenterSettingsSchema
 >;
+export type StandAlertThreshold =
+  EventControlCenterSettings["standAlertThresholds"][string];
 export type LiveOrdersQuery = z.infer<typeof liveOrdersQuerySchema>;
 
 export interface EventControlCenterData {

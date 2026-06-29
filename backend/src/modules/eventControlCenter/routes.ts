@@ -4,7 +4,7 @@ import {
   type Request,
   type Response,
 } from "express";
-import { validateQuery } from "../../middleware/validate";
+import { validateBody, validateQuery } from "../../middleware/validate";
 import { authOrganizer } from "../../middleware/auth/guards";
 import { subscribe } from "../../lib/realtimeBus";
 import { SseConnection } from "../../lib/sse";
@@ -14,7 +14,16 @@ import {
   standBelongsToEvent,
 } from "./service";
 import { EventNotFoundError } from "../events/errors";
-import { eventControlCenterQuerySchema, liveOrdersQuerySchema } from "./types";
+import {
+  getEventControlCenterSettings,
+  InvalidEventControlCenterSettingsError,
+  replaceEventControlCenterSettings,
+  resetEventControlCenterSettings,
+} from "./settings.service";
+import {
+  eventControlCenterSettingsSchema,
+  liveOrdersQuerySchema,
+} from "./types";
 
 function eventId(req: Request): string {
   return req.params["eventId"] as string;
@@ -27,6 +36,8 @@ function accountId(req: Request): string {
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
+  if (err instanceof InvalidEventControlCenterSettingsError)
+    return res.status(400).json({ error: err.message });
   console.error("Event control center error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -87,94 +98,138 @@ function createQueuedSnapshotSender<T>(
 
 export const eventControlCenterRouter = Router({ mergeParams: true });
 
-// GET /events/:eventId/event-control-center — organizer-only event control center data.
-eventControlCenterRouter.get(
-  "/",
-  authOrganizer,
-  validateQuery(eventControlCenterQuerySchema, async (req, res, query) => {
-    const snapshot = await getEventControlCenter(
+// GET /events/:eventId/event-control-center/settings — effective persisted thresholds.
+eventControlCenterRouter.get("/settings", authOrganizer, async (req, res) => {
+  try {
+    const settings = await getEventControlCenterSettings(
       eventId(req),
-      accountId(req),
-      query
+      accountId(req)
     );
-    res.status(200).json(snapshot);
-  })
-);
+    return res.status(200).json(settings);
+  } catch (err) {
+    return handleError(err, res);
+  }
+});
 
-// GET /events/:eventId/event-control-center/stream — same snapshot over SSE.
-eventControlCenterRouter.get(
-  "/stream",
+// PUT /events/:eventId/event-control-center/settings — replace all thresholds atomically.
+eventControlCenterRouter.put(
+  "/settings",
   authOrganizer,
-  validateQuery(eventControlCenterQuerySchema, async (req, res, query) => {
-    const targetEventId = eventId(req);
-    const organizerAccountId = accountId(req);
-
+  validateBody(eventControlCenterSettingsSchema, async (req, res, settings) => {
     try {
-      const loadSnapshot = () =>
-        getEventControlCenter(targetEventId, organizerAccountId, query);
-      const initial = await loadSnapshot();
-
-      const sse = new SseConnection(res);
-      sse.send("control-center", initial);
-
-      const sendLatest = createQueuedSnapshotSender(
-        loadSnapshot,
-        (snapshot) => sse.send("control-center", snapshot),
-        "Event control center"
+      const saved = await replaceEventControlCenterSettings(
+        eventId(req),
+        accountId(req),
+        settings
       );
-      const eventStandIds = new Set(
-        initial.standRevenue.map((series) => series.standId)
-      );
-      const ignoredStandIds = new Set<string>();
-      const unsubscribe = subscribe("order.changed", (order) => {
-        if (order.eventId !== targetEventId) return;
-        sendLatest.send();
-      });
-      const unsubscribeRatings = subscribe("rating.changed", (rating) => {
-        if (rating.eventId !== targetEventId) return;
-        sendLatest.send();
-      });
-      const unsubscribeProducts = subscribe("product.changed", (product) => {
-        if (eventStandIds.has(product.standId)) {
-          sendLatest.send();
-          return;
-        }
-        if (ignoredStandIds.has(product.standId)) return;
-
-        void standBelongsToEvent(targetEventId, product.standId)
-          .then((belongsToEvent) => {
-            if (!belongsToEvent) {
-              ignoredStandIds.add(product.standId);
-              return;
-            }
-            eventStandIds.add(product.standId);
-            sendLatest.send();
-          })
-          .catch((err) =>
-            console.error("Event control center product stream error:", err)
-          );
-      });
-      const unsubscribeStands = subscribe("stand.changed", (stand) => {
-        if (stand.eventId !== targetEventId) return;
-        eventStandIds.add(stand._id);
-        ignoredStandIds.delete(stand._id);
-        sendLatest.send();
-      });
-      const refreshInterval = setInterval(sendLatest.send, 60_000);
-
-      sse.onClose(() => {
-        sendLatest.close();
-        clearInterval(refreshInterval);
-        unsubscribe();
-        unsubscribeRatings();
-        unsubscribeProducts();
-        unsubscribeStands();
-      });
+      return res.status(200).json(saved);
     } catch (err) {
-      handleError(err, res);
+      return handleError(err, res);
     }
   })
 );
+
+// DELETE /events/:eventId/event-control-center/settings — reset to defaults.
+eventControlCenterRouter.delete(
+  "/settings",
+  authOrganizer,
+  async (req, res) => {
+    try {
+      const settings = await resetEventControlCenterSettings(
+        eventId(req),
+        accountId(req)
+      );
+      return res.status(200).json(settings);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  }
+);
+
+// GET /events/:eventId/event-control-center — organizer-only event control center data.
+eventControlCenterRouter.get("/", authOrganizer, async (req, res) => {
+  const snapshot = await getEventControlCenter(eventId(req), accountId(req));
+  res.status(200).json(snapshot);
+});
+
+// GET /events/:eventId/event-control-center/stream — same snapshot over SSE.
+eventControlCenterRouter.get("/stream", authOrganizer, async (req, res) => {
+  const targetEventId = eventId(req);
+  const organizerAccountId = accountId(req);
+
+  try {
+    const loadSnapshot = () =>
+      getEventControlCenter(targetEventId, organizerAccountId);
+    const initial = await loadSnapshot();
+
+    const sse = new SseConnection(res);
+    sse.send("control-center", initial);
+
+    const sendLatest = createQueuedSnapshotSender(
+      loadSnapshot,
+      (snapshot) => sse.send("control-center", snapshot),
+      "Event control center"
+    );
+    const eventStandIds = new Set(
+      initial.standRevenue.map((series) => series.standId)
+    );
+    const ignoredStandIds = new Set<string>();
+    const unsubscribe = subscribe("order.changed", (order) => {
+      if (order.eventId !== targetEventId) return;
+      sendLatest.send();
+    });
+    const unsubscribeRatings = subscribe("rating.changed", (rating) => {
+      if (rating.eventId !== targetEventId) return;
+      sendLatest.send();
+    });
+    const unsubscribeProducts = subscribe("product.changed", (product) => {
+      if (eventStandIds.has(product.standId)) {
+        sendLatest.send();
+        return;
+      }
+      if (ignoredStandIds.has(product.standId)) return;
+
+      void standBelongsToEvent(targetEventId, product.standId)
+        .then((belongsToEvent) => {
+          if (!belongsToEvent) {
+            ignoredStandIds.add(product.standId);
+            return;
+          }
+          eventStandIds.add(product.standId);
+          sendLatest.send();
+        })
+        .catch((err) =>
+          console.error("Event control center product stream error:", err)
+        );
+    });
+    const unsubscribeStands = subscribe("stand.changed", (stand) => {
+      if (stand.eventId !== targetEventId) return;
+      eventStandIds.add(stand._id);
+      ignoredStandIds.delete(stand._id);
+      sendLatest.send();
+    });
+    const unsubscribeSettings = subscribe(
+      "eventControlCenterSettings.changed",
+      (settings) => {
+        if (settings.eventId !== targetEventId) return;
+        sendLatest.send();
+      }
+    );
+    const refreshInterval = setInterval(sendLatest.send, 60_000);
+
+    sse.onClose(() => {
+      sendLatest.close();
+      clearInterval(refreshInterval);
+      unsubscribe();
+      unsubscribeRatings();
+      unsubscribeProducts();
+      unsubscribeStands();
+      unsubscribeSettings();
+    });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
 
 // GET /events/:eventId/event-control-center/orders — latest live, paid, unfulfilled orders.
 eventControlCenterRouter.get(

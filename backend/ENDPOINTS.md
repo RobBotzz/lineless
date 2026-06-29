@@ -54,6 +54,9 @@ Admin dashboard, event configuration, event control center, payout management.
 | GET    | `/events/{eventId}/event-control-center/stream`        | Event control center data stream (SSE)                      |
 | GET    | `/events/{eventId}/event-control-center/orders`        | Latest live paid, unfulfilled orders for the control center |
 | GET    | `/events/{eventId}/event-control-center/orders/stream` | Live order list stream (SSE)                                |
+| GET    | `/events/{eventId}/event-control-center/settings`      | Get effective alert thresholds                              |
+| PUT    | `/events/{eventId}/event-control-center/settings`      | Replace alert thresholds                                    |
+| DELETE | `/events/{eventId}/event-control-center/settings`      | Reset alert thresholds to defaults                          |
 
 ### Account / Payments
 

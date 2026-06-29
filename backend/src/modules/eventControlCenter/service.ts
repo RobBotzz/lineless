@@ -8,9 +8,10 @@ import { Product } from "../products/model";
 import { Rating } from "../ratings/model";
 import { StandNotFoundError } from "../stands/errors";
 import { Stand, type StandStatus } from "../stands/model";
+import { loadEffectiveEventControlCenterSettings } from "./settings.service";
 import type {
   EventControlCenterData,
-  EventControlCenterQuery,
+  EventControlCenterSettings,
   LiveOrder,
   LiveOrderItem,
   ProductRating,
@@ -283,7 +284,7 @@ async function loadProductStockAlertsForEvent(
 function buildStandQueueMetrics(
   stands: StandSnapshot[],
   queueStatsByStand: QueueStatsByStand,
-  options: EventControlCenterQuery
+  settings: EventControlCenterSettings
 ): StandQueueMetric[] {
   return stands.map((stand) => {
     const stats = queueStatsByStand.get(stand._id) ?? {
@@ -295,10 +296,7 @@ function buildStandQueueMetrics(
       stats.readyItemCount > 0
         ? Math.round(stats.totalWaitMinutes / stats.readyItemCount)
         : 0;
-    const thresholds = options.standAlertThresholds[stand._id] ?? {
-      queueLengthAlertThreshold: 10,
-      averageWaitAlertThresholdMinutes: 15,
-    };
+    const thresholds = settings.standAlertThresholds[stand._id]!;
 
     return {
       standId: stand._id,
@@ -504,14 +502,17 @@ async function loadEventControlCenterAnalytics(
 
 export async function getEventControlCenter(
   eventId: string,
-  accountId: string,
-  options: EventControlCenterQuery
+  accountId: string
 ): Promise<EventControlCenterData> {
   const { event, stands } = await loadEventControlCenterContext(
     eventId,
     accountId
   );
   const standIds = stands.map((stand) => stand._id);
+  const settings = await loadEffectiveEventControlCenterSettings(
+    eventId,
+    standIds
+  );
 
   const baseDate = event.startedAt
     ? new Date(event.startedAt)
@@ -528,7 +529,7 @@ export async function getEventControlCenter(
       loadProductStockAlertsForEvent(
         eventId,
         standIds,
-        options.stockAlertThreshold
+        settings.stockAlertThreshold
       ),
     ]);
 
@@ -564,7 +565,7 @@ export async function getEventControlCenter(
   const standQueues = buildStandQueueMetrics(
     stands,
     queueStatsByStand,
-    options
+    settings
   );
   const eventRevenue = cumulativePoints(eventRevenueBuckets);
   const totalRevenueCents =

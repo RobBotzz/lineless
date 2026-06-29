@@ -17,6 +17,7 @@ interface RealtimeEvents {
   "product.changed": ProductDoc;
   "rating.changed": RatingDoc;
   "stand.changed": StandDoc;
+  "eventControlCenterSettings.changed": { eventId: string };
 }
 
 const emitter = new EventEmitter();
