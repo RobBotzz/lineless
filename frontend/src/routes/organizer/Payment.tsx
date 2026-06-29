@@ -92,7 +92,6 @@ type EventRow = {
   totalSalesCents: number; // delivered gross (card + cash)
   cashSalesCents: number; // of which paid in cash (already collected)
   netPayoutCents: number; // card money to the bank
-  openTabsCents: number; // delivered card value not yet charged
 };
 
 function toRow(event: EventPayoutBreakdown): EventRow {
@@ -101,7 +100,6 @@ function toRow(event: EventPayoutBreakdown): EventRow {
     totalSalesCents: event.grossSalesCents,
     cashSalesCents: event.cashSalesCents,
     netPayoutCents: event.netPayoutCents,
-    openTabsCents: event.onHoldReadyCents,
   };
 }
 
@@ -402,9 +400,8 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
       sales: acc.sales + row.totalSalesCents,
       cash: acc.cash + row.cashSalesCents,
       payout: acc.payout + row.netPayoutCents,
-      openTabs: acc.openTabs + row.openTabsCents,
     }),
-    { sales: 0, cash: 0, payout: 0, openTabs: 0 },
+    { sales: 0, cash: 0, payout: 0 },
   );
 
   return (
@@ -435,10 +432,7 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
                     Cash
                   </th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">
-                    Card payout
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">
-                    Open tabs
+                    Card payments
                   </th>
                 </tr>
               </thead>
@@ -454,7 +448,6 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
                     <td className="px-4 py-3 text-right">{eur(totals.sales)}</td>
                     <td className="px-4 py-3 text-right">{eur(totals.cash)}</td>
                     <td className="px-4 py-3 text-right">{eur(totals.payout)}</td>
-                    <td className="px-4 py-3 text-right">{eur(totals.openTabs)}</td>
                   </tr>
                 </tfoot>
               ) : null}
@@ -510,13 +503,10 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
           {row.cashSalesCents > 0 ? eur(row.cashSalesCents) : '—'}
         </td>
         <td className="px-4 py-3 text-right font-semibold text-text">{eur(row.netPayoutCents)}</td>
-        <td className="px-4 py-3 text-right text-text">
-          {row.openTabsCents > 0 ? eur(row.openTabsCents) : '—'}
-        </td>
       </tr>
       {open ? (
         <tr id={detailId} className="border-t border-border bg-surface-muted/30">
-          <td colSpan={5} className="space-y-4 px-4 py-3">
+          <td colSpan={4} className="space-y-4 px-4 py-3">
             {hasOpenTabs ? (
               <div className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-2">
