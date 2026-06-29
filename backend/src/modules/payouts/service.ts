@@ -138,13 +138,29 @@ export async function computeEventPayout(
     0
   );
 
-  // Delivered card value sitting on tabs that have not yet settled — the amount
-  // still to be charged. Cash orders (tabId null) are excluded; their money is
-  // already collected.
-  const onHoldReadyCents = orders
-    .filter((o) => o.tabId !== null && tabStatusById.get(o.tabId) !== "PAID")
-    .flatMap((o) => o.items.filter(isDeliveredItem))
-    .reduce((sum, i) => sum + i.priceIncludingTaxAtPurchase, 0);
+  // "Ready to charge" must mean the whole tab can settle now. Settlement is
+  // per-tab and all-or-nothing, so a tab with any still-preparing item is NOT
+  // chargeable — its delivered items count as sold (above) but can't be captured
+  // until the rest is ready or the event ends. Counting them here would promise
+  // a charge that settlement then refuses. Gated/unpaid orders are ignored
+  // because charging releases them first; cash (tabId null) is already collected.
+  const readyByTab = new Map<string, { ready: number; allReady: boolean }>();
+  for (const order of orders) {
+    if (order.tabId === null || tabStatusById.get(order.tabId) === "PAID")
+      continue;
+    if (order.paidAt == null) continue; // gated; released at charge time
+    const entry = readyByTab.get(order.tabId) ?? { ready: 0, allReady: true };
+    for (const item of order.items) {
+      if (item.cancelledAt) continue;
+      if (isDeliveredItem(item))
+        entry.ready += item.priceIncludingTaxAtPurchase;
+      else entry.allReady = false; // a not-ready item blocks the whole tab
+    }
+    readyByTab.set(order.tabId, entry);
+  }
+  const onHoldReadyCents = [...readyByTab.values()]
+    .filter((tab) => tab.allReady)
+    .reduce((sum, tab) => sum + tab.ready, 0);
 
   // The platform fee is billed per order that actually produced revenue: it must
   // be paid, realized (cash collected, or its card tab settled), and have at
