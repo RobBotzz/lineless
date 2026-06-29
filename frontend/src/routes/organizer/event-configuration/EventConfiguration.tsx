@@ -697,7 +697,10 @@ export default function EventConfiguration() {
                   {standColumns
                     .filter((column) => column.length > 0)
                     .map((column, index) => (
-                      <div key={index} className="flex flex-1 flex-col gap-3">
+                      // min-w-0 lets the column shrink below its content's intrinsic
+                      // width so the product description can truncate instead of
+                      // forcing the whole card to overflow.
+                      <div key={index} className="flex min-w-0 flex-1 flex-col gap-3">
                         {column.map(renderStand)}
                       </div>
                     ))}

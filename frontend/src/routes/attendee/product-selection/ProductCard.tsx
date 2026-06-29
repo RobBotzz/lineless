@@ -31,6 +31,9 @@ export function ProductCard({
   const atStockLimit = !soldOut && cartQuantity >= product.productStock;
 
   const rating = product.rating ?? null;
+  // No inline preview — the full description lives in the details dialog, opened
+  // via the "i" button, which is shown only when a description exists.
+  const hasDescription = !!product.productDescription?.trim();
 
   // Guards a single tap firing twice (duplicate/ghost events on some browsers).
   const runGuarded = useAddGuard();
@@ -41,15 +44,18 @@ export function ProductCard({
 
   return (
     <div className="relative flex gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm">
-      {/* Details button — grey "i" in the top-right corner. */}
-      <button
-        type="button"
-        onClick={() => setDetailsOpen(true)}
-        aria-label={`Details for ${product.productName}`}
-        className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-      >
-        <InfoIcon />
-      </button>
+      {/* Details button — grey "i" in the top-right corner. Shown only when there
+          is a description to reveal. */}
+      {hasDescription && (
+        <button
+          type="button"
+          onClick={() => setDetailsOpen(true)}
+          aria-label={`Details for ${product.productName}`}
+          className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <InfoIcon />
+        </button>
+      )}
 
       {/* Thumbnail */}
       <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-muted">
@@ -72,9 +78,6 @@ export function ProductCard({
         {/* pr-6 keeps the name clear of the info button. */}
         <h3 className="truncate pr-6 text-sm font-semibold text-text">{product.productName}</h3>
         <Rating value={rating} />
-        {product.productDescription && (
-          <p className="line-clamp-2 text-xs text-text-muted">{product.productDescription}</p>
-        )}
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-3">
           <span className="text-sm font-semibold text-text">
