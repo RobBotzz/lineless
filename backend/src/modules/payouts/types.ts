@@ -26,8 +26,8 @@ export interface EventPayoutBreakdown {
   eventStatus: EventStatus;
   /** Orders released to operators (paidAt set) — operational count. */
   paidOrderCount: number;
-  /** Orders actually charged (cash collected, or card tab settled) — fee basis. */
-  chargedOrderCount: number;
+  /** Orders that have sold something (paid + >=1 delivered item) — fee basis. */
+  soldOrderCount: number;
   /** Delivered gross across card + cash; equals the items-sold table total. */
   grossSalesCents: number;
   /** Delivered gross paid in cash (subset of grossSalesCents), informational. */

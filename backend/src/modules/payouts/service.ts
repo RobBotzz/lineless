@@ -162,19 +162,18 @@ export async function computeEventPayout(
     .filter((tab) => tab.allReady)
     .reduce((sum, tab) => sum + tab.ready, 0);
 
-  // The platform fee is billed per order that actually produced revenue: it must
-  // be paid, realized (cash collected, or its card tab settled), and have at
-  // least one delivered item. This excludes gated/unconfirmed orders and orders
-  // that delivered nothing, and keeps the fee from ever preceding the revenue it
-  // rides on — so a live event holding only authorizations never goes negative.
+  // The platform fee is billed per order that has actually sold something: paid
+  // and with at least one delivered item. It accrues as soon as an item is sold,
+  // regardless of whether that order's card has been captured yet, so the fee is
+  // visible the moment a sale happens. (This still excludes gated/unconfirmed
+  // orders and orders that delivered nothing.) The fee is deducted in full from
+  // the net payout, so a live event can show a small negative until the captures
+  // catch up — by design.
   const paidOrderCount = orders.filter((o) => o.paidAt != null).length;
-  const chargedOrderCount = orders.filter(
-    (o) =>
-      o.paidAt != null &&
-      (o.tabId === null || tabStatusById.get(o.tabId) === "PAID") &&
-      o.items.some(isDeliveredItem)
+  const soldOrderCount = orders.filter(
+    (o) => o.paidAt != null && o.items.some(isDeliveredItem)
   ).length;
-  const platformFeeCents = chargedOrderCount * PLATFORM_FEE_PER_ORDER_CENTS;
+  const platformFeeCents = soldOrderCount * PLATFORM_FEE_PER_ORDER_CENTS;
 
   // The payout is card money only; the platform fee for every charged order —
   // cash included — is netted out of the card pool here.
@@ -199,7 +198,7 @@ export async function computeEventPayout(
         onHoldAuthorizedCents,
         inTransitCents,
         paidOrderCount,
-        chargedOrderCount,
+        soldOrderCount,
         computedAt,
       },
     },
@@ -211,7 +210,7 @@ export async function computeEventPayout(
     eventName: event.name,
     eventStatus: event.status,
     paidOrderCount,
-    chargedOrderCount,
+    soldOrderCount,
     grossSalesCents,
     cashSalesCents,
     pendingSalesCents,

@@ -35,8 +35,8 @@ export interface EventPayoutDoc {
   inTransitCents: number;
   /** Orders released to operators (paidAt set). */
   paidOrderCount: number;
-  /** Orders actually charged (cash collected or card tab settled). */
-  chargedOrderCount: number;
+  /** Orders that have sold something (paid + >=1 delivered item). */
+  soldOrderCount: number;
   computedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -60,7 +60,7 @@ const EventPayoutSchema = new Schema<EventPayoutDoc>(
     onHoldAuthorizedCents: { type: Number, default: 0 },
     inTransitCents: { type: Number, default: 0 },
     paidOrderCount: { type: Number, default: 0 },
-    chargedOrderCount: { type: Number, default: 0 },
+    soldOrderCount: { type: Number, default: 0 },
     computedAt: { type: Date, default: () => new Date() },
   },
   { timestamps: true }
