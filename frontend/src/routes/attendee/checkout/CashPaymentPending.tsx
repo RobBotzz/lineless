@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { CashierLocationAccordion } from '@/features/orders/CashierLocationAccordion';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
-import { useSSE } from '@/hooks/useSSE';
 import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
 import { paths } from '@/paths';
@@ -18,25 +17,28 @@ interface CashPaymentPendingState {
 // The guest landed here after placing a cash order; the order is unpaid until an
 // operator at the cashier collects the money and confirms it. This page never
 // confirms anything itself — confirmation is operator-only (POST
-// /orders/:id/cash-payment, which sets paidAt). It only *observes*: the attendee
-// /orders/stream forwards an order the moment its paidAt is set, so once the
-// cashier confirms, the guest is forwarded to order tracking automatically.
+// /orders/:id/cash-payment, which sets paidAt). It only *observes*: it polls the
+// order until paidAt is set, then forwards the guest to order tracking. (Polling
+// rather than the order SSE stream is a deliberate project-wide decision.)
+const PAYMENT_POLL_MS = 4000;
+
 export default function CashPaymentPending() {
   const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
   const navigate = useNavigate();
   const { state } = useLocation() as { state: CashPaymentPendingState | null };
 
-  // Live order pushed by the stream once it becomes paid (read-only signal).
-  const [liveOrder, setLiveOrder] = useState<Order | null>(null);
-
-  // Hydrate from the server when there is no nav state (refresh / direct visit),
-  // so the page no longer bounces to the cart on reload.
+  // Source of truth for paidAt. Polls until the cashier confirms, then stops.
+  // Always enabled (even with nav state): the handed-over order is always unpaid,
+  // so only the server can tell us when it becomes paid. Nav state still renders
+  // immediately, so there is no loading flash on the happy path.
   const orderQuery = useQuery({
     queryKey: ['attendee-order', orderId, eventId],
     queryFn: () => getAttendeeOrder(orderId, eventId),
-    enabled: !state,
+    refetchInterval: (query) => (query.state.data?.paidAt ? false : PAYMENT_POLL_MS),
   });
 
+  // Display items: rebuilt from the server only when there is no nav state
+  // (refresh / direct visit); otherwise the nav-state items are used as-is.
   const standsQuery = useQuery({
     queryKey: ['attendee-stands', eventId],
     queryFn: () => getAttendeeStands(eventId),
@@ -51,24 +53,7 @@ export default function CashPaymentPending() {
     staleTime: 60_000,
   });
 
-  useSSE({
-    path: '/orders/stream',
-    auth: 'attendee',
-    eventId,
-    onMessage: ({ event, data }) => {
-      // The attendee stream only emits orders that are already paid, so any frame
-      // matching this order means the cashier has confirmed payment.
-      if (event === 'snapshot') {
-        const found = (data as Order[]).find((o) => o._id === orderId);
-        if (found) setLiveOrder(found);
-      } else if (event === 'order') {
-        const updated = data as Order;
-        if (updated._id === orderId) setLiveOrder(updated);
-      }
-    },
-  });
-
-  const order: Order | null = liveOrder ?? state?.order ?? orderQuery.data ?? null;
+  const order: Order | null = orderQuery.data ?? state?.order ?? null;
   const isPaid = order?.paidAt != null;
 
   // Cashier confirmed → hand off to the shared order-tracking page.
