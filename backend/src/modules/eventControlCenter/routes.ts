@@ -113,15 +113,11 @@ export const eventControlCenterRouter = Router({ mergeParams: true });
 
 // GET /events/:eventId/event-control-center/settings — effective persisted thresholds.
 eventControlCenterRouter.get("/settings", authOrganizer, async (req, res) => {
-  try {
-    const settings = await getEventControlCenterSettings(
-      eventId(req),
-      accountId(req)
-    );
-    return res.status(200).json(settings);
-  } catch (err) {
-    return handleError(err, res);
-  }
+  const settings = await getEventControlCenterSettings(
+    eventId(req),
+    accountId(req)
+  );
+  res.status(200).json(settings);
 });
 
 // PUT /events/:eventId/event-control-center/settings — replace all thresholds atomically.
@@ -129,16 +125,12 @@ eventControlCenterRouter.put(
   "/settings",
   authOrganizer,
   validateBody(eventControlCenterSettingsSchema, async (req, res, settings) => {
-    try {
-      const saved = await replaceEventControlCenterSettings(
-        eventId(req),
-        accountId(req),
-        settings
-      );
-      return res.status(200).json(saved);
-    } catch (err) {
-      return handleError(err, res);
-    }
+    const saved = await replaceEventControlCenterSettings(
+      eventId(req),
+      accountId(req),
+      settings
+    );
+    res.status(200).json(saved);
   })
 );
 
@@ -147,15 +139,11 @@ eventControlCenterRouter.delete(
   "/settings",
   authOrganizer,
   async (req, res) => {
-    try {
-      const settings = await resetEventControlCenterSettings(
-        eventId(req),
-        accountId(req)
-      );
-      return res.status(200).json(settings);
-    } catch (err) {
-      return handleError(err, res);
-    }
+    const settings = await resetEventControlCenterSettings(
+      eventId(req),
+      accountId(req)
+    );
+    res.status(200).json(settings);
   }
 );
 
