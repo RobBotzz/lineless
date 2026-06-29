@@ -39,23 +39,17 @@ function formatLocation(location: Location | null | undefined) {
   return 'No location set';
 }
 
-const statusDetails: Record<
-  EventStatus,
-  { label: string; description: string; className: string }
-> = {
+const statusDetails: Record<EventStatus, { label: string; className: string }> = {
   DRAFT: {
     label: 'Draft',
-    description: 'Setup in progress',
     className: 'border-accent/30 bg-accent-soft text-accent',
   },
   ACTIVE: {
     label: 'Active',
-    description: 'Open for orders',
     className: 'border-success/30 bg-success/10 text-success',
   },
   STOPPED: {
     label: 'Stopped',
-    description: 'Event completed',
     className: 'border-border bg-surface-muted text-text-muted',
   },
 };
@@ -113,7 +107,8 @@ export default function Dashboard() {
 
       <EventStatusTabs activeFilter={activeFilter} onChange={setActiveFilter} />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <CreateEventTile />
         {visibleEvents.map((event) => (
           <EventCard
             event={event}
@@ -123,7 +118,6 @@ export default function Dashboard() {
             productCount={productCounts[event._id] ?? 0}
           />
         ))}
-        <CreateEventTile />
       </div>
 
       <AlertDialog
@@ -201,10 +195,10 @@ function EventCard({
   const canDelete = event.status === 'DRAFT';
 
   return (
-    <Card className="group h-full gap-4 transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
+    <Card className="group h-full gap-3 py-5 transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md">
       <CardHeader>
         <Link className="min-w-0" to={`/organizer/events/${event._id}`}>
-          <CardTitle className="truncate text-lg group-hover:text-accent">{event.name}</CardTitle>
+          <CardTitle className="truncate text-base group-hover:text-accent">{event.name}</CardTitle>
         </Link>
         {canDelete ? (
           <CardAction>
@@ -219,7 +213,7 @@ function EventCard({
 
       <Link className="block" to={`/organizer/events/${event._id}`}>
         <CardContent className="space-y-2">
-          <div className="flex items-center justify-between gap-3 pb-1">
+          <div className="pb-1">
             <span
               className={[
                 'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold',
@@ -228,7 +222,6 @@ function EventCard({
             >
               {status.label}
             </span>
-            <span className="text-xs text-text-muted">{status.description}</span>
           </div>
           <p className="text-text-muted flex items-center gap-2 text-sm">
             <CalendarIcon className="h-4 w-4 shrink-0" />
@@ -271,14 +264,14 @@ function CreateEventTile() {
     // `contents` keeps the <button> as the grid item, not the form wrapper.
     <fetcher.Form className="contents" method="post" onSubmit={() => setDismissed(false)}>
       <button
-        className="hover:bg-accent-soft flex min-h-44 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-accent/70 bg-background p-6 text-center transition hover:border-accent disabled:opacity-60"
+        className="hover:bg-accent-soft flex min-h-36 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-accent/70 bg-background p-5 text-center transition hover:border-accent disabled:opacity-60"
         disabled={busy}
         type="submit"
       >
-        <div className="bg-accent mb-4 flex h-12 w-12 items-center justify-center rounded-full text-2xl font-semibold text-white">
+        <div className="bg-accent mb-3 flex h-10 w-10 items-center justify-center rounded-full text-xl font-semibold text-white">
           +
         </div>
-        <h3 className="text-accent text-lg font-semibold">
+        <h3 className="text-accent text-base font-semibold">
           {busy ? 'Creating…' : 'Create New Event'}
         </h3>
       </button>

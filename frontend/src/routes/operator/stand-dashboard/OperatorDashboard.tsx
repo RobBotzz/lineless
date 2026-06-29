@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { ApiError } from '@/api/client';
@@ -18,7 +18,7 @@ import {
   type OperatorBoard,
 } from '@/types/operatorBoard';
 import { BackButton } from '@/components/shared';
-import { ChatIcon, ChevronDownIcon, PauseIcon, PlayIcon } from '@/components/icons';
+import { ChatIcon, ChevronDownIcon, LockIcon, PauseIcon, PlayIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { operatorStandQueryOptions } from '../operatorQueries';
 
@@ -30,7 +30,6 @@ interface ColumnConfig {
   title: string;
   action: ColumnTransition;
   actionLabel: string;
-  dotClassName: string;
 }
 
 const COLUMNS: ColumnConfig[] = [
@@ -39,21 +38,18 @@ const COLUMNS: ColumnConfig[] = [
     title: 'To Do',
     action: startOrderItem,
     actionLabel: 'Start',
-    dotClassName: 'bg-text-muted',
   },
   {
     state: 'PREPARING',
     title: 'In Progress',
     action: readyOrderItem,
     actionLabel: 'Report ready',
-    dotClassName: 'bg-accent',
   },
   {
     state: 'READY',
     title: 'Ready',
     action: fulfillOrderItem,
     actionLabel: 'Pick up',
-    dotClassName: 'bg-success',
   },
 ];
 
@@ -73,6 +69,7 @@ function withoutKeys(set: ReadonlySet<string>, keys: readonly string[]): Readonl
 
 export default function OperatorDashboard() {
   const { eventId, standId } = useParams();
+  const navigate = useNavigate();
   const standQuery = useQuery(operatorStandQueryOptions(standId));
 
   const [board, setBoard] = useState<OperatorBoard | null>(null);
@@ -136,12 +133,17 @@ export default function OperatorDashboard() {
     setBoard(data);
   }, []);
 
-  const { status } = useSSE({
+  const { status, error } = useSSE({
     path: standId ? OPERATOR_BOARD_STREAM_PATH : null,
     auth: 'operator',
     standId,
     onMessage: handleMessage,
   });
+  // A 401 means the stand token is no longer valid (e.g. its password was
+  // changed) — the operator was signed out and must re-authenticate. The stream
+  // stops reconnecting on 401, so we surface a dedicated re-auth screen instead
+  // of the generic "connection lost" panel.
+  const isUnauthorized = error instanceof ApiError && error.status === 401;
 
   const runTransition = useCallback(
     (item: BoardItem, column: ColumnConfig) => {
@@ -248,12 +250,45 @@ export default function OperatorDashboard() {
       : PAUSE_ERROR
     : null;
 
+  // Signed out of this stand (401) — the board (if any) is now stale and every
+  // action would fail, so replace it with a clear prompt to re-authenticate.
+  if (isUnauthorized) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-background">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
+            Operator Console
+          </BackButton>
+          <section className="mt-6 rounded-lg border border-border bg-surface p-6 text-center shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-warning/15 text-text">
+              <LockIcon className="h-6 w-6" />
+            </div>
+            <h2 className="mt-5 text-xl font-semibold text-text">Signed out of this stand</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
+              Your access to this stand has ended — its password may have been changed. Sign in
+              again from the operator console to continue.
+            </p>
+            <Button
+              className="mt-6"
+              size="lg"
+              onClick={() => navigate(eventId ? paths.operator.root(eventId) : paths.home)}
+            >
+              Re-authenticate
+            </Button>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   // First connect, nothing to show yet.
   if (!board) {
     return (
       <div className="min-h-[calc(100vh-4rem)] bg-background">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
+          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
+            Operator Console
+          </BackButton>
           {status === 'error' ? (
             <StatePanel
               title="Live board unavailable"
@@ -270,44 +305,37 @@ export default function OperatorDashboard() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-4">
-          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
-        </div>
-
-        <header className="mb-6">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
-            <ConnectionBadge status={status} />
-          </div>
-          <p className="mt-1 text-sm text-text-muted">
-            Tap an item to move it one stage forward · {items.length} item
-            {items.length === 1 ? '' : 's'} active
-          </p>
-
-          {products.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {products.map((product) => (
-                <ProductFilterChip
-                  key={product.productId}
-                  product={product}
-                  color={colorOf(product.productId)}
-                  count={items.filter((item) => item.productId === product.productId).length}
-                  active={filters.has(product.productId)}
-                  onToggle={() => toggleFilter(product.productId)}
-                />
-              ))}
-              {filters.size > 0 && (
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-muted shadow-sm transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
-                >
-                  Clear filters
-                </button>
-              )}
-            </div>
-          )}
+        <header className="mb-5 flex items-center gap-3">
+          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
+            Operator Console
+          </BackButton>
+          <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
+          <ConnectionBadge status={status} />
         </header>
+
+        {products.length > 0 && (
+          <div className="mb-5 flex flex-wrap gap-2">
+            {products.map((product) => (
+              <ProductFilterChip
+                key={product.productId}
+                product={product}
+                color={colorOf(product.productId)}
+                count={items.filter((item) => item.productId === product.productId).length}
+                active={filters.has(product.productId)}
+                onToggle={() => toggleFilter(product.productId)}
+              />
+            ))}
+            {filters.size > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-muted shadow-sm transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
 
         {actionError && (
           <div
@@ -318,21 +346,26 @@ export default function OperatorDashboard() {
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-4">
-          {COLUMNS.map((column) => (
-            <BoardColumn
-              key={column.state}
-              column={column}
-              items={visibleItems.filter((item) => item.state === column.state)}
-              pending={pending}
-              onAdvance={advance}
-              colorOf={colorOf}
-              recentlyMoved={recentlyMoved}
-              autoOpenComment={autoOpenComment}
-            />
-          ))}
+        {/* Board (the work) on the left; the products catalog/controls on the right.
+            On tablet and below the rail drops under the board as a responsive grid. */}
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+          <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {COLUMNS.map((column) => (
+              <BoardColumn
+                key={column.state}
+                column={column}
+                items={visibleItems.filter((item) => item.state === column.state)}
+                pending={pending}
+                onAdvance={advance}
+                colorOf={colorOf}
+                recentlyMoved={recentlyMoved}
+                autoOpenComment={autoOpenComment}
+              />
+            ))}
+          </div>
 
           <ProductsOverview
+            className="xl:w-72 xl:shrink-0"
             products={visibleProducts}
             colorOf={colorOf}
             onRequestPause={(product) => {
@@ -378,13 +411,10 @@ function BoardColumn({
   autoOpenComment: ReadonlySet<string>;
 }) {
   return (
-    <section className="flex flex-col rounded-lg border border-border bg-surface p-4 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={cn('h-2.5 w-2.5 rounded-full', column.dotClassName)} />
-          <h2 className="text-sm font-semibold text-text">{column.title}</h2>
-        </div>
-        <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-text-muted">
+    <section className="flex flex-col rounded-lg border border-border bg-surface p-3 shadow-sm">
+      <div className="mb-3 flex items-center justify-between rounded-md bg-surface-muted px-3 py-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-text">{column.title}</h2>
+        <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-bold text-text-muted">
           {items.length}
         </span>
       </div>
@@ -454,9 +484,13 @@ function BoardItemCard({
         className="absolute inset-0 z-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent disabled:cursor-wait"
       />
 
-      <div className="pointer-events-none relative z-10 p-4">
-        <span className="block text-lg font-bold leading-tight text-text">{item.productName}</span>
-        <span className="mt-3 block text-xs font-medium text-text-muted">#{item.orderNumber}</span>
+      <div className="pointer-events-none relative z-10 p-3">
+        <span className="block break-words text-base font-bold leading-tight text-text">
+          {item.productName}
+        </span>
+        <span className="mt-1.5 block text-xs font-medium text-text-muted">
+          #{item.orderNumber}
+        </span>
       </div>
 
       {/* Collapsible customer comment, like the cart's note row. Lives above the
@@ -468,7 +502,7 @@ function BoardItemCard({
             type="button"
             onClick={() => setCommentOpen((open) => !open)}
             aria-expanded={commentOpen}
-            className="flex w-full items-center gap-2 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <ChatIcon className="h-3.5 w-3.5 shrink-0" />
             <span>Customer comment</span>
@@ -477,7 +511,7 @@ function BoardItemCard({
             />
           </button>
           {commentOpen && (
-            <p className="whitespace-pre-wrap break-words px-4 pb-3 text-sm leading-6 text-text">
+            <p className="whitespace-pre-wrap break-words px-3 pb-2.5 text-sm leading-5 text-text">
               {comment}
             </p>
           )}
@@ -642,26 +676,33 @@ function ProductsOverview({
   products,
   colorOf,
   onRequestPause,
+  className,
 }: {
   products: BoardProduct[];
   colorOf: (productId: string) => string;
   onRequestPause: (product: BoardProduct) => void;
+  className?: string;
 }) {
   // Reflects the products shown — when a filter is active these are only the
   // selected ones, so the count stays consistent with the rows below.
   const openCount = products.reduce((sum, product) => sum + product.openToDo, 0);
   return (
-    <section className="flex flex-col rounded-lg border border-border bg-surface p-4 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-          Overview · Products
-        </h2>
-        <p className="mt-1 text-sm font-semibold text-text">
+    <section
+      className={cn(
+        'flex flex-col rounded-lg border border-border bg-surface p-3 shadow-sm',
+        className,
+      )}
+    >
+      <div className="mb-3 flex items-baseline justify-between gap-2 px-1">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Products</h2>
+        <span className="text-xs font-semibold text-text-muted">
           {openCount} open item{openCount === 1 ? '' : 's'}
-        </p>
+        </span>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2">
+      {/* One column inside the narrow xl rail; a responsive grid when the section
+          drops under the board on tablet/desktop-narrow so rows don't stretch wide. */}
+      <div className="grid flex-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
         {products.length > 0 ? (
           products.map((product) => (
             <ProductSummaryRow
@@ -672,7 +713,7 @@ function ProductsOverview({
             />
           ))
         ) : (
-          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-text-muted">
+          <p className="col-span-full rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-text-muted">
             No products configured.
           </p>
         )}
@@ -735,12 +776,7 @@ function ProductSummaryRow({
               type="button"
               onClick={onRequestPause}
               aria-label={paused ? `Resume ${product.productName}` : `Pause ${product.productName}`}
-              className={cn(
-                'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                paused
-                  ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
-                  : 'border-warning/50 bg-warning/20 text-text hover:bg-warning/40',
-              )}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold text-text-muted transition hover:bg-surface-muted hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {paused ? (
                 <PlayIcon className="h-3.5 w-3.5" />
@@ -812,10 +848,10 @@ function ConnectionBadge({ status }: { status: SseStatus }) {
 
 function LoadingBoard() {
   return (
-    <div className="mt-6 grid gap-4 lg:grid-cols-4" aria-busy="true">
-      {Array.from({ length: 4 }).map((_, column) => (
-        <div key={column} className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-          <div className="mb-4 h-4 w-24 animate-pulse rounded bg-surface-muted" />
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
+      {Array.from({ length: 3 }).map((_, column) => (
+        <div key={column} className="rounded-lg border border-border bg-surface p-3 shadow-sm">
+          <div className="mb-3 h-9 w-full animate-pulse rounded-md bg-surface-muted" />
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, card) => (
               <div key={card} className="h-20 animate-pulse rounded-md bg-surface-muted" />

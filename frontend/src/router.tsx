@@ -1,7 +1,10 @@
 import { createBrowserRouter, createRoutesFromElements, Route } from 'react-router';
 
+import RootLayout from './routes/RootLayout';
 import Home from './routes/Home';
 import NotFound from './routes/NotFound';
+import Imprint from './routes/legal/Imprint';
+import PrivacyPolicy from './routes/legal/PrivacyPolicy';
 
 import OrganizerAuth from './routes/auth/OrganizerAuth';
 import { OrganizerRequireAuth } from './auth/organizer/OrganizerRequireAuth';
@@ -50,13 +53,16 @@ import CashierPaymentConfirmed from './routes/operator/cashier/CashierPaymentCon
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route path="/">
+    <Route path="/" element={<RootLayout />}>
       <Route index element={<Home />} />
 
       {/* Auth sits outside the guarded layout to avoid a redirect loop. */}
       <Route path="auth" element={<OrganizerAuth />} />
       <Route path="auth/forgot-password" element={<ForgotPassword />} />
       <Route path="reset-password" element={<ResetPassword />} />
+
+      <Route path="imprint" element={<Imprint />} />
+      <Route path="privacy" element={<PrivacyPolicy />} />
 
       <Route path="organizer" element={<OrganizerLayout />}>
         <Route
@@ -117,12 +123,12 @@ export const router = createBrowserRouter(
         <Route
           path=":eventId/link/:operatorAccessKey"
           element={<OperatorLinkEntry />}
-          handle={{ title: 'Stand Selection' }}
+          handle={{ title: 'Operator Console' }}
         />
         <Route
           path=":eventId"
           element={<OperatorStandSelection />}
-          handle={{ title: 'Stand Selection' }}
+          handle={{ title: 'Operator Console' }}
         />
         <Route
           path=":eventId/pickup"

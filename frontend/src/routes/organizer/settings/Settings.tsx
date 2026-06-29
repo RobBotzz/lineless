@@ -112,92 +112,94 @@ export default function Settings() {
         <p className="mt-2 text-sm text-text-muted">Manage your account and preferences</p>
       </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex min-w-0 items-center justify-between gap-3 text-xl">
-            <span>Account</span>
-            <span
-              className="min-w-0 truncate rounded-md bg-surface-muted px-2 py-1 text-right text-sm font-normal text-text-muted"
-              title={account.email ?? 'No email available'}
-            >
-              {account.email ?? 'No email available'}
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextField
-                id="organizer-first-name"
-                label="First Name"
-                onChange={(e) => updateAccountField('firstName', e.target.value)}
-                placeholder="First name"
-                type="text"
-                value={accountForm.firstName}
+      <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex min-w-0 items-center justify-between gap-3 text-xl">
+              <span>Account</span>
+              <span
+                className="min-w-0 truncate rounded-md bg-surface-muted px-2 py-1 text-right text-sm font-normal text-text-muted"
+                title={account.email ?? 'No email available'}
+              >
+                {account.email ?? 'No email available'}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextField
+                  id="organizer-first-name"
+                  label="First Name"
+                  onChange={(e) => updateAccountField('firstName', e.target.value)}
+                  placeholder="First name"
+                  type="text"
+                  value={accountForm.firstName}
+                />
+
+                <TextField
+                  id="organizer-last-name"
+                  label="Last Name"
+                  onChange={(e) => updateAccountField('lastName', e.target.value)}
+                  placeholder="Last name"
+                  type="text"
+                  value={accountForm.lastName}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <Button className="px-6" disabled={busy} onClick={handleAccountSave} size="lg">
+                {busy ? 'Saving...' : 'Save Account'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Change Password</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <VisiblePasswordField
+                autoComplete="current-password"
+                id="current-password"
+                label="Current Password"
+                onChange={(value) => updatePasswordField('currentPassword', value)}
+                placeholder="Current password"
+                value={passwordForm.currentPassword}
               />
 
-              <TextField
-                id="organizer-last-name"
-                label="Last Name"
-                onChange={(e) => updateAccountField('lastName', e.target.value)}
-                placeholder="Last name"
-                type="text"
-                value={accountForm.lastName}
+              <VisiblePasswordField
+                autoComplete="new-password"
+                error={newPasswordError ?? undefined}
+                helperText="At least 8 characters, including a letter and a number. Spaces not allowed."
+                id="new-password"
+                label="New Password"
+                onChange={(value) => updatePasswordField('newPassword', value)}
+                placeholder="New password"
+                value={passwordForm.newPassword}
+              />
+
+              <VisiblePasswordField
+                autoComplete="new-password"
+                id="confirm-password"
+                label="Confirm Password"
+                onChange={(value) => updatePasswordField('confirmPassword', value)}
+                placeholder="Confirm password"
+                value={passwordForm.confirmPassword}
               />
             </div>
-          </div>
 
-          <div className="mt-6 flex justify-end">
-            <Button className="px-6" disabled={busy} onClick={handleAccountSave} size="lg">
-              {busy ? 'Saving...' : 'Save Account'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Change Password</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <VisiblePasswordField
-              autoComplete="current-password"
-              id="current-password"
-              label="Current Password"
-              onChange={(value) => updatePasswordField('currentPassword', value)}
-              placeholder="Current password"
-              value={passwordForm.currentPassword}
-            />
-
-            <VisiblePasswordField
-              autoComplete="new-password"
-              error={newPasswordError ?? undefined}
-              helperText="At least 8 characters, including a letter and a number. Spaces not allowed."
-              id="new-password"
-              label="New Password"
-              onChange={(value) => updatePasswordField('newPassword', value)}
-              placeholder="New password"
-              value={passwordForm.newPassword}
-            />
-
-            <VisiblePasswordField
-              autoComplete="new-password"
-              id="confirm-password"
-              label="Confirm Password"
-              onChange={(value) => updatePasswordField('confirmPassword', value)}
-              placeholder="Confirm password"
-              value={passwordForm.confirmPassword}
-            />
-          </div>
-
-          <div className="mt-6 flex justify-end">
-            <Button className="px-6" disabled={busy} onClick={handlePasswordSave} size="lg">
-              {busy ? 'Saving...' : 'Change Password'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="mt-6 flex justify-end">
+              <Button className="px-6" disabled={busy} onClick={handlePasswordSave} size="lg">
+                {busy ? 'Saving...' : 'Change Password'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <AlertDialog
         message={visibleError}
