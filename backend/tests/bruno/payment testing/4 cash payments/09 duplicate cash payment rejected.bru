@@ -1,0 +1,30 @@
+meta {
+  name: 09 duplicate cash payment rejected
+  type: http
+  seq: 9
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{cashOrderId}}/cash-payment
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("duplicate cash confirmation is rejected", function () {
+    expect(res.status).to.equal(409);
+    expect(res.body.error).to.equal("Order has already been paid");
+  });
+}
+
+settings {
+  encodeUrl: true
+}

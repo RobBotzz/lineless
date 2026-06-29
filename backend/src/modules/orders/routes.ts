@@ -4,11 +4,14 @@ import {
   advanceOrderItem,
   cancelOrderForOrganizer,
   cancelOrderItemsForOrganizer,
+  cancelPendingOrder,
+  confirmCashPayment,
   deleteUnpaidOrder,
   enrichOrderForAttendee,
   getOrderForAttendee,
   getOrderForCashier,
   getOrderForOrganizer,
+  issueCashRefund,
   listOrdersForAttendee,
   listUnpaidOrdersForCashier,
   submitOrder,
@@ -17,21 +20,30 @@ import { SseConnection } from "../../lib/sse";
 import { subscribe } from "../../lib/realtimeBus";
 import {
   CashierDisabledError,
+  CashPaymentNotFoundError,
+  CashRefundExceedsTotalError,
   EventNotActiveError,
-  OfflineOrdersDisabledError,
+  OrderAlreadyPaidError,
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
   OrderValidationError,
+  StandNotFoundError,
 } from "./errors";
 import { EventNotFoundError } from "../events/errors";
-import { cancelOrderItemsSchema, createOrderSchema } from "./types";
+import {
+  cancelOrderItemsSchema,
+  confirmCashPaymentSchema,
+  createOrderSchema,
+  issueCashRefundSchema,
+} from "./types";
 import {
   authAttendee,
   authOrganizer,
   authOperator,
-  authOrganizerOrOperatorOrAttendee,
   authOperatorOrAttendee,
+  authOrganizerOrOperator,
+  authOrganizerOrOperatorOrAttendee,
 } from "../../middleware/auth/guards";
 
 function orderId(req: Request): string {
@@ -43,6 +55,10 @@ function itemId(req: Request): string {
 }
 
 function handleError(err: unknown, res: Response): unknown {
+  if (err instanceof StandNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof EventNotFoundError)
+    return res.status(404).json({ error: err.message });
   if (err instanceof OrderNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
@@ -53,12 +69,16 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(409).json({ error: err.message });
   if (err instanceof OrderValidationError)
     return res.status(400).json({ error: err.message });
-  if (err instanceof OfflineOrdersDisabledError)
-    return res.status(403).json({ error: err.message });
   if (err instanceof CashierDisabledError)
     return res.status(403).json({ error: err.message });
+  if (err instanceof OrderAlreadyPaidError)
+    return res.status(409).json({ error: err.message });
   if (err instanceof OrderItemStateError)
     return res.status(409).json({ error: err.message });
+  if (err instanceof CashPaymentNotFoundError)
+    return res.status(404).json({ error: err.message });
+  if (err instanceof CashRefundExceedsTotalError)
+    return res.status(422).json({ error: err.message });
   console.error("Orders error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -68,14 +88,39 @@ function handleError(err: unknown, res: Response): unknown {
 // =============================================================================
 export const ordersRouter = Router();
 
-// POST /orders — submit an order (attendee or operator/cashier).
+// POST /orders — submit an order (attendee or operator/cashier). Tab orders that
+// exceed the authorized hold return 402 with a client secret for the new hold.
 ordersRouter.post(
   "/",
   authOperatorOrAttendee,
   validateBody(createOrderSchema, async (req, res, data) => {
     try {
       const sessionId = req.attendee?.sessionId ?? null;
-      const order = await submitOrder(sessionId, data);
+      const result = await submitOrder(sessionId, data);
+      if (result.status === 402) {
+        return res
+          .status(402)
+          .json({ clientSecret: result.clientSecret, orderId: result.orderId });
+      }
+      return res.status(201).json({ order: result.order });
+    } catch (err) {
+      return handleError(err, res);
+    }
+  })
+);
+
+// POST /orders/:orderId/cash-payment — operator/cashier confirms cash received.
+ordersRouter.post(
+  "/:orderId/cash-payment",
+  authOrganizerOrOperator,
+  validateBody(confirmCashPaymentSchema, async (req, res) => {
+    try {
+      const order = await confirmCashPayment(
+        orderId(req),
+        req.organizer
+          ? { organizerAccountId: req.organizer.accountId }
+          : { operatorStandId: req.operator!.standId }
+      );
       return res.status(201).json(order);
     } catch (err) {
       return handleError(err, res);
@@ -83,19 +128,26 @@ ordersRouter.post(
   })
 );
 
-// GET /orders — an attendee's own paid orders (order-status / review entry point).
-ordersRouter.get("/", authAttendee, async (req: Request, res: Response) => {
-  try {
-    const orders = await listOrdersForAttendee(req.attendee!.sessionId);
-    return res.status(200).json(orders);
-  } catch (err) {
-    return handleError(err, res);
+// POST /orders/:orderId/cancel — attendee abandons an order still awaiting
+// authorization (cancels its gated items and releases any backing hold).
+ordersRouter.post(
+  "/:orderId/cancel",
+  authAttendee,
+  async (req: Request, res: Response) => {
+    try {
+      const order = await cancelPendingOrder(
+        orderId(req),
+        req.attendee!.sessionId
+      );
+      return res.status(200).json(order);
+    } catch (err) {
+      return handleError(err, res);
+    }
   }
-});
+);
 
 // GET /orders/cashier — unpaid orders for the cashier's event, derived from the
-// operator token (consistent with all other operator routes).
-// Must be registered before /:orderId to avoid Express matching "cashier" as an orderId.
+// operator token. Registered before /:orderId so "cashier" is not read as an id.
 ordersRouter.get(
   "/cashier",
   authOperator,
@@ -108,6 +160,16 @@ ordersRouter.get(
     }
   }
 );
+
+// GET /orders — an attendee's own paid orders (order-status / review entry point).
+ordersRouter.get("/", authAttendee, async (req: Request, res: Response) => {
+  try {
+    const orders = await listOrdersForAttendee(req.attendee!.sessionId);
+    return res.status(200).json(orders);
+  } catch (err) {
+    return handleError(err, res);
+  }
+});
 
 // GET /orders/stream — attendee's live order feed over SSE. Sends a `snapshot`
 // event on connect (same list as GET /orders) then an `order` event whenever
@@ -248,4 +310,27 @@ ordersRouter.delete(
       return handleError(err, res);
     }
   }
+);
+
+// Cash refunds are addressed by the embedded cashPayment id, so they live on a
+// separate router mounted at /api/cash-payments while sharing the orders logic.
+export const cashPaymentsRouter = Router();
+
+cashPaymentsRouter.post(
+  "/:cashPaymentId/refund",
+  authOrganizerOrOperator,
+  validateBody(issueCashRefundSchema, async (req, res, data) => {
+    try {
+      const refund = await issueCashRefund(
+        req.params["cashPaymentId"] as string,
+        data,
+        req.organizer
+          ? { organizerAccountId: req.organizer.accountId }
+          : { operatorStandId: req.operator!.standId }
+      );
+      return res.status(201).json(refund);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  })
 );

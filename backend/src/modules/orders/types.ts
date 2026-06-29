@@ -7,6 +7,7 @@ export const orderItemInputSchema = z.object({
 
 export const createOrderSchema = z.object({
   eventId: z.uuid(),
+  /** Present for Stripe (tab) orders; absent for cash orders. */
   tabId: z.uuid().optional(),
   customerEmail: z.email().optional(),
   items: z.array(orderItemInputSchema).min(1),
@@ -16,5 +17,16 @@ export const cancelOrderItemsSchema = z.object({
   itemIds: z.array(z.uuid()).min(1),
 });
 
+export const confirmCashPaymentSchema = z.object({
+  /** Intentionally empty — eventId is derived from the order's stored eventId. */
+});
+
+export const issueCashRefundSchema = z.object({
+  /** Refund amount in integer cents — must be > 0 and <= order total. */
+  amountCents: z.number().int().positive(),
+});
+
 export type OrderItemInput = z.infer<typeof orderItemInputSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
+export type ConfirmCashPaymentInput = z.infer<typeof confirmCashPaymentSchema>;
+export type IssueCashRefundInput = z.infer<typeof issueCashRefundSchema>;

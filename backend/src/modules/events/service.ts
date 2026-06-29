@@ -2,6 +2,7 @@ import { Event, generateOperatorAccessKey, type EventDoc } from "./model";
 import { EventNotFoundError, EventStateError } from "./errors";
 import { assertSessionOwnsEvent } from "./ownership";
 import { ensureCashierStand } from "../stands/service";
+import { finalizeEventTabs } from "../tabs/service";
 import type { CreateEventInput, UpdateEventInput } from "./types";
 
 type AttendeeEvent = Omit<EventDoc, "operatorAccessKey">;
@@ -22,11 +23,13 @@ export async function createEvent(
     plannedDate: input.plannedDate,
     ratingsEnabled: input.ratingsEnabled,
     cashierEnabled: input.cashierEnabled,
-    offlineOrdersEnabled: input.offlineOrdersEnabled,
+    baselineHoldCents: input.baselineHoldCents,
     branding: input.branding,
     location: input.location,
   });
-  if (event.cashierEnabled) await ensureCashierStand(event._id);
+  // Every event always has exactly one backend-created cashier stand,
+  // regardless of whether the cashier is currently enabled.
+  await ensureCashierStand(event._id);
   return event;
 }
 
@@ -89,8 +92,8 @@ export async function updateEvent(
     event.cashierEnabled = patch.cashierEnabled;
     if (patch.cashierEnabled) await ensureCashierStand(event._id);
   }
-  if (patch.offlineOrdersEnabled !== undefined) {
-    event.offlineOrdersEnabled = patch.offlineOrdersEnabled;
+  if (patch.baselineHoldCents !== undefined) {
+    event.baselineHoldCents = patch.baselineHoldCents;
   }
   if (patch.branding) {
     if (patch.branding.primaryColor !== undefined) {
@@ -140,6 +143,7 @@ export async function stopEvent(
   event.status = "STOPPED";
   event.stoppedAt = new Date();
   await event.save();
+  await finalizeEventTabs(event._id);
   return event;
 }
 

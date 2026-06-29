@@ -1,0 +1,21 @@
+meta {
+  name: 5 custom baseline hold
+  seq: 5
+}
+
+docs {
+  Organizer raises the event's baseline authorization hold to EUR 50.00 (5000
+  cents), then runs a full tab through to capture so it can be inspected in
+  Stripe:
+
+  1. organizer logs in and patches baselineHoldCents to 5000
+  2. operator logs into the stand
+  3. attendee opens a tab — the 5000 hold is verified in our response and
+     against the real Stripe PaymentIntent amount
+  4. attendee orders one item within the hold; operator marks it ready
+  5. organizer checkout captures the ready item against the real Stripe test API
+     => a captured PaymentIntent shows up in the Stripe dashboard
+
+  The final request resets the hold back to the EUR 10.00 (1000 cents) default so
+  the shared Dev event is left as the other folders expect it.
+}

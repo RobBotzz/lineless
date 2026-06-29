@@ -1,0 +1,28 @@
+meta {
+  name: 27 organizer checkout captures all fulfilled items
+  type: http
+  seq: 27
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/events/{{eventId}}/tabs/checkout
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+tests {
+  test("organizer checkout captures tab with all items fulfilled", function () {
+    expect(res.status).to.equal(200);
+    const result = res.body.results.find(r => r.tabId === bru.getVar("tabId"));
+    expect(result.status).to.equal("PAID");
+    expect(result.capturedTotal).to.be.a("number").and.greaterThan(0);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

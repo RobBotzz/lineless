@@ -1,0 +1,58 @@
+info:
+  name: 4. Submit Order (Over Limit)
+  type: http
+  seq: 4
+
+# Expects 402. The order exceeds the authorized amount, so a new Stripe hold is
+# created for the overage and the items stay gated (startedAt = null).
+# Captures the overage PaymentIntent id from the returned client_secret
+# (format: pi_xxx_secret_yyy -> pi_xxx).
+
+http:
+  method: POST
+  url: http://{{host}}:{{port}}/api/orders
+  headers:
+    - name: Authorization
+      value: Bearer {{authToken}}
+  body:
+    type: json
+    data: |-
+      {
+        "eventId": "{{eventId}}",
+        "tabId": "{{tabId}}",
+        "items": [
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" },
+          { "productId": "{{productId}}", "customerComment": "Large round for the table" }
+        ]
+      }
+  auth: inherit
+
+scripts:
+  postResponse: |-
+    if (res.body && res.body.clientSecret) {
+      bru.setVar("overagePI", res.body.clientSecret.split("_secret_")[0]);
+    }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

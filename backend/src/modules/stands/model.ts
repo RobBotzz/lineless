@@ -39,4 +39,13 @@ const standSchema = new Schema<StandDoc>(
   },
   { timestamps: true }
 );
+
+// Exactly one cashier stand per event, enforced at the database level. The
+// partial filter limits uniqueness to CASHIER stands; the compound key keeps
+// this index distinct from the plain `eventId` index above.
+standSchema.index(
+  { eventId: 1, standType: 1 },
+  { unique: true, partialFilterExpression: { standType: "CASHIER" } }
+);
+
 export const Stand = model<StandDoc>("Stand", standSchema);

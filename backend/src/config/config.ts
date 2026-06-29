@@ -28,6 +28,12 @@ interface Config {
     /** Default "from" address for outgoing mail (must be a verified sender). */
     fromAddress: string;
   };
+  stripe: {
+    secretKey: string;
+    webhookSecret: string;
+    /** Dev-only escape hatch to accept unsigned webhooks (e.g. Bruno). */
+    allowUnsignedWebhooks: boolean;
+  };
 }
 
 export const config: Config = {
@@ -47,19 +53,19 @@ export const config: Config = {
       ? Number(process.env["BCRYPT_ROUNDS"])
       : 10,
     organizer: {
-      accessTokenExpiresIn: process.env["JWT_EXPIRES_IN"] ?? "5m",
+      accessTokenExpiresIn: process.env["JWT_EXPIRES_IN"] ?? "2m",
       refreshTokenTtlDays: process.env["REFRESH_TOKEN_TTL_DAYS"]
         ? Number(process.env["REFRESH_TOKEN_TTL_DAYS"])
-        : 30,
+        : 2,
       passwordResetTtlMinutes: process.env["PASSWORD_RESET_TTL_MINUTES"]
         ? Number(process.env["PASSWORD_RESET_TTL_MINUTES"])
         : 60,
     },
     operator: {
-      accessTokenExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "5m",
+      accessTokenExpiresIn: process.env["JWT_OPERATOR_EXPIRES_IN"] ?? "2m",
       refreshTokenTtlDays: process.env["OPERATOR_REFRESH_TOKEN_TTL_DAYS"]
         ? Number(process.env["OPERATOR_REFRESH_TOKEN_TTL_DAYS"])
-        : 7,
+        : 2,
     },
   },
   appBaseUrl: process.env["APP_BASE_URL"] ?? "http://localhost:3000",
@@ -67,5 +73,17 @@ export const config: Config = {
     apiKey:
       process.env["RESEND_API_KEY"] ?? "re_REPLACE_WITH_YOUR_RESEND_API_KEY",
     fromAddress: process.env["RESEND_FROM_ADDRESS"] ?? "contact@lineless.shop",
+  },
+  stripe: {
+    secretKey:
+      process.env["STRIPE_SECRET_KEY"] ??
+      "sk_test_REPLACE_WITH_YOUR_STRIPE_TEST_SECRET_KEY",
+    webhookSecret:
+      process.env["STRIPE_WEBHOOK_SECRET"] ??
+      "whsec_REPLACE_WITH_YOUR_STRIPE_WEBHOOK_SECRET",
+    // Defaults to false so it must be opted into per-environment. This can never
+    // be left open in production just because NODE_ENV was not set.
+    allowUnsignedWebhooks:
+      process.env["STRIPE_ALLOW_UNSIGNED_WEBHOOKS"] === "true",
   },
 };

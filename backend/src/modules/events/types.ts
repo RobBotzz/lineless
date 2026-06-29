@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { locationInputSchema } from "../../shared/location";
+import { DEFAULT_BASELINE_HOLD_CENTS } from "./model";
+
+// Baseline authorization hold in integer cents; must cover at least €1.00.
+const baselineHoldCents = z.number().int().min(100);
 
 // Accepts #RGB and #RRGGBB (case-insensitive).
 const hexColor = z
@@ -26,7 +30,7 @@ export const createEventSchema = z.object({
   plannedDate: z.coerce.date().optional(),
   ratingsEnabled: z.boolean().default(false),
   cashierEnabled: z.boolean().default(true),
-  offlineOrdersEnabled: z.boolean().default(true),
+  baselineHoldCents: baselineHoldCents.default(DEFAULT_BASELINE_HOLD_CENTS),
   branding: brandingCreateSchema.prefault({}),
   location: locationInputSchema.optional(),
 });
@@ -36,7 +40,7 @@ export const updateEventSchema = z.object({
   plannedDate: z.coerce.date().optional(),
   ratingsEnabled: z.boolean().optional(),
   cashierEnabled: z.boolean().optional(),
-  offlineOrdersEnabled: z.boolean().optional(),
+  baselineHoldCents: baselineHoldCents.optional(),
   branding: brandingUpdateSchema.optional(),
   location: locationInputSchema.optional(),
 });

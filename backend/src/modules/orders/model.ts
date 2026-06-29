@@ -13,10 +13,26 @@ export interface OrderItemDoc {
   taxRateAtPurchase: number;
 }
 
+/** Created when an operator confirms cash was received for the order. */
+export interface CashPaymentDoc {
+  _id: string;
+  createdAt: Date;
+}
+
+/** Created when an organizer refunds some or all of a cash payment. */
+export interface CashRefundDoc {
+  _id: string;
+  /** Refund amount in integer cents — never a float. */
+  amountCents: number;
+  createdAt: Date;
+}
+
 export interface OrderDoc {
   _id: string;
   eventId: string;
+  /** Null for cash orders — only set when paying via a Tab (Stripe). */
   tabId: string | null;
+  /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
   sessionId: string | null;
   orderNumber: string;
   pickupCode: string;
@@ -24,11 +40,13 @@ export interface OrderDoc {
   paidAt: Date | null;
   deletedAt: Date | null;
   items: OrderItemDoc[];
+  cashPayment: CashPaymentDoc | null;
+  cashRefunds: CashRefundDoc[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-const orderItemSchema = new Schema<OrderItemDoc>({
+const OrderItemSchema = new Schema<OrderItemDoc>({
   _id: { type: String, default: () => uuidv4() },
   productId: { type: String, required: true },
   customerComment: { type: String, default: null },
@@ -40,7 +58,22 @@ const orderItemSchema = new Schema<OrderItemDoc>({
   taxRateAtPurchase: { type: Number, required: true },
 });
 
-const orderSchema = new Schema<OrderDoc>(
+const CashPaymentSchema = new Schema<CashPaymentDoc>(
+  {
+    _id: { type: String, default: () => uuidv4() },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } }
+);
+
+const CashRefundSchema = new Schema<CashRefundDoc>(
+  {
+    _id: { type: String, default: () => uuidv4() },
+    amountCents: { type: Number, required: true },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } }
+);
+
+const OrderSchema = new Schema<OrderDoc>(
   {
     _id: { type: String, default: () => uuidv4() },
     eventId: { type: String, required: true, index: true },
@@ -51,9 +84,11 @@ const orderSchema = new Schema<OrderDoc>(
     customerEmail: { type: String, default: null },
     paidAt: { type: Date, default: null },
     deletedAt: { type: Date, default: null },
-    items: [orderItemSchema],
+    items: [OrderItemSchema],
+    cashPayment: { type: CashPaymentSchema, default: null },
+    cashRefunds: { type: [CashRefundSchema], default: [] },
   },
   { timestamps: true }
 );
 
-export const Order = model<OrderDoc>("Order", orderSchema);
+export const Order = model<OrderDoc>("Order", OrderSchema);

@@ -1,0 +1,35 @@
+meta {
+  name: 03 login operator
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/stands/{{standId}}/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "operatorAccessKey": "{{operatorAccessKey}}",
+    "accessPassword": "{{operatorPassword}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.token) {
+    bru.setVar("operatorToken", res.body.token);
+  }
+}
+
+tests {
+  test("operator login returns token", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.token).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

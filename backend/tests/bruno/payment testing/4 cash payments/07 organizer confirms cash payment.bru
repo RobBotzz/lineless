@@ -1,0 +1,39 @@
+meta {
+  name: 07 organizer confirms cash payment
+  type: http
+  seq: 7
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{cashOrderId}}/cash-payment
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {}
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.cashPayment) {
+    bru.setVar("cashPaymentId", res.body.cashPayment._id);
+  }
+}
+
+tests {
+  test("organizer confirms cash payment", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body._id).to.equal(bru.getVar("cashOrderId"));
+    expect(res.body.paidAt).to.be.a("string").and.not.empty;
+    expect(res.body.cashPayment._id).to.be.a("string").and.not.empty;
+    expect(res.body.items[0].startedAt).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}
