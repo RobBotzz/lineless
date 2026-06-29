@@ -216,7 +216,9 @@ function slug(value: string): string {
 }
 
 // Export a single event as an invoice-style statement: header, per-item lines
-// (net / tax / gross) with a subtotal, then the top-to-bottom payout statement.
+// (net / tax / gross) with a subtotal, the top-to-bottom payout statement, then
+// the same cash-flow context the UI shows (incl. cash refunds) so the export is
+// fully reconcilable against the cash drawer.
 function downloadEventCsv(row: EventRow) {
   const { event } = row;
   const subtotal = itemsSubtotal(event.unitsSold);
@@ -247,6 +249,12 @@ function downloadEventCsv(row: EventRow) {
       line.label,
       `${line.kind === 'sub' ? '-' : ''}${formatMoney(line.cents)}`,
     ]),
+    [],
+    // Cash-flow context — mirrors the UI; not part of the payout total above.
+    ['Cash-flow context', ''],
+    ['On open tabs (ready to charge)', formatMoney(event.onHoldReadyCents)],
+    ['Settling on Stripe', formatMoney(event.inTransitCents)],
+    ['Cash refunds', `-${formatMoney(event.cashRefundCents)}`],
   ];
   downloadCsv(`lineless-${slug(event.eventName)}-payout-${today()}.csv`, grid);
 }
