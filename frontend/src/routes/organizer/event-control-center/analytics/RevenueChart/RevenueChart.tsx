@@ -30,17 +30,16 @@ type RevenueChartOption = ComposeOption<
   GridComponentOption | LineSeriesOption | TooltipComponentOption
 >;
 
+type PointerPosition = {
+  x: number;
+  y: number;
+};
+
 type TooltipParam = {
   dataIndex?: number;
   seriesIndex?: number;
   seriesName?: string;
   value?: number | string | Array<number | string | null>;
-};
-
-type ChartHoverEvent = {
-  componentType?: string;
-  seriesIndex?: number;
-  seriesType?: string;
 };
 
 export function RevenueChart({
@@ -56,7 +55,7 @@ export function RevenueChart({
 }) {
   const chartElementRef = useRef<HTMLDivElement | null>(null);
   const chartInstanceRef = useRef<ECharts | null>(null);
-  const hoveredSeriesIndexRef = useRef<number | null>(null);
+  const pointerPositionRef = useRef<PointerPosition | null>(null);
   const [timeRangeMinutes, setTimeRangeMinutes] = useState<RevenueTimeRangeMinutes>(
     REVENUE_TIME_RANGE_OPTIONS[0]!.minutes,
   );
@@ -74,48 +73,41 @@ export function RevenueChart({
 
     const chart = echarts.init(element, undefined, { renderer: 'svg' });
     chartInstanceRef.current = chart;
-    const clearHoveredSeries = () => {
-      hoveredSeriesIndexRef.current = null;
+    const clearPointerPosition = () => {
+      pointerPositionRef.current = null;
     };
-    const setHoveredSeries = (event: unknown) => {
-      const hoverEvent = normalizeChartHoverEvent(event);
-      if (
-        hoverEvent?.componentType !== 'series' ||
-        hoverEvent.seriesType !== 'line' ||
-        typeof hoverEvent.seriesIndex !== 'number'
-      ) {
-        return;
-      }
+    const setPointerPosition = (event: unknown) => {
+      const pointerPosition = normalizePointerPosition(event);
+      if (!pointerPosition) return;
 
-      hoveredSeriesIndexRef.current = hoverEvent.seriesIndex;
+      pointerPositionRef.current = pointerPosition;
     };
-    const clearHoveredLineSeries = (event: unknown) => {
-      const hoverEvent = normalizeChartHoverEvent(event);
-      if (hoverEvent?.componentType !== 'series' || hoverEvent.seriesType !== 'line') return;
-
-      clearHoveredSeries();
-    };
-
-    chart.on('mouseover', setHoveredSeries);
-    chart.on('mouseout', clearHoveredLineSeries);
-    chart.on('globalout', clearHoveredSeries);
+    const renderer = chart.getZr();
+    renderer.on('mousemove', setPointerPosition);
+    renderer.on('globalout', clearPointerPosition);
     const resizeObserver = new ResizeObserver(() => chart.resize());
     resizeObserver.observe(element);
 
     return () => {
       resizeObserver.disconnect();
-      chart.off('mouseover', setHoveredSeries);
-      chart.off('mouseout', clearHoveredLineSeries);
-      chart.off('globalout', clearHoveredSeries);
+      renderer.off('mousemove', setPointerPosition);
+      renderer.off('globalout', clearPointerPosition);
       chart.dispose();
       chartInstanceRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    hoveredSeriesIndexRef.current = null;
+    pointerPositionRef.current = null;
     chartInstanceRef.current?.setOption(
-      createRevenueChartOption(model, () => hoveredSeriesIndexRef.current),
+      createRevenueChartOption(model, (dataIndex) =>
+        getHoveredSeriesIndexAtPointer(
+          chartInstanceRef.current,
+          model,
+          dataIndex,
+          pointerPositionRef.current,
+        ),
+      ),
       {
         notMerge: true,
       },
@@ -158,7 +150,7 @@ export function RevenueChart({
 
 function createRevenueChartOption(
   model: RevenueChartModel,
-  getHoveredSeriesIndex: () => number | null,
+  getHoveredSeriesIndexAtDataIndex: (dataIndex: number) => number | null,
 ): RevenueChartOption {
   return {
     animationDuration: 650,
@@ -179,7 +171,8 @@ function createRevenueChartOption(
       className: 'revenue-chart-tooltip',
       confine: true,
       extraCssText: 'box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);',
-      formatter: (params: unknown) => formatRevenueTooltip(params, model, getHoveredSeriesIndex()),
+      formatter: (params: unknown) =>
+        formatRevenueTooltip(params, model, getHoveredSeriesIndexAtDataIndex),
       padding: 0,
       trigger: 'axis',
       triggerOn: 'mousemove|click|mousewheel',
@@ -382,7 +375,7 @@ function RevenueEmptyState({ hasTotalRevenue }: { hasTotalRevenue: boolean }) {
 function formatRevenueTooltip(
   params: unknown,
   model: RevenueChartModel,
-  hoveredSeriesIndex: number | null,
+  getHoveredSeriesIndexAtDataIndex: (dataIndex: number) => number | null,
 ): string {
   const tooltipParams = normalizeTooltipParams(params);
   const dataIndex = tooltipParams.find((param) => typeof param.dataIndex === 'number')?.dataIndex;
@@ -391,6 +384,7 @@ function formatRevenueTooltip(
   const point = model.points[dataIndex];
   if (!point) return '';
 
+  const hoveredSeriesIndex = getHoveredSeriesIndexAtDataIndex(dataIndex);
   const hoveredSeries =
     typeof hoveredSeriesIndex === 'number' ? model.standSeries[hoveredSeriesIndex] : undefined;
   const hoveredSeriesInterval = hoveredSeries?.intervals[dataIndex];
@@ -489,10 +483,54 @@ function normalizeTooltipParams(params: unknown): TooltipParam[] {
   });
 }
 
-function normalizeChartHoverEvent(event: unknown): ChartHoverEvent | null {
+function normalizePointerPosition(event: unknown): PointerPosition | null {
   if (typeof event !== 'object' || event === null) return null;
 
-  return event as ChartHoverEvent;
+  const pointerEvent = event as { offsetX?: number; offsetY?: number };
+  if (typeof pointerEvent.offsetX !== 'number' || typeof pointerEvent.offsetY !== 'number') {
+    return null;
+  }
+
+  return {
+    x: pointerEvent.offsetX,
+    y: pointerEvent.offsetY,
+  };
+}
+
+function getHoveredSeriesIndexAtPointer(
+  chart: ECharts | null,
+  model: RevenueChartModel,
+  dataIndex: number,
+  pointerPosition: PointerPosition | null,
+): number | null {
+  if (!chart || !pointerPosition) return null;
+  if (!chart.containPixel({ gridIndex: 0 }, [pointerPosition.x, pointerPosition.y])) return null;
+
+  let stackedRevenueCents = 0;
+
+  for (const [seriesIndex, series] of model.standSeries.entries()) {
+    const intervalRevenueCents = series.intervals[dataIndex]?.revenueCents ?? 0;
+    if (intervalRevenueCents <= 0) continue;
+
+    const intervalTopRevenueCents = stackedRevenueCents + intervalRevenueCents;
+    const lowerPixel = chart.convertToPixel({ yAxisIndex: 0 }, stackedRevenueCents);
+    const upperPixel = chart.convertToPixel({ yAxisIndex: 0 }, intervalTopRevenueCents);
+    if (typeof lowerPixel !== 'number' || typeof upperPixel !== 'number') {
+      stackedRevenueCents = intervalTopRevenueCents;
+      continue;
+    }
+
+    const topPixel = Math.min(lowerPixel, upperPixel);
+    const bottomPixel = Math.max(lowerPixel, upperPixel);
+
+    if (pointerPosition.y >= topPixel && pointerPosition.y <= bottomPixel) {
+      return seriesIndex;
+    }
+
+    stackedRevenueCents = intervalTopRevenueCents;
+  }
+
+  return null;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
