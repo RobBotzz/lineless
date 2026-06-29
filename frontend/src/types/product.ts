@@ -58,7 +58,9 @@ export function productImageSrc(
 ): string | null {
   if (!product.productImageUrl) return null;
   const version = Date.parse(product.updatedAt);
-  return Number.isNaN(version)
-    ? product.productImageUrl
-    : `${product.productImageUrl}?v=${version}`;
+  if (Number.isNaN(version)) return product.productImageUrl;
+  // Use & when the URL already has a query string (e.g. a pre-signed external
+  // URL) so we don't produce a broken "?a=b?v=…".
+  const separator = product.productImageUrl.includes('?') ? '&' : '?';
+  return `${product.productImageUrl}${separator}v=${version}`;
 }

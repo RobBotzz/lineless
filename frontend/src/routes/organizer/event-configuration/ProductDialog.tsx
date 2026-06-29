@@ -76,6 +76,11 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [removeExistingImage, setRemoveExistingImage] = useState(false);
 
+  // In create mode, the id of an already-created product. Set once createProduct
+  // succeeds so a failed image upload (and a subsequent retry) updates that
+  // product instead of creating a duplicate.
+  const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -147,8 +152,12 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
     setError(null);
     setSaving(true);
 
+    // Operate on the existing product, the one created on a previous (partly
+    // failed) attempt, or create a fresh one.
+    const existingProductId = product?._id ?? createdProductId;
+
     try {
-      if (isEdit) {
+      if (existingProductId) {
         const patch: UpdateProductInput = {
           productName: name,
           productDescription,
@@ -157,12 +166,12 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
           instantProduct,
           productStock,
         };
-        await updateProduct(product._id, patch);
+        await updateProduct(existingProductId, patch);
         // Image is a separate endpoint: upload a new one, or drop the old one.
         if (imageFile) {
-          await uploadProductImage(product._id, imageFile);
-        } else if (removeExistingImage && product.productImageUrl) {
-          await deleteProductImage(product._id);
+          await uploadProductImage(existingProductId, imageFile);
+        } else if (removeExistingImage && product?.productImageUrl) {
+          await deleteProductImage(existingProductId);
         }
       } else {
         const patch: CreateProductInput = {
@@ -174,7 +183,9 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
           productStock,
         };
         // Create first to get the id, then attach the image if one was picked.
+        // Remember the id so a later failure + retry never creates a duplicate.
         const created = await createProduct(standId, patch);
+        setCreatedProductId(created._id);
         if (imageFile) {
           await uploadProductImage(created._id, imageFile);
         }
