@@ -58,7 +58,8 @@ export function RevenueChart({
     [eventStartAt, points, standNameById, standRevenue, timeRangeMinutes],
   );
   const chartOption = useMemo(() => createRevenueChartOption(model), [model]);
-  const hasRevenue = model.totalBreakdown.some((entry) => entry.revenueCents > 0);
+  const hasRevenueInSelectedRange = model.points.some((point) => point.revenueCents > 0);
+  const hasTotalRevenue = model.totalBreakdown.some((entry) => entry.revenueCents > 0);
 
   useEffect(() => {
     const element = chartElementRef.current;
@@ -96,11 +97,13 @@ export function RevenueChart({
           ref={chartElementRef}
           role="img"
         />
-        {!hasRevenue ? <RevenueEmptyState /> : null}
+        {!hasRevenueInSelectedRange ? (
+          <RevenueEmptyState hasTotalRevenue={hasTotalRevenue} />
+        ) : null}
       </div>
 
       <div className="border-t border-border bg-surface/70 p-4">
-        {hasRevenue ? (
+        {hasTotalRevenue ? (
           <RevenueStandMix breakdown={model.totalBreakdown} />
         ) : (
           <p className="text-sm text-text-muted">
@@ -295,7 +298,7 @@ function RevenueStandMix({ breakdown }: { breakdown: StandRevenueBreakdown[] }) 
   );
 }
 
-function RevenueEmptyState() {
+function RevenueEmptyState({ hasTotalRevenue }: { hasTotalRevenue: boolean }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 flex h-[22rem] items-center justify-center">
       <div className="text-center">
@@ -319,9 +322,13 @@ function RevenueEmptyState() {
             strokeWidth="2"
           />
         </svg>
-        <p className="text-base font-extrabold text-text">Awaiting first paid order</p>
+        <p className="text-base font-extrabold text-text">
+          {hasTotalRevenue ? 'No paid orders in this time range' : 'Awaiting first paid order'}
+        </p>
         <p className="mt-1 text-sm font-medium text-text-muted">
-          Revenue will draw in from left to right
+          {hasTotalRevenue
+            ? 'Select a longer range to see earlier revenue'
+            : 'Revenue will draw in from left to right'}
         </p>
       </div>
     </div>

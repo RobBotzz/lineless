@@ -103,7 +103,7 @@ export function createRevenueChartModel(
     windowStartMinutes,
   );
   const standSeries = rankedStandEntries.map((stand, index) => ({
-    color: REVENUE_STAND_COLORS[index % REVENUE_STAND_COLORS.length]!,
+    color: getRevenueStandColor(index),
     data: createStandRevenueData(
       standRevenue.find((series) => series.standId === stand.standId)?.points ?? [],
       bucketMinutes,
@@ -117,7 +117,7 @@ export function createRevenueChartModel(
       const revenueCents = standRevenueCentsById.get(stand.standId) ?? 0;
 
       return {
-        color: REVENUE_STAND_COLORS[index % REVENUE_STAND_COLORS.length]!,
+        color: getRevenueStandColor(index),
         revenueCents,
         share: 0,
         standId: stand.standId,
@@ -133,6 +133,44 @@ export function createRevenueChartModel(
     standSeries,
     totalBreakdown,
   };
+}
+
+function getRevenueStandColor(index: number): string {
+  const predefinedColor = REVENUE_STAND_COLORS[index];
+  if (predefinedColor) return predefinedColor;
+
+  const generatedIndex = index - REVENUE_STAND_COLORS.length;
+  const hue = (generatedIndex * 137.508 + 210) % 360;
+  const lightness = 42 + (Math.floor(generatedIndex / 12) % 2) * 10;
+
+  return hslToHex(hue, 68, lightness);
+}
+
+function hslToHex(hue: number, saturationPercent: number, lightnessPercent: number): string {
+  const saturation = saturationPercent / 100;
+  const lightness = lightnessPercent / 100;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const hueSegment = hue / 60;
+  const secondary = chroma * (1 - Math.abs((hueSegment % 2) - 1));
+  const [redBase, greenBase, blueBase] =
+    hueSegment < 1
+      ? [chroma, secondary, 0]
+      : hueSegment < 2
+        ? [secondary, chroma, 0]
+        : hueSegment < 3
+          ? [0, chroma, secondary]
+          : hueSegment < 4
+            ? [0, secondary, chroma]
+            : hueSegment < 5
+              ? [secondary, 0, chroma]
+              : [chroma, 0, secondary];
+  const match = lightness - chroma / 2;
+  const toHex = (channel: number) =>
+    Math.round((channel + match) * 255)
+      .toString(16)
+      .padStart(2, '0');
+
+  return `#${toHex(redBase)}${toHex(greenBase)}${toHex(blueBase)}`;
 }
 
 function createRevenueIntervalPoints(
