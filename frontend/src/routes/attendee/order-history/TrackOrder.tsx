@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 
 import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
@@ -12,7 +12,8 @@ import { useSSE } from '@/hooks/useSSE';
 import { getItemStatus } from '@/lib/order-utils';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import type { Order, OrderItem } from '@/types/order';
+import { computeTotal, type Order, type OrderItem } from '@/types/order';
+import { formatMoney } from '@/types/product';
 import type { Stand } from '@/types/stand';
 
 // Shown when the stand for a paid item is no longer visible in the attendee
@@ -125,6 +126,10 @@ function StatusOverview({ items }: { items: OrderItem[] }) {
 
 export default function TrackOrder() {
   const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
+  const [searchParams] = useSearchParams();
+  const fromOrderHistory = searchParams.get('from') === 'orders';
+  const backTo = fromOrderHistory ? paths.attendee.orders(eventId) : paths.attendee.event(eventId);
+  const backLabel = fromOrderHistory ? 'Order history' : 'Shop';
 
   const [liveOrder, setLiveOrder] = useState<Order | null>(null);
 
@@ -168,7 +173,7 @@ export default function TrackOrder() {
   if (orderQuery.isPending || standsQuery.isPending) {
     return (
       <div className="space-y-4">
-        <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
+        <BackButton to={backTo}>{backLabel}</BackButton>
         <p className="rounded-xl bg-surface-muted p-4 text-center text-sm text-text-muted">
           Loading your order…
         </p>
@@ -179,7 +184,7 @@ export default function TrackOrder() {
   if (orderQuery.isError || !orderQuery.data || standsQuery.isError) {
     return (
       <div className="space-y-4">
-        <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
+        <BackButton to={backTo}>{backLabel}</BackButton>
         <p className="rounded-xl bg-surface-muted p-4 text-center text-sm text-text-muted">
           Could not load order. Please try again.
         </p>
@@ -187,7 +192,7 @@ export default function TrackOrder() {
     );
   }
 
-  const order = liveOrder ?? orderQuery.data;
+  const order = liveOrder ?? orderQuery.data!;
   const stands = standsById(standsQuery.data ?? []);
 
   let standGroups: Array<{ stand: Stand; items: StandItem[] }> = [];
@@ -208,7 +213,7 @@ export default function TrackOrder() {
 
   return (
     <div className="space-y-4">
-      <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
+      <BackButton to={backTo}>{backLabel}</BackButton>
 
       <p className="text-xs text-text-muted">Placed {createdAt}</p>
 
@@ -260,6 +265,16 @@ export default function TrackOrder() {
         .map(({ stand, items }) => (
           <StandTrackGroup key={stand._id} stand={stand} items={items} />
         ))}
+
+      <div className="rounded-lg bg-surface border border-border p-4">
+        <p className="text-sm font-semibold text-text mb-2">Payment Summary</p>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-text-muted">Total Amount</span>
+          <span className="text-base font-bold text-accent">
+            EUR {formatMoney(computeTotal(order))}
+          </span>
+        </div>
+      </div>
 
       {/* Reviews require a fulfilled item (backend eligibility) — only surface the
           entry point once at least one item has been collected. */}
