@@ -61,8 +61,6 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof OrderNotFoundError)
     return res.status(404).json({ error: err.message });
-  if (err instanceof EventNotFoundError)
-    return res.status(404).json({ error: err.message });
   if (err instanceof OrderItemNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotActiveError)
@@ -171,10 +169,8 @@ ordersRouter.get("/", authAttendee, async (req: Request, res: Response) => {
   }
 });
 
-// GET /orders/stream — attendee's live order feed over SSE. Sends a `snapshot`
-// event on connect (same list as GET /orders) then an `order` event whenever
-// one of the attendee's paid orders changes (item state transitions, payment).
-// Must be registered before /:orderId so Express does not swallow "stream".
+// GET /orders/stream — live order updates for the attendee over SSE.
+// Registered before /:orderId so "stream" is not treated as an id.
 ordersRouter.get(
   "/stream",
   authAttendee,
@@ -182,28 +178,21 @@ ordersRouter.get(
     const sessionId = req.attendee!.sessionId;
     try {
       const initial = await listOrdersForAttendee(sessionId);
-
       const sse = new SseConnection(res);
       sse.send("snapshot", initial);
 
-      let closed = false;
-
-      const unsub = subscribe("order.changed", (order) => {
+      const unsubscribe = subscribe("order.changed", (order) => {
         if (order.sessionId !== sessionId || !order.paidAt) return;
-        enrichOrderForAttendee(order)
-          .then((enriched) => {
-            if (!closed) sse.send("order", enriched);
-          })
-          .catch((err) => console.error("Attendee order stream error:", err));
+        void enrichOrderForAttendee(order)
+          .then((enriched) => sse.send("order", enriched))
+          .catch(() => {
+            // enrichment errors are non-fatal; the client recovers on reconnect
+          });
       });
 
-      sse.onClose(() => {
-        closed = true;
-        unsub();
-      });
+      sse.onClose(() => unsubscribe());
     } catch (err) {
-      console.error("Attendee order stream error:", err);
-      res.status(500).json({ error: "Internal server error" });
+      handleError(err, res);
     }
   }
 );
