@@ -33,7 +33,7 @@ const UNAVAILABLE_STAND: Stand = {
 
 function buildStandGroups(
   rawItems: OrderItem[],
-  viewLookup: Map<string, { productName: string; standId: string }>,
+  viewLookup: Map<string, { productName: string; standId: string; standName: string }>,
   standsById: Map<string, Stand>,
 ): Array<{ stand: Stand; items: StandItem[] }> {
   const groups = new Map<string, { stand: Stand; items: StandItem[] }>();
@@ -42,8 +42,13 @@ function buildStandGroups(
     const info = viewLookup.get(item.productId);
     if (!info) continue;
     const stand = standsById.get(info.standId);
+    // info.standId is either a real stand UUID or a synthetic "__paused__:<name>"
+    // key, so it is always unique per stand and safe to use as the group key.
     const groupKey = info.standId || UNAVAILABLE_STAND._id;
-    const resolvedStand = stand ?? UNAVAILABLE_STAND;
+    const resolvedStand: Stand = stand ?? {
+      ...UNAVAILABLE_STAND,
+      standName: info.standName || 'Stand unavailable',
+    };
 
     const existing = groups.get(groupKey);
     if (existing) {
@@ -165,7 +170,7 @@ export default function TrackOrder() {
   if (orderQuery.isPending || standsQuery.isPending) {
     return (
       <div className="space-y-4">
-        <BackButton to={paths.attendee.event(eventId)}>Back</BackButton>
+        <BackButton to={paths.attendee.orders(eventId)}>Back</BackButton>
         <p className="rounded-xl bg-surface-muted p-4 text-center text-sm text-text-muted">
           Loading your order…
         </p>
@@ -176,7 +181,7 @@ export default function TrackOrder() {
   if (orderQuery.isError || !orderQuery.data || standsQuery.isError) {
     return (
       <div className="space-y-4">
-        <BackButton to={paths.attendee.event(eventId)}>Back</BackButton>
+        <BackButton to={paths.attendee.orders(eventId)}>Back</BackButton>
         <p className="rounded-xl bg-surface-muted p-4 text-center text-sm text-text-muted">
           Could not load order. Please try again.
         </p>
@@ -192,7 +197,7 @@ export default function TrackOrder() {
     const viewLookup = new Map(
       viewItemsQuery.data.map((v) => [
         v.productId,
-        { productName: v.productName, standId: v.standId },
+        { productName: v.productName, standId: v.standId, standName: v.standName },
       ]),
     );
     standGroups = buildStandGroups(order.items, viewLookup, stands);
@@ -205,7 +210,7 @@ export default function TrackOrder() {
 
   return (
     <div className="space-y-4">
-      <BackButton to={paths.attendee.event(eventId)}>Back</BackButton>
+      <BackButton to={paths.attendee.orders(eventId)}>Back</BackButton>
 
       <p className="text-xs text-text-muted">Placed {createdAt}</p>
 

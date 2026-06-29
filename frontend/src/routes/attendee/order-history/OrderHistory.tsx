@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 
 import { BackButton } from '@/components/shared';
 import { paths } from '@/paths';
-import { computeTotal, deriveItemStatus, deriveOrderStatus, type Order } from '@/types/order';
+import { computeTotal, deriveOrderStatus, type Order } from '@/types/order';
+import { getItemStatus } from '@/lib/order-utils';
 import { formatMoney } from '@/types/product';
 import { ArrowRightIcon, ChevronDownIcon } from '@/components/icons';
 import { cn } from '@/lib/utils';
@@ -137,7 +138,7 @@ export default function OrderHistory() {
                     <ul className="space-y-3">
                       {order.items.map((item) => {
                         const cancelled = !!item.cancelledAt;
-                        const itemStatus = deriveItemStatus(item);
+                        const itemStatus = getItemStatus(item);
                         return (
                           <li
                             key={item._id}

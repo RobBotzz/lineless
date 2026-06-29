@@ -124,11 +124,14 @@ export async function buildAttendeeOrderViewItems(
       continue;
     }
     const product = productById.get(item.productId);
+    // Fall back to names already stored on the order item by the backend enrichment.
+    // This handles paused stands, which are excluded from the attendee catalog but
+    // whose orders must still display correctly.
     groups.set(item.productId, {
       productId: item.productId,
-      productName: product?.productName ?? item.productId,
-      standId: product?.standId ?? '',
-      standName: product ? (standNameById.get(product.standId) ?? '') : '',
+      productName: product?.productName ?? item.productName,
+      standId: product?.standId ?? `__paused__:${item.standName}`,
+      standName: product ? (standNameById.get(product.standId) ?? item.standName) : item.standName,
       unitPrice: item.priceIncludingTaxAtPurchase,
       quantity: 1,
       comments: [item.customerComment ?? ''],
