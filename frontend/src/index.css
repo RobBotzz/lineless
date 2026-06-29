@@ -26,6 +26,7 @@
   --color-accent: #020887;
   --color-button-text: #ffffff;
   --color-accent-soft: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --color-accent-raised: color-mix(in srgb, var(--color-accent) 75%, #ffffff 25%);
 
   /* Shadows — derived from accent, update automatically when accent changes */
   --shadow-navbar: 0 10px 30px color-mix(in srgb, var(--color-accent) 8%, transparent);
@@ -73,6 +74,7 @@
   --color-accent: var(--color-accent);
   --color-button-text: var(--color-button-text);
   --color-accent-soft: var(--color-accent-soft);
+  --color-accent-raised: var(--color-accent-raised);
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);
   --color-danger: var(--color-danger);

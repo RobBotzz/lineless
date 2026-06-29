@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 
 import { BackButton } from '@/components/shared';
 import { paths } from '@/paths';
-import { computeTotal, deriveItemStatus, deriveOrderStatus, type Order } from '@/types/order';
+import { computeTotal, deriveOrderStatus, type Order } from '@/types/order';
+import { getItemStatus } from '@/lib/order-utils';
 import { formatMoney } from '@/types/product';
 import { ArrowRightIcon, ChevronDownIcon } from '@/components/icons';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,8 @@ export default function OrderHistory() {
         setOrders((prev) => {
           const idx = prev.findIndex((o) => o._id === updated._id);
           if (idx !== -1) {
+            // Only apply if the incoming update is not older than what we have.
+            if (new Date(updated.updatedAt) < new Date(prev[idx].updatedAt)) return prev;
             const next = [...prev];
             next[idx] = updated;
             return next;
@@ -65,11 +68,18 @@ export default function OrderHistory() {
         {orders.map((order) => {
           const isExpanded = expandedOrderId === order._id;
           const status = deriveOrderStatus(order);
-          const statusLabel = status === 'in-preparation' ? 'In Preparation' : 'Fulfilled';
+          const statusLabel =
+            status === 'in-preparation'
+              ? 'In Preparation'
+              : status === 'cancelled'
+                ? 'Cancelled'
+                : 'Fulfilled';
           const statusColor =
             status === 'in-preparation'
               ? 'bg-warning/10 text-warning border-warning/40'
-              : 'bg-success/5 text-success border-success/40';
+              : status === 'cancelled'
+                ? 'bg-danger/10 text-danger border-danger/40'
+                : 'bg-success/5 text-success border-success/40';
 
           return (
             <div key={order._id} className="rounded-xl border border-border bg-surface shadow-sm">
@@ -128,7 +138,7 @@ export default function OrderHistory() {
                     <ul className="space-y-3">
                       {order.items.map((item) => {
                         const cancelled = !!item.cancelledAt;
-                        const itemStatus = deriveItemStatus(item);
+                        const itemStatus = getItemStatus(item);
                         return (
                           <li
                             key={item._id}
@@ -161,7 +171,7 @@ export default function OrderHistory() {
                               )}
                             </div>
                             {cancelled ? (
-                              <span className="text-xs font-medium text-error px-2 py-1 bg-surface rounded whitespace-nowrap">
+                              <span className="text-xs font-medium text-danger px-2 py-1 bg-surface rounded whitespace-nowrap">
                                 CANCELLED
                               </span>
                             ) : itemStatus === 'PENDING' ||
@@ -198,7 +208,7 @@ export default function OrderHistory() {
                     </div>
                   </div>
 
-                  <Link to={paths.attendee.checkoutConfirmed(eventId, order._id)}>
+                  <Link to={paths.attendee.trackOrder(eventId, order._id)}>
                     <Button variant="default" className="w-full py-6 gap-2">
                       Track Order
                       <ArrowRightIcon className="h-4 w-4" />
