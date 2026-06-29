@@ -1,62 +1,53 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 
+import { PICKUP_BOARD_EVENT, pickupBoardStreamPath } from '@/api/pickupBoard';
+import { CheckCircleIcon, HourglassCircleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
+import { useSSE } from '@/hooks/useSSE';
+import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
+import {
+  isPickupBoard,
+  type PickupBoard,
+  type PickupBoardItem,
+  type PickupBoardStand,
+} from '@/types/pickupBoard';
 
-type PickupOrderItem = {
-  orderNumber: string;
-};
+type StandFilter = 'all' | string;
 
-type StandId = 'stand-1' | 'stand-2' | 'stand-3' | 'stand-4';
-type StandFilter = 'all' | StandId;
-
-type StandPreview = {
-  id: StandId;
-  title: string;
-  inLine: PickupOrderItem[];
-  readyForPickup: PickupOrderItem[];
-};
-
-const exampleOrder: PickupOrderItem = {
-  orderNumber: 'LL-018',
-};
-
-const standPreviews: StandPreview[] = [
-  {
-    id: 'stand-1',
-    title: 'Stand 1',
-    inLine: [],
-    readyForPickup: [exampleOrder],
-  },
-  {
-    id: 'stand-2',
-    title: 'Stand 2',
-    inLine: [],
-    readyForPickup: [],
-  },
-  {
-    id: 'stand-3',
-    title: 'Stand 3',
-    inLine: [],
-    readyForPickup: [],
-  },
-  {
-    id: 'stand-4',
-    title: 'Stand 4',
-    inLine: [],
-    readyForPickup: [],
-  },
-];
+const AUTO_SCROLL_PIXEL_STEPS = [1, 2, 4, 8, 14] as const;
 
 export default function PickupDashboard() {
   const { eventId } = useParams();
+  const [board, setBoard] = useState<PickupBoard | null>(null);
   const [selectedStand, setSelectedStand] = useState<StandFilter>('all');
   const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(1);
   const [canAutoScroll, setCanAutoScroll] = useState(false);
-  const visibleStands = standPreviews.filter(
-    (stand) => selectedStand === 'all' || stand.id === selectedStand,
+
+  const handleMessage = useCallback(({ event, data }: { event: string; data: unknown }) => {
+    if (event !== PICKUP_BOARD_EVENT) return;
+    if (!isPickupBoard(data)) {
+      console.warn('Ignoring malformed pickup board frame', data);
+      return;
+    }
+    setBoard(data);
+  }, []);
+
+  const { status } = useSSE({
+    path: eventId ? pickupBoardStreamPath(eventId) : null,
+    auth: 'operator-link',
+    eventId,
+    onMessage: handleMessage,
+  });
+
+  const stands = board?.stands ?? [];
+  const selectedStandExists =
+    selectedStand === 'all' || stands.some((stand) => stand.standId === selectedStand);
+  const activeStandFilter = selectedStandExists ? selectedStand : 'all';
+  const visibleStands = stands.filter(
+    (stand) => activeStandFilter === 'all' || stand.standId === activeStandFilter,
   );
 
   const getScrollingElement = useCallback(
@@ -88,7 +79,7 @@ export default function PickupDashboard() {
       resizeObserver.disconnect();
       window.removeEventListener('resize', updateCanAutoScroll);
     };
-  }, [selectedStand, updateCanAutoScroll, visibleStands.length]);
+  }, [activeStandFilter, board, updateCanAutoScroll, visibleStands.length]);
 
   useEffect(() => {
     if (!isAutoScrollEnabled || !canAutoScroll) {
@@ -96,6 +87,8 @@ export default function PickupDashboard() {
     }
 
     const topPauseMs = 1200;
+    const autoScrollStep =
+      AUTO_SCROLL_PIXEL_STEPS[autoScrollSpeed - 1] ?? AUTO_SCROLL_PIXEL_STEPS[0];
     let pauseUntil = 0;
 
     const scrollToTop = () => {
@@ -122,13 +115,13 @@ export default function PickupDashboard() {
         return;
       }
 
-      if (scrollingElement.scrollTop >= maxScrollTop - autoScrollSpeed) {
+      if (scrollingElement.scrollTop >= maxScrollTop - autoScrollStep) {
         scrollToTop();
         return;
       }
 
       scrollingElement.scrollTop = Math.min(
-        scrollingElement.scrollTop + autoScrollSpeed,
+        scrollingElement.scrollTop + autoScrollStep,
         maxScrollTop,
       );
     }, 35);
@@ -199,12 +192,12 @@ export default function PickupDashboard() {
               <select
                 className="h-10 min-w-44 cursor-pointer rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text shadow-sm outline-none transition-colors hover:bg-surface-muted focus:border-accent"
                 onChange={(event) => setSelectedStand(event.target.value as StandFilter)}
-                value={selectedStand}
+                value={activeStandFilter}
               >
                 <option value="all">All Stands</option>
-                {standPreviews.map((stand) => (
-                  <option key={stand.id} value={stand.id}>
-                    {stand.title}
+                {stands.map((stand) => (
+                  <option key={stand.standId} value={stand.standId}>
+                    {stand.standName}
                   </option>
                 ))}
               </select>
@@ -212,73 +205,181 @@ export default function PickupDashboard() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          {visibleStands.map((stand) => (
-            <StandSection key={stand.id} stand={stand} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+        {!board && status === 'error' && (
+          <StatePanel
+            title="Pickup board unavailable"
+            message="The live pickup board could not connect. Check the operator link and backend connection."
+          />
+        )}
 
-function StandSection({ stand }: { stand: StandPreview }) {
-  return (
-    <section className="rounded-lg border border-border bg-surface p-4 shadow-sm sm:p-6">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold tracking-tight text-text">{stand.title}</h2>
-        <span className="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-text-muted">
-          {stand.inLine.length + stand.readyForPickup.length} item
-          {stand.inLine.length + stand.readyForPickup.length === 1 ? '' : 's'}
-        </span>
-      </div>
+        {!board && status !== 'error' && <LoadingBoard />}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <StatusLane title="In Line" orders={stand.inLine} />
-        <StatusLane title="Ready for Pickup" orders={stand.readyForPickup} />
-      </div>
-    </section>
-  );
-}
+        {board && stands.length === 0 && (
+          <StatePanel
+            title="No product stands yet"
+            message="Pickup will show ready orders as soon as this event has product stands and paid orders."
+          />
+        )}
 
-function StatusLane({ title, orders }: { title: string; orders: PickupOrderItem[] }) {
-  return (
-    <div className="min-h-72 rounded-lg border border-border bg-background p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-text">{title}</h3>
-        <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-text-muted">
-          {orders.length}
-        </span>
-      </div>
-      <div className="mt-4 flex min-h-72 rounded-md bg-surface p-3">
-        {orders.length > 0 ? (
-          <ul className="grid flex-1 grid-cols-3 content-start gap-3">
-            {orders.map((order) => (
-              <PickupOrderCard key={order.orderNumber} orderItem={order} />
+        {board && stands.length > 0 && visibleStands.length === 0 && (
+          <StatePanel
+            title="No stand selected"
+            message="Choose another stand or switch back to all stands."
+          />
+        )}
+
+        {board && visibleStands.length > 0 && (
+          <div className="space-y-5">
+            {visibleStands.map((stand) => (
+              <StandSection key={stand.standId} stand={stand} />
             ))}
-          </ul>
-        ) : (
-          <EmptyLaneState />
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function EmptyLaneState() {
+function StandSection({ stand }: { stand: PickupBoardStand }) {
   return (
-    <div className="flex flex-1 items-center justify-center px-4 text-center text-sm font-medium text-text-muted">
-      No orders in this lane.
+    <section className="rounded-lg border border-border bg-surface p-4 shadow-sm sm:p-5">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <h2 className="truncate text-2xl font-bold tracking-tight text-text">{stand.standName}</h2>
+        {stand.standStatus === 'PAUSED' && (
+          <span className="rounded-full bg-warning/20 px-2.5 py-1 text-xs font-semibold text-text">
+            Paused
+          </span>
+        )}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_1px_minmax(0,0.85fr)] xl:gap-y-0">
+        <StatusLane
+          title="In Line"
+          intent="line"
+          orders={stand.inLine}
+          emptyMessage="No orders waiting at this stand."
+        />
+        <div aria-hidden="true" className="h-px bg-border xl:h-auto xl:w-px xl:self-stretch" />
+        <StatusLane
+          title="Ready for Pickup"
+          intent="ready"
+          orders={stand.readyForPickup}
+          emptyMessage="No orders ready right now."
+        />
+      </div>
+    </section>
+  );
+}
+
+function StatusLane({
+  title,
+  intent,
+  orders,
+  emptyMessage,
+}: {
+  title: string;
+  intent: 'ready' | 'line';
+  orders: PickupBoardItem[];
+  emptyMessage: string;
+}) {
+  return (
+    <div className="min-h-80">
+      <div className="flex items-center justify-between">
+        <h3
+          className={cn(
+            'text-base font-bold uppercase tracking-wide',
+            intent === 'ready' ? 'text-success' : 'text-text-muted',
+          )}
+        >
+          {title}
+        </h3>
+      </div>
+
+      <div className="mt-4 min-h-72">
+        {orders.length > 0 ? (
+          <ul
+            className={cn(
+              'grid content-start justify-start gap-3',
+              intent === 'line'
+                ? 'grid-cols-1 sm:grid-cols-[repeat(2,13rem)] lg:grid-cols-[repeat(3,13rem)]'
+                : 'grid-cols-1 sm:grid-cols-[repeat(2,13rem)]',
+            )}
+          >
+            {orders.map((order) => (
+              <PickupOrderCard key={order.itemId} intent={intent} orderItem={order} />
+            ))}
+          </ul>
+        ) : (
+          <EmptyLaneState message={emptyMessage} />
+        )}
+      </div>
     </div>
   );
 }
 
-function PickupOrderCard({ orderItem }: { orderItem: PickupOrderItem }) {
+function PickupOrderCard({
+  orderItem,
+  intent,
+}: {
+  orderItem: PickupBoardItem;
+  intent: 'ready' | 'line';
+}) {
   return (
-    <li className="flex h-16 min-w-0 items-center justify-center rounded-md border border-border bg-background px-2 text-center shadow-sm">
-      <span className="truncate text-2xl font-bold tracking-tight text-text">
-        {orderItem.orderNumber}
-      </span>
+    <li
+      className={cn(
+        'flex min-h-28 min-w-0 flex-col justify-between rounded-md border bg-background p-4 shadow-sm',
+        'h-28 w-52',
+        intent === 'ready' ? 'border-success/40 ring-1 ring-success/10' : 'border-border',
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-text">{orderItem.productName}</p>
+        </div>
+      </div>
+      <p className="mt-4 truncate font-sans text-3xl font-extrabold tabular-nums tracking-normal text-text">
+        #{orderItem.orderNumber}
+      </p>
     </li>
+  );
+}
+
+function EmptyLaneState({ message }: { message: string }) {
+  return (
+    <div className="flex min-h-72 flex-col items-center justify-center px-4 text-center text-sm font-medium text-text-muted">
+      <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-text-muted">
+        {message.toLowerCase().includes('ready') ? (
+          <CheckCircleIcon className="h-5 w-5" />
+        ) : (
+          <HourglassCircleIcon className="h-5 w-5" />
+        )}
+      </span>
+      <span>{message}</span>
+    </div>
+  );
+}
+
+function LoadingBoard() {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {[0, 1].map((index) => (
+        <div key={index} className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+          <div className="h-6 w-40 animate-pulse rounded bg-surface-muted" />
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="h-72 animate-pulse rounded-lg bg-surface-muted" />
+            <div className="h-72 animate-pulse rounded-lg bg-surface-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StatePanel({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-12 text-center shadow-sm">
+      <p className="text-base font-semibold text-text">{title}</p>
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-text-muted">{message}</p>
+    </div>
   );
 }
