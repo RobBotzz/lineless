@@ -23,9 +23,15 @@ stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
         typeof stripe.webhooks.constructEvent
       >;
     } else {
+      if (!sig) {
+        return res
+          .status(400)
+          .send("Webhook Error: Missing Stripe-Signature header");
+      }
+
       event = stripe.webhooks.constructEvent(
         req.body as Buffer,
-        sig as string,
+        sig,
         config.stripe.webhookSecret
       );
     }
