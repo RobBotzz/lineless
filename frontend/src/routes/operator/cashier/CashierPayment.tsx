@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
-import { Button } from '@/components/ui/button';
 import { AlertDialog } from '../../../components/feedback/AlertDialog';
 import { SearchIcon } from '../../../components/icons';
 import { BackButton, DeleteIconButton } from '../../../components/shared';
@@ -80,37 +79,37 @@ export default function CashierPayment() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <BackButton to={paths.operator.cashier(eventId)}>Back to Cashier Stand</BackButton>
-
-      <form
-        onSubmit={handleSearch}
-        className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm"
-      >
-        <label htmlFor="order-id" className="text-base font-semibold text-text">
-          Enter Order Number
-        </label>
-        <div className="mt-3 flex gap-3">
-          <input
-            id="order-id"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setSearchError(null);
-            }}
-            placeholder="e.g. A001"
-            className="h-11 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent"
-          />
-          <Button type="submit" size="lg" disabled={!trimmed}>
-            <SearchIcon className="mr-2 h-4 w-4" />
-            Search
-          </Button>
-        </div>
-        {searchError ? <p className="mt-3 text-sm text-danger">{searchError}</p> : null}
-      </form>
+      <BackButton to={paths.operator.cashier(eventId)}>Cashier Stand</BackButton>
 
       <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-text">Active Unpaid Orders</h2>
-        <p className="mt-1 text-sm text-text-muted">Click on an order to select it for payment</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-text">Active Unpaid Orders</h2>
+            <p className="mt-1 text-sm text-text-muted">
+              Click on an order, or search by order number
+            </p>
+          </div>
+          <form onSubmit={handleSearch} className="sm:w-72">
+            <label htmlFor="order-id" className="sr-only">
+              Search by order number
+            </label>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+              <input
+                id="order-id"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setSearchError(null);
+                }}
+                placeholder="Search order no. (e.g. A001)"
+                className="h-11 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent"
+              />
+            </div>
+          </form>
+        </div>
+
+        {searchError ? <p className="mt-3 text-sm text-danger">{searchError}</p> : null}
 
         <div className="mt-4">
           {filteredOrders === null ? (
@@ -128,21 +127,21 @@ export default function CashierPayment() {
                   <button
                     type="button"
                     onClick={() => navigate(paths.operator.cashierPaymentOrder(eventId, order._id))}
-                    className="h-full w-full rounded-lg border border-border bg-surface p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    className="flex h-full w-full flex-col rounded-lg border border-border bg-surface p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
-                    <div className="flex items-start justify-between gap-2 pr-7">
-                      <span className="text-base font-semibold text-accent">
-                        {order.orderNumber}
-                      </span>
-                      <span className="shrink-0 text-base font-semibold text-accent">
-                        EUR {formatMoney(computeTotal(order))}
-                      </span>
-                    </div>
+                    <span className="block pr-7 text-base font-semibold text-accent">
+                      {order.orderNumber}
+                    </span>
                     <div className="mt-1 flex items-center justify-between gap-2 text-xs text-text-muted">
                       <span>{order.pickupCode}</span>
                       <span>{formatOrderTime(order.createdAt)}</span>
                     </div>
-                    <p className="mt-0.5 text-xs text-text-muted">{order.items.length} items</p>
+                    <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+                      <span className="text-xs text-text-muted">{order.items.length} items</span>
+                      <span className="text-base font-semibold text-accent">
+                        EUR {formatMoney(computeTotal(order))}
+                      </span>
+                    </div>
                   </button>
                   <DeleteIconButton
                     label={`Delete order ${order.orderNumber}`}

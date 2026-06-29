@@ -4,7 +4,6 @@ import { Link, useLoaderData, useParams, useRouteError } from 'react-router';
 import { paths } from '@/paths';
 
 import { useCart } from '../cart/cart-context';
-import { ATTENDEE_WIDTH } from '../column';
 import { CartIcon } from '@/components/icons';
 import { ProductCard } from './ProductCard';
 import { ALL_STANDS, StandFilter } from './StandFilter';
@@ -61,9 +60,10 @@ export default function ProductSelection() {
         )}
       </div>
 
-      {/* Sticky cart bar — always visible, aligned to the product-card column. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-4">
-        <div className={`pointer-events-auto mx-auto ${ATTENDEE_WIDTH}`}>
+      {/* Sticky cart bar — pinned to the viewport bottom while scrolling, but it
+          parks below the last product (above the footer) once you reach the end. */}
+      <div className="pointer-events-none sticky bottom-0 z-20 pb-4 pt-3">
+        <div className="pointer-events-auto">
           <Link
             to={eventId ? paths.attendee.cart(eventId) : '#'}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 font-semibold text-[var(--color-button-text)] shadow-[0_8px_24px_rgba(2,8,135,0.25)] transition-colors hover:bg-accent/90"

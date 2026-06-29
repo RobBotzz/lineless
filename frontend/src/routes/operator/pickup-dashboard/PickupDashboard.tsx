@@ -13,7 +13,6 @@ import {
   type PickupBoardItem,
   type PickupBoardStand,
 } from '@/types/pickupBoard';
-import { useOperatorNavbarActions } from '../operatorNavbarActions';
 
 type StandFilter = 'all' | string;
 
@@ -21,7 +20,6 @@ const AUTO_SCROLL_PIXEL_STEPS = [1, 2, 4, 8, 14] as const;
 
 export default function PickupDashboard() {
   const { eventId } = useParams();
-  const { setNavbarActions } = useOperatorNavbarActions();
   const [board, setBoard] = useState<PickupBoard | null>(null);
   const [selectedStand, setSelectedStand] = useState<StandFilter>('all');
   const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(false);
@@ -137,79 +135,74 @@ export default function PickupDashboard() {
     updateCanAutoScroll,
   ]);
 
-  useEffect(() => {
-    setNavbarActions({
-      right: canAutoScroll ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-          {isAutoScrollEnabled && (
-            <div className="flex h-10 items-center overflow-hidden rounded-md border border-border bg-surface shadow-sm">
-              <button
-                aria-label="Decrease auto scroll speed"
-                className="h-10 w-10 text-lg font-semibold text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={autoScrollSpeed === 1}
-                onClick={() => setAutoScrollSpeed((speed) => Math.max(1, speed - 1))}
-                type="button"
-              >
-                -
-              </button>
-              <span className="flex h-10 min-w-10 items-center justify-center border-x border-border px-3 text-xs font-semibold text-text-muted">
-                {autoScrollSpeed}x
-              </span>
-              <button
-                aria-label="Increase auto scroll speed"
-                className="h-10 w-10 text-lg font-semibold text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={autoScrollSpeed === AUTO_SCROLL_PIXEL_STEPS.length}
-                onClick={() =>
-                  setAutoScrollSpeed((speed) => Math.min(AUTO_SCROLL_PIXEL_STEPS.length, speed + 1))
-                }
-                type="button"
-              >
-                +
-              </button>
-            </div>
-          )}
-
-          <button
-            aria-pressed={isAutoScrollEnabled}
-            className={cn(
-              'h-10 rounded-md border px-4 text-sm font-semibold shadow-sm transition-colors',
-              isAutoScrollEnabled
-                ? 'border-accent bg-accent text-primary-foreground'
-                : 'border-border bg-surface text-text hover:bg-surface-muted',
-            )}
-            onClick={() => setIsAutoScrollEnabled((current) => !current)}
-            type="button"
-          >
-            {isAutoScrollEnabled ? 'Stop auto scroll' : 'Start auto scroll'}
-          </button>
-        </div>
-      ) : undefined,
-    });
-
-    return () => setNavbarActions({});
-  }, [autoScrollSpeed, canAutoScroll, isAutoScrollEnabled, setNavbarActions]);
-
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>Back</BackButton>
+          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
+            Operator Console
+          </BackButton>
 
-          <label className="w-full sm:w-auto">
-            <span className="sr-only">Filter by stand</span>
-            <select
-              className="h-10 w-full min-w-44 cursor-pointer rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text shadow-sm outline-none transition-colors hover:bg-surface-muted focus:border-accent sm:w-auto"
-              onChange={(event) => setSelectedStand(event.target.value)}
-              value={activeStandFilter}
-            >
-              <option value="all">All Stands</option>
-              {stands.map((stand) => (
-                <option key={stand.standId} value={stand.standId}>
-                  {stand.standName}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+            {canAutoScroll && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                {isAutoScrollEnabled && (
+                  <div className="flex h-10 items-center overflow-hidden rounded-md border border-border bg-surface shadow-sm">
+                    <button
+                      aria-label="Decrease auto scroll speed"
+                      className="h-10 w-10 text-lg font-semibold text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={autoScrollSpeed === 1}
+                      onClick={() => setAutoScrollSpeed((speed) => Math.max(1, speed - 1))}
+                      type="button"
+                    >
+                      -
+                    </button>
+                    <span className="flex h-10 min-w-10 items-center justify-center border-x border-border px-3 text-xs font-semibold text-text-muted">
+                      {autoScrollSpeed}x
+                    </span>
+                    <button
+                      aria-label="Increase auto scroll speed"
+                      className="h-10 w-10 text-lg font-semibold text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={autoScrollSpeed === 5}
+                      onClick={() => setAutoScrollSpeed((speed) => Math.min(5, speed + 1))}
+                      type="button"
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  aria-pressed={isAutoScrollEnabled}
+                  className={`h-10 rounded-md border px-4 text-sm font-semibold shadow-sm transition-colors ${
+                    isAutoScrollEnabled
+                      ? 'border-accent bg-accent text-button-text'
+                      : 'border-border bg-surface text-text hover:bg-surface-muted'
+                  }`}
+                  onClick={() => setIsAutoScrollEnabled((current) => !current)}
+                  type="button"
+                >
+                  {isAutoScrollEnabled ? 'Stop auto scroll' : 'Start auto scroll'}
+                </button>
+              </div>
+            )}
+
+            <label>
+              <span className="sr-only">Filter by stand</span>
+              <select
+                className="h-10 min-w-44 cursor-pointer rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text shadow-sm outline-none transition-colors hover:bg-surface-muted focus:border-accent"
+                onChange={(event) => setSelectedStand(event.target.value as StandFilter)}
+                value={activeStandFilter}
+              >
+                <option value="all">All Stands</option>
+                {stands.map((stand) => (
+                  <option key={stand.standId} value={stand.standId}>
+                    {stand.standName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         {!board && status === 'error' && (

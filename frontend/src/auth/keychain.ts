@@ -146,9 +146,17 @@ export interface AttendeeSession {
   expiresAt: string;
 }
 
+export interface AttendeeTab {
+  tabId: string;
+}
+
 export interface AttendeeCredential {
   //eventId => attendeeSession
   sessions: Record<string, AttendeeSession>;
+  // eventId => the attendee's payment tab for that event (a Stripe card hold
+  // they keep ordering against until checkout). Persisted so repeat orders
+  // reuse the same authorization instead of opening a new tab each time.
+  tabs: Record<string, AttendeeTab>;
 }
 
 function parseAttendee(data: Record<string, unknown>): AttendeeCredential | null {
@@ -160,7 +168,15 @@ function parseAttendee(data: Record<string, unknown>): AttendeeCredential | null
       }
     }
   }
-  return { sessions };
+  const tabs: Record<string, AttendeeTab> = {};
+  if (isRecord(data.tabs)) {
+    for (const [eventId, value] of Object.entries(data.tabs)) {
+      if (isRecord(value) && isString(value.tabId)) {
+        tabs[eventId] = { tabId: value.tabId };
+      }
+    }
+  }
+  return { sessions, tabs };
 }
 
 type Listener = () => void;
@@ -181,8 +197,12 @@ export function getAttendeeSession(eventId: string): AttendeeSession | null {
   return getCredential('attendee')?.sessions[eventId] ?? null;
 }
 
+function emptyAttendeeCredential(): AttendeeCredential {
+  return { sessions: {}, tabs: {} };
+}
+
 export function setAttendeeSession(eventId: string, sessionId: string, expiresAt: string): void {
-  const credential = getCredential('attendee') ?? { sessions: {} };
+  const credential = getCredential('attendee') ?? emptyAttendeeCredential();
   credential.sessions[eventId] = { sessionId, expiresAt };
   write(KEYS.attendee, credential);
   notifyAttendee();
@@ -192,6 +212,26 @@ export function clearAttendeeSession(eventId: string): void {
   const credential = getCredential('attendee');
   if (!credential || !credential.sessions[eventId]) return;
   delete credential.sessions[eventId];
+  // The tab belongs to the session that opened it; drop it together so a new
+  // session never inherits a stale, unusable tab.
+  delete credential.tabs[eventId];
   write(KEYS.attendee, credential);
   notifyAttendee();
+}
+
+export function getAttendeeTab(eventId: string): AttendeeTab | null {
+  return getCredential('attendee')?.tabs[eventId] ?? null;
+}
+
+export function setAttendeeTab(eventId: string, tabId: string): void {
+  const credential = getCredential('attendee') ?? emptyAttendeeCredential();
+  credential.tabs[eventId] = { tabId };
+  write(KEYS.attendee, credential);
+}
+
+export function clearAttendeeTab(eventId: string): void {
+  const credential = getCredential('attendee');
+  if (!credential || !credential.tabs[eventId]) return;
+  delete credential.tabs[eventId];
+  write(KEYS.attendee, credential);
 }
