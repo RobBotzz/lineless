@@ -1,25 +1,28 @@
 import { useMemo, useState } from 'react';
 
-import type { EventControlCenterSettings } from '@/api/eventControlCenter';
+import {
+  resetEventControlCenterSettings,
+  updateEventControlCenterSettings,
+  type EventControlCenterSettings,
+} from '@/api/eventControlCenter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import {
   createSettingsForStands,
   createControlCenterSettingsSignature,
-  defaultControlCenterSettings,
   defaultStockAlertThreshold,
   defaultStandControlCenterThresholds,
   normalizeControlCenterSettings,
-} from './eventControlCenterSettingsStorage';
+} from './eventControlCenterSettings';
 import type { Stand } from '@/types/stand';
 
 export function EventControlCenterSettingsPage({
-  onChange,
+  eventId,
   settings,
   stands,
 }: {
-  onChange: (settings: EventControlCenterSettings) => void;
+  eventId: string;
   settings: EventControlCenterSettings;
   stands: Stand[];
 }) {
@@ -27,21 +30,27 @@ export function EventControlCenterSettingsPage({
     () => createSettingsForStands(settings, stands),
     [settings, stands],
   );
-  const normalizedSettingsSignature = useMemo(
-    () => createControlCenterSettingsSignature(normalizedSettings),
-    [normalizedSettings],
+  const sourceSettingsSignature = useMemo(
+    () => createControlCenterSettingsSignature(settings),
+    [settings],
   );
   const [formState, setFormState] = useState(() => ({
     form: normalizedSettings,
-    signature: normalizedSettingsSignature,
+    saved: normalizedSettings,
+    sourceSignature: sourceSettingsSignature,
   }));
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [requestState, setRequestState] = useState<'idle' | 'resetting' | 'saving'>('idle');
   let form = formState.form;
-  if (formState.signature !== normalizedSettingsSignature) {
+  let saved = formState.saved;
+  if (formState.sourceSignature !== sourceSettingsSignature) {
     form = normalizedSettings;
-    setFormState({ form, signature: normalizedSettingsSignature });
+    saved = normalizedSettings;
+    setFormState({ form, saved, sourceSignature: sourceSettingsSignature });
   }
-  const hasChanges = !controlCenterSettingsEqual(form, normalizedSettings);
+  const hasChanges = !controlCenterSettingsEqual(form, saved);
+  const isSubmitting = requestState !== 'idle';
 
   function updateStandThreshold(
     standId: string,
@@ -49,6 +58,7 @@ export function EventControlCenterSettingsPage({
     value: number,
   ) {
     setSavedMessage(null);
+    setRequestError(null);
     setFormState((current) => ({
       ...current,
       form: {
@@ -66,6 +76,7 @@ export function EventControlCenterSettingsPage({
 
   function updateStockAlertThreshold(value: number) {
     setSavedMessage(null);
+    setRequestError(null);
     setFormState((current) => ({
       ...current,
       form: {
@@ -75,24 +86,46 @@ export function EventControlCenterSettingsPage({
     }));
   }
 
-  function saveSettings() {
+  async function saveSettings() {
     const nextSettings = createSettingsForStands(normalizeControlCenterSettings(form), stands);
-    setFormState({
-      form: nextSettings,
-      signature: createControlCenterSettingsSignature(nextSettings),
-    });
-    onChange(nextSettings);
-    setSavedMessage('Settings saved. Analytics will refresh with these thresholds.');
+    setSavedMessage(null);
+    setRequestError(null);
+    setRequestState('saving');
+    try {
+      const persisted = createSettingsForStands(
+        await updateEventControlCenterSettings(eventId, nextSettings),
+        stands,
+      );
+      setFormState((current) => ({
+        ...current,
+        form: persisted,
+        saved: persisted,
+      }));
+      setSavedMessage('Settings saved. Analytics will refresh with these thresholds.');
+    } catch {
+      setRequestError('Settings could not be saved. Please try again.');
+    } finally {
+      setRequestState('idle');
+    }
   }
 
-  function resetSettings() {
-    const nextSettings = createSettingsForStands(defaultControlCenterSettings, stands);
-    setFormState({
-      form: nextSettings,
-      signature: createControlCenterSettingsSignature(nextSettings),
-    });
-    onChange(nextSettings);
-    setSavedMessage('Settings reset to defaults.');
+  async function resetSettings() {
+    setSavedMessage(null);
+    setRequestError(null);
+    setRequestState('resetting');
+    try {
+      const reset = createSettingsForStands(await resetEventControlCenterSettings(eventId), stands);
+      setFormState((current) => ({
+        ...current,
+        form: reset,
+        saved: reset,
+      }));
+      setSavedMessage('Settings reset to defaults.');
+    } catch {
+      setRequestError('Settings could not be reset. Please try again.');
+    } finally {
+      setRequestState('idle');
+    }
   }
 
   return (
@@ -107,6 +140,7 @@ export function EventControlCenterSettingsPage({
             <div className="mt-4 max-w-sm">
               <TextField
                 helperText="Products are flagged when their stock reaches this number or lower."
+                disabled={isSubmitting}
                 id="stock-alert-threshold"
                 label="Stock alert threshold"
                 min={0}
@@ -133,6 +167,7 @@ export function EventControlCenterSettingsPage({
                     <div className="mt-4 grid gap-5 md:grid-cols-2">
                       <TextField
                         helperText="This stand is flagged when its open queue reaches this number."
+                        disabled={isSubmitting}
                         id={`queue-length-alert-threshold-${stand._id}`}
                         label="Queue length"
                         min={0}
@@ -150,6 +185,7 @@ export function EventControlCenterSettingsPage({
 
                       <TextField
                         helperText="This stand is flagged when its average open-item wait reaches this duration."
+                        disabled={isSubmitting}
                         id={`average-wait-alert-threshold-${stand._id}`}
                         label="Average wait in minutes"
                         min={0}
@@ -176,17 +212,22 @@ export function EventControlCenterSettingsPage({
           )}
 
           <div className="mt-6 flex justify-end gap-2">
-            <Button onClick={resetSettings} size="sm" variant="secondary">
-              Reset defaults
+            <Button disabled={isSubmitting} onClick={resetSettings} size="sm" variant="secondary">
+              {requestState === 'resetting' ? 'Resetting…' : 'Reset defaults'}
             </Button>
-            <Button disabled={!hasChanges} onClick={saveSettings} size="sm">
-              Save settings
+            <Button disabled={!hasChanges || isSubmitting} onClick={saveSettings} size="sm">
+              {requestState === 'saving' ? 'Saving…' : 'Save settings'}
             </Button>
           </div>
 
           {savedMessage ? (
             <p className="mt-4 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">
               {savedMessage}
+            </p>
+          ) : null}
+          {requestError ? (
+            <p className="mt-4 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm font-medium text-danger">
+              {requestError}
             </p>
           ) : null}
         </CardContent>
