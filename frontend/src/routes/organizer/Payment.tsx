@@ -138,24 +138,38 @@ function eventStatement(row: EventRow): StatementLine[] {
   // sales and what has hit the card. Captured card is a subset, so this is >= 0.
   const uncapturedCardCents = cardSalesCents - event.capturedCardCents;
 
+  // Tax is reported as a single event total; split it across the cash/card
+  // channels in proportion to their gross sales so each "of which tax" sub-line
+  // reconciles back to event.taxCents. Exact when all products share one tax
+  // rate, a proportional estimate only if rates are mixed across the channels.
+  const cashTaxCents =
+    totalSalesCents > 0 ? Math.round((event.taxCents * cashSalesCents) / totalSalesCents) : 0;
+  const cardTaxCents = event.taxCents - cashTaxCents;
+
   const lines: StatementLine[] = [
     { label: 'Total sales (incl. tax)', cents: totalSalesCents, kind: 'line' },
   ];
   if (cashSalesCents > 0) {
     lines.push({ label: 'Cashier payments', cents: cashSalesCents, kind: 'sub', indent: true });
+    if (cashTaxCents > 0) {
+      lines.push({
+        label: 'of which tax (included)',
+        cents: cashTaxCents,
+        kind: 'info',
+        indent: true,
+      });
+    }
   }
   if (cardSalesCents > 0) {
     lines.push({ label: 'Online sales', cents: cardSalesCents, kind: 'subtotal', indent: true });
-  }
-  if (event.taxCents > 0) {
-    lines.push({
-      label: 'of which tax (included)',
-      cents: event.taxCents,
-      kind: 'info',
-      indent: true,
-    });
-  }
-  if (cardSalesCents > 0) {
+    if (cardTaxCents > 0) {
+      lines.push({
+        label: 'of which tax (included)',
+        cents: cardTaxCents,
+        kind: 'info',
+        indent: true,
+      });
+    }
     if (uncapturedCardCents > 0) {
       lines.push({
         label: 'open tabs (not yet captured)',
@@ -621,8 +635,8 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
             <div className="space-y-2">
               <p className="text-base font-semibold text-text">Sales &amp; payout</p>
               <dl className="rounded-lg border border-border bg-surface px-4 py-3">
-                {eventStatement(row).map((line) => (
-                  <StatementRow key={line.label} line={line} />
+                {eventStatement(row).map((line, i) => (
+                  <StatementRow key={`${line.label}-${i}`} line={line} />
                 ))}
               </dl>
             </div>
