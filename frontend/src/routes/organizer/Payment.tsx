@@ -158,7 +158,7 @@ function eventStatement(row: EventRow): StatementLine[] {
   if (cardSalesCents > 0) {
     if (uncapturedCardCents > 0) {
       lines.push({
-        label: 'On open tabs (not yet captured)',
+        label: 'open tabs (not yet captured)',
         cents: uncapturedCardCents,
         kind: 'sub',
         indent: true,
@@ -166,7 +166,7 @@ function eventStatement(row: EventRow): StatementLine[] {
     }
     lines.push(
       {
-        label: 'Card sales captured',
+        label: 'Online sales captured',
         cents: event.capturedCardCents,
         kind: 'subtotal',
         indent: true,
