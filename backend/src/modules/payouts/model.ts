@@ -9,29 +9,32 @@ export interface EventPayoutDoc {
   _id: string;
   eventId: string;
   accountId: string;
-  /** Card (captured) + cash revenue, integer cents. */
-  grossRevenueCents: number;
-  /** Stripe-captured revenue, integer cents. */
-  cardRevenueCents: number;
-  /** Cash collected minus cash refunds, integer cents. */
-  cashRevenueCents: number;
+  /** Delivered gross across card + cash (= items-sold total), integer cents. */
+  grossSalesCents: number;
+  /** Delivered gross paid in cash (subset of grossSalesCents), integer cents. */
+  cashSalesCents: number;
   /** Sum of cash refunds, integer cents. */
   cashRefundCents: number;
-  /** Tax contained in the gross revenue (organizer liability, not deducted). */
+  /** Tax contained in the delivered gross (organizer liability, not deducted). */
   taxCents: number;
-  /** Total Stripe processing fees, integer cents. */
+  /** Card revenue captured on Stripe, integer cents. */
+  capturedCardCents: number;
+  /** Total Stripe processing fees on captured card revenue, integer cents. */
   stripeFeeCents: number;
-  /** Platform fee: 5 cents per paid order, integer cents. */
+  /** Platform fee: 5 cents per charged order (card + cash), integer cents. */
   platformFeeCents: number;
-  /** What is paid out: gross - stripe - platform, integer cents. */
+  /** Card payout: capturedCard - stripe - platform, integer cents. */
   netPayoutCents: number;
-  /** Delivered (READY/FULFILLED) value on tabs not yet charged, integer cents. */
+  /** Delivered (READY/FULFILLED) card value on tabs not yet charged, integer cents. */
   onHoldReadyCents: number;
   /** Stripe authorized-but-not-captured holds for the event, integer cents. */
   onHoldAuthorizedCents: number;
   /** Captured funds still settling on Stripe (available_on in the future), net cents. */
   inTransitCents: number;
+  /** Orders released to operators (paidAt set). */
   paidOrderCount: number;
+  /** Orders actually charged (cash collected or card tab settled). */
+  chargedOrderCount: number;
   computedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -42,11 +45,11 @@ const EventPayoutSchema = new Schema<EventPayoutDoc>(
     _id: { type: String, default: () => uuidv4() },
     eventId: { type: String, required: true, unique: true, index: true },
     accountId: { type: String, required: true, index: true },
-    grossRevenueCents: { type: Number, default: 0 },
-    cardRevenueCents: { type: Number, default: 0 },
-    cashRevenueCents: { type: Number, default: 0 },
+    grossSalesCents: { type: Number, default: 0 },
+    cashSalesCents: { type: Number, default: 0 },
     cashRefundCents: { type: Number, default: 0 },
     taxCents: { type: Number, default: 0 },
+    capturedCardCents: { type: Number, default: 0 },
     stripeFeeCents: { type: Number, default: 0 },
     platformFeeCents: { type: Number, default: 0 },
     netPayoutCents: { type: Number, default: 0 },
@@ -54,6 +57,7 @@ const EventPayoutSchema = new Schema<EventPayoutDoc>(
     onHoldAuthorizedCents: { type: Number, default: 0 },
     inTransitCents: { type: Number, default: 0 },
     paidOrderCount: { type: Number, default: 0 },
+    chargedOrderCount: { type: Number, default: 0 },
     computedAt: { type: Date, default: () => new Date() },
   },
   { timestamps: true }

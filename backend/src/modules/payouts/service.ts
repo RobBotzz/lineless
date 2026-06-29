@@ -28,10 +28,6 @@ function itemTaxCents(item: OrderItemDoc): number {
   return item.priceIncludingTaxAtPurchase - net;
 }
 
-function isChargedItem(item: OrderItemDoc): boolean {
-  return !item.cancelledAt;
-}
-
 function isDeliveredItem(item: OrderItemDoc): boolean {
   return (
     !item.cancelledAt && (item.readyAt !== null || item.fulfilledAt !== null)
@@ -39,10 +35,15 @@ function isDeliveredItem(item: OrderItemDoc): boolean {
 }
 
 // Recomputes an event's payout figures from orders, tabs and payments, persists
-// the snapshot, and returns the full breakdown. Card revenue is taken from the
-// actual Stripe captures (authoritative: settlement only ever captures
-// delivered, non-cancelled items); cash revenue is the collected total minus
-// refunds, since cash is taken upfront and only refunds return money.
+// the snapshot, and returns the full breakdown.
+//
+// Two clocks are kept deliberately separate. SALES are recognized on delivery
+// (READY/FULFILLED, non-cancelled) and are method-agnostic, so grossSalesCents
+// always equals the items-sold table. The PAYOUT is card money only: captured
+// card minus Stripe fees minus the platform fee on every charged order. Cash is
+// collected upfront and never custodied by the platform, so it is reported as
+// sales but never added to the payout — its platform fee is netted out of the
+// card pool instead.
 export async function computeEventPayout(
   eventId: string,
   accountId: string
@@ -53,36 +54,44 @@ export async function computeEventPayout(
     .lean();
   if (!event) throw new EventNotFoundError();
 
-  const paidOrders = await Order.find({
-    eventId,
-    paidAt: { $ne: null },
-    deletedAt: null,
-  })
-    .select("tabId items cashRefunds")
+  // Every live order for the event (card and cash). Sales scan only delivered
+  // items off these; undelivered/authorized items are not yet "sold".
+  const orders = await Order.find({ eventId, deletedAt: null })
+    .select("tabId paidAt items cashRefunds")
     .lean();
 
-  const cashOrders = paidOrders.filter((o) => o.tabId === null);
+  const tabs = await Tab.find({ eventId }).select("_id status").lean();
+  const tabStatusById = new Map(tabs.map((t) => [t._id, t.status]));
+  const tabIds = tabs.map((t) => t._id);
 
-  const cashItemsTotal = cashOrders.reduce(
-    (sum, o) =>
-      sum + o.items.reduce((s, i) => s + i.priceIncludingTaxAtPurchase, 0),
+  // Delivered items drive every sales figure: the table, total sales, and tax.
+  const deliveredItems = orders.flatMap((o) => o.items.filter(isDeliveredItem));
+  const grossSalesCents = deliveredItems.reduce(
+    (sum, i) => sum + i.priceIncludingTaxAtPurchase,
     0
   );
-  const cashRefundCents = cashOrders.reduce(
+  const taxCents = deliveredItems.reduce((sum, i) => sum + itemTaxCents(i), 0);
+  const unitsSold = await buildUnitsSold(deliveredItems);
+
+  // Cash sales are recognized on delivery like card, for one consistent rule,
+  // and reported separately so the organizer sees what is already in hand.
+  const cashSalesCents = orders
+    .filter((o) => o.tabId === null)
+    .flatMap((o) => o.items.filter(isDeliveredItem))
+    .reduce((sum, i) => sum + i.priceIncludingTaxAtPurchase, 0);
+  const cashRefundCents = orders.reduce(
     (sum, o) => sum + o.cashRefunds.reduce((s, r) => s + r.amountCents, 0),
     0
   );
-  const cashRevenueCents = cashItemsTotal - cashRefundCents;
 
-  const tabIds = await Tab.find({ eventId }).distinct("_id");
-
+  // Card money that actually flows through the platform.
   const capturedPayments = await TabPayment.find({
     tabId: { $in: tabIds },
     tabPaymentStatus: "CAPTURED",
   })
     .select("capturedCentsAmount processingFeeCents availableOn")
     .lean();
-  const cardRevenueCents = capturedPayments.reduce(
+  const capturedCardCents = capturedPayments.reduce(
     (sum, p) => sum + p.capturedCentsAmount,
     0
   );
@@ -114,41 +123,29 @@ export async function computeEventPayout(
     0
   );
 
-  // Delivered value sitting on tabs that have not yet been charged.
-  const unpaidTabIds = await Tab.find({
-    eventId,
-    status: { $ne: "PAID" },
-  }).distinct("_id");
-  const unpaidTabOrders = await Order.find({
-    tabId: { $in: unpaidTabIds },
-    deletedAt: null,
-  })
-    .select("items")
-    .lean();
-  const onHoldReadyCents = unpaidTabOrders.reduce(
-    (sum, o) =>
-      sum +
-      o.items
-        .filter(isDeliveredItem)
-        .reduce((s, i) => s + i.priceIncludingTaxAtPurchase, 0),
-    0
-  );
+  // Delivered card value sitting on tabs that have not yet settled — the amount
+  // still to be charged. Cash orders (tabId null) are excluded; their money is
+  // already collected.
+  const onHoldReadyCents = orders
+    .filter((o) => o.tabId !== null && tabStatusById.get(o.tabId) !== "PAID")
+    .flatMap((o) => o.items.filter(isDeliveredItem))
+    .reduce((sum, i) => sum + i.priceIncludingTaxAtPurchase, 0);
 
-  const grossRevenueCents = cardRevenueCents + cashRevenueCents;
-  const platformFeeCents = paidOrders.length * PLATFORM_FEE_PER_ORDER_CENTS;
-  const netPayoutCents = grossRevenueCents - stripeFeeCents - platformFeeCents;
+  // The platform fee accrues only on orders actually charged: cash orders
+  // (collected upfront) and card orders whose tab has settled. Aligning the fee
+  // with realized revenue means a live event holding only authorizations never
+  // shows a negative payout.
+  const paidOrderCount = orders.filter((o) => o.paidAt != null).length;
+  const chargedOrderCount = orders.filter(
+    (o) =>
+      o.paidAt != null &&
+      (o.tabId === null || tabStatusById.get(o.tabId) === "PAID")
+  ).length;
+  const platformFeeCents = chargedOrderCount * PLATFORM_FEE_PER_ORDER_CENTS;
 
-  // Tax and units sold reflect TOTAL revenue earned: charged (non-cancelled)
-  // items of paid orders plus delivered items still sitting on open tabs (their
-  // value is reported separately as onHoldReadyCents and bridged to the net
-  // payout on the client). Items not yet delivered are not counted as sold.
-  const chargedItems = paidOrders.flatMap((o) => o.items.filter(isChargedItem));
-  const openTabDeliveredItems = unpaidTabOrders.flatMap((o) =>
-    o.items.filter(isDeliveredItem)
-  );
-  const soldItems = [...chargedItems, ...openTabDeliveredItems];
-  const taxCents = soldItems.reduce((sum, i) => sum + itemTaxCents(i), 0);
-  const unitsSold = await buildUnitsSold(soldItems);
+  // The payout is card money only; the platform fee for every charged order —
+  // cash included — is netted out of the card pool here.
+  const netPayoutCents = capturedCardCents - stripeFeeCents - platformFeeCents;
 
   const computedAt = new Date();
   await EventPayout.findOneAndUpdate(
@@ -156,18 +153,19 @@ export async function computeEventPayout(
     {
       $set: {
         accountId,
-        grossRevenueCents,
-        cardRevenueCents,
-        cashRevenueCents,
+        grossSalesCents,
+        cashSalesCents,
         cashRefundCents,
         taxCents,
+        capturedCardCents,
         stripeFeeCents,
         platformFeeCents,
         netPayoutCents,
         onHoldReadyCents,
         onHoldAuthorizedCents,
         inTransitCents,
-        paidOrderCount: paidOrders.length,
+        paidOrderCount,
+        chargedOrderCount,
         computedAt,
       },
     },
@@ -178,12 +176,13 @@ export async function computeEventPayout(
     eventId,
     eventName: event.name,
     eventStatus: event.status,
-    paidOrderCount: paidOrders.length,
-    grossRevenueCents,
-    cardRevenueCents,
-    cashRevenueCents,
-    cashRefundCents,
+    paidOrderCount,
+    chargedOrderCount,
+    grossSalesCents,
+    cashSalesCents,
     taxCents,
+    cashRefundCents,
+    capturedCardCents,
     stripeFeeCents,
     platformFeeCents,
     netPayoutCents,
