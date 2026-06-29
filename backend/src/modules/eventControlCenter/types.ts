@@ -66,11 +66,22 @@ export interface RevenuePoint {
   revenueCents: number;
 }
 
+export interface RevenueProductBreakdown {
+  productId: string;
+  productName: string;
+  quantitySold: number;
+  revenueCents: number;
+}
+
+export interface StandRevenuePoint extends RevenuePoint {
+  products: RevenueProductBreakdown[];
+}
+
 export interface StandRevenueSeries {
   standId: string;
   standName: string;
   standStatus: "LIVE" | "PAUSED";
-  points: RevenuePoint[];
+  points: StandRevenuePoint[];
 }
 
 export interface StandQueueMetric {
