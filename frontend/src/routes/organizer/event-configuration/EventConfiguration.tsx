@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useFetcher, useLoaderData, useRevalidator, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
+import { deleteEventLogo, uploadEventLogo } from '@/api/events';
 import { AlertDialog } from '@/components/feedback';
-import { BackButton } from '@/components/shared';
+import { BackButton, ImageDropzone } from '@/components/shared';
 import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,13 +20,12 @@ import {
   ProductsIcon,
   SettingsIcon,
   StandIcon,
-  UploadIcon,
 } from '@/components/icons';
 import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
 import { resolveBranding } from '@/features/branding/applyBranding';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import type { Event, UpdateEventInput } from '@/types/event';
+import { eventLogoSrc, type Event, type UpdateEventInput } from '@/types/event';
 import type { Stand } from '@/types/stand';
 import type { Product } from '@/types/product';
 import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
@@ -56,6 +56,11 @@ export function EventConfigurationError() {
     </div>
   );
 }
+
+// Mirrors the backend upload limits (config.upload). The server is the source of
+// truth (it also checks the magic bytes); these just give instant feedback.
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 type EventForm = {
   name: string;
@@ -100,14 +105,60 @@ export default function EventConfiguration() {
   // lifecycle/stand/product actions so its state drives the "saved" indicator.
   const saveFetcher = useFetcher<EventActionResult>();
   const { logout } = useOrganizerAuth();
+  const revalidator = useRevalidator();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
   const [showCustomerLink, setShowCustomerLink] = useState(false);
   const [showHoldInfo, setShowHoldInfo] = useState(false);
   const [showRatingsInfo, setShowRatingsInfo] = useState(false);
   const [showCashierInfo, setShowCashierInfo] = useState(false);
+  const [showLogoInfo, setShowLogoInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
+
+  // Logo upload is a separate multipart call (like the product image), not part
+  // of the JSON settings auto-save. The event already exists, so we upload/delete
+  // immediately and revalidate the loader to pick up the new branding.logoUrl.
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  // Object URL for the in-flight pick, shown for instant feedback until the
+  // revalidated loader serves the persisted logo. Revoked on change / unmount.
+  const logoFilePreview = useMemo(
+    () => (logoFile ? URL.createObjectURL(logoFile) : null),
+    [logoFile],
+  );
+  useEffect(() => {
+    if (!logoFilePreview) return;
+    return () => URL.revokeObjectURL(logoFilePreview);
+  }, [logoFilePreview]);
+  const logoPreviewUrl = logoFilePreview ?? eventLogoSrc(event);
+
+  function handleSelectLogo(file: File) {
+    setLogoError(null);
+    setLogoFile(file);
+    setLogoBusy(true);
+    uploadEventLogo(event._id, file)
+      .then(() => revalidator.revalidate())
+      .catch((err) =>
+        setLogoError(err instanceof ApiError ? err.message : 'Could not upload the logo.'),
+      )
+      .finally(() => {
+        setLogoBusy(false);
+        setLogoFile(null);
+      });
+  }
+
+  function handleRemoveLogo() {
+    setLogoError(null);
+    setLogoBusy(true);
+    deleteEventLogo(event._id)
+      .then(() => revalidator.revalidate())
+      .catch((err) =>
+        setLogoError(err instanceof ApiError ? err.message : 'Could not remove the logo.'),
+      )
+      .finally(() => setLogoBusy(false));
+  }
 
   const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
   const [editingStand, setEditingStand] = useState<Stand | null>(null);
@@ -458,7 +509,7 @@ export default function EventConfiguration() {
             <CardContent className="@container">
               <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
                 {/* Core fields */}
-                <div className="space-y-5">
+                <div className="flex h-full flex-col space-y-5">
                   <TextField
                     id="event-name"
                     label="Event Name"
@@ -639,10 +690,57 @@ export default function EventConfiguration() {
                 {/* Branding — sits beside the core fields when the card is wide enough */}
                 <div className="flex flex-col justify-between space-y-5">
                   <div>
-                    <p className="mb-2 block text-sm font-medium">Logo</p>
-                    <Button disabled variant="outline">
-                      <UploadIcon /> <span className="ml-2">Upload</span>
-                    </Button>
+                    <p className="mb-2 block text-sm font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        Logo
+                        <span className="relative inline-flex">
+                          <button
+                            type="button"
+                            aria-label="About the event logo"
+                            aria-expanded={showLogoInfo}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setShowLogoInfo((open) => !open);
+                            }}
+                            className="text-text-muted transition hover:text-text"
+                          >
+                            <InfoIcon />
+                          </button>
+                          {showLogoInfo && (
+                            <>
+                              <button
+                                type="button"
+                                aria-hidden="true"
+                                tabIndex={-1}
+                                className="fixed inset-0 z-40 cursor-default"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setShowLogoInfo(false);
+                                }}
+                              />
+                              <span
+                                role="tooltip"
+                                className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                              >
+                                Replaces the Lineless logo for attendees. Shown at the size of the
+                                current logo — smaller images sit left, larger ones scale down to
+                                fit.
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      </span>
+                    </p>
+                    <ImageDropzone
+                      previewUrl={logoPreviewUrl}
+                      onSelect={handleSelectLogo}
+                      onRemove={handleRemoveLogo}
+                      onError={setLogoError}
+                      acceptedTypes={ACCEPTED_IMAGE_TYPES}
+                      maxBytes={MAX_IMAGE_BYTES}
+                      disabled={logoBusy}
+                    />
+                    {logoError && <p className="mt-1 text-xs text-danger">{logoError}</p>}
                   </div>
 
                   {/* Presets — one click fills all three roles with a contrast-safe
@@ -702,32 +800,9 @@ export default function EventConfiguration() {
                     {/* White canvas — matches the attendee page so brand colors read
                         true. Uses the resolved (clamped) colors, so what's shown here
                         is exactly what attendees get. */}
-                    <div className="space-y-2 bg-surface p-4">
-                      <p
-                        className="text-sm font-semibold"
-                        style={{ color: resolvedBranding.accentText }}
-                      >
-                        {form.name || 'Lineless Event'}
-                      </p>
-                      <p className="text-sm text-text">
-                        Tonight only —{' '}
-                        <span
-                          className="font-medium underline underline-offset-2"
-                          style={{ color: resolvedBranding.accentText }}
-                        >
-                          view the menu
-                        </span>{' '}
-                        and order from{' '}
-                        <span
-                          className="font-semibold"
-                          style={{ color: resolvedBranding.accentText }}
-                        >
-                          €4.50
-                        </span>
-                        .
-                      </p>
+                    <div className="flex items-center gap-8 bg-surface p-4">
                       <Button
-                        className="mt-1"
+                        className="shrink-0"
                         style={{
                           backgroundColor: resolvedBranding.accent,
                           color: resolvedBranding.buttonText,
@@ -735,6 +810,31 @@ export default function EventConfiguration() {
                       >
                         Order Now
                       </Button>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <p
+                          className="text-sm font-semibold"
+                          style={{ color: resolvedBranding.accentText }}
+                        >
+                          {form.name || 'Lineless Event'}
+                        </p>
+                        <p className="text-sm text-text">
+                          Tonight only —{' '}
+                          <span
+                            className="font-medium underline underline-offset-2"
+                            style={{ color: resolvedBranding.accentText }}
+                          >
+                            view the menu
+                          </span>{' '}
+                          and order from{' '}
+                          <span
+                            className="font-semibold"
+                            style={{ color: resolvedBranding.accentText }}
+                          >
+                            €4.50
+                          </span>
+                          .
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -929,29 +1029,68 @@ function BrandColorField({
   onChange: (value: string) => void;
   auto?: { active: boolean; onEnable: () => void };
 }) {
+  const [showAutoInfo, setShowAutoInfo] = useState(false);
   return (
-    <div>
+    <div className="flex h-full flex-col">
       <div className="mb-2 flex items-center justify-start gap-2">
         <label className="block text-sm font-medium text-text" htmlFor={id}>
           {label}
         </label>
         {auto && (
-          <button
-            aria-pressed={auto.active}
-            className={cn(
-              'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
-              auto.active
-                ? 'border-accent/30 bg-accent-soft text-accent-contrast'
-                : 'border-border bg-surface text-text-muted hover:text-text',
-            )}
-            onClick={auto.onEnable}
-            type="button"
-          >
-            Auto
-          </button>
+          <>
+            <button
+              aria-pressed={auto.active}
+              className={cn(
+                'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+                auto.active
+                  ? 'border-accent/30 bg-accent-soft text-accent-contrast'
+                  : 'border-border bg-surface text-text-muted hover:text-text',
+              )}
+              onClick={auto.onEnable}
+              type="button"
+            >
+              Auto
+            </button>
+            <span className="relative inline-flex">
+              <button
+                type="button"
+                aria-label="About Auto brand text"
+                aria-expanded={showAutoInfo}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowAutoInfo((open) => !open);
+                }}
+                className="text-text-muted transition hover:text-text"
+              >
+                <InfoIcon />
+              </button>
+              {showAutoInfo && (
+                <>
+                  <button
+                    type="button"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowAutoInfo(false);
+                    }}
+                  />
+                  <span
+                    role="tooltip"
+                    className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                  >
+                    Auto picks the text color for you from your Brand color, darkening it only if
+                    needed so it stays easy to read on the page. Click the swatch to choose your own
+                    color instead.
+                  </span>
+                </>
+              )}
+            </span>
+          </>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-1 flex-wrap items-center gap-2">
         <div
           className={cn(
             'flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2',

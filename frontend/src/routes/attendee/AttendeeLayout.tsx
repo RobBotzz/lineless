@@ -1,9 +1,10 @@
 import { Link, Outlet, useLoaderData, useParams } from 'react-router';
 
 import { AttendeeNavbar } from '@/components/layout/navbars';
-import { Wordmark } from '@/components/shared';
 import { paths } from '@/paths';
+import { eventLogoSrc } from '@/types/event';
 import { BrandingProvider } from '@/features/branding/BrandingContext';
+import { BrandLogo } from '@/features/branding/BrandLogo';
 
 import { CartProvider, useCart } from './cart/cart-context';
 import { ATTENDEE_WIDTH } from './column';
@@ -21,7 +22,7 @@ export default function AttendeeLayout() {
         <BrandingProvider branding={event.branding}>
           <div className="min-h-screen bg-background">
             <AttendeeNavbar
-              left={<Logo eventId={eventId} />}
+              left={<Logo eventId={eventId} logoSrc={eventLogoSrc(event)} />}
               right={<NavbarActions eventId={eventId} />}
               widthClassName={ATTENDEE_WIDTH}
             />
@@ -35,13 +36,13 @@ export default function AttendeeLayout() {
   );
 }
 
-function Logo({ eventId }: { eventId?: string }) {
+function Logo({ eventId, logoSrc }: { eventId?: string; logoSrc: string | null }) {
   return (
     <Link
       className="inline-flex items-center"
       to={eventId ? paths.attendee.event(eventId) : paths.home}
     >
-      <Wordmark />
+      <BrandLogo logoSrc={logoSrc} />
     </Link>
   );
 }

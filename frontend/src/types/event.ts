@@ -36,6 +36,19 @@ export interface Event {
   updatedAt: string;
 }
 
+// The logo is served from a stable URL (/api/events/:id/logo) with a long cache
+// lifetime, so replacing it would otherwise keep showing the stale image.
+// Appending the event's updatedAt as a version busts the cache whenever the
+// event (and thus its logo) changes. Returns null when there is no logo.
+export function eventLogoSrc(event: Pick<Event, 'branding' | 'updatedAt'>): string | null {
+  const { logoUrl } = event.branding;
+  if (!logoUrl) return null;
+  const version = Date.parse(event.updatedAt);
+  if (Number.isNaN(version)) return logoUrl;
+  const separator = logoUrl.includes('?') ? '&' : '?';
+  return `${logoUrl}${separator}v=${version}`;
+}
+
 // Partial patch accepted by PATCH /events/:id (mirrors updateEventSchema).
 export interface UpdateEventInput {
   name?: string;
