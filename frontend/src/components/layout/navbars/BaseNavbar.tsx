@@ -24,9 +24,7 @@ export function BaseNavbar({
       <div
         className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 ${paddingClassName}`}
       >
-        <div className="flex min-w-0 max-w-[65%] items-center justify-self-start overflow-hidden">
-          {left}
-        </div>
+        <div className="flex min-w-0 items-center justify-self-start">{left}</div>
         <div className="flex min-w-0 max-w-full items-center justify-self-center overflow-x-auto">
           {center}
         </div>
