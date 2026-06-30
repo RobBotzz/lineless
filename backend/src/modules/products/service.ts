@@ -1,6 +1,14 @@
+import mongoose from "mongoose";
 import { Product, type ProductDoc } from "./model";
-import { ProductNotFoundError, ProductStateError } from "./errors";
+import { ProductImage, type ProductImageDoc } from "./image.model";
+import {
+  InvalidImageError,
+  ProductImageNotFoundError,
+  ProductNotFoundError,
+  ProductStateError,
+} from "./errors";
 import type { CreateProductInput, UpdateProductInput } from "./types";
+import { config } from "../../config/config";
 import { verifyStandOwnership } from "../stands/ownership";
 import { Stand } from "../stands/model";
 import {
@@ -102,7 +110,6 @@ export async function createProduct(
     productDescription: input.productDescription,
     priceIncludingTax: input.priceIncludingTax,
     taxRate: input.taxRate,
-    productImageUrl: input.productImageUrl,
     instantProduct: input.instantProduct,
     productStock: input.productStock,
   });
@@ -241,14 +248,132 @@ export async function updateProduct(
   if (patch.priceIncludingTax !== undefined)
     product.priceIncludingTax = patch.priceIncludingTax;
   if (patch.taxRate !== undefined) product.taxRate = patch.taxRate;
-  if (patch.productImageUrl !== undefined) {
-    product.productImageUrl = patch.productImageUrl;
-  }
   if (patch.instantProduct !== undefined) {
     product.instantProduct = patch.instantProduct;
   }
   if (patch.productStock !== undefined)
     product.productStock = patch.productStock;
+  await product.save();
+  return product.toObject();
+}
+
+export interface UploadedImage {
+  buffer: Buffer;
+  mimeType: string;
+}
+
+// The URL stored on the product points back at our own serve endpoint, so the
+// frontend keeps rendering `productImageUrl` unchanged whether the image is an
+// uploaded file or an external link.
+function productImageServeUrl(productId: string): string {
+  return `/api/products/${productId}/image`;
+}
+
+// Verifies the bytes really are a supported image rather than trusting the
+// client-supplied MIME type, which is trivially spoofable. Returns the detected
+// MIME type, or null if the magic bytes match no supported format.
+function sniffImageMimeType(buffer: Buffer): string | null {
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return "image/jpeg";
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  return null;
+}
+
+export async function setProductImage(
+  productId: string,
+  accountId: string,
+  file: UploadedImage
+): Promise<ProductDoc> {
+  const product = await Product.findOne({ _id: productId, deletedAt: null });
+  if (!product) throw new ProductNotFoundError();
+  await verifyStandOwnership(product.standId, accountId);
+
+  const detectedType = sniffImageMimeType(file.buffer);
+  if (
+    !detectedType ||
+    !config.upload.allowedImageMimeTypes.includes(detectedType)
+  ) {
+    throw new InvalidImageError();
+  }
+
+  // One image per product: upsert replaces any existing image atomically.
+  await ProductImage.findOneAndUpdate(
+    { productId },
+    {
+      productId,
+      data: file.buffer,
+      contentType: detectedType,
+      byteSize: file.buffer.length,
+    },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
+
+  product.productImageUrl = productImageServeUrl(productId);
+  // The serve URL is stable, so on a *replace* productImageUrl doesn't actually
+  // change — mark it modified so `updatedAt` still bumps. The frontend uses
+  // updatedAt as a cache-busting version (the image URL is otherwise cached), so
+  // without this a replaced image keeps showing the stale picture.
+  product.markModified("productImageUrl");
+  await product.save();
+  return product.toObject();
+}
+
+// lean() returns the Buffer field as a BSON Binary, not a Node Buffer, which
+// res.send would JSON-encode instead of streaming as bytes. Normalize to a real
+// Buffer so the bytes go out verbatim with the correct Content-Type.
+function toNodeBuffer(value: Buffer): Buffer {
+  if (Buffer.isBuffer(value)) return value;
+  const binary = value as unknown as { buffer: Uint8Array };
+  return Buffer.from(binary.buffer);
+}
+
+export async function getProductImage(
+  productId: string
+): Promise<
+  Pick<ProductImageDoc, "_id" | "data" | "contentType" | "updatedAt">
+> {
+  const image = await ProductImage.findOne({ productId })
+    .select("data contentType updatedAt")
+    .lean();
+  if (!image) throw new ProductImageNotFoundError();
+  return { ...image, data: toNodeBuffer(image.data) };
+}
+
+export async function deleteProductImage(
+  productId: string,
+  accountId: string
+): Promise<ProductDoc> {
+  const product = await Product.findOne({ _id: productId, deletedAt: null });
+  if (!product) throw new ProductNotFoundError();
+  await verifyStandOwnership(product.standId, accountId);
+
+  await ProductImage.deleteOne({ productId });
+  product.productImageUrl = null;
   await product.save();
   return product.toObject();
 }
@@ -260,6 +385,18 @@ export async function softDeleteProduct(
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
   await verifyStandOwnership(product.standId, accountId);
-  product.deletedAt = new Date();
-  await product.save();
+
+  // Soft-deleting the product and dropping its (heavy) image binary must be
+  // atomic — otherwise a crash between the two writes leaves either an orphaned
+  // ProductImage or a live product pointing at a missing image.
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      product.deletedAt = new Date();
+      await product.save({ session: dbSession });
+      await ProductImage.deleteOne({ productId }, { session: dbSession });
+    });
+  } finally {
+    await dbSession.endSession();
+  }
 }

@@ -36,15 +36,18 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Products
 
-| Method | URL                               | Description                                  |
-| ------ | --------------------------------- | -------------------------------------------- |
-| POST   | `/stands/{standId}/products`      | Create product                               |
-| GET    | `/products/{productId}`           | Get single product                           |
-| PATCH  | `/products/{productId}`           | Update product, including stock              |
-| DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`) |
-| POST   | `/products/{productId}/pause`     | Pause product                                |
-| POST   | `/products/{productId}/resume`    | Resume product                               |
-| POST   | `/products/{productId}/terminate` | Terminate product                            |
+| Method | URL                               | Description                                             |
+| ------ | --------------------------------- | ------------------------------------------------------- |
+| POST   | `/stands/{standId}/products`      | Create product                                          |
+| GET    | `/products/{productId}`           | Get single product                                      |
+| PATCH  | `/products/{productId}`           | Update product, including stock                         |
+| DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`)            |
+| POST   | `/products/{productId}/pause`     | Pause product                                           |
+| POST   | `/products/{productId}/resume`    | Resume product                                          |
+| POST   | `/products/{productId}/terminate` | Terminate product                                       |
+| PUT    | `/products/{productId}/image`     | Upload/replace product image (multipart, field `image`) |
+| DELETE | `/products/{productId}/image`     | Remove the uploaded product image                       |
+| GET    | `/products/{productId}/image`     | Serve product image bytes (public, cached)              |
 
 ### Event Control Center
 
