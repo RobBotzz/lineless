@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { formatMoney, type Product } from '@/types/product';
+import { formatMoney, productImageSrc, type Product } from '@/types/product';
 
 import { ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
 import { QuantityStepper } from '@/components/shared/QuantityStepper';
@@ -26,7 +26,8 @@ export function ProductCard({
 }: ProductCardProps) {
   const [imageOk, setImageOk] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const showImage = !!product.productImageUrl && imageOk;
+  const imageSrc = productImageSrc(product);
+  const showImage = !!imageSrc && imageOk;
   const soldOut = product.productStock <= 0;
   const atStockLimit = !soldOut && cartQuantity >= product.productStock;
 
@@ -64,7 +65,7 @@ export function ProductCard({
             alt=""
             className="h-full w-full object-cover"
             onError={() => setImageOk(false)}
-            src={product.productImageUrl!}
+            src={imageSrc!}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-text-muted">

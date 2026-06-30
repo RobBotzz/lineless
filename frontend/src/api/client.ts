@@ -100,7 +100,9 @@ async function doFetch<T>(
   const { auth, standId, eventId, headers, body, ...rest } = options;
 
   const finalHeaders = new Headers(headers);
-  if (body !== undefined && !finalHeaders.has('Content-Type')) {
+  // Let the browser set the multipart boundary for FormData; only default to
+  // JSON for plain (string) bodies.
+  if (body !== undefined && !(body instanceof FormData) && !finalHeaders.has('Content-Type')) {
     finalHeaders.set('Content-Type', 'application/json');
   }
   attachAuthHeader(finalHeaders, auth, { standId, eventId });
