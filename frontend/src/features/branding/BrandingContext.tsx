@@ -1,4 +1,4 @@
-import { createContext, useContext, useLayoutEffect, type ReactNode } from 'react';
+import { createContext, useLayoutEffect, type ReactNode } from 'react';
 
 import { applyBranding, resetBranding, type Branding } from './applyBranding';
 
@@ -22,9 +22,4 @@ export function BrandingProvider({
   }, [branding]);
 
   return <BrandingContext.Provider value={branding}>{children}</BrandingContext.Provider>;
-}
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function useBranding() {
-  return useContext(BrandingContext);
 }
