@@ -10,14 +10,24 @@ import {
   stopEvent,
   rotateOperatorAccessKey,
   softDeleteEvent,
+  setEventLogo,
+  getEventLogo,
+  deleteEventLogo,
 } from "./service";
-import { EventNotFoundError, EventStateError } from "./errors";
+import {
+  EventLogoNotFoundError,
+  EventNotFoundError,
+  EventStateError,
+  ImageTooLargeError,
+  InvalidImageError,
+} from "./errors";
 import { createEventSchema, updateEventSchema } from "./types";
 import { checkoutTabsForOrganizerEvent } from "../tabs/service";
 import {
   authOrganizer,
   authOrganizerOrAttendee,
 } from "../../middleware/auth/guards";
+import { uploadSingleImage } from "../../shared/imageUpload";
 
 const eventsRouter = Router();
 
@@ -32,9 +42,21 @@ function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventStateError) {
     return res.status(409).json({ error: err.message });
   }
+  if (err instanceof EventLogoNotFoundError) {
+    return res.status(404).json({ error: err.message });
+  }
+  if (err instanceof InvalidImageError) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (err instanceof ImageTooLargeError) {
+    return res.status(413).json({ error: err.message });
+  }
   console.error("Events error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
+
+// Accepts a single multipart "image" field; maps multer errors via handleError.
+const uploadEventLogo = uploadSingleImage("image", handleError);
 
 // GET /events/:eventId — readable by organizer and attendee (session)
 eventsRouter.get(
@@ -156,6 +178,57 @@ eventsRouter.delete(
     try {
       await softDeleteEvent(eventId(req), req.organizer!.accountId);
       res.status(204).send();
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// PUT /events/:eventId/logo — organizer uploads/replaces the event logo.
+// multipart/form-data with a single file field named "image".
+eventsRouter.put(
+  "/:eventId/logo",
+  authOrganizer,
+  uploadEventLogo,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file) throw new InvalidImageError("No image file provided");
+      const event = await setEventLogo(eventId(req), req.organizer!.accountId, {
+        buffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+      });
+      res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// GET /events/:eventId/logo — public; serves the raw logo bytes so the frontend
+// can use it directly as an <img> src. Cached and ETag'd.
+eventsRouter.get("/:eventId/logo", async (req: Request, res: Response) => {
+  try {
+    const logo = await getEventLogo(eventId(req));
+    res.set("Content-Type", logo.contentType);
+    res.set("Cache-Control", "public, max-age=86400");
+    res.set("ETag", `"${logo._id}-${logo.updatedAt.getTime()}"`);
+    res.send(logo.data);
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// DELETE /events/:eventId/logo — organizer removes the uploaded logo.
+eventsRouter.delete(
+  "/:eventId/logo",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const event = await deleteEventLogo(
+        eventId(req),
+        req.organizer!.accountId
+      );
+      res.status(200).json(event);
     } catch (err) {
       handleError(err, res);
     }

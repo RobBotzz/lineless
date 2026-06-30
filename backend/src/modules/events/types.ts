@@ -21,11 +21,12 @@ const brandingCreateSchema = z.object({
   logoUrl: z.url().nullable().default(null),
 });
 
+// logoUrl is omitted on purpose: it is managed server-side by the logo
+// upload/delete endpoints, not set through the generic branding PATCH.
 const brandingUpdateSchema = z.object({
   primaryColor: hexColor.optional(),
   secondaryColor: hexColor.optional(),
   accentTextColor: hexColor.nullable().optional(),
-  logoUrl: z.url().nullable().optional(),
 });
 
 export const createEventSchema = z.object({

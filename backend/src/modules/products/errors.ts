@@ -19,18 +19,8 @@ export class ProductImageNotFoundError extends Error {
   }
 }
 
-// Raised when an upload is missing, of an unsupported type, or its bytes do not
-// match a supported image format (the header MIME type can be spoofed).
-export class InvalidImageError extends Error {
-  constructor(message = "Invalid or unsupported image") {
-    super(message);
-    this.name = "InvalidImageError";
-  }
-}
-
-export class ImageTooLargeError extends Error {
-  constructor(message = "Image exceeds the maximum allowed size") {
-    super(message);
-    this.name = "ImageTooLargeError";
-  }
-}
+// Image upload errors are shared across modules that store binary images.
+export {
+  InvalidImageError,
+  ImageTooLargeError,
+} from "../../shared/imageUpload";
