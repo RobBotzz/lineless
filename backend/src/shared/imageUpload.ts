@@ -109,6 +109,9 @@ export function sniffImageMimeType(buffer: Buffer): string | null {
 // Buffer so the bytes go out verbatim with the correct Content-Type.
 export function toNodeBuffer(value: Buffer): Buffer {
   if (Buffer.isBuffer(value)) return value;
-  const binary = value as unknown as { buffer: Uint8Array };
-  return Buffer.from(binary.buffer);
+  const raw = value as unknown;
+  if (raw && typeof raw === "object" && "buffer" in raw) {
+    return Buffer.from((raw as { buffer: Uint8Array }).buffer);
+  }
+  throw new Error("toNodeBuffer: unexpected value shape");
 }
