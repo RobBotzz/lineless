@@ -102,6 +102,9 @@ export async function updateEvent(
     if (patch.branding.secondaryColor !== undefined) {
       event.branding.secondaryColor = patch.branding.secondaryColor;
     }
+    if (patch.branding.accentTextColor !== undefined) {
+      event.branding.accentTextColor = patch.branding.accentTextColor;
+    }
     if (patch.branding.logoUrl !== undefined) {
       event.branding.logoUrl = patch.branding.logoUrl;
     }

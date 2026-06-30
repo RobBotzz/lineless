@@ -15,6 +15,9 @@ export function generateOperatorAccessKey(): string {
 export interface EventBranding {
   primaryColor: string;
   secondaryColor: string;
+  // Accent used as standalone text on the light page (links, prices, headings).
+  // null = Auto: derive a legible color from primaryColor at render time.
+  accentTextColor: string | null;
   logoUrl: string | null;
 }
 
@@ -41,6 +44,7 @@ const brandingSchema = new Schema<EventBranding>(
   {
     primaryColor: { type: String, required: true, default: "#020887" },
     secondaryColor: { type: String, required: true, default: "#FFFFFF" },
+    accentTextColor: { type: String, default: null },
     logoUrl: { type: String, default: null },
   },
   { _id: false }

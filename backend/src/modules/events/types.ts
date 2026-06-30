@@ -16,12 +16,15 @@ const hexColor = z
 const brandingCreateSchema = z.object({
   primaryColor: hexColor.default("#020887"),
   secondaryColor: hexColor.default("#FFFFFF"),
+  // null = Auto (derive from primaryColor at render time).
+  accentTextColor: hexColor.nullable().default(null),
   logoUrl: z.url().nullable().default(null),
 });
 
 const brandingUpdateSchema = z.object({
   primaryColor: hexColor.optional(),
   secondaryColor: hexColor.optional(),
+  accentTextColor: hexColor.nullable().optional(),
   logoUrl: z.url().nullable().optional(),
 });
 
