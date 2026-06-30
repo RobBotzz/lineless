@@ -1,6 +1,8 @@
 export type Branding = {
   primaryColor: string;
   secondaryColor: string;
+  // null = Auto: derive a legible accent text color from primaryColor.
+  accentTextColor: string | null;
   logoUrl: string | null;
 };
 
@@ -13,6 +15,8 @@ const PAGE_BG = '#f5f5f7';
 const TEXT_COLOR = '#1f2937';
 // WCAG AA for normal text.
 const MIN_CONTRAST = 4.5;
+// WCAG AA Large Text — button labels are bold and ≥14pt, so 3:1 is the correct bar.
+const MIN_CONTRAST_LARGE = 3.0;
 
 function isHex(value: string): boolean {
   return HEX_COLOR.test(value);
@@ -43,11 +47,22 @@ function relativeLuminance(hex: string): number {
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
 }
 
-function contrastRatio(a: string, b: string): number {
+export function contrastRatio(a: string, b: string): number {
   const la = relativeLuminance(a);
   const lb = relativeLuminance(b);
   const [hi, lo] = la > lb ? [la, lb] : [lb, la];
   return (hi + 0.05) / (lo + 0.05);
+}
+
+// Bucket a text/background contrast into a legibility rating. Reuses the WCAG
+// thresholds above so the UI badge stays in sync with the branding logic:
+// AA normal (4.5) = good, AA Large/bold (3.0) = acceptable, below = too low.
+export type ContrastRating = 'too-low' | 'acceptable' | 'good';
+export function contrastRating(textColor: string, background: string): ContrastRating {
+  const ratio = contrastRatio(textColor, background);
+  if (ratio >= MIN_CONTRAST) return 'good';
+  if (ratio >= MIN_CONTRAST_LARGE) return 'acceptable';
+  return 'too-low';
 }
 
 // Linear blend of `hex` toward `target` by `amount` (0..1).
@@ -69,14 +84,32 @@ function accentForText(primary: string): string {
   return TEXT_COLOR;
 }
 
-// Button text sits on the primary fill. We cannot force organizers to pick a
-// legible secondary, so if theirs fails AA against primary, fall back to whichever
-// of black/white reads best on primary.
-function buttonTextFor(primary: string, secondary: string): string {
-  if (contrastRatio(secondary, primary) >= MIN_CONTRAST) return secondary;
-  return contrastRatio('#ffffff', primary) >= contrastRatio('#000000', primary)
-    ? '#ffffff'
-    : '#000000';
+// Defaults mirror the :root brand tokens in index.css, used when a field is unset
+// or not a valid hex (e.g. mid-edit in the organizer form).
+const DEFAULT_ACCENT = '#020887';
+const DEFAULT_BUTTON_TEXT = '#ffffff';
+
+// The brand colors actually rendered, after all contrast clamping. Single source
+// of truth shared by applyBranding() (attendee runtime) and the organizer preview,
+// so the preview can never drift from what attendees see.
+export type ResolvedBranding = {
+  accent: string; // --color-accent (button/highlight fill)
+  buttonText: string; // --color-button-text (label on the fill)
+  accentText: string; // --color-accent-contrast (accent as text on the page)
+};
+
+export function resolveBranding(branding: Branding): ResolvedBranding {
+  const accent = isHex(branding.primaryColor) ? branding.primaryColor : DEFAULT_ACCENT;
+  // Enforce the organizer's explicit White/Black choice as-is — the form's
+  // contrast badge warns them, but we never silently override their pick.
+  const buttonText = isHex(branding.secondaryColor) ? branding.secondaryColor : DEFAULT_BUTTON_TEXT;
+  // Auto (null/invalid) → derive a legible accent text color; otherwise honor the
+  // organizer's pick as-is (the form warns them when it fails contrast).
+  const accentText =
+    branding.accentTextColor && isHex(branding.accentTextColor)
+      ? branding.accentTextColor
+      : accentForText(accent);
+  return { accent, buttonText, accentText };
 }
 
 // The properties we may set, so resetBranding stays in sync.
@@ -87,19 +120,10 @@ const MANAGED_PROPS = ['--color-accent', '--color-button-text', '--color-accent-
 // derivations (--color-accent-soft/-raised, --shadow-navbar) recompute against the
 // override; a descendant override would leave those stuck at the default.
 export function applyBranding(el: HTMLElement, branding: Branding) {
-  if (isHex(branding.primaryColor)) {
-    el.style.setProperty('--color-accent', branding.primaryColor);
-    el.style.setProperty('--color-accent-contrast', accentForText(branding.primaryColor));
-    if (isHex(branding.secondaryColor)) {
-      el.style.setProperty(
-        '--color-button-text',
-        buttonTextFor(branding.primaryColor, branding.secondaryColor),
-      );
-    }
-  } else if (isHex(branding.secondaryColor)) {
-    // No valid primary: secondary can still be applied as-is against the default accent.
-    el.style.setProperty('--color-button-text', branding.secondaryColor);
-  }
+  const { accent, buttonText, accentText } = resolveBranding(branding);
+  el.style.setProperty('--color-accent', accent);
+  el.style.setProperty('--color-button-text', buttonText);
+  el.style.setProperty('--color-accent-contrast', accentText);
 }
 
 export function resetBranding(el: HTMLElement) {

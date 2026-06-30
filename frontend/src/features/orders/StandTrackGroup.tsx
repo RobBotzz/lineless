@@ -134,13 +134,13 @@ export function StandTrackGroup({ stand, items }: StandTrackGroupProps) {
       {latLng && (
         <div className="border-b border-border">
           <button
-            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-soft/50"
+            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-text transition-colors hover:bg-surface-muted"
             onClick={() => setMapOpen((o) => !o)}
             aria-expanded={mapOpen}
             type="button"
           >
             <span className="flex min-w-0 items-center gap-1.5">
-              <PinIcon className="h-4 w-4 shrink-0" />
+              <PinIcon className="h-4 w-4 shrink-0 text-accent-contrast" />
               <span className="truncate">{stand.location.locationName || 'View location'}</span>
             </span>
             <ChevronDownIcon

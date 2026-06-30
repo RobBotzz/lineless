@@ -8,6 +8,9 @@ export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED';
 export interface EventBranding {
   primaryColor: string;
   secondaryColor: string;
+  // Accent used as standalone text on the light page (links, prices, headings).
+  // null = Auto: derive a legible color from primaryColor at render time.
+  accentTextColor: string | null;
   logoUrl: string | null;
 }
 
