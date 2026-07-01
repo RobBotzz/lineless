@@ -10,8 +10,8 @@ const passwordSchema = z
 export const signupSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
 });
 
 export const loginSchema = z.object({
@@ -37,12 +37,31 @@ export const changePasswordSchema = z
   })
   .strict();
 
+const optionalStringField = z
+  .string()
+  .optional()
+  .transform((v) => (v === "" ? undefined : v));
+
+const optionalNullableStringField = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((v) => (v === "" ? null : v));
+
 export const updateAccountSchema = z
   .object({
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-    iban: z.string().nullable().optional(),
-    ibanHolderName: z.string().nullable().optional(),
+    firstName: optionalStringField.pipe(z.string().max(100).optional()),
+    lastName: optionalStringField.pipe(z.string().max(100).optional()),
+    iban: optionalNullableStringField.pipe(
+      z
+        .string()
+        .regex(/^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/, "Invalid IBAN format")
+        .nullable()
+        .optional()
+    ),
+    ibanHolderName: optionalNullableStringField.pipe(
+      z.string().nullable().optional()
+    ),
   })
   .strict();
 

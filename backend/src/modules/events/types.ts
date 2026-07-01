@@ -2,8 +2,8 @@ import { z } from "zod";
 import { locationInputSchema } from "../../shared/location";
 import { DEFAULT_BASELINE_HOLD_CENTS } from "./model";
 
-// Baseline authorization hold in integer cents; must cover at least €1.00.
-const baselineHoldCents = z.number().int().min(100);
+// Baseline authorization hold in integer cents; must cover at least €1.00 and at most €10,000.
+const baselineHoldCents = z.number().int().min(100).max(1_000_000);
 
 // Accepts #RGB and #RRGGBB (case-insensitive).
 const hexColor = z
@@ -18,7 +18,6 @@ const brandingCreateSchema = z.object({
   secondaryColor: hexColor.default("#FFFFFF"),
   // null = Auto (derive from primaryColor at render time).
   accentTextColor: hexColor.nullable().default(null),
-  logoUrl: z.url().nullable().default(null),
 });
 
 // logoUrl is omitted on purpose: it is managed server-side by the logo
@@ -30,7 +29,7 @@ const brandingUpdateSchema = z.object({
 });
 
 export const createEventSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).max(100),
   plannedDate: z.coerce.date().optional(),
   ratingsEnabled: z.boolean().default(false),
   cashierEnabled: z.boolean().default(true),
@@ -40,7 +39,7 @@ export const createEventSchema = z.object({
 });
 
 export const updateEventSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(1).max(100).optional(),
   plannedDate: z.coerce.date().optional(),
   ratingsEnabled: z.boolean().optional(),
   cashierEnabled: z.boolean().optional(),

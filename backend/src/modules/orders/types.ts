@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const orderItemInputSchema = z.object({
   productId: z.uuid(),
-  customerComment: z.string().optional(),
+  customerComment: z.string().max(500).optional(),
 });
 
 export const createOrderSchema = z.object({

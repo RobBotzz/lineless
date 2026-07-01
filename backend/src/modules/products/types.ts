@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Money is always an integer in cents — never float.
-const cents = z.number().int().min(0);
+const cents = z.number().int().min(0).max(999_999);
 
 // Tax rate as integer basis points (1/10000) — e.g. 1900 for 19%.
 // Kept as an integer so tax can be computed in integer cents without
@@ -9,11 +9,11 @@ const cents = z.number().int().min(0);
 const taxRate = z.number().int().min(0).max(10000);
 
 // Stock is a non-negative integer count of units.
-const stock = z.number().int().min(0);
+const stock = z.number().int().min(0).max(100_000);
 
 export const createProductSchema = z.object({
-  productName: z.string().min(1),
-  productDescription: z.string().min(1).nullable().default(null),
+  productName: z.string().min(1).max(100),
+  productDescription: z.string().min(1).max(1_000).nullable().default(null),
   priceIncludingTax: cents,
   taxRate: taxRate,
   instantProduct: z.boolean().default(false),
@@ -21,8 +21,8 @@ export const createProductSchema = z.object({
 });
 
 export const updateProductSchema = z.object({
-  productName: z.string().min(1).optional(),
-  productDescription: z.string().min(1).nullable().optional(),
+  productName: z.string().min(1).max(100).optional(),
+  productDescription: z.string().min(1).max(1_000).nullable().optional(),
   priceIncludingTax: cents.optional(),
   taxRate: taxRate.optional(),
   instantProduct: z.boolean().optional(),
