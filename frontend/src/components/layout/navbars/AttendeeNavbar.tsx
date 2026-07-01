@@ -24,6 +24,7 @@ export function AttendeeNavbar({
       center={center}
       right={right}
       widthClassName={widthClassName}
+      paddingClassName="px-2 py-1.5 sm:px-3 lg:px-4"
     />
   );
 }

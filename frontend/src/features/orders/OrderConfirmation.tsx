@@ -49,7 +49,7 @@ export function OrderConfirmation({
     <div className="grid grid-cols-2 gap-4">
       <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
         <p className="text-xs text-text-muted">Order Number</p>
-        <p className="mt-1 text-lg font-semibold text-accent">{order.orderNumber}</p>
+        <p className="mt-1 text-lg font-semibold text-accent-contrast">{order.orderNumber}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
         <p className="text-xs text-text-muted">Pickup Code</p>
