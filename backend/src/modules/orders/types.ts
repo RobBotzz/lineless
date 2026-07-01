@@ -9,7 +9,6 @@ export const createOrderSchema = z.object({
   eventId: z.uuid(),
   /** Present for Stripe (tab) orders; absent for cash orders. */
   tabId: z.uuid().optional(),
-  customerEmail: z.email().optional(),
   items: z.array(orderItemInputSchema).min(1),
 });
 

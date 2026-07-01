@@ -4,7 +4,7 @@ import {
   AttendeeSessionInvalidError,
   SessionEventNotFoundError,
 } from "./errors";
-import type { CreateSessionInput } from "./types";
+import type { CreateSessionInput, SetSessionEmailInput } from "./types";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -29,6 +29,7 @@ export async function createAttendeeSession(
   const session = await AttendeeSession.create({
     eventId: input.eventId,
     status: "active",
+    email: input.email ?? null,
     expiresAt: new Date(Date.now() + SESSION_TTL_MS),
   });
 
@@ -37,6 +38,22 @@ export async function createAttendeeSession(
     eventId: session.eventId,
     expiresAt: session.expiresAt,
   };
+}
+
+// Sets/updates the email on an active session — called at checkout. The session
+// is already authenticated by the attendee middleware, so we only need to write.
+export async function setAttendeeSessionEmail(
+  sessionId: string,
+  input: SetSessionEmailInput
+): Promise<{ email: string }> {
+  const result = await AttendeeSession.updateOne(
+    { _id: sessionId, status: "active", expiresAt: { $gt: new Date() } },
+    { email: input.email }
+  );
+  if (result.matchedCount === 0) {
+    throw new AttendeeSessionInvalidError();
+  }
+  return { email: input.email };
 }
 
 export async function validateAttendeeSession(
