@@ -4,6 +4,7 @@ import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
 import {
   ArrowRightIcon,
   CartIcon,
+  CashierIcon,
   CheckCircleIcon,
   CreditCardIcon,
   DashboardIcon,
@@ -337,6 +338,96 @@ function PickupPanel() {
   );
 }
 
+function PaymentFlowShowcase() {
+  return (
+    <div className="landing-payment-stage relative mx-auto mt-14 max-w-5xl overflow-hidden rounded-[2rem] border border-accent/15 bg-accent px-5 py-8 text-left text-button-text shadow-[0_35px_90px_rgba(2,8,135,0.25)] sm:px-10 sm:py-10">
+      <div className="landing-payment-grid pointer-events-none absolute inset-0" />
+
+      <div className="relative flex items-center justify-between gap-4">
+        <div>
+          <p className="landing-eyebrow text-button-text/55">Live payment routing</p>
+          <p className="mt-2 text-lg font-black sm:text-2xl">One event. Two ways to pay.</p>
+        </div>
+        <span className="hidden items-center gap-2 rounded-full border border-button-text/15 bg-button-text/10 px-3 py-2 text-xs font-semibold sm:inline-flex">
+          <i className="h-2 w-2 animate-pulse rounded-full bg-button-text" /> Accepting orders
+        </span>
+      </div>
+
+      <div className="relative mt-9 grid grid-cols-2 gap-3 sm:gap-6">
+        <article className="relative z-10 rounded-2xl border border-button-text/15 bg-button-text/10 p-4 backdrop-blur sm:p-6">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-button-text text-accent">
+            <CreditCardIcon className="h-5 w-5" />
+          </span>
+          <p className="mt-6 text-xs font-black uppercase tracking-[0.14em] text-button-text/55">
+            Pay online
+          </p>
+          <p className="mt-1 text-lg font-black sm:text-2xl">Card payment</p>
+          <p className="mt-2 hidden text-sm leading-relaxed text-button-text/60 sm:block">
+            Guests pay directly while placing the order.
+          </p>
+        </article>
+
+        <article className="relative z-10 rounded-2xl border border-button-text/15 bg-button-text/10 p-4 backdrop-blur sm:p-6">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-button-text text-accent">
+            <CashierIcon className="h-5 w-5" />
+          </span>
+          <p className="mt-6 text-xs font-black uppercase tracking-[0.14em] text-button-text/55">
+            Pay on site
+          </p>
+          <p className="mt-1 text-lg font-black sm:text-2xl">Cashier payment</p>
+          <p className="mt-2 hidden text-sm leading-relaxed text-button-text/60 sm:block">
+            Cash orders are confirmed at the event cashier.
+          </p>
+        </article>
+
+        <div
+          aria-hidden="true"
+          className="landing-payment-routes pointer-events-none absolute inset-x-0 top-full h-32"
+        >
+          <svg className="h-full w-full" preserveAspectRatio="none" viewBox="0 0 600 128">
+            <path
+              d="M145 0 C145 68 300 48 300 124"
+              fill="none"
+              stroke="currentColor"
+              strokeDasharray="5 8"
+              strokeWidth="2"
+            />
+            <path
+              d="M455 0 C455 68 300 48 300 124"
+              fill="none"
+              stroke="currentColor"
+              strokeDasharray="5 8"
+              strokeWidth="2"
+            />
+          </svg>
+          <span className="landing-payment-dot landing-payment-dot-card" />
+          <span className="landing-payment-dot landing-payment-dot-cash" />
+        </div>
+      </div>
+
+      <div className="relative z-10 mx-auto mt-28 max-w-md rounded-2xl border border-border bg-surface p-4 text-text shadow-[0_24px_60px_rgba(0,0,0,0.24)] sm:p-5">
+        <div className="flex items-center gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
+            <CheckCircleIcon className="h-6 w-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-bold">Order #A14</p>
+              <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+                Paid
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-text-muted">Burger stand · 2 items</p>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-2 border-t border-border pt-3 text-xs font-semibold text-accent">
+          <span className="h-2 w-2 rounded-full bg-accent" /> Sent to the same operator queue
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FeatureDashboard() {
   return (
     <WindowShell className="w-full">
@@ -525,40 +616,20 @@ export default function Home() {
         </section>
         <div className="landing-tear landing-tear-light" />
 
-        <section className="px-6 py-24 text-center sm:py-36">
+        <section className="px-6 py-24 text-center sm:py-32">
           <div className="mx-auto max-w-5xl">
-            <p className="landing-eyebrow text-accent">Skip the queue, keep the energy</p>
+            <p className="landing-eyebrow text-accent">Flexible at checkout. Unified in service.</p>
             <h2 className="landing-display mt-4 text-[clamp(3.4rem,7.5vw,7rem)] leading-[0.84] text-text">
-              ORDER. ENJOY.
+              CARD OR CASH.
               <br />
-              <span className="text-accent">PICK UP.</span>
+              <span className="text-accent">ONE LIVE QUEUE.</span>
             </h2>
             <p className="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-text-muted">
-              lineless makes every order visible from the guest&apos;s first tap to the team&apos;s
-              final handoff. No guesswork, no crowded counter.
+              Let guests choose how they pay without splitting your operation. Every confirmed order
+              reaches the same team, the same queue and the same live overview.
             </p>
           </div>
-          <div className="mx-auto mt-16 grid max-w-6xl grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
-            {['SCAN', 'ORDER', 'ENJOY', 'PICK UP'].map((label, index) => (
-              <div
-                className={`landing-polaroid ${index % 2 === 0 ? '-rotate-2' : 'rotate-2'}`}
-                key={label}
-              >
-                <div
-                  className={`flex aspect-[4/5] items-center justify-center rounded-lg ${['bg-accent/10', 'bg-accent/20', 'bg-accent/30', 'bg-accent-raised'][index]}`}
-                >
-                  <span
-                    className={`landing-display text-[clamp(2.2rem,5vw,4.8rem)] leading-none ${index === 3 ? 'text-button-text' : 'text-accent'}`}
-                  >
-                    {index + 1}
-                  </span>
-                </div>
-                <p className="mt-3 text-left text-xs font-black tracking-widest text-text">
-                  {label}
-                </p>
-              </div>
-            ))}
-          </div>
+          <PaymentFlowShowcase />
         </section>
 
         <section

@@ -322,16 +322,35 @@ body {
   transform: translateY(-6px) rotate(0deg);
 }
 
-.landing-polaroid {
-  border-radius: 1rem;
-  background: white;
-  padding: 0.6rem 0.6rem 0.9rem;
-  box-shadow: 0 20px 45px rgb(31 41 55 / 15%);
-  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+.landing-payment-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 5%) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
 }
 
-.landing-polaroid:hover {
-  transform: translateY(-8px) rotate(0deg);
+.landing-payment-routes {
+  color: rgb(255 255 255 / 28%);
+}
+
+.landing-payment-dot {
+  position: absolute;
+  top: 0;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--color-surface);
+  border-radius: 999px;
+  background: var(--color-button-text);
+  box-shadow: 0 0 0 5px rgb(255 255 255 / 12%);
+}
+
+.landing-payment-dot-card {
+  animation: landing-card-payment 3.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.landing-payment-dot-cash {
+  animation: landing-cash-payment 3.8s 1.9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 
 .landing-journey-line {
@@ -392,18 +411,69 @@ body {
   }
 }
 
+@keyframes landing-card-payment {
+  0%,
+  8% {
+    left: 24%;
+    top: 0;
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  82% {
+    left: 50%;
+    top: 92%;
+    opacity: 1;
+  }
+
+  100% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes landing-cash-payment {
+  0%,
+  8% {
+    left: 76%;
+    top: 0;
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  82% {
+    left: 50%;
+    top: 92%;
+    opacity: 1;
+  }
+
+  100% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .account-menu-popover,
   .account-menu-panel-item,
   .board-card-moved,
   .landing-float-slow,
   .landing-float-fast,
-  .landing-layer-art {
+  .landing-layer-art,
+  .landing-payment-dot-card,
+  .landing-payment-dot-cash {
     animation: none;
   }
 
   .landing-cta,
-  .landing-polaroid,
   .landing-problem-card {
     transition: none;
   }
