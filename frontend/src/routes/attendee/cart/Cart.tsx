@@ -122,7 +122,7 @@ export default function Cart() {
           <p className="text-sm text-text-muted">Your cart is empty.</p>
           <Link
             to={backTo}
-            className="text-sm font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="text-sm font-semibold text-accent-contrast hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             Browse products
           </Link>
@@ -144,10 +144,12 @@ export default function Cart() {
           {/* Sticky checkout bar — pinned to the viewport bottom while scrolling,
               parking below the last item (above the footer) at the end. */}
           <div className="pointer-events-none sticky bottom-0 z-20 pb-4 pt-3">
-            <div className="pointer-events-auto rounded-2xl border border-border bg-surface/95 p-3 shadow-[0_8px_24px_rgba(2,8,135,0.18)] backdrop-blur">
+            <div className="pointer-events-auto rounded-2xl border border-border bg-surface/95 p-3 shadow-[0_8px_24px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm text-text-muted">Total</span>
-                <span className="text-base font-bold text-accent">€{formatMoney(totalCents)}</span>
+                <span className="text-base font-bold text-accent-contrast">
+                  €{formatMoney(totalCents)}
+                </span>
               </div>
               {editingEmail ? (
                 <div className="mb-2">

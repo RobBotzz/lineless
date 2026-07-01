@@ -28,6 +28,7 @@ import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Se
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
 
 import AttendeeLayout from './routes/attendee/AttendeeLayout';
+import { attendeeLayoutLoader } from './routes/attendee/data';
 import AttendeeProductSelection, {
   ProductSelectionError,
 } from './routes/attendee/product-selection/ProductSelection';
@@ -101,7 +102,12 @@ export const router = createBrowserRouter(
         errorElement={<EventConfigurationError />}
       />
 
-      <Route path="event/:eventId" element={<AttendeeLayout />}>
+      <Route
+        path="event/:eventId"
+        id="attendee-event"
+        element={<AttendeeLayout />}
+        loader={attendeeLayoutLoader}
+      >
         <Route
           index
           element={<AttendeeProductSelection />}

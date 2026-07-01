@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react';
-import { Link, useLoaderData, useParams, useRouteError } from 'react-router';
+import { Link, useLoaderData, useParams, useRouteError, useRouteLoaderData } from 'react-router';
 
 import { paths } from '@/paths';
 
 import { useCart } from '../cart/cart-context';
+import type { AttendeeLayoutLoaderData } from '../data';
 import { CartIcon } from '@/components/icons';
 import { ProductCard } from './ProductCard';
 import { ALL_STANDS, StandFilter } from './StandFilter';
 import type { productSelectionLoader } from './data';
 
 export default function ProductSelection() {
-  const { event, stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
+  const { stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
+  const { event } = useRouteLoaderData('attendee-event') as AttendeeLayoutLoaderData;
   const { eventId } = useParams();
   const { addItem, setQuantity, totalCount, items } = useCart();
 
@@ -66,7 +68,7 @@ export default function ProductSelection() {
         <div className="pointer-events-auto">
           <Link
             to={eventId ? paths.attendee.cart(eventId) : '#'}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 font-semibold text-[var(--color-button-text)] shadow-[0_8px_24px_rgba(2,8,135,0.25)] transition-colors hover:bg-accent/90"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 font-semibold text-[var(--color-button-text)] shadow-[0_8px_24px_color-mix(in_srgb,var(--color-accent)_25%,transparent)] transition-colors hover:bg-accent/90"
           >
             <CartIcon className="h-5 w-5" />
             <span>View Cart</span>

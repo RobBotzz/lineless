@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils';
+
 type WordmarkProps = {
   className?: string;
   underline?: boolean;
@@ -7,7 +9,7 @@ type WordmarkProps = {
 // aria-label at the call site, since those differ per context.
 export function Wordmark({ className = 'text-2xl', underline = true }: WordmarkProps) {
   return (
-    <span className={`font-logo text-accent ${className}`}>
+    <span className={cn('font-logo text-accent', className)}>
       {underline ? (
         <span className="underline decoration-current decoration-2 underline-offset-4">line</span>
       ) : (
