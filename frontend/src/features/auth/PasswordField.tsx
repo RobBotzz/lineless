@@ -49,6 +49,7 @@ export function PasswordField({
           onChange={(event) => onChange(event.target.value)}
           placeholder="Enter your password"
           type={showPassword ? 'text' : 'password'}
+          maxLength={128}
           aria-invalid={hasError}
           aria-describedby={hasError ? 'password-error' : isSignup ? 'password-help' : undefined}
         />

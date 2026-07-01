@@ -44,8 +44,11 @@ function parseHundredths(value: string): number | null {
 }
 
 // Parse a user-entered price (e.g. "12.50" or "12,50") to integer cents.
+// Returns null if the price exceeds €9,999.99 (999,999 cents).
 function parseCents(value: string): number | null {
-  return parseHundredths(value);
+  const cents = parseHundredths(value);
+  if (cents === null || cents > 999_999) return null;
+  return cents;
 }
 
 // Parse a user-entered percentage (e.g. "19" or "19,5") to integer basis points.
@@ -57,7 +60,7 @@ function parseTaxRate(value: string): number | null {
 
 function parseStock(value: string): number | null {
   const n = Number.parseInt(value, 10);
-  if (!Number.isInteger(n) || n < 0) return null;
+  if (!Number.isInteger(n) || n < 0 || n > 100_000) return null;
   return n;
 }
 
@@ -134,7 +137,9 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
     }
     const priceIncludingTax = parseCents(price);
     if (priceIncludingTax === null) {
-      setError('Enter a valid price with at most two decimals (e.g. 12.50 or 12,50)');
+      setError(
+        'Enter a valid price up to €9,999.99 with at most two decimals (e.g. 12.50 or 12,50)',
+      );
       return;
     }
     const taxRateBp = parseTaxRate(taxRate);
@@ -144,7 +149,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
     }
     const productStock = parseStock(stock);
     if (productStock === null) {
-      setError('Enter a valid initial stock amount');
+      setError('Enter a valid initial stock amount between 0 and 100,000');
       return;
     }
 
@@ -226,6 +231,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                 <TextField
                   id="product-name"
                   label="Product Name *"
+                  maxLength={100}
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
                   placeholder="e.g. Lager 0.5L"
@@ -322,6 +328,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                   <textarea
                     id="product-description"
                     className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    maxLength={1000}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Short description shown to customers"

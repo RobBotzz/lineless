@@ -22,7 +22,7 @@ export default function CashierManualOrder() {
   const { eventId, standId } = useOutletContext<CashierContext>();
   const navigate = useNavigate();
 
-  const { items, totalCents, addItem, setQuantity, setComment, removeItem, clear } = useCartState();
+  const { items, totalCents, addItem, setQuantity, removeItem, clear } = useCartState();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [standNameById, setStandNameById] = useState<Map<string, string>>(new Map());
@@ -54,7 +54,7 @@ export default function CashierManualOrder() {
         standName: standNameFor(item.product),
         unitPrice: item.product.priceIncludingTax,
         quantity: item.quantity,
-        comments: item.comments.map((comment) => comment.trim()),
+        comments: [],
       }));
       const order = await createManualOrder({ eventId, items: orderItems }, standId);
       clear(); // next customer starts with an empty cart
@@ -113,7 +113,6 @@ export default function CashierManualOrder() {
                       compact
                       standName={standNameFor(item.product)}
                       onSetQuantity={setQuantity}
-                      onSetComment={setComment}
                       onRemove={removeItem}
                     />
                   ))}

@@ -177,9 +177,12 @@ export default function EventConfiguration() {
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
 
   // Baseline hold is entered in whole euros (multiples of €1); backend requires
-  // at least 100 cents (€1.00).
+  // at least 100 cents (€1.00) and at most 1,000,000 cents (€10,000).
   const baselineHoldEuros = Number(form.baselineHold);
-  const baselineHoldValid = Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1;
+  const baselineHoldValid =
+    Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1 && baselineHoldEuros <= 10000;
+
+  const nameValid = form.name.trim().length > 0;
 
   function updateField<K extends keyof EventForm>(key: K, value: EventForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -250,7 +253,7 @@ export default function EventConfiguration() {
   });
 
   useEffect(() => {
-    if (!baselineHoldValid) return;
+    if (!baselineHoldValid || !nameValid) return;
     if (settingsSnapshot === lastSavedSnapshot) return;
     const handle = setTimeout(() => {
       pendingSnapshotRef.current = settingsSnapshot;
@@ -263,7 +266,7 @@ export default function EventConfiguration() {
       );
     }, 800);
     return () => clearTimeout(handle);
-  }, [settingsSnapshot, lastSavedSnapshot, baselineHoldValid]);
+  }, [settingsSnapshot, lastSavedSnapshot, baselineHoldValid, nameValid]);
 
   // Mark the just-sent snapshot as saved once the request succeeds; on failure
   // it stays "dirty" so the next edit retries.
@@ -513,10 +516,12 @@ export default function EventConfiguration() {
                   <TextField
                     id="event-name"
                     label="Event Name"
+                    maxLength={100}
                     onChange={(e) => updateField('name', e.target.value)}
                     placeholder="Event name"
                     type="text"
                     value={form.name}
+                    error={!nameValid ? 'Event name is required.' : undefined}
                   />
 
                   <TextField
@@ -582,7 +587,9 @@ export default function EventConfiguration() {
                     value={form.baselineHold}
                     onChange={(e) => updateField('baselineHold', e.target.value)}
                     error={
-                      baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
+                      baselineHoldValid
+                        ? undefined
+                        : 'Enter a whole number of euros between 1 and 10,000.'
                     }
                   />
 

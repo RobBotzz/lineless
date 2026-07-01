@@ -221,6 +221,7 @@ export function LocationPicker({ value, onChange, defaultCenter }: LocationPicke
       <TextField
         id="location-name"
         label="Display name (optional)"
+        maxLength={200}
         onChange={(e) => onChange({ ...value, locationName: e.target.value || null })}
         placeholder="e.g. Main Entrance"
         type="text"

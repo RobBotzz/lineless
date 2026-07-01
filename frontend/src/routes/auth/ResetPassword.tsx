@@ -89,6 +89,7 @@ export default function ResetPassword() {
           id="new-password"
           label="New password"
           autoComplete="new-password"
+          maxLength={128}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Enter a new password"

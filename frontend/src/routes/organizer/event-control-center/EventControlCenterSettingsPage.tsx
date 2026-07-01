@@ -42,6 +42,13 @@ export function EventControlCenterSettingsPage({
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [requestState, setRequestState] = useState<'idle' | 'resetting' | 'saving'>('idle');
+  const [thresholdErrors, setThresholdErrors] = useState<{
+    stockAlertThreshold?: string;
+    stands: Record<
+      string,
+      { queueLengthAlertThreshold?: string; averageWaitAlertThresholdMinutes?: string }
+    >;
+  }>({ stands: {} });
   let form = formState.form;
   let saved = formState.saved;
   if (formState.sourceSignature !== sourceSettingsSignature) {
@@ -52,6 +59,10 @@ export function EventControlCenterSettingsPage({
   const hasChanges = !controlCenterSettingsEqual(form, saved);
   const isSubmitting = requestState !== 'idle';
 
+  function isValidThreshold(value: number): boolean {
+    return Number.isInteger(value) && value >= 0;
+  }
+
   function updateStandThreshold(
     standId: string,
     key: keyof EventControlCenterSettings['standAlertThresholds'][string],
@@ -59,6 +70,14 @@ export function EventControlCenterSettingsPage({
   ) {
     setSavedMessage(null);
     setRequestError(null);
+    const errorMsg = isValidThreshold(value) ? undefined : 'Must be a whole number of 0 or more.';
+    setThresholdErrors((prev) => ({
+      ...prev,
+      stands: {
+        ...prev.stands,
+        [standId]: { ...(prev.stands[standId] ?? {}), [key]: errorMsg },
+      },
+    }));
     setFormState((current) => ({
       ...current,
       form: {
@@ -77,6 +96,8 @@ export function EventControlCenterSettingsPage({
   function updateStockAlertThreshold(value: number) {
     setSavedMessage(null);
     setRequestError(null);
+    const errorMsg = isValidThreshold(value) ? undefined : 'Must be a whole number of 0 or more.';
+    setThresholdErrors((prev) => ({ ...prev, stockAlertThreshold: errorMsg }));
     setFormState((current) => ({
       ...current,
       form: {
@@ -85,6 +106,12 @@ export function EventControlCenterSettingsPage({
       },
     }));
   }
+
+  const hasThresholdErrors =
+    !!thresholdErrors.stockAlertThreshold ||
+    Object.values(thresholdErrors.stands).some(
+      (s) => s.queueLengthAlertThreshold || s.averageWaitAlertThresholdMinutes,
+    );
 
   async function saveSettings() {
     const nextSettings = createSettingsForStands(normalizeControlCenterSettings(form), stands);
@@ -120,6 +147,7 @@ export function EventControlCenterSettingsPage({
         form: reset,
         saved: reset,
       }));
+      setThresholdErrors({ stands: {} });
       setSavedMessage('Settings reset to defaults.');
     } catch {
       setRequestError('Settings could not be reset. Please try again.');
@@ -141,6 +169,7 @@ export function EventControlCenterSettingsPage({
               <TextField
                 helperText="Products are flagged when their stock reaches this number or lower."
                 disabled={isSubmitting}
+                error={thresholdErrors.stockAlertThreshold}
                 id="stock-alert-threshold"
                 label="Stock alert threshold"
                 min={0}
@@ -168,6 +197,7 @@ export function EventControlCenterSettingsPage({
                       <TextField
                         helperText="This stand is flagged when its open queue reaches this number."
                         disabled={isSubmitting}
+                        error={thresholdErrors.stands[stand._id]?.queueLengthAlertThreshold}
                         id={`queue-length-alert-threshold-${stand._id}`}
                         label="Queue length"
                         min={0}
@@ -186,6 +216,7 @@ export function EventControlCenterSettingsPage({
                       <TextField
                         helperText="This stand is flagged when its average open-item wait reaches this duration."
                         disabled={isSubmitting}
+                        error={thresholdErrors.stands[stand._id]?.averageWaitAlertThresholdMinutes}
                         id={`average-wait-alert-threshold-${stand._id}`}
                         label="Average wait in minutes"
                         min={0}
@@ -215,7 +246,11 @@ export function EventControlCenterSettingsPage({
             <Button disabled={isSubmitting} onClick={resetSettings} size="sm" variant="secondary">
               {requestState === 'resetting' ? 'Resetting…' : 'Reset defaults'}
             </Button>
-            <Button disabled={!hasChanges || isSubmitting} onClick={saveSettings} size="sm">
+            <Button
+              disabled={!hasChanges || isSubmitting || hasThresholdErrors}
+              onClick={saveSettings}
+              size="sm"
+            >
               {requestState === 'saving' ? 'Saving…' : 'Save settings'}
             </Button>
           </div>
