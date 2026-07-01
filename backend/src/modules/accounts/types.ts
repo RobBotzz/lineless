@@ -7,11 +7,22 @@ const passwordSchema = z
   .max(128)
   .regex(/^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7E]{8,}$/, "Invalid password format");
 
+const optionalStringField = z
+  .string()
+  .optional()
+  .transform((v) => (v === "" ? undefined : v));
+
+const optionalNullableStringField = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((v) => (v === "" ? null : v != null ? v.toUpperCase() : v));
+
 export const signupSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  firstName: z.string().max(100).optional(),
-  lastName: z.string().max(100).optional(),
+  firstName: optionalStringField.pipe(z.string().max(100).optional()),
+  lastName: optionalStringField.pipe(z.string().max(100).optional()),
 });
 
 export const loginSchema = z.object({
@@ -40,17 +51,6 @@ export const changePasswordSchema = z
     message: "New password must be different from the current password.",
     path: ["newPassword"],
   });
-
-const optionalStringField = z
-  .string()
-  .optional()
-  .transform((v) => (v === "" ? undefined : v));
-
-const optionalNullableStringField = z
-  .string()
-  .nullable()
-  .optional()
-  .transform((v) => (v === "" ? null : v));
 
 export const updateAccountSchema = z
   .object({
