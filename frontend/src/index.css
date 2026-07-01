@@ -380,6 +380,45 @@ body {
   color: var(--color-accent);
 }
 
+.landing-price-digit {
+  position: relative;
+  isolation: isolate;
+  display: inline-block;
+  width: 0.72em;
+  height: 1em;
+  overflow: clip;
+  letter-spacing: 0;
+  line-height: 1;
+  contain: paint;
+}
+
+.landing-price-reel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  transition: transform 1.35s cubic-bezier(0.2, 0.75, 0.25, 1);
+  will-change: transform;
+}
+
+.landing-price-reel > span {
+  display: block;
+  height: 1em;
+  flex: 0 0 1em;
+  text-align: center;
+}
+
+.landing-price-reel-five {
+  transition-delay: 90ms;
+}
+
+.landing-rolling-price.is-rolling .landing-price-reel-zero {
+  transform: translateY(-9em);
+}
+
+.landing-rolling-price.is-rolling .landing-price-reel-five {
+  transform: translateY(-4em);
+}
+
 @keyframes landing-float-slow {
   0%,
   100% {
@@ -453,6 +492,10 @@ body {
 
   .landing-journey-scroll-dot {
     display: none;
+  }
+
+  .landing-price-reel {
+    transition: none;
   }
 
   .landing-cta,

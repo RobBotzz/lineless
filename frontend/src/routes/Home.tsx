@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
 import {
@@ -516,6 +516,54 @@ function FeatureDashboard() {
   );
 }
 
+function RollingPrice() {
+  const priceRef = useRef<HTMLSpanElement>(null);
+  const [isRolling, setIsRolling] = useState(false);
+
+  useEffect(() => {
+    const price = priceRef.current;
+    if (!price) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setIsRolling(true);
+        observer.disconnect();
+      },
+      { threshold: 0.65 },
+    );
+
+    observer.observe(price);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <span
+      aria-label="€0.05"
+      className={`landing-rolling-price inline-flex items-center text-6xl font-black leading-none sm:text-7xl ${isRolling ? 'is-rolling' : ''}`}
+      ref={priceRef}
+    >
+      <span aria-hidden="true" className="tracking-[-0.07em]">
+        €0.
+      </span>
+      <span aria-hidden="true" className="landing-price-digit">
+        <span className="landing-price-reel landing-price-reel-zero">
+          {['9', '8', '7', '6', '5', '4', '3', '2', '1', '0'].map((digit) => (
+            <span key={digit}>{digit}</span>
+          ))}
+        </span>
+      </span>
+      <span aria-hidden="true" className="landing-price-digit">
+        <span className="landing-price-reel landing-price-reel-five">
+          {['9', '8', '7', '6', '5'].map((digit) => (
+            <span key={digit}>{digit}</span>
+          ))}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 export default function Home() {
   const { isAuthenticated, status, logout } = useOrganizerAuth();
   const journeyRef = useRef<HTMLDivElement>(null);
@@ -872,10 +920,19 @@ export default function Home() {
                 </p>
               </div>
               <div className="relative rounded-3xl bg-surface p-7 text-text sm:p-9">
-                <div className="absolute right-6 top-0 -translate-y-1/2 rotate-2 rounded-full bg-accent-soft px-4 py-2 text-xs font-black uppercase tracking-wider text-accent">
+                <div className="absolute right-6 top-0 -translate-y-1/2 rotate-2 rounded-full border border-white/20 bg-accent-raised px-4 py-2 text-xs font-black uppercase tracking-wider text-button-text shadow-[0_10px_28px_rgba(2,8,135,0.28)]">
                   Pay per use
                 </div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-accent">
+                  One simple rate
+                </p>
+                <div className="mt-3 flex items-end gap-3 border-b border-border pb-6 text-accent">
+                  <RollingPrice />
+                  <span className="pb-1.5 text-sm font-black uppercase tracking-wider text-text-muted">
+                    per order
+                  </span>
+                </div>
+                <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-accent">
                   Included
                 </p>
                 <ul className="mt-6 space-y-4 text-sm font-bold">
