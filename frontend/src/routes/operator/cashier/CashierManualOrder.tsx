@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
-import { CartIcon, ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
+import { CartIcon, ImageIcon, InfoIcon, PlusIcon, WarningTriangleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { CartCard } from '@/features/cart/CartCard';
 import { useCartState } from '@/features/cart/useCartState';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { useAddGuard } from '@/lib/useAddGuard';
+import { ApiError } from '@/api/client';
 import { createManualOrder } from '@/api/orders';
 import { getOperatorStands } from '@/api/stands';
 import { getOperatorEventProducts } from '@/api/products';
@@ -29,6 +30,10 @@ export default function CashierManualOrder() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Persistent event-not-active block: 409 from the orders endpoint means the
+  // event hasn't started or has been stopped. Unlike a transient error, this
+  // won't resolve by retrying — the operator must wait for the organizer.
+  const [eventInactive, setEventInactive] = useState(false);
 
   // The cashier sells the whole event menu, so the catalog spans every stand.
   useEffect(() => {
@@ -61,7 +66,11 @@ export default function CashierManualOrder() {
       // Skip the order-selection step: go straight to the new order's payment.
       navigate(paths.operator.cashierPaymentOrder(eventId, order._id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create the order.');
+      if (err instanceof ApiError && err.status === 409) {
+        setEventInactive(true);
+      } else {
+        setError(err instanceof Error ? err.message : 'Could not create the order.');
+      }
       setIsCheckingOut(false);
     }
   }
@@ -122,6 +131,15 @@ export default function CashierManualOrder() {
             </div>
 
             <div className="border-t border-border pt-4">
+              {eventInactive && (
+                <div className="mb-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-text">
+                  <WarningTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                  <span>
+                    <span className="font-semibold">Event not active.</span> The organizer must
+                    start the event before orders can be placed.
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-text-muted">Total:</span>
                 <span className="text-base font-semibold text-accent">
@@ -130,7 +148,7 @@ export default function CashierManualOrder() {
               </div>
               <Button
                 className="mt-3 w-full"
-                disabled={items.length === 0 || isCheckingOut}
+                disabled={items.length === 0 || isCheckingOut || eventInactive}
                 onClick={handleCheckout}
               >
                 {isCheckingOut ? 'Processing…' : 'Checkout'}

@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
+import { WarningTriangleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
+import { ApiError } from '@/api/client';
 import { confirmCashPayment } from '@/api/orders';
 import { computeTotal } from '@/types/order';
 import { formatMoney } from '@/types/product';
@@ -21,6 +23,9 @@ export default function CashierPaymentDetails() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+  // Persistent block when the event is not active — 409 means the organizer
+  // must start (or has already stopped) the event.
+  const [eventInactive, setEventInactive] = useState(false);
 
   async function confirmPayment() {
     if (!order) return;
@@ -30,7 +35,11 @@ export default function CashierPaymentDetails() {
       await confirmCashPayment(order._id, standId);
       navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
     } catch (err) {
-      setPayError(err instanceof Error ? err.message : 'Could not confirm the payment.');
+      if (err instanceof ApiError && err.status === 409) {
+        setEventInactive(true);
+      } else {
+        setPayError(err instanceof Error ? err.message : 'Could not confirm the payment.');
+      }
       setIsPaying(false);
     }
   }
@@ -66,6 +75,15 @@ export default function CashierPaymentDetails() {
           </section>
 
           <div className="sticky top-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+            {eventInactive && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-text">
+                <WarningTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <span>
+                  <span className="font-semibold">Event not active.</span> The organizer must start
+                  the event before cash payments can be confirmed.
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-semibold text-text">Total</span>
               <span className="text-2xl font-bold text-accent">EUR {formatMoney(total)}</span>
@@ -73,7 +91,7 @@ export default function CashierPaymentDetails() {
             <button
               type="button"
               onClick={() => setConfirmOpen(true)}
-              disabled={isPaying}
+              disabled={isPaying || eventInactive}
               className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-md bg-success px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50"
             >
               {isPaying ? 'Processing…' : 'Confirm Payment'}
