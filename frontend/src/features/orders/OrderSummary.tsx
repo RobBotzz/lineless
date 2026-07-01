@@ -25,19 +25,21 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
       <div className="space-y-5">
         {groupByStand(items).map(([standName, standItems]) => (
           <div key={standName} className="border-l-2 border-accent pl-4">
-            <p className="text-sm font-semibold text-text">{standName}</p>
+            <p className="text-sm font-semibold text-text [overflow-wrap:anywhere]">{standName}</p>
             <ul className="mt-2 space-y-2">
               {standItems.map((item) => (
                 <li
                   key={item.productId}
                   className="flex items-start justify-between gap-3 rounded-lg bg-surface-muted p-3"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-text">{item.productName}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-text [overflow-wrap:anywhere]">
+                      {item.productName}
+                    </p>
                     <p className="text-xs text-text-muted">Quantity: {item.quantity}</p>
                     <ItemComments productName={item.productName} comments={item.comments} />
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <p className="text-sm font-semibold text-accent-contrast">
                       EUR {formatMoney(item.unitPrice * item.quantity)}
                     </p>

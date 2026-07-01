@@ -22,7 +22,7 @@ export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowPro
   const exclTax = priceExclTax(product);
 
   return (
-    <div className="flex items-center gap-3 border-t border-border px-4 py-3">
+    <div className="flex flex-wrap items-center gap-3 border-t border-border px-4 py-3">
       {/* Thumbnail — clickable to enlarge when a valid image is present */}
       <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border bg-surface-muted">
         {showImage ? (
@@ -54,12 +54,13 @@ export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowPro
         />
       )}
 
-      {/* Name + type tag + description snippet. Capped width + mr-auto leaves
-          some whitespace before the price column. The name never truncates —
-          it wraps (and the tag wraps with it) when space runs short. */}
-      <div className="mr-auto min-w-0 max-w-[62%]">
+      {/* The name takes the available space. Prices and actions are fixed-size
+          flex items and move onto another line when the card becomes narrow. */}
+      <div className="min-w-0 flex-[1_1_10rem]">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-sm font-medium break-words text-text">{product.productName}</span>
+          <span className="min-w-0 text-sm font-medium text-text [overflow-wrap:anywhere]">
+            {product.productName}
+          </span>
           <ProductTypeBadge instant={product.instantProduct} />
         </div>
         {product.productDescription && (
@@ -68,7 +69,7 @@ export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowPro
       </div>
 
       {/* Prices — incl. tax emphasized, excl. tax muted underneath */}
-      <div className="shrink-0 text-right">
+      <div className="ml-auto shrink-0 text-right">
         <p className="text-base font-semibold text-text">
           €{formatMoney(product.priceIncludingTax)}
         </p>

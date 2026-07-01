@@ -395,7 +395,7 @@ function SelectionTile({
 }) {
   return (
     <button
-      className="group flex min-h-32 flex-col rounded-lg border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
+      className="group flex min-h-32 min-w-0 flex-col rounded-lg border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
       disabled={loading}
       onClick={onClick}
       type="button"
@@ -418,7 +418,10 @@ function SelectionTile({
         ) : null}
       </span>
 
-      <span className="mt-3 block shrink-0 truncate text-base font-semibold leading-6 text-text">
+      <span
+        className="mt-3 line-clamp-2 min-w-0 shrink-0 text-base font-semibold leading-6 text-text [overflow-wrap:anywhere]"
+        title={title}
+      >
         {loading ? 'Signing in…' : title}
       </span>
 
@@ -516,7 +519,7 @@ function PasswordDialog({
           <h2 id="stand-password-title" className="mt-5 text-xl font-semibold text-text">
             Enter stand password
           </h2>
-          <p className="mt-2 text-sm leading-6 text-text-muted">
+          <p className="mt-2 text-sm leading-6 text-text-muted [overflow-wrap:anywhere]">
             {stand.standName} requires a password before the operator dashboard opens.
           </p>
 

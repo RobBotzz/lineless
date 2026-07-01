@@ -48,7 +48,10 @@ export function ProductReviewsDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-border px-5 py-4">
-          <h2 id="reviews-dialog-title" className="text-base font-semibold text-text">
+          <h2
+            id="reviews-dialog-title"
+            className="text-base font-semibold text-text [overflow-wrap:anywhere]"
+          >
             Reviews — {productName}
           </h2>
           {!reviewsQuery.isPending && (

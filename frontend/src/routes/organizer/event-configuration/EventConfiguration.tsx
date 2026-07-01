@@ -313,16 +313,16 @@ export default function EventConfiguration() {
   const renderStand = (stand: Stand) => (
     <div key={stand._id} className="rounded-lg border border-border bg-surface">
       {/* Stand header — subtly raised (accent tint) so the start of each stand is easy to spot */}
-      <div className="flex items-center justify-between rounded-t-lg border-b border-accent/15 bg-accent/10 px-4 py-3">
-        <div>
-          <h3 className="font-medium text-text">{stand.standName}</h3>
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-t-lg border-b border-accent/15 bg-accent/10 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-medium text-text [overflow-wrap:anywhere]">{stand.standName}</h3>
           {stand.location.locationName && (
             <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
               <PinIcon className="h-4 w-4 text-text-muted" /> {stand.location.locationName}
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             size="sm"
             variant="outline"

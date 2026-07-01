@@ -47,7 +47,7 @@ export function CashierLocationAccordion({ eventId }: CashierLocationAccordionPr
 
       {open ? (
         <div className="mt-4 space-y-3">
-          <p className="text-sm font-medium text-text">
+          <p className="text-sm font-medium text-text [overflow-wrap:anywhere]">
             {cashierStand.location.locationName ?? cashierStand.standName}
           </p>
           <StaticLocationMap lat={position[0]} lng={position[1]} />

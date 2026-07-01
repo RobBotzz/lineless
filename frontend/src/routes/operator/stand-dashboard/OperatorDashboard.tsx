@@ -305,11 +305,13 @@ export default function OperatorDashboard() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-5 flex items-center gap-3">
+        <header className="mb-5 flex flex-wrap items-center gap-3">
           <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
             Operator Console
           </BackButton>
-          <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
+          <h1 className="min-w-0 flex-1 text-2xl font-bold tracking-tight text-text [overflow-wrap:anywhere]">
+            {standName ?? 'Stand'}
+          </h1>
           <ConnectionBadge status={status} />
         </header>
 
@@ -485,7 +487,7 @@ function BoardItemCard({
       />
 
       <div className="pointer-events-none relative z-10 p-3">
-        <span className="block break-words text-base font-bold leading-tight text-text">
+        <span className="block text-base font-bold leading-tight text-text [overflow-wrap:anywhere]">
           {item.productName}
         </span>
         <span className="mt-1.5 block text-xs font-medium text-text-muted">
@@ -635,10 +637,13 @@ function PauseProductDialog({
         >
           {resuming ? <PlayIcon className="h-6 w-6" /> : <PauseIcon className="h-6 w-6" />}
         </span>
-        <h2 id="pause-dialog-title" className="mt-4 text-xl font-semibold text-text">
+        <h2
+          id="pause-dialog-title"
+          className="mt-4 text-xl font-semibold text-text [overflow-wrap:anywhere]"
+        >
           {resuming ? 'Resume' : 'Pause'} {product.productName}?
         </h2>
-        <p className="mt-2 text-sm leading-6 text-text-muted">
+        <p className="mt-2 text-sm leading-6 text-text-muted [overflow-wrap:anywhere]">
           {resuming
             ? `${product.productName} will be available to order again.`
             : `Customers won’t be able to order ${product.productName} until you resume it. Items already in progress are not affected.`}
@@ -742,12 +747,12 @@ function ProductSummaryRow({
       )}
     >
       <div className="flex flex-col gap-1.5 p-3">
-        <div className="flex items-start gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           <span
             className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
             style={{ backgroundColor: color }}
           />
-          <span className="text-sm font-semibold leading-tight text-text">
+          <span className="min-w-0 text-sm font-semibold leading-tight text-text [overflow-wrap:anywhere]">
             {product.productName}
           </span>
         </div>
@@ -813,15 +818,23 @@ function ProductFilterChip({
       className={cn(
         // Comfortable size on tablet and up; only slightly more compact on small
         // mobile viewports (below the sm breakpoint).
-        'inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm',
+        'inline-flex min-h-9 max-w-full min-w-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm',
         active
           ? 'border-accent bg-accent-soft text-accent'
           : 'border-border bg-surface text-text hover:bg-surface-muted',
       )}
     >
-      <span className="h-2 w-2 rounded-full sm:h-2.5 sm:w-2.5" style={{ backgroundColor: color }} />
-      {product.productName}
-      <span className="text-text-muted">{count}</span>
+      <span
+        className="h-2 w-2 shrink-0 rounded-full sm:h-2.5 sm:w-2.5"
+        style={{ backgroundColor: color }}
+      />
+      <span
+        className="line-clamp-2 min-w-0 max-w-56 text-left [overflow-wrap:anywhere]"
+        title={product.productName}
+      >
+        {product.productName}
+      </span>
+      <span className="shrink-0 text-text-muted">{count}</span>
     </button>
   );
 }
@@ -837,7 +850,12 @@ function ConnectionBadge({ status }: { status: SseStatus }) {
   if (!current) return null;
 
   return (
-    <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold', current.text)}>
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold',
+        current.text,
+      )}
+    >
       <span
         className={cn('h-2 w-2 rounded-full', current.dot, status !== 'open' && 'animate-pulse')}
       />
