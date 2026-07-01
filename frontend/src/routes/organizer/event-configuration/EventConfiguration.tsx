@@ -1014,6 +1014,8 @@ const BRAND_PRESETS: readonly BrandPreset[] = [
   { name: 'Mono', primaryColor: '#1f2937', secondaryColor: '#ffffff', accentTextColor: '#1f2937' },
 ] as const;
 
+const HEX_RE = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
+
 // Generic brand color picker (swatch + hex input). `auto` adds an Auto chip for
 // roles that can derive their value (the live preview shows the result).
 function BrandColorField({
@@ -1030,9 +1032,31 @@ function BrandColorField({
   auto?: { active: boolean; onEnable: () => void };
 }) {
   const [showAutoInfo, setShowAutoInfo] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  // Sync draft when an external change (e.g. preset applied) lands.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDraft(value);
+  }, [value]);
+
+  const isValidHex = HEX_RE.test(draft);
+  const showError = draft.length > 1 && !isValidHex;
+
+  function handleTextChange(raw: string) {
+    let next = raw;
+    if (next === '') {
+      next = '#';
+    } else if (!next.startsWith('#')) {
+      next = '#' + next;
+    }
+    setDraft(next);
+    if (HEX_RE.test(next)) onChange(next);
+  }
+
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-2 flex items-center justify-start gap-2">
+      <div className="mb-2 flex min-h-7 items-center justify-start gap-2">
         <label className="block text-sm font-medium text-text" htmlFor={id}>
           {label}
         </label>
@@ -1093,26 +1117,32 @@ function BrandColorField({
       <div className="flex flex-1 flex-wrap items-center gap-2">
         <div
           className={cn(
-            'flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2',
+            'flex flex-1 items-center justify-center gap-2 rounded-lg border bg-surface px-3 py-2',
+            showError ? 'border-danger' : 'border-border',
             auto?.active && 'opacity-60',
           )}
         >
           <input
             aria-label={`${label} swatch`}
             className="h-8 w-10 shrink-0 cursor-pointer rounded border border-border bg-transparent"
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              onChange(e.target.value);
+            }}
             type="color"
-            value={value}
+            value={isValidHex ? draft : value}
           />
           <input
             className="w-24 bg-transparent text-center text-sm text-text outline-none"
             id={id}
-            onChange={(e) => onChange(e.target.value)}
+            maxLength={7}
+            onChange={(e) => handleTextChange(e.target.value)}
             type="text"
-            value={value}
+            value={draft}
           />
         </div>
       </div>
+      <p className={cn('mt-1.5 text-xs text-danger', !showError && 'invisible')}>Invalid color</p>
     </div>
   );
 }
@@ -1133,7 +1163,9 @@ function ButtonTextColorField({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <span className="mb-2 block text-left text-sm font-medium text-text">Button Text</span>
+      <span className="mb-2 flex min-h-7 items-center text-sm font-medium text-text">
+        Button Text
+      </span>
       <div className="flex flex-1 items-center justify-start">
         <div className="flex rounded-lg border border-border bg-surface p-1">
           {BUTTON_TEXT_OPTIONS.map((option) => (
@@ -1154,6 +1186,7 @@ function ButtonTextColorField({
           ))}
         </div>
       </div>
+      <p className="invisible mt-1.5 text-xs">.</p>
     </div>
   );
 }
