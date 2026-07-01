@@ -368,7 +368,7 @@ function PaymentFlowShowcase() {
             <p className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-text-muted">
               Pay on site
             </p>
-            <p className="mt-1 truncate text-sm font-bold sm:text-base">Cashier payment</p>
+            <p className="mt-1 truncate text-sm font-bold sm:text-base">Cash payment</p>
           </div>
           <span className="hidden rounded-full bg-surface-muted px-2.5 py-1 text-[0.65rem] font-semibold text-text-muted sm:block">
             On-site
@@ -653,15 +653,11 @@ export default function Home() {
       />
 
       <main>
-        <section className="relative scroll-mt-20 px-6 pb-28 pt-16 sm:pt-24 lg:pb-36" id="home">
+        <section className="relative scroll-mt-20 px-6 pb-28 pt-8 sm:pt-12 lg:pb-36" id="home">
           <div aria-hidden="true" className="landing-grid absolute inset-0 opacity-40" />
           <div className="relative mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.88fr_1.12fr] lg:gap-4">
             <div className="relative z-10">
-              <div className="landing-kicker">
-                <span className="h-2 w-2 rounded-full bg-accent" />
-                Built for busy event days
-              </div>
-              <h1 className="landing-display mt-6 max-w-3xl text-[clamp(3.5rem,7.7vw,7.2rem)] leading-[0.83] text-text">
+              <h1 className="landing-display max-w-3xl text-[clamp(3.5rem,7.7vw,7.2rem)] leading-[0.83] text-text">
                 TURN LINES
                 <br />
                 INTO <span className="text-accent">GOOD TIMES.</span>
@@ -924,7 +920,7 @@ export default function Home() {
                   Pay per use
                 </div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-accent">
-                  One simple rate
+                  One simple rate*
                 </p>
                 <div className="mt-3 flex items-end gap-3 border-b border-border pb-6 text-accent">
                   <RollingPrice />
@@ -950,7 +946,7 @@ export default function Home() {
                 </ul>
                 <PrimaryCta className="mt-8 w-full" status={status} />
                 <p className="mt-3 text-center text-xs text-text-muted">
-                  Start setting up before the gates open.
+                  *Stripe payment rate not included in the order cost.
                 </p>
               </div>
             </div>

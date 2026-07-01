@@ -215,22 +215,6 @@ body {
   text-transform: uppercase;
 }
 
-.landing-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
-  padding: 0.55rem 0.8rem;
-  color: var(--color-text);
-  font-size: 0.68rem;
-  font-weight: 850;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  backdrop-filter: blur(14px);
-}
-
 .landing-grid {
   background-image:
     linear-gradient(color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px),
