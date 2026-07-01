@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Elements } from '@stripe/react-stripe-js';
 
-import { Button } from '@/components/ui/button';
+import { AlertDialog } from '@/components/feedback';
 import { createCardOrder, getAttendeeOrder } from '@/api/orders';
 import { createTab, getTabStatus } from '@/api/tabs';
 import { clearAttendeeTab, getAttendeeTab, setAttendeeTab } from '@/auth/keychain';
@@ -183,6 +183,21 @@ export function CardCheckoutDialog({
     void runCheckout();
   }
 
+  // Failures use the shared alert so this matches the app's other popups.
+  if (phase === 'error') {
+    return (
+      <AlertDialog
+        message={error}
+        title="Payment couldn't be completed"
+        variant="danger"
+        cancelLabel="Cancel"
+        onCancel={handleCancel}
+        acknowledgeLabel="Try again"
+        onAcknowledge={handleRetry}
+      />
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 px-4 py-8"
@@ -209,19 +224,7 @@ export function CardCheckoutDialog({
         </div>
 
         <div className="overflow-y-auto px-6 py-5">
-          {phase === 'error' ? (
-            <div className="space-y-4">
-              <p className="text-sm text-danger">{error}</p>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={handleCancel}>
-                  Cancel
-                </Button>
-                <Button className="flex-1" onClick={handleRetry}>
-                  Try again
-                </Button>
-              </div>
-            </div>
-          ) : prompt ? (
+          {prompt ? (
             <div className="space-y-4">
               <p className="text-sm text-text-muted">
                 {prompt.amountCents != null
