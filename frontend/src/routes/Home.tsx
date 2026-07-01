@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
 import {
@@ -14,12 +14,7 @@ import {
 } from '../components/icons';
 import { AccountMenu, LandingPageNavbar } from '../components/layout/navbars';
 import { buttonVariants } from '../components/ui/button';
-import heroLayers from '../assets/hero.png';
 import { paths } from '../paths';
-
-const SECTION_IDS = ['home', 'impact', 'pricing'] as const;
-
-type SectionId = (typeof SECTION_IDS)[number];
 
 const journeySteps = [
   {
@@ -84,12 +79,6 @@ function WindowShell({ children, className = '' }: { children: ReactNode; classN
 function HeroDashboard() {
   return (
     <div className="landing-hero-visual relative mx-auto min-h-[31rem] w-full max-w-[38rem] sm:min-h-[36rem]">
-      <img
-        aria-hidden="true"
-        className="landing-layer-art absolute right-[2%] top-[2%] w-52 opacity-30 sm:w-64"
-        src={heroLayers}
-      />
-
       <WindowShell className="landing-float-slow absolute left-0 top-10 w-[92%] -rotate-2 sm:left-[2%] sm:w-[88%]">
         <div className="min-h-[24rem] bg-background p-3 text-text sm:p-5">
           <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 shadow-sm">
@@ -178,7 +167,9 @@ function HeroDashboard() {
 
 function ProductSelectionMockup({ compact = true }: { compact?: boolean }) {
   return (
-    <div className="overflow-hidden rounded-[1.25rem] bg-background px-3 pb-3 pt-5 text-text">
+    <div
+      className={`overflow-hidden rounded-[1.25rem] bg-background pb-3 pt-5 text-text ${compact ? 'px-2' : 'px-3'}`}
+    >
       <div className="flex gap-1 overflow-hidden text-[0.4rem] font-semibold">
         <span className="rounded-full border border-accent bg-accent px-2 py-1 text-button-text">
           All
@@ -197,7 +188,7 @@ function ProductSelectionMockup({ compact = true }: { compact?: boolean }) {
             ]
         ).map(([name, price]) => (
           <div
-            className="flex items-center gap-2 rounded-lg border border-border bg-surface p-2 shadow-sm"
+            className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-border bg-surface p-2 shadow-sm"
             key={name}
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-accent">
@@ -207,8 +198,8 @@ function ProductSelectionMockup({ compact = true }: { compact?: boolean }) {
               <p className="truncate text-[0.5rem] font-semibold">{name}</p>
               <p className="mt-1 text-[0.45rem] font-semibold">{price}</p>
             </div>
-            <span className="rounded bg-accent px-1.5 py-1 text-[0.4rem] font-semibold text-button-text">
-              + Add
+            <span className="whitespace-nowrap rounded bg-accent px-1.5 py-1 text-[0.4rem] font-semibold text-button-text">
+              {compact ? '+' : '+ Add'}
             </span>
           </div>
         ))}
@@ -223,7 +214,7 @@ function ProductSelectionMockup({ compact = true }: { compact?: boolean }) {
 
 function EventPhone() {
   return (
-    <div className="mx-auto w-36 rounded-[1.5rem] border-4 border-accent bg-surface p-2 shadow-[0_20px_50px_rgba(2,8,135,0.24)]">
+    <div className="mx-auto w-48 rounded-[1.75rem] border-4 border-accent bg-surface p-2 shadow-[0_20px_50px_rgba(2,8,135,0.24)]">
       <ProductSelectionMockup compact={false} />
     </div>
   );
@@ -231,7 +222,7 @@ function EventPhone() {
 
 function CartPhone() {
   return (
-    <div className="mx-auto w-36 rounded-[1.5rem] border-4 border-accent bg-surface p-2 shadow-[0_20px_50px_rgba(2,8,135,0.24)]">
+    <div className="mx-auto w-48 rounded-[1.75rem] border-4 border-accent bg-surface p-2 shadow-[0_20px_50px_rgba(2,8,135,0.24)]">
       <div className="rounded-[1rem] bg-background px-2 py-5 text-left text-text">
         <p className="text-[0.45rem] font-semibold text-text-muted">Placed today, 21:36</p>
         <div className="mt-2 overflow-hidden rounded-lg bg-accent text-button-text">
@@ -268,7 +259,7 @@ function QueuePanel() {
   ] as const;
 
   return (
-    <div className="mx-auto w-72 rotate-1 rounded-xl border border-border bg-background p-3 text-left text-text shadow-[0_20px_50px_rgba(2,8,135,0.2)]">
+    <div className="mx-auto w-full max-w-[22rem] rotate-1 rounded-xl border border-border bg-background p-3 text-left text-text shadow-[0_20px_50px_rgba(2,8,135,0.2)]">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-[0.55rem] font-bold">Burger stand</p>
         <span className="text-[0.4rem] font-semibold text-success">● Live</span>
@@ -302,7 +293,7 @@ function QueuePanel() {
 
 function PickupPanel() {
   return (
-    <div className="mx-auto w-72 -rotate-1 rounded-xl border border-border bg-surface p-3 text-left text-text shadow-[0_20px_50px_rgba(2,8,135,0.2)]">
+    <div className="mx-auto w-full max-w-[22rem] -rotate-1 rounded-xl border border-border bg-surface p-3 text-left text-text shadow-[0_20px_50px_rgba(2,8,135,0.2)]">
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold">Burger stand</p>
         <span className="rounded border border-border bg-surface px-2 py-1 text-[0.4rem]">
@@ -340,88 +331,124 @@ function PickupPanel() {
 
 function PaymentFlowShowcase() {
   return (
-    <div className="landing-payment-stage relative mx-auto mt-14 max-w-5xl overflow-hidden rounded-[2rem] border border-accent/15 bg-accent px-5 py-8 text-left text-button-text shadow-[0_35px_90px_rgba(2,8,135,0.25)] sm:px-10 sm:py-10">
+    <div className="landing-payment-stage relative mx-auto mt-14 max-w-5xl overflow-hidden rounded-[2rem] border border-border bg-surface px-5 py-6 text-left text-text shadow-[0_30px_80px_rgba(2,8,135,0.1)] sm:px-8 sm:py-8">
       <div className="landing-payment-grid pointer-events-none absolute inset-0" />
 
-      <div className="relative flex items-center justify-between gap-4">
-        <div>
-          <p className="landing-eyebrow text-button-text/55">Live payment routing</p>
-          <p className="mt-2 text-lg font-black sm:text-2xl">One event. Two ways to pay.</p>
-        </div>
-        <span className="hidden items-center gap-2 rounded-full border border-button-text/15 bg-button-text/10 px-3 py-2 text-xs font-semibold sm:inline-flex">
-          <i className="h-2 w-2 animate-pulse rounded-full bg-button-text" /> Accepting orders
+      <div className="relative flex items-center justify-between gap-4 border-b border-border pb-5">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-accent">
+          Payment routing
+        </p>
+        <span className="inline-flex items-center gap-2 rounded-full border border-success/20 bg-success/5 px-3 py-1.5 text-xs font-semibold text-success">
+          <i className="h-2 w-2 animate-pulse rounded-full bg-success motion-reduce:animate-none" />{' '}
+          Live
         </span>
       </div>
 
-      <div className="relative mt-9 grid grid-cols-2 gap-3 sm:gap-6">
-        <article className="relative z-10 rounded-2xl border border-button-text/15 bg-button-text/10 p-4 backdrop-blur sm:p-6">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-button-text text-accent">
+      <div className="relative mt-6 grid grid-cols-2 gap-3 sm:gap-5">
+        <article className="relative z-10 flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-background p-3 shadow-sm sm:gap-4 sm:p-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent sm:h-12 sm:w-12">
             <CreditCardIcon className="h-5 w-5" />
           </span>
-          <p className="mt-6 text-xs font-black uppercase tracking-[0.14em] text-button-text/55">
-            Pay online
-          </p>
-          <p className="mt-1 text-lg font-black sm:text-2xl">Card payment</p>
-          <p className="mt-2 hidden text-sm leading-relaxed text-button-text/60 sm:block">
-            Guests pay directly while placing the order.
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-text-muted">
+              Pay online
+            </p>
+            <p className="mt-1 truncate text-sm font-bold sm:text-base">Card payment</p>
+          </div>
+          <span className="hidden rounded-full bg-accent-soft px-2.5 py-1 text-[0.65rem] font-semibold text-accent sm:block">
+            Instant
+          </span>
         </article>
 
-        <article className="relative z-10 rounded-2xl border border-button-text/15 bg-button-text/10 p-4 backdrop-blur sm:p-6">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-button-text text-accent">
+        <article className="relative z-10 flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-background p-3 shadow-sm sm:gap-4 sm:p-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent sm:h-12 sm:w-12">
             <CashierIcon className="h-5 w-5" />
           </span>
-          <p className="mt-6 text-xs font-black uppercase tracking-[0.14em] text-button-text/55">
-            Pay on site
-          </p>
-          <p className="mt-1 text-lg font-black sm:text-2xl">Cashier payment</p>
-          <p className="mt-2 hidden text-sm leading-relaxed text-button-text/60 sm:block">
-            Cash orders are confirmed at the event cashier.
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-text-muted">
+              Pay on site
+            </p>
+            <p className="mt-1 truncate text-sm font-bold sm:text-base">Cashier payment</p>
+          </div>
+          <span className="hidden rounded-full bg-surface-muted px-2.5 py-1 text-[0.65rem] font-semibold text-text-muted sm:block">
+            On-site
+          </span>
         </article>
+      </div>
 
-        <div
-          aria-hidden="true"
-          className="landing-payment-routes pointer-events-none absolute inset-x-0 top-full h-32"
+      <div
+        aria-hidden="true"
+        className="landing-payment-routes relative mx-auto h-auto w-full max-w-3xl"
+      >
+        <svg
+          className="block h-auto w-full"
+          preserveAspectRatio="xMidYMid meet"
+          viewBox="0 0 800 260"
         >
-          <svg className="h-full w-full" preserveAspectRatio="none" viewBox="0 0 600 128">
-            <path
-              d="M145 0 C145 68 300 48 300 124"
-              fill="none"
-              stroke="currentColor"
-              strokeDasharray="5 8"
-              strokeWidth="2"
+          <path
+            className="landing-payment-path"
+            d="M200 0 C200 92 400 62 400 136"
+            fill="none"
+            pathLength="1"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <path
+            className="landing-payment-path"
+            d="M600 0 C600 92 400 62 400 136"
+            fill="none"
+            pathLength="1"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <path
+            className="landing-payment-path"
+            d="M400 136 L400 260"
+            fill="none"
+            pathLength="1"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <circle className="landing-payment-packet" fill="currentColor" r="8">
+            <animateMotion
+              begin="0s"
+              dur="4s"
+              path="M200 0 C200 92 400 62 400 136 L400 260"
+              repeatCount="indefinite"
             />
-            <path
-              d="M455 0 C455 68 300 48 300 124"
-              fill="none"
-              stroke="currentColor"
-              strokeDasharray="5 8"
-              strokeWidth="2"
+          </circle>
+          <circle className="landing-payment-packet" fill="currentColor" r="8">
+            <animateMotion
+              begin="2s"
+              dur="4s"
+              path="M600 0 C600 92 400 62 400 136 L400 260"
+              repeatCount="indefinite"
             />
-          </svg>
-          <span className="landing-payment-dot landing-payment-dot-card" />
-          <span className="landing-payment-dot landing-payment-dot-cash" />
+          </circle>
+        </svg>
+        <div className="landing-payment-router absolute left-1/2 top-[52%] flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[6px] border-surface bg-accent text-center text-button-text shadow-[0_14px_35px_rgba(2,8,135,0.3)]">
+          <span className="text-[0.55rem] font-black uppercase leading-tight tracking-wider">
+            One
+            <br /> queue
+          </span>
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto mt-28 max-w-md rounded-2xl border border-border bg-surface p-4 text-text shadow-[0_24px_60px_rgba(0,0,0,0.24)] sm:p-5">
-        <div className="flex items-center gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
-            <CheckCircleIcon className="h-6 w-6" />
+      <div className="landing-payment-order relative z-10 mx-auto -mt-1 max-w-lg overflow-hidden rounded-2xl border border-border bg-surface text-text shadow-[0_18px_45px_rgba(2,8,135,0.13)]">
+        <span className="absolute inset-y-0 left-0 w-1 bg-accent" />
+        <div className="flex items-center gap-4 p-4 sm:p-5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
+            <CheckCircleIcon className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-bold">Order #A14</p>
-              <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
-                Paid
-              </span>
-            </div>
-            <p className="mt-1 text-sm text-text-muted">Burger stand · 2 items</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+              Sent to Burger stand
+            </p>
+            <p className="mt-1 font-bold">Order #A14 · 2 items</p>
           </div>
-        </div>
-        <div className="mt-4 flex items-center gap-2 border-t border-border pt-3 text-xs font-semibold text-accent">
-          <span className="h-2 w-2 rounded-full bg-accent" /> Sent to the same operator queue
+          <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+            Paid
+          </span>
         </div>
       </div>
     </div>
@@ -491,43 +518,84 @@ function FeatureDashboard() {
 
 export default function Home() {
   const { isAuthenticated, status, logout } = useOrganizerAuth();
-  const [activeSection, setActiveSection] = useState<SectionId>('home');
+  const journeyRef = useRef<HTMLDivElement>(null);
+  const journeyPathRef = useRef<SVGPathElement>(null);
+  const journeyDotRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-        if (visible.length > 0) setActiveSection(visible[0].target.id as SectionId);
-      },
-      { root: null, rootMargin: '-30% 0px -45% 0px', threshold: [0.2, 0.4, 0.6, 0.8] },
-    );
+    const journey = journeyRef.current;
+    const path = journeyPathRef.current;
+    const dot = journeyDotRef.current;
+    if (!journey || !path || !dot) return;
 
-    SECTION_IDS.forEach((id) => {
-      const section = document.getElementById(id);
-      if (section) observer.observe(section);
-    });
+    const steps = [...journey.querySelectorAll<HTMLElement>('.landing-journey-step')];
+    let frame = 0;
 
-    return () => observer.disconnect();
+    const renderScrollMotion = () => {
+      frame = 0;
+      const viewportHeight = window.innerHeight;
+      const journeyRect = journey.getBoundingClientRect();
+      const progress = Math.min(
+        1,
+        Math.max(
+          0,
+          (viewportHeight * 0.65 - journeyRect.top) / (journeyRect.height + viewportHeight * 0.3),
+        ),
+      );
+
+      const svg = path.ownerSVGElement;
+      if (svg) {
+        const svgRect = svg.getBoundingClientRect();
+        const point = path.getPointAtLength(path.getTotalLength() * progress);
+        const x = svgRect.left - journeyRect.left + (point.x / 180) * svgRect.width;
+        const y = svgRect.top - journeyRect.top + (point.y / 1000) * svgRect.height;
+        dot.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+      }
+
+      steps.forEach((step) => {
+        const stepRect = step.getBoundingClientRect();
+        const rawReveal = Math.min(
+          1,
+          Math.max(0, (viewportHeight * 0.9 - stepRect.top) / (viewportHeight * 0.52)),
+        );
+        const reveal = 1 - Math.pow(1 - rawReveal, 3);
+        const direction = step.dataset.side === 'right' ? 1 : -1;
+        const visual = step.querySelector<HTMLElement>('.landing-journey-visual');
+        const copy = step.querySelector<HTMLElement>('.landing-journey-copy');
+
+        if (visual) {
+          visual.style.opacity = String(reveal);
+          visual.style.transform = `translate3d(${direction * (1 - reveal) * 96}px, ${(1 - reveal) * 28}px, 0) rotate(${direction * (1 - reveal) * 3}deg)`;
+        }
+        if (copy) {
+          copy.style.opacity = String(Math.min(1, reveal * 1.15));
+          copy.style.transform = `translate3d(0, ${(1 - reveal) * 28}px, 0)`;
+        }
+      });
+    };
+
+    const requestRender = () => {
+      if (!frame) frame = window.requestAnimationFrame(renderScrollMotion);
+    };
+    const resizeObserver = new ResizeObserver(requestRender);
+    resizeObserver.observe(journey);
+    window.addEventListener('scroll', requestRender, { passive: true });
+    window.addEventListener('resize', requestRender);
+    renderScrollMotion();
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      window.removeEventListener('scroll', requestRender);
+      window.removeEventListener('resize', requestRender);
+    };
   }, []);
 
   return (
     <div className="landing-page min-h-screen overflow-hidden bg-background">
       <LandingPageNavbar
-        centerLinks={[
-          { label: 'Home', to: '#home' },
-          { label: 'Impact', to: '#impact' },
-          { label: 'Pricing', to: '#pricing' },
-        ]}
-        activeCenterLinkTo={`#${activeSection}`}
-        onCenterLinkClick={(to) => {
-          const id = to.replace('#', '') as SectionId;
-          setActiveSection(id);
-          const el = document.getElementById(id);
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
-        }}
         right={
           status === 'loading' ? null : (
             <AccountMenu isAuthenticated={isAuthenticated} onSignOut={logout} />
@@ -645,28 +713,38 @@ export default function Home() {
                 ZERO CHAOS.
               </h2>
             </div>
-            <div className="relative mx-auto mt-20 max-w-5xl">
+            <div className="landing-journey relative mx-auto mt-20 max-w-6xl" ref={journeyRef}>
               <svg
                 aria-hidden="true"
-                className="landing-journey-line absolute left-1/2 top-0 hidden h-full w-48 -translate-x-1/2 lg:block"
+                className="landing-journey-line pointer-events-none absolute bottom-0 left-1/2 top-0 hidden h-full w-40 -translate-x-1/2 lg:block"
                 preserveAspectRatio="none"
                 viewBox="0 0 180 1000"
               >
                 <path
+                  ref={journeyPathRef}
                   d="M90 0 C15 90 15 170 90 235 S165 390 90 475 S15 640 90 715 S165 870 90 1000"
                   fill="none"
                   stroke="white"
                   strokeLinecap="round"
-                  strokeWidth="8"
+                  strokeWidth="6"
+                  vectorEffect="non-scaling-stroke"
                 />
               </svg>
-              <div className="space-y-12 lg:space-y-20">
+              <span
+                aria-hidden="true"
+                className="landing-journey-scroll-dot pointer-events-none absolute left-0 top-0 z-30 hidden h-4 w-4 rounded-full border-2 border-accent-raised bg-white shadow-[0_0_0_7px_rgba(255,255,255,0.16),0_0_18px_rgba(255,255,255,0.9)] lg:block"
+                ref={journeyDotRef}
+              />
+              <div className="space-y-14 lg:space-y-24">
                 {journeySteps.map((step, index) => (
                   <article
-                    className={`relative z-10 grid items-center gap-8 lg:grid-cols-2 lg:gap-40 ${index % 2 ? '' : ''}`}
+                    className="landing-journey-step relative z-10 grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_10rem_minmax(0,1fr)] lg:gap-0"
+                    data-side={index % 2 === 0 ? 'right' : 'left'}
                     key={step.title}
                   >
-                    <div className={index % 2 ? 'lg:order-2' : ''}>
+                    <div
+                      className={`landing-journey-copy w-full max-w-sm lg:row-start-1 ${index % 2 ? 'lg:col-start-3 lg:justify-self-start' : 'lg:col-start-1 lg:justify-self-end'}`}
+                    >
                       <div className="landing-step-card">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-accent">
                           {step.icon}
@@ -680,8 +758,13 @@ export default function Home() {
                         <p className="mt-4 text-sm leading-relaxed text-white/65">{step.text}</p>
                       </div>
                     </div>
+                    <div className="relative z-20 hidden items-center justify-center lg:col-start-2 lg:row-start-1 lg:flex">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full border-4 border-accent bg-white text-xs font-black text-accent shadow-[0_0_0_8px_rgba(255,255,255,0.12)]">
+                        {index + 1}
+                      </span>
+                    </div>
                     <div
-                      className={`flex min-h-64 items-center justify-center ${index % 2 ? 'lg:order-1' : ''}`}
+                      className={`landing-journey-visual flex min-h-80 w-full max-w-sm items-center justify-center lg:row-start-1 ${index % 2 ? 'lg:col-start-1 lg:justify-self-end' : 'lg:col-start-3 lg:justify-self-start'}`}
                     >
                       {step.mockup}
                     </div>
