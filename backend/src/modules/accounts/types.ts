@@ -35,7 +35,11 @@ export const changePasswordSchema = z
     currentPassword: z.string().min(1),
     newPassword: passwordSchema,
   })
-  .strict();
+  .strict()
+  .refine((data) => data.newPassword !== data.currentPassword, {
+    message: "New password must be different from the current password.",
+    path: ["newPassword"],
+  });
 
 const optionalStringField = z
   .string()
