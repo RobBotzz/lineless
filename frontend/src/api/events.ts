@@ -17,6 +17,11 @@ export function getAttendeeEvent(eventId: string): Promise<Event> {
   return apiFetch<Event>(`/events/${eventId}`, { auth: 'attendee', eventId });
 }
 
+// Operator (cashier) reads the event via the event-scoped operator access key.
+export function getOperatorEvent(eventId: string): Promise<Event> {
+  return apiFetch<Event>(`/events/${eventId}`, { auth: 'operator-link' });
+}
+
 export function createEvent(input: CreateEventInput): Promise<Event> {
   return apiFetch<Event>('/events', {
     method: 'POST',

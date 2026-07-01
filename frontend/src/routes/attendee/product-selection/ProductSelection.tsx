@@ -53,6 +53,7 @@ export default function ProductSelection() {
               product={product}
               standName={standsById[product.standId] ?? ''}
               cartQuantity={cartQuantityById[product._id] ?? 0}
+              ratingsEnabled={event.ratingsEnabled}
               onAdd={addItem}
               onSetQuantity={setQuantity}
             />

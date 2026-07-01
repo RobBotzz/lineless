@@ -13,6 +13,7 @@ interface ProductCardProps {
   product: Product;
   standName: string;
   cartQuantity: number;
+  ratingsEnabled: boolean;
   onAdd: (product: Product) => void;
   onSetQuantity: (productId: string, quantity: number) => void;
 }
@@ -21,6 +22,7 @@ export function ProductCard({
   product,
   standName,
   cartQuantity,
+  ratingsEnabled,
   onAdd,
   onSetQuantity,
 }: ProductCardProps) {
@@ -78,7 +80,7 @@ export function ProductCard({
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         {/* pr-6 keeps the name clear of the info button. */}
         <h3 className="truncate pr-6 text-sm font-semibold text-text">{product.productName}</h3>
-        <Rating value={rating} />
+        {ratingsEnabled && <Rating value={rating} />}
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-3">
           <span className="text-sm font-semibold text-text">
@@ -121,6 +123,7 @@ export function ProductCard({
           product={product}
           standName={standName}
           rating={rating}
+          showRating={ratingsEnabled}
           onClose={() => setDetailsOpen(false)}
         />
       )}

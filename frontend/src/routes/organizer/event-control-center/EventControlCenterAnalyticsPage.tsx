@@ -14,11 +14,13 @@ export function EventControlCenterAnalyticsPage({
   analytics,
   eventStartAt,
   productsByStand,
+  ratingsEnabled,
   stands,
 }: {
   analytics: EventControlCenterData;
   eventStartAt: string;
   productsByStand: Record<string, Product[]>;
+  ratingsEnabled: boolean;
   stands: Stand[];
 }) {
   const standNameById = useMemo(
@@ -92,11 +94,13 @@ export function EventControlCenterAnalyticsPage({
 
       <StockAlertsSection productStockAlerts={productStockAlerts} />
 
-      <ProductRatingsSection
-        productsByStand={productsByStand}
-        productRatings={analytics.productRatings}
-        stands={stands}
-      />
+      {ratingsEnabled && (
+        <ProductRatingsSection
+          productsByStand={productsByStand}
+          productRatings={analytics.productRatings}
+          stands={stands}
+        />
+      )}
     </div>
   );
 }

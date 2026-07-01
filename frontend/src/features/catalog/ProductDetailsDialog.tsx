@@ -10,6 +10,8 @@ interface ProductDetailsDialogProps {
   product: Product;
   standName: string;
   rating: number | null;
+  // Hidden when the event has ratings disabled.
+  showRating?: boolean;
   onClose: () => void;
 }
 
@@ -17,6 +19,7 @@ export function ProductDetailsDialog({
   product,
   standName,
   rating,
+  showRating = true,
   onClose,
 }: ProductDetailsDialogProps) {
   const [imageOk, setImageOk] = useState(true);
@@ -70,7 +73,7 @@ export function ProductDetailsDialog({
               </h2>
               {standName && <p className="mt-0.5 text-sm text-text-muted">{standName}</p>}
             </div>
-            <Rating value={rating} className="shrink-0" />
+            {showRating && <Rating value={rating} className="shrink-0" />}
           </div>
 
           {product.productDescription && (

@@ -19,7 +19,7 @@ import type { CashierContext } from './CashierLayout';
 
 // Cart is in-memory (no persistKey) so it starts fresh for each customer.
 export default function CashierManualOrder() {
-  const { eventId, standId } = useOutletContext<CashierContext>();
+  const { eventId, standId, ratingsEnabled } = useOutletContext<CashierContext>();
   const navigate = useNavigate();
 
   const { items, totalCents, addItem, setQuantity, setComment, removeItem, clear } = useCartState();
@@ -88,6 +88,7 @@ export default function CashierManualOrder() {
                     key={product._id}
                     product={product}
                     standName={standNameFor(product)}
+                    ratingsEnabled={ratingsEnabled}
                     onAdd={() => addItem(product)}
                   />
                 ))
@@ -155,10 +156,12 @@ export default function CashierManualOrder() {
 function ProductTile({
   product,
   standName,
+  ratingsEnabled,
   onAdd,
 }: {
   product: Product;
   standName: string;
+  ratingsEnabled: boolean;
   onAdd: () => void;
 }) {
   const [imageOk, setImageOk] = useState(true);
@@ -218,6 +221,7 @@ function ProductTile({
           product={product}
           standName={standName}
           rating={product.rating ?? null}
+          showRating={ratingsEnabled}
           onClose={() => setDetailsOpen(false)}
         />
       )}

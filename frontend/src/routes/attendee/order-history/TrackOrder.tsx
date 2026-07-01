@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router';
 
+import { getAttendeeEvent } from '@/api/events';
 import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
 import { BackButton } from '@/components/shared';
@@ -163,6 +164,13 @@ export default function TrackOrder() {
     staleTime: 60_000,
   });
 
+  // Gates the review entry point — hidden when the organizer disabled ratings.
+  const eventQuery = useQuery({
+    queryKey: ['attendee-event', eventId],
+    queryFn: () => getAttendeeEvent(eventId),
+    staleTime: 60_000,
+  });
+
   const viewItemsQuery = useQuery({
     queryKey: ['attendee-order-view', orderId, eventId],
     queryFn: () => buildAttendeeOrderViewItems(orderQuery.data!, eventId, standsQuery.data!),
@@ -278,20 +286,21 @@ export default function TrackOrder() {
 
       {/* Reviews require a fulfilled item (backend eligibility) — only surface the
           entry point once at least one item has been collected. */}
-      {(() => {
-        const rateableProductIds = [
-          ...new Set(
-            order.items.filter((i) => i.fulfilledAt && !i.cancelledAt).map((i) => i.productId),
-          ),
-        ];
-        return rateableProductIds.length > 0 ? (
-          <OrderReviewButton
-            orderId={orderId}
-            eventId={eventId}
-            rateableProductIds={rateableProductIds}
-          />
-        ) : null;
-      })()}
+      {eventQuery.data?.ratingsEnabled &&
+        (() => {
+          const rateableProductIds = [
+            ...new Set(
+              order.items.filter((i) => i.fulfilledAt && !i.cancelledAt).map((i) => i.productId),
+            ),
+          ];
+          return rateableProductIds.length > 0 ? (
+            <OrderReviewButton
+              orderId={orderId}
+              eventId={eventId}
+              rateableProductIds={rateableProductIds}
+            />
+          ) : null;
+        })()}
     </div>
   );
 }

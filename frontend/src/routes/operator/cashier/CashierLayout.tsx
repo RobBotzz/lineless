@@ -1,6 +1,7 @@
 import { Outlet, useParams } from 'react-router';
 import { skipToken, useQuery } from '@tanstack/react-query';
 
+import { getOperatorEvent } from '@/api/events';
 import { loginOperator } from '@/api/stands';
 import { getOperatorStandToken } from '@/auth/keychain';
 import { operatorCashierStandQueryOptions, operatorQueryKeys } from '../operatorQueries';
@@ -10,6 +11,7 @@ import { operatorCashierStandQueryOptions, operatorQueryKeys } from '../operator
 export interface CashierContext {
   eventId: string;
   standId: string;
+  ratingsEnabled: boolean;
 }
 
 // Wraps the /cashier routes. The "Cashier" tile only navigates here; this layout
@@ -21,6 +23,14 @@ export default function CashierLayout() {
 
   const cashierStandQuery = useQuery(operatorCashierStandQueryOptions(eventId));
   const cashierStand = cashierStandQuery.data;
+
+  // Drives whether product ratings are shown in the cashier catalog. Non-blocking:
+  // if it hasn't resolved (or fails), ratings stay hidden.
+  const eventQuery = useQuery({
+    queryKey: [...operatorQueryKeys.all, 'cashier-event', eventId],
+    queryFn: () => getOperatorEvent(eventId),
+    staleTime: 60_000,
+  });
 
   const sessionQuery = useQuery({
     queryKey: [...operatorQueryKeys.all, 'cashier-session', cashierStand?._id ?? ''],
@@ -48,7 +58,17 @@ export default function CashierLayout() {
     return <Centered>Could not open the cashier stand. Please try again.</Centered>;
   }
 
-  return <Outlet context={{ eventId, standId: sessionQuery.data } satisfies CashierContext} />;
+  return (
+    <Outlet
+      context={
+        {
+          eventId,
+          standId: sessionQuery.data,
+          ratingsEnabled: eventQuery.data?.ratingsEnabled ?? false,
+        } satisfies CashierContext
+      }
+    />
+  );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
