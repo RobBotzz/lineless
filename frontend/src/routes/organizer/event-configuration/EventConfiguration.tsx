@@ -115,6 +115,7 @@ export default function EventConfiguration() {
   const [showLogoInfo, setShowLogoInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
+  const [dismissedDateWarning, setDismissedDateWarning] = useState(false);
 
   // Logo upload is a separate multipart call (like the product image), not part
   // of the JSON settings auto-save. The event already exists, so we upload/delete
@@ -184,8 +185,14 @@ export default function EventConfiguration() {
 
   const nameValid = form.name.trim().length > 0;
 
+  const isDateInPast = form.plannedDate
+    ? new Date(form.plannedDate) < new Date(new Date().toISOString().split('T')[0])
+    : false;
+  const showDateWarning = isDateInPast && !dismissedDateWarning;
+
   function updateField<K extends keyof EventForm>(key: K, value: EventForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (key === 'plannedDate') setDismissedDateWarning(false);
   }
 
   const busy = fetcher.state !== 'idle';
@@ -524,13 +531,32 @@ export default function EventConfiguration() {
                     error={!nameValid ? 'Event name is required.' : undefined}
                   />
 
-                  <TextField
-                    id="event-date"
-                    label="Event Date"
-                    onChange={(e) => updateField('plannedDate', e.target.value)}
-                    type="date"
-                    value={form.plannedDate}
-                  />
+                  <div>
+                    <TextField
+                      id="event-date"
+                      label="Event Date"
+                      onChange={(e) => updateField('plannedDate', e.target.value)}
+                      type="date"
+                      value={form.plannedDate}
+                    />
+                    {showDateWarning && (
+                      <div className="mt-2 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2">
+                        <InfoIcon className="h-4 w-4 mt-0.5 flex-shrink-0 text-warning" />
+                        <div className="flex items-center justify-between flex-1 gap-2">
+                          <p className="text-xs text-warning">
+                            The selected event date is in the past.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setDismissedDateWarning(true)}
+                            className="text-xs text-warning hover:text-warning/80 transition font-medium whitespace-nowrap"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <EventLocationField
                     onChange={(location) => updateField('location', location)}

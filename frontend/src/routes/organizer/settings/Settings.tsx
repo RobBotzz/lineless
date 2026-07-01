@@ -97,6 +97,10 @@ export default function Settings() {
       setNewPasswordError(pwdError);
       return;
     }
+    if (passwordForm.newPassword === passwordForm.currentPassword) {
+      setNewPasswordError('New password must be different from the current password.');
+      return;
+    }
     submit({
       intent: 'change-password',
       currentPassword: passwordForm.currentPassword,
