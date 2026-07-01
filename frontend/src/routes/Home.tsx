@@ -642,7 +642,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="landing-page min-h-screen overflow-hidden bg-background">
+    <div className="landing-page min-h-screen overflow-x-clip bg-background">
       <LandingPageNavbar
         right={
           status === 'loading' ? null : (
