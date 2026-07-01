@@ -69,9 +69,10 @@ export async function validateAttendeeSession(
     throw new AttendeeSessionInvalidError();
   }
 
+  // Session stays valid as long as the event exists — guests keep their session
+  // after an event is stopped so they can still view orders and receive fulfillments.
   const event = await Event.findOne({
     _id: session.eventId,
-    status: "ACTIVE",
     deletedAt: null,
   }).lean();
   if (!event) {

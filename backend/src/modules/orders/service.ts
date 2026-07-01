@@ -657,6 +657,17 @@ export async function deleteUnpaidOrder(
   await order.save();
 }
 
+export async function cancelUnpaidCashOrdersForEvent(
+  eventId: string
+): Promise<void> {
+  const now = new Date();
+  await Order.updateMany(
+    { eventId, paidAt: null, tabId: null, deletedAt: null },
+    { $set: { "items.$[item].cancelledAt": now } },
+    { arrayFilters: [{ "item.cancelledAt": null }] }
+  );
+}
+
 export async function advanceOrderItem(
   orderId: string,
   itemId: string,
@@ -666,6 +677,9 @@ export async function advanceOrderItem(
   const order = await Order.findById(orderId);
   if (!order) throw new OrderNotFoundError();
   if (!order.paidAt) throw new OrderNotFoundError();
+
+  const event = await Event.findById(order.eventId).lean();
+  if (!event || event.status === "COMPLETED") throw new EventNotActiveError();
 
   const item = order.items.find((i) => i._id === itemId);
   if (!item) throw new OrderItemNotFoundError();

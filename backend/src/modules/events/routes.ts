@@ -5,9 +5,11 @@ import {
   listEvents,
   getEventForAttendee,
   getEventForOrganizer,
+  getPublicEventInfo,
   updateEvent,
   startEvent,
   stopEvent,
+  completeEvent,
   rotateOperatorAccessKey,
   softDeleteEvent,
   setEventLogo,
@@ -57,6 +59,20 @@ function handleError(err: unknown, res: Response): unknown {
 
 // Accepts a single multipart "image" field; maps multer errors via handleError.
 const uploadEventLogo = uploadSingleImage("image", handleError);
+
+// GET /events/:eventId/public-info — no auth; returns basic event info for gate
+// pages (coming soon, closed, finished) before the attendee has a session.
+eventsRouter.get(
+  "/:eventId/public-info",
+  async (req: Request, res: Response) => {
+    try {
+      const info = await getPublicEventInfo(eventId(req));
+      res.status(200).json(info);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
 
 // GET /events/:eventId — readable by organizer and attendee (session)
 eventsRouter.get(
@@ -132,6 +148,19 @@ eventsRouter.post(
   async (req: Request, res: Response) => {
     try {
       const event = await stopEvent(eventId(req), req.organizer!.accountId);
+      res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+eventsRouter.post(
+  "/:eventId/complete",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const event = await completeEvent(eventId(req), req.organizer!.accountId);
       res.status(200).json(event);
     } catch (err) {
       handleError(err, res);

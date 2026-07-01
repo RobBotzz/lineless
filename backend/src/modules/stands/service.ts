@@ -28,6 +28,7 @@ import {
   verifyOperableEvent,
 } from "../events/ownership";
 import { Event } from "../events/model";
+import { EventNotFoundError } from "../events/errors";
 
 // The password hash never leaves the service. We replace it with a
 // `requiresPassword` boolean so every stand response carries the one fact a
@@ -143,7 +144,12 @@ export async function listStandsForAttendee(
   sessionEventId: string
 ): Promise<SafeStand[]> {
   assertSessionOwnsEvent(eventId, sessionEventId);
-  await verifyActiveEvent(eventId);
+  const event = await Event.findOne({
+    _id: eventId,
+    status: { $in: ["ACTIVE", "STOPPED"] },
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
   const stands = await Stand.find(
     listableStandFilter(eventId, { hidePausedProductStands: true })
   )

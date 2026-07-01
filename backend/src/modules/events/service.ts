@@ -9,6 +9,7 @@ import {
 import { assertSessionOwnsEvent } from "./ownership";
 import { ensureCashierStand } from "../stands/service";
 import { finalizeEventTabs } from "../tabs/service";
+import { cancelUnpaidCashOrdersForEvent } from "../orders/service";
 import { config } from "../../config/config";
 import {
   sniffImageMimeType,
@@ -51,6 +52,16 @@ export async function listEvents(accountId: string): Promise<EventDoc[]> {
     .lean();
 }
 
+// Public — no auth. Returns enough info for the attendee gate pages (coming soon,
+// closed, finished) without exposing the operator access key or account id.
+export async function getPublicEventInfo(
+  eventId: string
+): Promise<ReturnType<typeof stripOperatorAccessKey>> {
+  const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
+  if (!event) throw new EventNotFoundError();
+  return stripOperatorAccessKey(event);
+}
+
 export async function getEventForOrganizer(
   eventId: string,
   accountId: string
@@ -70,9 +81,11 @@ export async function getEventForAttendee(
 ): Promise<AttendeeEvent> {
   assertSessionOwnsEvent(eventId, sessionEventId);
 
+  // STOPPED and COMPLETED events are readable so guests with existing sessions
+  // can still track their orders and receive fulfillments.
   const event = await Event.findOne({
     _id: eventId,
-    status: "ACTIVE",
+    status: { $in: ["ACTIVE", "STOPPED", "COMPLETED"] },
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
@@ -157,7 +170,26 @@ export async function stopEvent(
   event.status = "STOPPED";
   event.stoppedAt = new Date();
   await event.save();
+  return event;
+}
+
+export async function completeEvent(
+  eventId: string,
+  accountId: string
+): Promise<EventDoc> {
+  const event = await findActiveEvent(eventId, accountId);
+  if (event.status !== "STOPPED") {
+    throw new EventStateError("Only a stopped event can be completed");
+  }
+
+  // Cancel all items on unpaid cash orders so they are not charged.
+  await cancelUnpaidCashOrdersForEvent(event._id);
+  // Settle open tabs: charge guests for READY/FULFILLED items and release the rest.
   await finalizeEventTabs(event._id);
+
+  event.status = "COMPLETED";
+  event.completedAt = new Date();
+  await event.save();
   return event;
 }
 
