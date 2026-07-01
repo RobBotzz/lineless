@@ -24,7 +24,7 @@ export default function OrderHistory() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-6">
       <BackButton to={paths.attendee.event(eventId)}>Shop</BackButton>
       <h1 className="text-lg font-semibold text-text">Order History</h1>
 

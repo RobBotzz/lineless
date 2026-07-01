@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
+import { BackButton } from '@/components/shared';
 import { CashierLocationAccordion } from '@/features/orders/CashierLocationAccordion';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
 import { paths } from '@/paths';
@@ -40,6 +41,7 @@ export default function CashPaymentPending() {
 
   return (
     <div className="space-y-6">
+      <BackButton to={paths.attendee.event(eventId)}>Shop</BackButton>
       <OrderConfirmation
         order={state.order}
         items={state.items}

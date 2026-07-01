@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
-import { BackButton } from '@/components/shared';
-import { Button } from '@/components/ui/button';
+import { BackButton, PrimaryButton } from '@/components/shared';
 import { createOrder } from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
 import { paths } from '@/paths';
@@ -116,8 +115,8 @@ export default function Cart() {
 
           {/* Sticky checkout bar — pinned to the viewport bottom while scrolling,
               parking below the last item (above the footer) at the end. */}
-          <div className="pointer-events-none sticky bottom-0 z-20 pb-4 pt-3">
-            <div className="pointer-events-auto rounded-2xl border border-border bg-surface/95 p-3 shadow-[0_8px_24px_rgba(2,8,135,0.18)] backdrop-blur">
+          <div className="sticky bottom-0 z-30 pb-4 pt-3">
+            <div className="rounded-2xl border border-border bg-surface/95 p-3 shadow-[0_-6px_20px_rgba(2,8,135,0.10)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm text-text-muted">Total</span>
                 <span className="text-base font-bold text-accent">€{formatMoney(totalCents)}</span>
@@ -125,11 +124,7 @@ export default function Cart() {
               <div className="mb-2">
                 <PaymentMethodToggle value={paymentMethod} onChange={setPaymentMethod} />
               </div>
-              <Button
-                className="h-12 w-full gap-2 rounded-xl"
-                disabled={isCheckingOut}
-                onClick={handleCheckout}
-              >
+              <PrimaryButton className="gap-2" disabled={isCheckingOut} onClick={handleCheckout}>
                 {isCheckingOut ? (
                   'Processing Payment…'
                 ) : (
@@ -140,7 +135,7 @@ export default function Cart() {
                     </span>
                   </>
                 )}
-              </Button>
+              </PrimaryButton>
             </div>
           </div>
         </>

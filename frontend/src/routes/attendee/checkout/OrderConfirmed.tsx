@@ -1,6 +1,6 @@
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
-import { Button } from '@/components/ui/button';
+import { BackButton, PrimaryButton } from '@/components/shared';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
 import { paths } from '@/paths';
 import { computeTotal, type Order, type OrderItemView } from '@/types/order';
@@ -21,6 +21,7 @@ export default function OrderConfirmed() {
 
   return (
     <div className="space-y-6">
+      <BackButton to={paths.attendee.event(eventId)}>Shop</BackButton>
       <OrderConfirmation
         order={state.order}
         items={state.items}
@@ -28,12 +29,9 @@ export default function OrderConfirmed() {
         title="Order Confirmed"
         subtitle="Your order is in progress."
       />
-      <Button
-        className="w-full"
-        onClick={() => navigate(paths.attendee.trackOrder(eventId, state.order._id))}
-      >
+      <PrimaryButton onClick={() => navigate(paths.attendee.trackOrder(eventId, state.order._id))}>
         Track Order
-      </Button>
+      </PrimaryButton>
     </div>
   );
 }

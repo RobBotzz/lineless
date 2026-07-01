@@ -212,7 +212,7 @@ export default function TrackOrder() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-6">
       <BackButton to={backTo}>{backLabel}</BackButton>
 
       <p className="text-xs text-text-muted">Placed {createdAt}</p>
