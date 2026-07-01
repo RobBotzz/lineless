@@ -74,6 +74,9 @@ export default function Cart() {
       await setAttendeeSessionEmail(eventId, trimmedEmail);
       // Remember it locally so we don't ask again on the next checkout.
       rememberAttendeeEmail(eventId, trimmedEmail);
+      // The email is accepted and saved: switch to the summary view so cancelling
+      // the card dialog returns to "Receipt to X [Change]", not the raw input.
+      setEditingEmail(false);
       const orderItems = await buildOrderItems(eventId);
       if (paymentMethod === 'CARD') {
         // Hand off to the card dialog, which opens/uses the tab and places the

@@ -218,7 +218,16 @@ export function setAttendeeSession(eventId: string, sessionId: string, expiresAt
 export function rememberAttendeeEmail(eventId: string, email: string): void {
   const credential = getCredential('attendee');
   const session = credential?.sessions[eventId];
-  if (!credential || !session) return;
+  // The session may have been evicted (e.g. a 401 in another tab) between the
+  // backend save and this local cache write. Don't resurrect it — we'd have no
+  // valid sessionId/expiresAt. The email is safe on the backend and re-read from
+  // the session on next mount; just surface the rare miss in dev.
+  if (!credential || !session) {
+    console.warn(
+      `rememberAttendeeEmail: no attendee session for event ${eventId}; skipping local email cache`,
+    );
+    return;
+  }
   credential.sessions[eventId] = { ...session, email };
   write(KEYS.attendee, credential);
   notifyAttendee();
