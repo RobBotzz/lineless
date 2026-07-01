@@ -655,7 +655,7 @@ export default function Home() {
       <main>
         <section className="relative scroll-mt-20 px-6 pb-28 pt-8 sm:pt-12 lg:pb-36" id="home">
           <div aria-hidden="true" className="landing-grid absolute inset-0 opacity-40" />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.88fr_1.12fr] lg:gap-4">
+          <div className="relative mx-auto grid max-w-[calc(80rem-3rem)] items-center gap-10 lg:grid-cols-[0.88fr_1.12fr] lg:gap-4">
             <div className="relative z-10">
               <h1 className="landing-display max-w-3xl text-[clamp(3.5rem,7.7vw,7.2rem)] leading-[0.83] text-text">
                 TURN LINES
@@ -687,7 +687,7 @@ export default function Home() {
 
         <div className="landing-tear landing-tear-dark" />
         <section className="bg-accent px-6 py-24 text-button-text sm:py-32">
-          <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-[calc(80rem-3rem)]">
             <p className="landing-eyebrow text-white/50">The queue costs more than time</p>
             <h2 className="landing-display mt-4 max-w-5xl text-[clamp(3.2rem,7vw,6.5rem)] leading-[0.86]">
               YOUR BEST MOMENTS
@@ -748,7 +748,7 @@ export default function Home() {
           className="relative scroll-mt-20 bg-accent px-6 py-24 text-white sm:py-32"
           id="impact"
         >
-          <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-[calc(80rem-3rem)]">
             <div className="mx-auto max-w-4xl text-center">
               <p className="landing-eyebrow text-white/55">From scan to served</p>
               <h2 className="landing-display mt-4 text-[clamp(3.2rem,7vw,6.6rem)] leading-[0.84]">
@@ -825,7 +825,7 @@ export default function Home() {
         </section>
 
         <section className="px-6 py-24 sm:py-36">
-          <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-[calc(80rem-3rem)]">
             <div className="grid items-center gap-12 lg:grid-cols-[0.75fr_1.25fr] lg:gap-20">
               <div>
                 <span className="landing-icon-badge">
@@ -899,7 +899,7 @@ export default function Home() {
         </section>
 
         <section className="scroll-mt-20 px-6 pb-16 pt-8" id="pricing">
-          <div className="mx-auto max-w-7xl overflow-hidden rounded-[2.5rem] bg-accent text-button-text shadow-[0_35px_100px_rgba(2,8,135,0.22)]">
+          <div className="mx-auto max-w-[calc(80rem-3rem)] overflow-hidden rounded-[2.5rem] bg-accent text-button-text shadow-[0_35px_100px_rgba(2,8,135,0.22)]">
             <div className="grid items-center gap-10 px-7 py-14 sm:px-12 sm:py-20 lg:grid-cols-[1fr_0.8fr] lg:px-20">
               <div>
                 <p className="landing-eyebrow text-button-text/65">
