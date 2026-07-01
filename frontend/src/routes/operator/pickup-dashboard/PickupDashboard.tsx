@@ -94,27 +94,14 @@ export default function PickupDashboard() {
     }
 
     const stopAutoScroll = () => setIsAutoScrollEnabled(false);
-    const handleScrollKey = (event: KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) {
-        stopAutoScroll();
-      }
-    };
     const topPauseMs = 1200;
     const autoScrollStep =
       AUTO_SCROLL_SPEEDS[autoScrollSpeedIndex]?.pixelStep ?? AUTO_SCROLL_SPEEDS[0].pixelStep;
     let pauseUntil = 0;
-    let expectedScrollTop = getScrollingElement().scrollTop;
-
-    const handleScroll = () => {
-      if (Math.abs(getScrollingElement().scrollTop - expectedScrollTop) > 1) {
-        stopAutoScroll();
-      }
-    };
 
     const scrollToTop = () => {
       const scrollingElement = getScrollingElement();
 
-      expectedScrollTop = 0;
       scrollingElement.scrollTop = 0;
       document.body.scrollTop = 0;
       window.scrollTo({ top: 0, behavior: 'auto' });
@@ -122,10 +109,9 @@ export default function PickupDashboard() {
     };
 
     scrollToTop();
-    window.addEventListener('wheel', stopAutoScroll, { passive: true });
-    window.addEventListener('touchmove', stopAutoScroll, { passive: true });
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    document.addEventListener('keydown', handleScrollKey);
+    const clickListenerFrame = window.requestAnimationFrame(() => {
+      window.addEventListener('click', stopAutoScroll);
+    });
 
     const scrollInterval = window.setInterval(() => {
       if (Date.now() < pauseUntil) {
@@ -145,16 +131,16 @@ export default function PickupDashboard() {
         return;
       }
 
-      expectedScrollTop = Math.min(scrollingElement.scrollTop + autoScrollStep, maxScrollTop);
-      scrollingElement.scrollTop = expectedScrollTop;
+      scrollingElement.scrollTop = Math.min(
+        scrollingElement.scrollTop + autoScrollStep,
+        maxScrollTop,
+      );
     }, 35);
 
     return () => {
       window.clearInterval(scrollInterval);
-      window.removeEventListener('wheel', stopAutoScroll);
-      window.removeEventListener('touchmove', stopAutoScroll);
-      window.removeEventListener('scroll', handleScroll);
-      document.removeEventListener('keydown', handleScrollKey);
+      window.cancelAnimationFrame(clickListenerFrame);
+      window.removeEventListener('click', stopAutoScroll);
     };
   }, [
     autoScrollSpeedIndex,
@@ -291,7 +277,7 @@ function AutoScrollDialog({
             Start auto scroll
           </h2>
           <p id="auto-scroll-dialog-description" className="mt-3 text-sm leading-6 text-text-muted">
-            You can stop auto scroll at any time by scrolling up or down.
+            You can stop auto scroll at any time by clicking anywhere on the page.
           </p>
         </div>
 
