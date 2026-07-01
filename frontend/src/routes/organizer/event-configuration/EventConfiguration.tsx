@@ -368,24 +368,26 @@ export default function EventConfiguration() {
         ))}
 
         {/* Products footer */}
-        <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-          <span className="flex items-center gap-1.5 text-sm text-text-muted">
-            <ProductsIcon />
-            {products.length} Products
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={atProductLimit}
-            title={
-              atProductLimit
-                ? `Each stand can have at most ${MAX_PRODUCTS_PER_STAND} products.`
-                : undefined
-            }
-            onClick={() => setProductDialog({ standId: stand._id, product: null })}
-          >
-            + Add Product
-          </Button>
+        <div className="border-t border-border px-4 py-2.5">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-sm text-text-muted">
+              <ProductsIcon />
+              {products.length} Products
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={atProductLimit}
+              onClick={() => setProductDialog({ standId: stand._id, product: null })}
+            >
+              + Add Product
+            </Button>
+          </div>
+          {atProductLimit && (
+            <p className="mt-1.5 text-xs text-text-muted">
+              Product limit reached. Remove a product to add a new one.
+            </p>
+          )}
         </div>
       </div>
     );
