@@ -198,7 +198,7 @@ body {
 
 /* Public landing page — editorial event-day art direction. */
 .landing-page {
-  --landing-ink: #17171b;
+  --landing-ink: var(--color-accent);
 }
 
 .landing-display {
@@ -309,9 +309,9 @@ body {
   min-height: 20rem;
   border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 1.25rem;
-  background: #25252b;
+  background: var(--color-accent-raised);
   padding: 1.75rem;
-  box-shadow: 0 24px 60px rgb(0 0 0 / 24%);
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--color-accent) 38%, transparent);
   transition:
     transform 240ms ease,
     border-color 240ms ease;
@@ -343,7 +343,7 @@ body {
   min-height: 18rem;
   border: 1px solid rgb(255 255 255 / 14%);
   border-radius: 1.5rem;
-  background: #121552;
+  background: color-mix(in srgb, var(--color-accent) 84%, var(--color-surface) 16%);
   padding: 1.75rem;
   box-shadow: 0 28px 65px rgb(0 0 0 / 22%);
 }

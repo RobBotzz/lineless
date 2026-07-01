@@ -68,12 +68,12 @@ function PrimaryCta({ status, className = '' }: { status: string; className?: st
 function WindowShell({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`overflow-hidden rounded-[1.35rem] border border-white/15 bg-[#f8f8fb] shadow-[0_30px_80px_rgba(0,0,0,0.25)] ${className}`}
+      className={`overflow-hidden rounded-[1.35rem] border border-border bg-surface shadow-[0_30px_80px_rgba(2,8,135,0.2)] ${className}`}
     >
-      <div className="flex h-8 items-center gap-1.5 border-b border-black/8 bg-white px-3">
-        <span className="h-2 w-2 rounded-full bg-[#ff6b6b]" />
-        <span className="h-2 w-2 rounded-full bg-[#ffd166]" />
-        <span className="h-2 w-2 rounded-full bg-[#61d095]" />
+      <div className="flex h-8 items-center gap-1.5 border-b border-border bg-surface px-3">
+        <span className="h-2 w-2 rounded-full bg-accent/20" />
+        <span className="h-2 w-2 rounded-full bg-accent/40" />
+        <span className="h-2 w-2 rounded-full bg-accent" />
       </div>
       {children}
     </div>
@@ -90,96 +90,131 @@ function HeroDashboard() {
       />
 
       <WindowShell className="landing-float-slow absolute left-0 top-10 w-[92%] -rotate-2 sm:left-[2%] sm:w-[88%]">
-        <div className="grid min-h-[24rem] grid-cols-[4.5rem_1fr] bg-[#f5f5f8] text-[#1f2937] sm:grid-cols-[7rem_1fr]">
-          <aside className="border-r border-black/6 bg-white p-3 sm:p-4">
-            <span className="font-logo text-lg text-accent">lineless</span>
-            <div className="mt-8 space-y-3 text-[0.55rem] font-semibold text-slate-400 sm:text-[0.65rem]">
-              <p className="rounded-md bg-accent-soft px-2 py-2 text-accent">Overview</p>
-              <p className="px-2">Orders</p>
-              <p className="px-2">Stands</p>
-              <p className="px-2">Analytics</p>
+        <div className="min-h-[24rem] bg-background p-3 text-text sm:p-5">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 shadow-sm">
+            <span className="font-logo text-base text-accent">lineless</span>
+            <div className="flex items-center gap-1 rounded-md bg-background p-1 text-[0.45rem] font-semibold text-text-muted sm:text-[0.55rem]">
+              <span className="rounded bg-surface px-2 py-1 text-text">Management</span>
+              <span className="px-2 py-1">Analytics</span>
+              <span className="px-2 py-1">Settings</span>
             </div>
-          </aside>
-          <div className="p-4 sm:p-6">
-            <div className="flex items-start justify-between gap-3">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-[0.5rem] font-bold text-accent">
+              SN
+            </span>
+          </div>
+          <div className="mt-3 rounded-lg border border-border bg-surface p-3 shadow-sm sm:p-4">
+            <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-[0.55rem] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Event control center
-                </p>
-                <h3 className="mt-1 text-sm font-extrabold sm:text-lg">Summer Nights Festival</h3>
+                <h3 className="text-sm font-bold sm:text-base">Summer Nights Festival</h3>
+                <p className="mt-1 text-[0.5rem] text-text-muted">Last updated: 21:42</p>
               </div>
-              <span className="rounded-full bg-emerald-100 px-2 py-1 text-[0.55rem] font-bold text-emerald-700">
-                ● LIVE
+              <span className="inline-flex items-center gap-1 text-[0.5rem] font-semibold text-success">
+                <i className="h-1.5 w-1.5 rounded-full bg-success" /> Live
               </span>
             </div>
-            <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {[
+              ['Revenue', '€4,820', 'bg-accent'],
+              ['Open orders', '28', 'bg-border'],
+              ['Avg. wait', '06:42', 'bg-success'],
+            ].map(([label, value, rail]) => (
+              <div
+                className="relative overflow-hidden rounded-lg border border-border bg-surface p-2.5 shadow-sm sm:p-3"
+                key={label}
+              >
+                <i className={`absolute inset-x-0 top-0 h-1 ${rail}`} />
+                <p className="truncate text-[0.45rem] font-semibold uppercase tracking-wide text-text-muted">
+                  {label}
+                </p>
+                <p className="mt-1 truncate text-xs font-bold tabular-nums text-text sm:text-base">
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 rounded-lg border border-border bg-surface p-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-[0.55rem] font-bold">Live orders</p>
+              <span className="rounded-full border border-border bg-background px-2 py-1 text-[0.45rem] text-text-muted">
+                All stands
+              </span>
+            </div>
+            <div className="mt-2 space-y-1.5">
               {[
-                ['€ 4,820', 'Revenue'],
-                ['384', 'Orders'],
-                ['06:42', 'Avg. wait'],
-              ].map(([value, label]) => (
-                <div className="rounded-lg border border-black/6 bg-white p-2.5 sm:p-3" key={label}>
-                  <p className="text-xs font-black sm:text-base">{value}</p>
-                  <p className="mt-1 text-[0.5rem] text-slate-400 sm:text-[0.6rem]">{label}</p>
+                ['#A14', 'Burger stand', '2 items', 'Preparing'],
+                ['#A15', 'Main bar', '3 items', 'Paid'],
+                ['#A16', 'Pizza stand', '1 item', 'Ready'],
+              ].map(([order, stand, items, state]) => (
+                <div
+                  className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2 text-[0.45rem] sm:text-[0.52rem]"
+                  key={order}
+                >
+                  <span className="font-bold text-text">{order}</span>
+                  <span className="truncate text-text-muted">
+                    {stand} · {items}
+                  </span>
+                  <span
+                    className={
+                      state === 'Ready' ? 'font-semibold text-success' : 'font-semibold text-accent'
+                    }
+                  >
+                    {state}
+                  </span>
                 </div>
               ))}
-            </div>
-            <div className="mt-3 rounded-xl border border-black/6 bg-white p-3 sm:p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-[0.6rem] font-bold sm:text-xs">Revenue over time</p>
-                <p className="text-[0.5rem] text-slate-400">Last 6 hours</p>
-              </div>
-              <svg aria-hidden="true" className="mt-4 h-24 w-full" viewBox="0 0 320 90">
-                <defs>
-                  <linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0" stopColor="#020887" stopOpacity=".25" />
-                    <stop offset="1" stopColor="#020887" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M0 76 C35 70 44 52 74 57 S120 37 149 42 S187 20 218 29 S270 9 320 14 L320 90 L0 90Z"
-                  fill="url(#chart-fill)"
-                />
-                <path
-                  d="M0 76 C35 70 44 52 74 57 S120 37 149 42 S187 20 218 29 S270 9 320 14"
-                  fill="none"
-                  stroke="#020887"
-                  strokeLinecap="round"
-                  strokeWidth="4"
-                />
-              </svg>
             </div>
           </div>
         </div>
       </WindowShell>
 
-      <div className="landing-float-fast absolute bottom-2 right-0 w-40 rotate-3 rounded-[1.8rem] border-[5px] border-[#17171b] bg-white p-2 shadow-[0_30px_70px_rgba(0,0,0,0.32)] sm:w-48">
-        <div className="overflow-hidden rounded-[1.25rem] bg-[#f5f5f8] px-3 pb-4 pt-5 text-[#1f2937]">
-          <p className="text-[0.5rem] font-bold uppercase tracking-widest text-accent">
-            Summer Nights
-          </p>
-          <p className="mt-1 text-sm font-black">What can we get you?</p>
-          <div className="mt-3 space-y-2">
-            {[
-              ['Smash Burger', '€ 9.50'],
-              ['Loaded Fries', '€ 6.00'],
-              ['Lemonade', '€ 3.50'],
-            ].map(([name, price], index) => (
-              <div className="flex items-center gap-2 rounded-lg bg-white p-2" key={name}>
-                <div
-                  className={`h-8 w-8 rounded-md ${index === 0 ? 'bg-[#ffd166]' : index === 1 ? 'bg-[#ff8f70]' : 'bg-[#a5d8ff]'}`}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[0.55rem] font-bold">{name}</p>
-                  <p className="text-[0.5rem] text-slate-400">{price}</p>
-                </div>
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[0.65rem] text-white">
-                  +
-                </span>
-              </div>
-            ))}
+      <div className="landing-float-fast absolute bottom-2 right-0 w-40 rotate-3 rounded-[1.8rem] border-[5px] border-accent bg-surface p-2 shadow-[0_30px_70px_rgba(2,8,135,0.28)] sm:w-48">
+        <ProductSelectionMockup />
+      </div>
+    </div>
+  );
+}
+
+function ProductSelectionMockup({ compact = true }: { compact?: boolean }) {
+  return (
+    <div className="overflow-hidden rounded-[1.25rem] bg-background px-3 pb-3 pt-5 text-text">
+      <div className="flex gap-1 overflow-hidden text-[0.4rem] font-semibold">
+        <span className="rounded-full border border-accent bg-accent px-2 py-1 text-button-text">
+          All
+        </span>
+        <span className="rounded-full border border-border bg-surface px-2 py-1">Main bar</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {(compact
+          ? [
+              ['Smash Burger', '€9.50'],
+              ['Lemonade', '€3.50'],
+            ]
+          : [
+              ['Smash Burger', '€9.50'],
+              ['Loaded Fries', '€6.00'],
+            ]
+        ).map(([name, price]) => (
+          <div
+            className="flex items-center gap-2 rounded-lg border border-border bg-surface p-2 shadow-sm"
+            key={name}
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-accent">
+              <ProductsIcon className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[0.5rem] font-semibold">{name}</p>
+              <p className="mt-1 text-[0.45rem] font-semibold">{price}</p>
+            </div>
+            <span className="rounded bg-accent px-1.5 py-1 text-[0.4rem] font-semibold text-button-text">
+              + Add
+            </span>
           </div>
-        </div>
+        ))}
+      </div>
+      <div className="mt-2 flex items-center justify-center gap-1 rounded-lg bg-accent py-2 text-[0.45rem] font-semibold text-button-text shadow-[0_8px_24px_rgba(2,8,135,0.2)]">
+        <CartIcon className="h-3 w-3" /> View Cart
+        <span className="rounded-full bg-button-text px-1 text-accent">2</span>
       </div>
     </div>
   );
@@ -187,30 +222,37 @@ function HeroDashboard() {
 
 function EventPhone() {
   return (
-    <div className="mx-auto w-32 rounded-[1.5rem] border-4 border-[#111218] bg-white p-2 shadow-xl">
-      <div className="rounded-[1rem] bg-[#f3f4f8] px-2 py-5 text-left">
-        <p className="text-[0.4rem] font-bold text-accent">SUMMER NIGHTS</p>
-        <p className="mt-1 text-[0.65rem] font-black">Choose a stand</p>
-        {['Main bar', 'Food court', 'Merch'].map((item) => (
-          <div className="mt-2 rounded-md bg-white p-2 text-[0.45rem] font-semibold" key={item}>
-            {item}
-          </div>
-        ))}
-      </div>
+    <div className="mx-auto w-36 rounded-[1.5rem] border-4 border-accent bg-surface p-2 shadow-[0_20px_50px_rgba(2,8,135,0.24)]">
+      <ProductSelectionMockup compact={false} />
     </div>
   );
 }
 
 function CartPhone() {
   return (
-    <div className="mx-auto w-32 rounded-[1.5rem] border-4 border-[#111218] bg-white p-2 shadow-xl">
-      <div className="rounded-[1rem] bg-[#f3f4f8] px-2 py-5 text-left">
-        <p className="text-[0.45rem] font-bold text-accent">YOUR ORDER</p>
-        <p className="mt-2 text-[0.65rem] font-black">2 items</p>
-        <div className="mt-2 rounded-md bg-white p-2 text-[0.45rem]">Burger × 1</div>
-        <div className="mt-1 rounded-md bg-white p-2 text-[0.45rem]">Lemonade × 1</div>
-        <div className="mt-3 rounded-md bg-accent py-2 text-center text-[0.45rem] font-bold text-white">
-          Pay € 13.00
+    <div className="mx-auto w-36 rounded-[1.5rem] border-4 border-accent bg-surface p-2 shadow-[0_20px_50px_rgba(2,8,135,0.24)]">
+      <div className="rounded-[1rem] bg-background px-2 py-5 text-left text-text">
+        <p className="text-[0.45rem] font-semibold text-text-muted">Placed today, 21:36</p>
+        <div className="mt-2 overflow-hidden rounded-lg bg-accent text-button-text">
+          <div className="grid grid-cols-2 divide-x divide-dashed divide-button-text/30 p-2.5">
+            <div>
+              <p className="text-[0.35rem] uppercase opacity-60">Order ID</p>
+              <p className="mt-1 text-xs font-bold">A14</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[0.35rem] uppercase opacity-60">Pickup code</p>
+              <p className="mt-1 text-xs font-bold">4821</p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-2 rounded-lg border border-border bg-surface p-2.5 shadow-sm">
+          <div className="flex justify-between gap-2">
+            <p className="text-[0.5rem] font-semibold">Preparing your order...</p>
+            <p className="text-[0.42rem] text-text-muted">1 / 2 ready</p>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-muted">
+            <div className="h-full w-1/2 rounded-full bg-accent" />
+          </div>
         </div>
       </div>
     </div>
@@ -218,16 +260,38 @@ function CartPhone() {
 }
 
 function QueuePanel() {
+  const columns = [
+    ['To Do', ['Smash Burger', 'Loaded Fries']],
+    ['In Progress', ['Lemonade']],
+    ['Ready', ['Veggie Burger']],
+  ] as const;
+
   return (
-    <div className="mx-auto w-44 rotate-2 rounded-xl border border-black/10 bg-[#f5f5f8] p-3 text-left shadow-xl">
-      <p className="text-[0.55rem] font-black">Burger stand</p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {['#A14', '#A15', '#A16', '#A17'].map((order, index) => (
-          <div className="rounded-md bg-white p-2" key={order}>
-            <p className="text-[0.5rem] font-bold">{order}</p>
-            <div
-              className={`mt-2 h-1.5 rounded-full ${index < 2 ? 'bg-amber-300' : 'bg-accent/30'}`}
-            />
+    <div className="mx-auto w-72 rotate-1 rounded-xl border border-border bg-background p-3 text-left text-text shadow-[0_20px_50px_rgba(2,8,135,0.2)]">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[0.55rem] font-bold">Burger stand</p>
+        <span className="text-[0.4rem] font-semibold text-success">● Live</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {columns.map(([title, items]) => (
+          <div className="rounded-md border border-border bg-surface p-1.5" key={title}>
+            <div className="flex items-center justify-between rounded bg-surface-muted p-1.5">
+              <p className="text-[0.38rem] font-semibold uppercase">{title}</p>
+              <span className="rounded-full bg-surface px-1 text-[0.35rem] text-text-muted">
+                {items.length}
+              </span>
+            </div>
+            <div className="mt-1.5 space-y-1.5">
+              {items.map((item, index) => (
+                <div
+                  className="rounded border border-border border-l-[3px] border-l-accent bg-surface p-1.5 shadow-sm"
+                  key={item}
+                >
+                  <p className="truncate text-[0.4rem] font-bold">{item}</p>
+                  <p className="mt-1 text-[0.35rem] text-text-muted">#A{14 + index}</p>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
@@ -237,16 +301,37 @@ function QueuePanel() {
 
 function PickupPanel() {
   return (
-    <div className="mx-auto w-44 -rotate-2 rounded-xl bg-[#111218] p-3 text-left text-white shadow-xl">
-      <p className="text-[0.45rem] font-bold uppercase tracking-widest text-white/50">
-        Ready for pickup
-      </p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {['A12', 'A13', 'B04', 'B05'].map((order) => (
-          <div className="rounded-md bg-white/10 p-2 text-center text-sm font-black" key={order}>
-            {order}
+    <div className="mx-auto w-72 -rotate-1 rounded-xl border border-border bg-surface p-3 text-left text-text shadow-[0_20px_50px_rgba(2,8,135,0.2)]">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold">Burger stand</p>
+        <span className="rounded border border-border bg-surface px-2 py-1 text-[0.4rem]">
+          All Stands
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-[1.15fr_1px_0.85fr] gap-2">
+        <div>
+          <p className="text-[0.42rem] font-bold uppercase tracking-wide text-text-muted">
+            In Line
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            {['A12', 'A13'].map((order) => (
+              <div className="rounded border border-border bg-background p-2" key={order}>
+                <p className="text-[0.35rem] font-semibold">Burger</p>
+                <p className="mt-2 text-sm font-extrabold">#{order}</p>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+        <div className="bg-border" />
+        <div>
+          <p className="text-[0.42rem] font-bold uppercase tracking-wide text-success">
+            Ready for Pickup
+          </p>
+          <div className="mt-2 rounded border border-success/40 bg-background p-2 ring-1 ring-success/10">
+            <p className="text-[0.35rem] font-semibold">Loaded Fries</p>
+            <p className="mt-2 text-sm font-extrabold">#B04</p>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -255,51 +340,58 @@ function PickupPanel() {
 function FeatureDashboard() {
   return (
     <WindowShell className="w-full">
-      <div className="grid min-h-64 grid-cols-[5rem_1fr] bg-[#f5f5f8] sm:grid-cols-[8rem_1fr]">
-        <div className="border-r border-black/6 bg-white p-3 text-[0.55rem] font-semibold text-slate-400 sm:p-5">
-          <span className="font-logo text-base text-accent">lineless</span>
-          <p className="mt-7 rounded-md bg-accent-soft p-2 text-accent">Live control</p>
-          <p className="mt-2 p-2">Analytics</p>
-          <p className="mt-2 p-2">Settings</p>
+      <div className="bg-background p-4 text-text sm:p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold sm:text-base">Live orders</p>
+            <p className="mt-1 text-[0.5rem] text-text-muted">
+              Manage open paid orders across every stand.
+            </p>
+          </div>
+          <span className="rounded-full border border-accent bg-accent px-3 py-1 text-[0.5rem] font-semibold text-button-text">
+            All stands
+          </span>
         </div>
-        <div className="p-4 sm:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[0.5rem] uppercase tracking-widest text-slate-400">Event health</p>
-              <p className="text-xs font-black sm:text-base">Everything in one view</p>
+        <div className="mt-4 overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+          <div className="grid grid-cols-[0.55fr_1fr_0.8fr_0.6fr] gap-2 border-b border-border bg-surface-muted px-3 py-2 text-[0.45rem] font-semibold uppercase tracking-wide text-text-muted">
+            <span>Order</span>
+            <span>Stand</span>
+            <span>Status</span>
+            <span>Total</span>
+          </div>
+          {[
+            ['#A14', 'Burger stand', 'Preparing', '€15.50'],
+            ['#A15', 'Main bar', 'Paid', '€12.00'],
+            ['#A16', 'Pizza stand', 'Ready', '€9.50'],
+            ['#B04', 'Burger stand', 'Preparing', '€18.00'],
+          ].map(([order, stand, state, total]) => (
+            <div
+              className="grid grid-cols-[0.55fr_1fr_0.8fr_0.6fr] gap-2 border-b border-border px-3 py-2.5 text-[0.48rem] last:border-0 sm:text-[0.58rem]"
+              key={order}
+            >
+              <span className="font-bold">{order}</span>
+              <span className="truncate text-text-muted">{stand}</span>
+              <span
+                className={
+                  state === 'Ready' ? 'font-semibold text-success' : 'font-semibold text-accent'
+                }
+              >
+                {state}
+              </span>
+              <span className="font-semibold">{total}</span>
             </div>
-            <span className="rounded-full bg-emerald-100 px-2 py-1 text-[0.5rem] font-bold text-emerald-700">
-              LIVE
-            </span>
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {['Orders 384', 'Open 28', 'Ready 12'].map((item) => (
-              <div
-                className="rounded-lg bg-white p-3 text-[0.5rem] font-bold sm:text-[0.65rem]"
-                key={item}
-              >
-                {item}
+          ))}
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          {['Stock management', 'Operational pausing'].map((title) => (
+            <div className="rounded-lg border border-border bg-surface p-3 shadow-sm" key={title}>
+              <p className="text-[0.55rem] font-bold">{title}</p>
+              <div className="mt-3 h-2 rounded bg-surface-muted">
+                <div className="h-full w-2/3 rounded bg-accent" />
               </div>
-            ))}
-          </div>
-          <div className="mt-3 space-y-2">
-            {[
-              ['Main bar', 'Healthy', 'bg-emerald-400'],
-              ['Burger stand', 'Busy', 'bg-amber-400'],
-              ['Pizza stand', 'Healthy', 'bg-emerald-400'],
-            ].map(([name, state, color]) => (
-              <div
-                className="flex items-center justify-between rounded-lg bg-white p-3 text-[0.55rem] sm:text-[0.65rem]"
-                key={name}
-              >
-                <span className="font-bold">{name}</span>
-                <span className="flex items-center gap-1.5 text-slate-500">
-                  <i className={`h-1.5 w-1.5 rounded-full ${color}`} />
-                  {state}
-                </span>
-              </div>
-            ))}
-          </div>
+              <p className="mt-2 text-[0.45rem] text-text-muted">Burger stand</p>
+            </div>
+          ))}
         </div>
       </div>
     </WindowShell>
@@ -362,7 +454,7 @@ export default function Home() {
                 <span className="h-2 w-2 rounded-full bg-accent" />
                 Built for busy event days
               </div>
-              <h1 className="landing-display mt-6 max-w-3xl text-[clamp(3.5rem,7.7vw,7.2rem)] leading-[0.83] text-[#17171b]">
+              <h1 className="landing-display mt-6 max-w-3xl text-[clamp(3.5rem,7.7vw,7.2rem)] leading-[0.83] text-text">
                 TURN LINES
                 <br />
                 INTO <span className="text-accent">GOOD TIMES.</span>
@@ -391,7 +483,7 @@ export default function Home() {
         </section>
 
         <div className="landing-tear landing-tear-dark" />
-        <section className="bg-[#17171b] px-6 py-24 text-white sm:py-32">
+        <section className="bg-accent px-6 py-24 text-button-text sm:py-32">
           <div className="mx-auto max-w-7xl">
             <p className="landing-eyebrow text-white/50">The queue costs more than time</p>
             <h2 className="landing-display mt-4 max-w-5xl text-[clamp(3.2rem,7vw,6.5rem)] leading-[0.86]">
@@ -399,7 +491,7 @@ export default function Home() {
               <br />
               SHOULDN&apos;T HAPPEN
               <br />
-              <span className="text-[#8e94ff]">IN A LINE.</span>
+              <span className="text-button-text/65">IN A LINE.</span>
             </h2>
             <div className="mt-14 grid gap-5 md:grid-cols-3">
               {[
@@ -436,7 +528,7 @@ export default function Home() {
         <section className="px-6 py-24 text-center sm:py-36">
           <div className="mx-auto max-w-5xl">
             <p className="landing-eyebrow text-accent">Skip the queue, keep the energy</p>
-            <h2 className="landing-display mt-4 text-[clamp(3.4rem,7.5vw,7rem)] leading-[0.84] text-[#17171b]">
+            <h2 className="landing-display mt-4 text-[clamp(3.4rem,7.5vw,7rem)] leading-[0.84] text-text">
               ORDER. ENJOY.
               <br />
               <span className="text-accent">PICK UP.</span>
@@ -453,13 +545,15 @@ export default function Home() {
                 key={label}
               >
                 <div
-                  className={`flex aspect-[4/5] items-center justify-center rounded-lg ${['bg-[#c9ccff]', 'bg-[#ffd166]', 'bg-[#ff9b85]', 'bg-[#96e6c7]'][index]}`}
+                  className={`flex aspect-[4/5] items-center justify-center rounded-lg ${['bg-accent/10', 'bg-accent/20', 'bg-accent/30', 'bg-accent-raised'][index]}`}
                 >
-                  <span className="landing-display text-[clamp(2.2rem,5vw,4.8rem)] leading-none text-[#17171b]">
+                  <span
+                    className={`landing-display text-[clamp(2.2rem,5vw,4.8rem)] leading-none ${index === 3 ? 'text-button-text' : 'text-accent'}`}
+                  >
                     {index + 1}
                   </span>
                 </div>
-                <p className="mt-3 text-left text-xs font-black tracking-widest text-[#17171b]">
+                <p className="mt-3 text-left text-xs font-black tracking-widest text-text">
                   {label}
                 </p>
               </div>
@@ -540,7 +634,7 @@ export default function Home() {
                   <DashboardIcon className="h-5 w-5" />
                 </span>
                 <p className="landing-eyebrow mt-6 text-accent">Control &amp; clarity</p>
-                <h2 className="landing-display mt-4 text-[clamp(3rem,5.5vw,5.5rem)] leading-[0.86] text-[#17171b]">
+                <h2 className="landing-display mt-4 text-[clamp(3rem,5.5vw,5.5rem)] leading-[0.86] text-text">
                   SEE THE RUSH
                   <br />
                   BEFORE YOU
@@ -567,7 +661,7 @@ export default function Home() {
               <div className="relative">
                 <div
                   aria-hidden="true"
-                  className="absolute -inset-5 rotate-2 rounded-[2rem] bg-[#c9ccff]"
+                  className="absolute -inset-5 rotate-2 rounded-[2rem] bg-accent-soft"
                 />
                 <div className="relative -rotate-1">
                   <FeatureDashboard />
@@ -607,22 +701,24 @@ export default function Home() {
         </section>
 
         <section className="scroll-mt-20 px-6 pb-16 pt-8" id="pricing">
-          <div className="mx-auto max-w-7xl overflow-hidden rounded-[2.5rem] bg-[#17171b] text-white shadow-[0_35px_100px_rgba(0,0,0,0.2)]">
+          <div className="mx-auto max-w-7xl overflow-hidden rounded-[2.5rem] bg-accent text-button-text shadow-[0_35px_100px_rgba(2,8,135,0.22)]">
             <div className="grid items-center gap-10 px-7 py-14 sm:px-12 sm:py-20 lg:grid-cols-[1fr_0.8fr] lg:px-20">
               <div>
-                <p className="landing-eyebrow text-[#8e94ff]">Pricing that waits for opening day</p>
+                <p className="landing-eyebrow text-button-text/65">
+                  Pricing that waits for opening day
+                </p>
                 <h2 className="landing-display mt-4 text-[clamp(3.3rem,6.5vw,6.3rem)] leading-[0.84]">
                   PAY FOR EVENTS.
                   <br />
-                  <span className="text-[#8e94ff]">NOT PROMISES.</span>
+                  <span className="text-button-text/65">NOT PROMISES.</span>
                 </h2>
                 <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/60 sm:text-lg">
                   Create and prepare your event without a monthly software bill. Pay-per-use begins
                   when your event goes live.
                 </p>
               </div>
-              <div className="relative rounded-3xl bg-white p-7 text-[#17171b] sm:p-9">
-                <div className="absolute right-6 top-0 -translate-y-1/2 rotate-2 rounded-full bg-[#ffd166] px-4 py-2 text-xs font-black uppercase tracking-wider">
+              <div className="relative rounded-3xl bg-surface p-7 text-text sm:p-9">
+                <div className="absolute right-6 top-0 -translate-y-1/2 rotate-2 rounded-full bg-accent-soft px-4 py-2 text-xs font-black uppercase tracking-wider text-accent">
                   Pay per use
                 </div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-accent">
