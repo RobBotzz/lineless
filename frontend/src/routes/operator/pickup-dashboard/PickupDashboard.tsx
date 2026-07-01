@@ -16,14 +16,18 @@ import {
 
 type StandFilter = 'all' | string;
 
-const AUTO_SCROLL_PIXEL_STEPS = [1, 2, 4, 8, 14] as const;
+const AUTO_SCROLL_SPEEDS = [
+  { label: 'Slow', pixelStep: 1 },
+  { label: 'Medium', pixelStep: 4 },
+  { label: 'Fast', pixelStep: 14 },
+] as const;
 
 export default function PickupDashboard() {
   const { eventId } = useParams();
   const [board, setBoard] = useState<PickupBoard | null>(null);
   const [selectedStand, setSelectedStand] = useState<StandFilter>('all');
   const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(false);
-  const [autoScrollSpeed, setAutoScrollSpeed] = useState(1);
+  const [autoScrollSpeedIndex, setAutoScrollSpeedIndex] = useState(0);
   const [canAutoScroll, setCanAutoScroll] = useState(false);
 
   const handleMessage = useCallback(({ event, data }: { event: string; data: unknown }) => {
@@ -88,7 +92,7 @@ export default function PickupDashboard() {
 
     const topPauseMs = 1200;
     const autoScrollStep =
-      AUTO_SCROLL_PIXEL_STEPS[autoScrollSpeed - 1] ?? AUTO_SCROLL_PIXEL_STEPS[0];
+      AUTO_SCROLL_SPEEDS[autoScrollSpeedIndex]?.pixelStep ?? AUTO_SCROLL_SPEEDS[0].pixelStep;
     let pauseUntil = 0;
 
     const scrollToTop = () => {
@@ -128,7 +132,7 @@ export default function PickupDashboard() {
 
     return () => window.clearInterval(scrollInterval);
   }, [
-    autoScrollSpeed,
+    autoScrollSpeedIndex,
     canAutoScroll,
     getScrollingElement,
     isAutoScrollEnabled,
@@ -151,20 +155,27 @@ export default function PickupDashboard() {
                     <button
                       aria-label="Decrease auto scroll speed"
                       className="h-10 w-10 text-lg font-semibold text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={autoScrollSpeed === 1}
-                      onClick={() => setAutoScrollSpeed((speed) => Math.max(1, speed - 1))}
+                      disabled={autoScrollSpeedIndex === 0}
+                      onClick={() =>
+                        setAutoScrollSpeedIndex((speedIndex) => Math.max(0, speedIndex - 1))
+                      }
                       type="button"
                     >
                       -
                     </button>
-                    <span className="flex h-10 min-w-10 items-center justify-center border-x border-border px-3 text-xs font-semibold text-text-muted">
-                      {autoScrollSpeed}x
+                    <span className="flex h-10 min-w-20 items-center justify-center border-x border-border px-3 text-xs font-semibold text-text-muted">
+                      {AUTO_SCROLL_SPEEDS[autoScrollSpeedIndex]?.label ??
+                        AUTO_SCROLL_SPEEDS[0].label}
                     </span>
                     <button
                       aria-label="Increase auto scroll speed"
                       className="h-10 w-10 text-lg font-semibold text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={autoScrollSpeed === 5}
-                      onClick={() => setAutoScrollSpeed((speed) => Math.min(5, speed + 1))}
+                      disabled={autoScrollSpeedIndex === AUTO_SCROLL_SPEEDS.length - 1}
+                      onClick={() =>
+                        setAutoScrollSpeedIndex((speedIndex) =>
+                          Math.min(AUTO_SCROLL_SPEEDS.length - 1, speedIndex + 1),
+                        )
+                      }
                       type="button"
                     >
                       +
