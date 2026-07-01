@@ -17,6 +17,11 @@ export function getAttendeeEvent(eventId: string): Promise<Event> {
   return apiFetch<Event>(`/events/${eventId}`, { auth: 'attendee', eventId });
 }
 
+// No auth — works for any event status. Used to show gate pages before a session exists.
+export function getEventPublicInfo(eventId: string): Promise<Event> {
+  return apiFetch<Event>(`/events/${eventId}/public-info`, { auth: 'public' });
+}
+
 export function createEvent(input: CreateEventInput): Promise<Event> {
   return apiFetch<Event>('/events', {
     method: 'POST',
@@ -63,6 +68,13 @@ export function startEvent(eventId: string): Promise<void> {
 
 export function stopEvent(eventId: string): Promise<void> {
   return apiFetch<void>(`/events/${eventId}/stop`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+export function completeEvent(eventId: string): Promise<void> {
+  return apiFetch<void>(`/events/${eventId}/complete`, {
     method: 'POST',
     auth: 'organizer',
   });

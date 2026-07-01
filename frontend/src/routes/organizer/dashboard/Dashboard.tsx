@@ -52,6 +52,10 @@ const statusDetails: Record<EventStatus, { label: string; className: string }> =
     label: 'Stopped',
     className: 'border-border bg-surface-muted text-text-muted',
   },
+  COMPLETED: {
+    label: 'Completed',
+    className: 'border-border bg-surface-muted text-text-muted',
+  },
 };
 
 // Rendered as the route's errorElement when the loader throws.

@@ -19,7 +19,13 @@ export async function productSelectionLoader({
 }: LoaderFunctionArgs): Promise<ProductSelectionLoaderData> {
   const eventId = params.eventId as string;
 
-  await ensureAttendeeSession(eventId);
+  try {
+    await ensureAttendeeSession(eventId);
+  } catch {
+    // Event is not ACTIVE (stopped/completed/draft) — session creation fails.
+    // Return empty data so the layout gate renders instead of an error boundary.
+    return { stands: [], productsByStand: {} };
+  }
 
   const stands = await getAttendeeStands(eventId);
 

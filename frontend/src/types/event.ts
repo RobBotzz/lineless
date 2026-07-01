@@ -3,7 +3,7 @@
 // fine here since these modules don't reference the DOM Event.
 import type { Location } from './location';
 
-export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED';
+export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED' | 'COMPLETED';
 
 export interface EventBranding {
   primaryColor: string;

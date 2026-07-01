@@ -27,7 +27,7 @@ import OrganizerPayment from './routes/organizer/Payment';
 import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Settings';
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
 
-import AttendeeLayout from './routes/attendee/AttendeeLayout';
+import AttendeeLayout, { AttendeeLayoutError } from './routes/attendee/AttendeeLayout';
 import { attendeeLayoutLoader } from './routes/attendee/data';
 import AttendeeProductSelection, {
   ProductSelectionError,
@@ -107,6 +107,7 @@ export const router = createBrowserRouter(
         id="attendee-event"
         element={<AttendeeLayout />}
         loader={attendeeLayoutLoader}
+        errorElement={<AttendeeLayoutError />}
       >
         <Route
           index

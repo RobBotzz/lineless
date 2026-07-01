@@ -164,6 +164,8 @@ export default function EventConfiguration() {
   const [editingStand, setEditingStand] = useState<Stand | null>(null);
   const [pendingDeleteStandId, setPendingDeleteStandId] = useState<string | null>(null);
   const [pendingDeleteEvent, setPendingDeleteEvent] = useState(false);
+  const [pendingStartEvent, setPendingStartEvent] = useState(false);
+  const [pendingStopEvent, setPendingStopEvent] = useState(false);
   const [pendingCompleteEvent, setPendingCompleteEvent] = useState(false);
 
   // Product dialog: track which stand we're adding to / which product we're editing.
@@ -219,8 +221,18 @@ export default function EventConfiguration() {
     setPendingDeleteEvent(false);
   }
 
-  function confirmCompleteEvent() {
+  function confirmStartEvent() {
+    submit({ intent: 'start' });
+    setPendingStartEvent(false);
+  }
+
+  function confirmStopEvent() {
     submit({ intent: 'stop' });
+    setPendingStopEvent(false);
+  }
+
+  function confirmCompleteEvent() {
+    submit({ intent: 'complete' });
     setPendingCompleteEvent(false);
   }
 
@@ -292,9 +304,11 @@ export default function EventConfiguration() {
   const settingsSaveError =
     saveFetcher.data && !saveFetcher.data.ok ? saveFetcher.data.error : null;
 
-  // Lifecycle rules mirror the backend: start only from DRAFT, stop only from ACTIVE.
+  // Lifecycle rules mirror the backend state machine.
   const canStart = event.status === 'DRAFT';
   const canStop = event.status === 'ACTIVE';
+  const canComplete = event.status === 'STOPPED';
+  const isCompleted = event.status === 'COMPLETED';
   const canDelete = event.status === 'DRAFT';
 
   // Spread stands over two columns by always appending to the currently shorter
@@ -395,24 +409,45 @@ export default function EventConfiguration() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Button
-                    className="w-full bg-success text-white hover:bg-success/90"
-                    disabled={!canStart || busy}
-                    onClick={() => submit({ intent: 'start' })}
-                    size="lg"
-                  >
-                    Start Event
-                  </Button>
-                  <Button
-                    className="w-full"
-                    disabled={!canStop || busy}
-                    onClick={() => setPendingCompleteEvent(true)}
-                    size="lg"
-                    variant="secondary"
-                  >
-                    Complete Event
-                  </Button>
-                  {canDelete ? (
+                  {canStart && (
+                    <Button
+                      className="w-full bg-success text-white hover:bg-success/90"
+                      disabled={busy}
+                      onClick={() => setPendingStartEvent(true)}
+                      size="lg"
+                    >
+                      Start Event
+                    </Button>
+                  )}
+                  {canStop && (
+                    <Button
+                      className="w-full"
+                      disabled={busy}
+                      onClick={() => setPendingStopEvent(true)}
+                      size="lg"
+                      variant="secondary"
+                    >
+                      Stop Event
+                    </Button>
+                  )}
+                  {canComplete && (
+                    <Button
+                      className="w-full"
+                      disabled={busy}
+                      onClick={() => setPendingCompleteEvent(true)}
+                      size="lg"
+                      variant="secondary"
+                    >
+                      Complete Event
+                    </Button>
+                  )}
+                  {isCompleted && (
+                    <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm font-medium text-text-muted">
+                      <CheckCircleIcon className="h-4 w-4 text-success" />
+                      Event completed
+                    </div>
+                  )}
+                  {canDelete && (
                     <Button
                       className="w-full border-danger/40 text-danger hover:bg-danger/5"
                       disabled={busy}
@@ -422,7 +457,7 @@ export default function EventConfiguration() {
                     >
                       Delete Event
                     </Button>
-                  ) : null}
+                  )}
                 </CardContent>
               </Card>
             </section>
@@ -932,16 +967,29 @@ export default function EventConfiguration() {
         />
 
         <AlertDialog
-          acknowledgeLabel="Delete"
+          acknowledgeLabel="Start Event"
           cancelLabel="Cancel"
           message={
-            pendingDeleteEvent
-              ? `“${event.name || 'Untitled Event'}” will be deleted and removed from organizer lists.`
+            pendingStartEvent
+              ? 'Starting the event makes it visible to guests and opens ordering for all stands. You can stop it again at any time.'
               : null
           }
-          onAcknowledge={confirmDeleteEvent}
-          onCancel={() => setPendingDeleteEvent(false)}
-          title="Delete event?"
+          onAcknowledge={confirmStartEvent}
+          onCancel={() => setPendingStartEvent(false)}
+          title="Start event?"
+        />
+
+        <AlertDialog
+          acknowledgeLabel="Stop Event"
+          cancelLabel="Cancel"
+          message={
+            pendingStopEvent
+              ? 'Stopping the event prevents new orders and payments. Operators can still fulfill items that are already in progress. You can complete the event afterwards to settle all open tabs.'
+              : null
+          }
+          onAcknowledge={confirmStopEvent}
+          onCancel={() => setPendingStopEvent(false)}
+          title="Stop event?"
         />
 
         <AlertDialog
@@ -949,12 +997,25 @@ export default function EventConfiguration() {
           cancelLabel="Cancel"
           message={
             pendingCompleteEvent
-              ? 'Completing the event closes every open tab and charges each guest for the items they received. Items that are not yet ready or fulfilled will not be charged, and the remaining card holds are released. This cannot be undone.'
+              ? 'Completing the event cancels all unpaid orders and charges each guest for the items they received. Items not yet ready are not charged and remaining card holds are released. This cannot be undone.'
               : null
           }
           onAcknowledge={confirmCompleteEvent}
           onCancel={() => setPendingCompleteEvent(false)}
           title="Complete event?"
+        />
+
+        <AlertDialog
+          acknowledgeLabel="Delete"
+          cancelLabel="Cancel"
+          message={
+            pendingDeleteEvent
+              ? `"${event.name || 'Untitled Event'}" will be deleted and removed from organizer lists.`
+              : null
+          }
+          onAcknowledge={confirmDeleteEvent}
+          onCancel={() => setPendingDeleteEvent(false)}
+          title="Delete event?"
         />
 
         <AlertDialog
@@ -973,7 +1034,7 @@ export default function EventConfiguration() {
           cancelLabel="Cancel"
           message={
             pendingDeleteProduct
-              ? `“${pendingDeleteProduct.productName}” will be permanently removed.`
+              ? `"${pendingDeleteProduct.productName}" will be permanently removed.`
               : null
           }
           onAcknowledge={confirmDeleteProduct}

@@ -9,6 +9,7 @@ import { CartIcon } from '@/components/icons';
 import { ProductCard } from './ProductCard';
 import { ALL_STANDS, StandFilter } from './StandFilter';
 import type { productSelectionLoader } from './data';
+import { buttonVariants } from '@/components/ui/button';
 
 export default function ProductSelection() {
   const { stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
@@ -35,6 +36,24 @@ export default function ProductSelection() {
     if (selectedStand === ALL_STANDS) return Object.values(productsByStand).flat();
     return productsByStand[selectedStand] ?? [];
   }, [selectedStand, productsByStand]);
+
+  if (event.status !== 'ACTIVE') {
+    const message =
+      event.status === 'COMPLETED'
+        ? 'This event has ended.'
+        : 'This event is not accepting new orders.';
+    return (
+      <div className="flex flex-col items-center gap-5 py-20 text-center">
+        <p className="text-text-muted">{message}</p>
+        <Link
+          to={eventId ? paths.attendee.orders(eventId) : '#'}
+          className={buttonVariants({ variant: 'outline' })}
+        >
+          View your orders
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div>
