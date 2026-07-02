@@ -99,7 +99,7 @@ async function prepareOrderItems(
   );
 
   let totalCents = 0;
-  const processedItems = input.items.map((item) => {
+  const processedItems: OrderItemDoc[] = input.items.map((item) => {
     const product = productById.get(item.productId);
     if (
       !product ||
@@ -121,7 +121,7 @@ async function prepareOrderItems(
       readyAt: null as Date | null,
       fulfilledAt: null as Date | null,
       cancelledAt: null as Date | null,
-      inventoryState: "RESERVED" as const,
+      inventoryState: "RESERVED",
     };
   });
   return {
@@ -251,7 +251,15 @@ export async function submitOrder(
         "Product prices changed during checkout; please retry"
       );
     }
-    await reserveProductStock(prepared.requestedProducts, dbSession);
+    const trackedProductIds = await reserveProductStock(
+      prepared.requestedProducts,
+      dbSession
+    );
+    for (const item of prepared.processedItems) {
+      if (!trackedProductIds.has(item.productId)) {
+        item.inventoryState = "UNTRACKED";
+      }
+    }
     const orders = await Order.create(
       [
         {

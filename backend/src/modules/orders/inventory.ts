@@ -27,28 +27,55 @@ export function groupRequestedProducts(
 export async function reserveProductStock(
   requested: RequestedProductQuantity[],
   session: ClientSession
-): Promise<void> {
+): Promise<Set<string>> {
   const productIds = requested.map(({ productId }) => productId);
   const products = await Product.find({ _id: { $in: productIds } })
-    .select("_id productStock")
+    .select("_id stockMode productStock")
     .session(session)
     .lean();
-  const availableById = new Map(
-    products.map((product) => [product._id, product.productStock])
+  const productById = new Map(
+    products.map((product) => [product._id, product])
+  );
+  const trackedProductIds = new Set(
+    products
+      .filter((product) => product.stockMode === "TRACKED")
+      .map((product) => product._id)
   );
   const shortages = requested
     .filter(
       ({ productId, quantity }) =>
-        (availableById.get(productId) ?? 0) < quantity
+        !productById.has(productId) ||
+        (trackedProductIds.has(productId) &&
+          (productById.get(productId)?.productStock ?? 0) < quantity)
     )
     .map(({ productId, quantity }) => ({
       productId,
       requested: quantity,
-      available: availableById.get(productId) ?? 0,
+      available: productById.get(productId)?.productStock ?? 0,
     }));
   if (shortages.length > 0) throw new InsufficientStockError(shortages);
 
   for (const { productId, quantity } of requested) {
+    if (!trackedProductIds.has(productId)) {
+      // Lazily materialize the legacy default while confirming that the
+      // product is still live and unlimited inside the order transaction.
+      const result = await Product.updateOne(
+        {
+          _id: productId,
+          deletedAt: null,
+          productStatus: "LIVE",
+          stockMode: { $ne: "TRACKED" },
+        },
+        { $set: { stockMode: "UNLIMITED" } },
+        { session }
+      );
+      if (result.matchedCount !== 1) {
+        throw new InsufficientStockError([
+          { productId, requested: quantity, available: 0 },
+        ]);
+      }
+      continue;
+    }
     const result = await Product.updateOne(
       {
         _id: productId,
@@ -73,6 +100,7 @@ export async function reserveProductStock(
       ]);
     }
   }
+  return trackedProductIds;
 }
 
 /** Marks still-reserved items released and restores their product quantities. */
