@@ -45,6 +45,16 @@ export function cancelOrder(orderId: string): Promise<unknown> {
   });
 }
 
+// Abandons an attendee order that is still gated behind a card top-up. The
+// backend releases the pending hold and makes the tab orderable again.
+export function cancelPendingOrderAuthorization(orderId: string, eventId: string): Promise<void> {
+  return apiFetch<void>(`/orders/${orderId}/cancel-pending-authorization`, {
+    method: 'POST',
+    auth: 'attendee',
+    eventId,
+  });
+}
+
 export function cancelOrderItems(orderId: string, itemIds: string[]): Promise<unknown> {
   return apiFetch<unknown>(`/orders/${orderId}/items/cancel`, {
     method: 'POST',
