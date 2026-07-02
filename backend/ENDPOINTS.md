@@ -85,14 +85,15 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Orders
 
-| Method | URL                              | Description                                                           |
-| ------ | -------------------------------- | --------------------------------------------------------------------- |
-| POST   | `/orders`                        | Create order                                                          |
-| GET    | `/orders`                        | List attendee's own paid orders                                       |
-| GET    | `/orders/{orderId}`              | Get order details (confirmation / tracking view)                      |
-| GET    | `/orders/stream`                 | Attendee's live order feed over SSE — session-wide snapshot + updates |
-| POST   | `/orders/{orderId}/cancel`       | Cancel all open order items                                           |
-| POST   | `/orders/{orderId}/items/cancel` | Cancel selected order items                                           |
+| Method | URL                                              | Description                                                           |
+| ------ | ------------------------------------------------ | --------------------------------------------------------------------- |
+| POST   | `/orders`                                        | Create order                                                          |
+| GET    | `/orders`                                        | List attendee's own paid orders                                       |
+| GET    | `/orders/{orderId}`                              | Get order details (confirmation / tracking view)                      |
+| GET    | `/orders/stream`                                 | Attendee's live order feed over SSE — session-wide snapshot + updates |
+| POST   | `/orders/{orderId}/cancel`                       | Organizer cancels all open order items                                |
+| POST   | `/orders/{orderId}/cancel-pending-authorization` | Attendee abandons a card order awaiting additional authorization      |
+| POST   | `/orders/{orderId}/items/cancel`                 | Organizer cancels selected order items                                |
 
 ### Payment
 

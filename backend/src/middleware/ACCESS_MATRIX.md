@@ -32,6 +32,7 @@
 | Payouts  | `GET /api/payouts/:eventId`                                   | no     | own event | no             | no            |
 | Payouts  | `POST /api/payouts/request`                                   | no     | yes       | no             | no            |
 | Orders   | `POST /api/orders/:orderId/cancel`                            | no     | own event | no             | no            |
+| Orders   | `POST /api/orders/:orderId/cancel-pending-authorization`      | no     | no        | no             | own order     |
 | Orders   | `POST /api/orders/:orderId/items/cancel`                      | no     | own event | no             | no            |
 | Stands   | `POST /api/events/:eventId/stands`                            | no     | own event | no             | no            |
 | Stands   | `GET /api/events/:eventId/stands`                             | no     | own event | event link key | session event |
