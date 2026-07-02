@@ -269,6 +269,7 @@ async function loadProductStockAlertsForEvent(
 ): Promise<ProductStockAlert[]> {
   const products = await Product.find({
     standId: { $in: standIds },
+    stockMode: "TRACKED",
     productStock: { $lte: stockAlertThreshold },
     productStatus: { $in: ["LIVE", "PAUSED"] },
     deletedAt: null,
