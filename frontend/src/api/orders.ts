@@ -1,7 +1,7 @@
-import { apiFetch, apiFetchAllowing } from './client';
+import { ApiError, apiFetch, apiFetchAllowing } from './client';
 import { getAttendeeStandProducts, getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
-import type { AttendeeOrder, Order, OrderItemView } from '../types/order';
+import type { AttendeeOrder, Order, OrderItemView, StockShortage } from '../types/order';
 import type { Stand } from '../types/stand';
 
 // Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED.
@@ -61,6 +61,33 @@ export function cancelOrderItems(orderId: string, itemIds: string[]): Promise<un
     auth: 'organizer',
     body: JSON.stringify({ itemIds }),
   });
+}
+
+interface InsufficientStockResponse {
+  code: 'INSUFFICIENT_STOCK';
+  error: string;
+  shortages: StockShortage[];
+}
+
+export class InsufficientStockError extends ApiError {
+  readonly shortages: StockShortage[];
+
+  constructor(shortages: StockShortage[]) {
+    super(409, 'Some products no longer have enough stock', {
+      code: 'INSUFFICIENT_STOCK',
+      shortages,
+    });
+    this.name = 'InsufficientStockError';
+    this.shortages = shortages;
+  }
+}
+
+function throwIfStockConflict(status: number, data: unknown): void {
+  if (status !== 409 || !data || typeof data !== 'object') return;
+  const response = data as Partial<InsufficientStockResponse>;
+  if (response.code === 'INSUFFICIENT_STOCK' && Array.isArray(response.shortages)) {
+    throw new InsufficientStockError(response.shortages);
+  }
 }
 
 // --- Cashier order API ---------------------------------------------------------
@@ -164,29 +191,48 @@ function flattenOrderItems(items: OrderItemView[]) {
 export async function createManualOrder(
   input: { eventId: string; items: OrderItemView[] },
   standId: string,
+  requestId: string,
 ): Promise<Order> {
   // POST /orders wraps the created order as { order }, so unwrap it here rather
   // than treating the body as the order itself.
-  const { order } = await apiFetch<{ order: Order }>('/orders', {
-    method: 'POST',
-    auth: 'operator',
-    standId,
-    body: JSON.stringify({ eventId: input.eventId, items: flattenOrderItems(input.items) }),
-  });
-  return order;
+  const { status, data } = await apiFetchAllowing<{ order?: Order } | InsufficientStockResponse>(
+    '/orders',
+    {
+      method: 'POST',
+      auth: 'operator',
+      standId,
+      body: JSON.stringify({
+        eventId: input.eventId,
+        requestId,
+        items: flattenOrderItems(input.items),
+      }),
+    },
+    [409],
+  );
+  throwIfStockConflict(status, data);
+  return (data as { order: Order }).order;
 }
 
 // POST /api/orders — creates an order for the attendee's own cart (attendee session auth).
-export async function createOrder(eventId: string, items: OrderItemView[]): Promise<Order> {
+export async function createOrder(
+  eventId: string,
+  items: OrderItemView[],
+  requestId: string,
+): Promise<Order> {
   // POST /orders wraps the created order as { order } (same shape createCardOrder
   // reads), so unwrap it here rather than treating the body as the order itself.
-  const { order } = await apiFetch<{ order: Order }>('/orders', {
-    method: 'POST',
-    auth: 'attendee',
-    eventId,
-    body: JSON.stringify({ eventId, items: flattenOrderItems(items) }),
-  });
-  return order;
+  const { status, data } = await apiFetchAllowing<{ order?: Order } | InsufficientStockResponse>(
+    '/orders',
+    {
+      method: 'POST',
+      auth: 'attendee',
+      eventId,
+      body: JSON.stringify({ eventId, requestId, items: flattenOrderItems(items) }),
+    },
+    [409],
+  );
+  throwIfStockConflict(status, data);
+  return (data as { order: Order }).order;
 }
 
 // Outcome of placing a card order against a tab. `created` means the order fit
@@ -204,30 +250,32 @@ export async function createCardOrder(
   eventId: string,
   items: OrderItemView[],
   tabId: string,
+  requestId: string,
 ): Promise<CardOrderResult> {
-  const { status, data } = await apiFetchAllowing<{
-    order?: Order;
-    clientSecret?: string;
-    orderId?: string;
-  }>(
+  const { status, data } = await apiFetchAllowing<
+    { order?: Order; clientSecret?: string; orderId?: string } | InsufficientStockResponse
+  >(
     '/orders',
     {
       method: 'POST',
       auth: 'attendee',
       eventId,
-      body: JSON.stringify({ eventId, tabId, items: flattenOrderItems(items) }),
+      body: JSON.stringify({ eventId, tabId, requestId, items: flattenOrderItems(items) }),
     },
-    [402],
+    [402, 409],
   );
 
+  throwIfStockConflict(status, data);
+
   if (status === 402) {
+    const payment = data as { clientSecret?: string; orderId?: string };
     return {
       status: 'authorizationRequired',
-      clientSecret: data.clientSecret as string,
-      orderId: data.orderId as string,
+      clientSecret: payment.clientSecret as string,
+      orderId: payment.orderId as string,
     };
   }
-  return { status: 'created', order: data.order as Order };
+  return { status: 'created', order: (data as { order?: Order }).order as Order };
 }
 
 // GET /api/orders/:orderId — the attendee's own order by id. Items include

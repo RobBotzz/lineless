@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { ApiError, apiFetch } from './client';
 import type { CreateProductInput, Product, UpdateProductInput } from '../types/product';
 
 export function getStandProducts(standId: string): Promise<Product[]> {
@@ -58,12 +58,36 @@ export function deleteProductImage(productId: string): Promise<Product> {
   });
 }
 
-export function updateProductStock(productId: string, productStock: number): Promise<Product> {
-  return apiFetch<Product>(`/products/${productId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ productStock }),
-    auth: 'organizer',
-  });
+export class ProductStockChangedError extends ApiError {
+  readonly currentProductStock: number;
+
+  constructor(currentProductStock: number) {
+    super(409, 'Product stock changed while it was being edited');
+    this.name = 'ProductStockChangedError';
+    this.currentProductStock = currentProductStock;
+  }
+}
+
+export async function updateProductStock(
+  productId: string,
+  expectedProductStock: number,
+  productStock: number,
+): Promise<Product> {
+  try {
+    return await apiFetch<Product>(`/products/${productId}/stock`, {
+      method: 'PATCH',
+      body: JSON.stringify({ productStock, expectedProductStock }),
+      auth: 'organizer',
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409 && error.data) {
+      const data = error.data as Record<string, unknown>;
+      if (data.code === 'STOCK_CHANGED' && typeof data.currentProductStock === 'number') {
+        throw new ProductStockChangedError(data.currentProductStock);
+      }
+    }
+    throw error;
+  }
 }
 
 export function deleteProduct(productId: string): Promise<void> {
