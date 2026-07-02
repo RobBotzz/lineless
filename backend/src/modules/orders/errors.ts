@@ -5,6 +5,19 @@ export class OrderValidationError extends Error {
   }
 }
 
+export interface StockShortage {
+  productId: string;
+  requested: number;
+  available: number;
+}
+
+export class InsufficientStockError extends Error {
+  constructor(public readonly shortages: StockShortage[]) {
+    super("Some products no longer have enough stock");
+    this.name = "InsufficientStockError";
+  }
+}
+
 export class OrderNotFoundError extends Error {
   constructor() {
     super("Order not found");
