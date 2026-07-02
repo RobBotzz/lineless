@@ -13,7 +13,7 @@ import { createManualOrder, InsufficientStockError } from '@/api/orders';
 import { getOperatorStands } from '@/api/stands';
 import { getOperatorEventProducts } from '@/api/products';
 import type { OrderItemView } from '@/types/order';
-import { formatMoney, productImageSrc, type Product } from '@/types/product';
+import { formatMoney, productImageSrc, tracksStock, type Product } from '@/types/product';
 import { paths } from '@/paths';
 import type { CashierContext } from './CashierLayout';
 
@@ -199,8 +199,9 @@ function ProductTile({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const imageSrc = productImageSrc(product);
   const showImage = !!imageSrc && imageOk;
-  const soldOut = product.productStock <= 0;
-  const atStockLimit = soldOut || cartQuantity >= product.productStock;
+  const stockTracked = tracksStock(product);
+  const soldOut = stockTracked && product.productStock <= 0;
+  const atStockLimit = stockTracked && (soldOut || cartQuantity >= product.productStock);
 
   // Guards a single tap firing twice (duplicate/ghost events on some browsers).
   const runGuarded = useAddGuard();

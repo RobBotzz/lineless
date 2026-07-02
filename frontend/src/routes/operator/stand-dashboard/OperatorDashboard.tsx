@@ -762,7 +762,9 @@ function ProductSummaryRow({
               {product.openToDo}
             </span>
             <span className="whitespace-nowrap">To Do</span>
-            <span className="whitespace-nowrap">· Stock {product.productStock}</span>
+            <span className="whitespace-nowrap">
+              · Stock {product.stockMode === 'TRACKED' ? product.productStock : 'Unlimited'}
+            </span>
           </div>
 
           {/* Terminated is terminal — no pause/resume action; show a status label
