@@ -21,7 +21,7 @@ import {
 } from '@/api/products';
 import { getEventStands, pauseStand, resumeStand } from '@/api/stands';
 import { isEventControlCenterData, isLiveOrderArray } from '@/types/eventControlCenter';
-import type { Product } from '@/types/product';
+import type { Product, StockMode } from '@/types/product';
 import type { Stand } from '@/types/stand';
 
 export function useEventControlCenterLiveData({
@@ -224,13 +224,18 @@ export function useEventControlCenterLiveData({
     }
   }
 
-  async function handleProductStockChange(standId: string, product: Product, productStock: number) {
+  async function handleProductStockChange(
+    standId: string,
+    product: Product,
+    productStock: number,
+    stockMode: StockMode,
+  ) {
     setMutationError(null);
     try {
       const updatedProduct = await updateProductStock(
         product._id,
-        product.productStock,
-        productStock,
+        { productStock: product.productStock, stockMode: product.stockMode },
+        { productStock, stockMode },
       );
       setProductsByStand((current) => ({
         ...current,
@@ -244,7 +249,11 @@ export function useEventControlCenterLiveData({
           ...current,
           [standId]: (current[standId] ?? []).map((candidate) =>
             candidate._id === product._id
-              ? { ...candidate, productStock: error.currentProductStock }
+              ? {
+                  ...candidate,
+                  productStock: error.currentProductStock,
+                  stockMode: error.currentStockMode,
+                }
               : candidate,
           ),
         }));
