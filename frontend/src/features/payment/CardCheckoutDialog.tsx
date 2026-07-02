@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Elements } from '@stripe/react-stripe-js';
 
 import { Button } from '@/components/ui/button';
-import { cancelPendingOrderAuthorization, createCardOrder, getAttendeeOrder } from '@/api/orders';
+import {
+  cancelPendingOrderAuthorization,
+  createCardOrder,
+  getAttendeeOrder,
+  InsufficientStockError,
+} from '@/api/orders';
 import { createTab, getTabStatus } from '@/api/tabs';
 import { clearAttendeeTab, getAttendeeTab, setAttendeeTab } from '@/auth/keychain';
 import type { Order, OrderItemView } from '@/types/order';
@@ -16,6 +21,7 @@ interface CardCheckoutDialogProps {
   items: OrderItemView[];
   onSuccess: (order: Order) => void;
   onClose: () => void;
+  onStockConflict: (error: InsufficientStockError) => void;
 }
 
 interface CardPrompt {
@@ -48,12 +54,14 @@ export function CardCheckoutDialog({
   items,
   onSuccess,
   onClose,
+  onStockConflict,
 }: CardCheckoutDialogProps) {
   const [phase, setPhase] = useState<'working' | 'error'>('working');
   const [message, setMessage] = useState('Setting up your payment…');
   const [prompt, setPrompt] = useState<CardPrompt | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
   // Bridges the imperative card form into the linear async runner: the runner
   // sets a prompt and awaits this deferred; the form resolves it on success.
@@ -61,6 +69,8 @@ export function CardCheckoutDialog({
   const pendingOrderId = useRef<string | null>(null);
   const cancelled = useRef(false);
   const started = useRef(false);
+  const creatingOrder = useRef(false);
+  const requestId = useRef(crypto.randomUUID());
 
   useEffect(() => {
     if (started.current) return;
@@ -146,7 +156,18 @@ export function CardCheckoutDialog({
       const tabId = await ensureOpenTab();
       setMessage('Placing your order…');
 
-      const result = await createCardOrder(eventId, items, tabId);
+      creatingOrder.current = true;
+      setIsCreatingOrder(true);
+      const result = await createCardOrder(eventId, items, tabId, requestId.current);
+      // For top-ups, publish the cleanup id before making cancellation
+      // available again. This closes the response/close race that could leave
+      // a reserved order and Stripe hold behind.
+      if (result.status === 'authorizationRequired') {
+        pendingOrderId.current = result.orderId;
+      }
+      creatingOrder.current = false;
+      setIsCreatingOrder(false);
+
       if (result.status === 'created') {
         if (cancelled.current) return;
         onSuccess(result.order);
@@ -155,7 +176,6 @@ export function CardCheckoutDialog({
 
       // The order exceeded the current hold; the backend already created it
       // (gated) and needs a top-up authorization to release it.
-      pendingOrderId.current = result.orderId;
       setMessage('A little more authorization is needed…');
       await awaitCard(result.clientSecret, 'Authorize remaining amount');
       setPrompt(null);
@@ -166,9 +186,17 @@ export function CardCheckoutDialog({
       if (cancelled.current) return;
       onSuccess(order);
     } catch (err) {
+      creatingOrder.current = false;
+      setIsCreatingOrder(false);
       if (err instanceof CancelledError) return;
+      const abandonedOrder = pendingOrderId.current !== null;
       await cancelPendingAuthorization().catch(() => undefined);
       if (cancelled.current) return;
+      if (err instanceof InsufficientStockError) {
+        onStockConflict(err);
+        return;
+      }
+      if (abandonedOrder) requestId.current = crypto.randomUUID();
       setError(err instanceof Error ? err.message : 'Payment failed. Please try again.');
       setPhase('error');
     }
@@ -186,6 +214,7 @@ export function CardCheckoutDialog({
   }
 
   function handleCancel(): void {
+    if (creatingOrder.current) return;
     cancelled.current = true;
     cardDeferred.current?.reject(new CancelledError());
     cardDeferred.current = null;
@@ -219,8 +248,9 @@ export function CardCheckoutDialog({
           <button
             type="button"
             onClick={handleCancel}
+            disabled={isCreatingOrder}
             aria-label="Cancel payment"
-            className="text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
           >
             ✕
           </button>

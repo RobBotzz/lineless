@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { Product } from '@/types/product';
+import type { StockShortage } from '@/types/order';
 
 // A line in the cart: the product snapshot plus how many were added. We keep a
 // snapshot (not just an id) so the cart page can render without re-fetching.
@@ -18,6 +19,7 @@ export interface CartState {
   setQuantity: (productId: string, quantity: number) => void;
   setComment: (productId: string, index: number, comment: string) => void;
   removeItem: (productId: string) => void;
+  applyStockShortages: (shortages: StockShortage[]) => void;
   clear: () => void;
 }
 
@@ -65,8 +67,10 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
 
   const addItem = useCallback((product: Product) => {
     setItems((prev) => {
+      if (product.productStock <= 0) return prev;
       const existing = prev.find((i) => i.product._id === product._id);
       if (existing) {
+        if (existing.quantity >= product.productStock) return prev;
         return prev.map((i) =>
           i.product._id === product._id
             ? { ...i, quantity: i.quantity + 1, comments: [...i.comments, ''] }
@@ -78,15 +82,22 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
   }, []);
 
   const setQuantity = useCallback((productId: string, quantity: number) => {
-    setItems((prev) =>
-      quantity <= 0
-        ? prev.filter((i) => i.product._id !== productId)
-        : prev.map((i) =>
-            i.product._id === productId
-              ? { ...i, quantity, comments: resizeComments(i.comments, quantity) }
-              : i,
-          ),
-    );
+    setItems((prev) => {
+      const item = prev.find((candidate) => candidate.product._id === productId);
+      if (!item || quantity <= 0 || item.product.productStock <= 0) {
+        return prev.filter((candidate) => candidate.product._id !== productId);
+      }
+      const nextQuantity = Math.min(quantity, item.product.productStock);
+      return prev.map((candidate) =>
+        candidate.product._id === productId
+          ? {
+              ...candidate,
+              quantity: nextQuantity,
+              comments: resizeComments(candidate.comments, nextQuantity),
+            }
+          : candidate,
+      );
+    });
   }, []);
 
   const setComment = useCallback((productId: string, index: number, comment: string) => {
@@ -103,11 +114,43 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
     setItems((prev) => prev.filter((i) => i.product._id !== productId));
   }, []);
 
+  const applyStockShortages = useCallback((shortages: StockShortage[]) => {
+    const availableById = new Map(
+      shortages.map((shortage) => [shortage.productId, shortage.available]),
+    );
+    setItems((prev) =>
+      prev.flatMap((item) => {
+        const available = availableById.get(item.product._id);
+        if (available === undefined) return [item];
+        if (available <= 0) return [];
+        const quantity = Math.min(item.quantity, available);
+        return [
+          {
+            ...item,
+            product: { ...item.product, productStock: available },
+            quantity,
+            comments: resizeComments(item.comments, quantity),
+          },
+        ];
+      }),
+    );
+  }, []);
+
   const clear = useCallback(() => setItems([]), []);
 
   return useMemo<CartState>(() => {
     const totalCount = items.reduce((sum, i) => sum + i.quantity, 0);
     const totalCents = items.reduce((sum, i) => sum + i.product.priceIncludingTax * i.quantity, 0);
-    return { items, totalCount, totalCents, addItem, setQuantity, setComment, removeItem, clear };
-  }, [items, addItem, setQuantity, setComment, removeItem, clear]);
+    return {
+      items,
+      totalCount,
+      totalCents,
+      addItem,
+      setQuantity,
+      setComment,
+      removeItem,
+      applyStockShortages,
+      clear,
+    };
+  }, [items, addItem, setQuantity, setComment, removeItem, applyStockShortages, clear]);
 }
