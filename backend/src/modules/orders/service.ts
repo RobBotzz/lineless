@@ -496,12 +496,19 @@ export async function getOrderForAttendee(
   return enrichOrderForAttendee(order);
 }
 
-// An attendee's own paid orders — the source for the order-status / review entry
-// point. Product names are joined here (one batch query) to avoid frontend N+1.
+// An attendee's own orders — the source for the order-status / review entry
+// point. Includes all paid orders plus every cash order (tabId: null) whether
+// pending payment or cashier-cancelled (deletedAt), so the pending-payment and
+// cancelled states are visible in history. Transient gated card orders (unpaid
+// with a tabId) are excluded. Product names are joined here (one batch query)
+// to avoid a frontend N+1.
 export async function listOrdersForAttendee(
   sessionId: string
 ): Promise<AttendeeOrder[]> {
-  const orders = await Order.find({ sessionId, paidAt: { $ne: null } })
+  const orders = await Order.find({
+    sessionId,
+    $or: [{ paidAt: { $ne: null } }, { tabId: null }],
+  })
     .sort({ createdAt: -1 })
     .lean();
 
