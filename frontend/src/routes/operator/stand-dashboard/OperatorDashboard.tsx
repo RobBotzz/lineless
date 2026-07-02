@@ -18,7 +18,15 @@ import {
   type OperatorBoard,
 } from '@/types/operatorBoard';
 import { BackButton } from '@/components/shared';
-import { ChatIcon, ChevronDownIcon, LockIcon, PauseIcon, PlayIcon } from '@/components/icons';
+import {
+  ChatIcon,
+  ChevronDownIcon,
+  LockIcon,
+  PauseIcon,
+  PlayIcon,
+  SearchIcon,
+  XIcon,
+} from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { operatorStandQueryOptions } from '../operatorQueries';
 
@@ -75,6 +83,9 @@ export default function OperatorDashboard() {
   const [board, setBoard] = useState<OperatorBoard | null>(null);
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
   const [filters, setFilters] = useState<ReadonlySet<string>>(() => new Set());
+  // Free-text search over all items by order number / pickup code — quick lookup
+  // when a customer asks about a specific order across a long board.
+  const [search, setSearch] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   // The item awaiting pickup-code confirmation before it is handed over.
   const [confirmItem, setConfirmItem] = useState<BoardItem | null>(null);
@@ -238,8 +249,14 @@ export default function OperatorDashboard() {
     products.map((p, i) => [p.productId, PRODUCT_PALETTE[i % PRODUCT_PALETTE.length]]),
   );
   const colorOf = (productId: string) => productColors.get(productId) ?? PRODUCT_PALETTE[0];
-  const visibleItems =
-    filters.size > 0 ? items.filter((item) => filters.has(item.productId)) : items;
+  // Product chips AND the text search both narrow the board. The search matches
+  // the order number (case-insensitive substring).
+  const searchQuery = search.trim().toLowerCase();
+  const visibleItems = items.filter((item) => {
+    if (filters.size > 0 && !filters.has(item.productId)) return false;
+    if (searchQuery && !item.orderNumber.toLowerCase().includes(searchQuery)) return false;
+    return true;
+  });
   // The products overview is filtered the same way (it no longer drives the filter).
   const visibleProducts =
     filters.size > 0 ? products.filter((product) => filters.has(product.productId)) : products;
@@ -312,6 +329,29 @@ export default function OperatorDashboard() {
           <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
           <ConnectionBadge status={status} />
         </header>
+
+        {/* Quick lookup by order number across every column. */}
+        <div className="relative mb-4 sm:max-w-xs">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search order number"
+            aria-label="Search orders by number"
+            className="h-10 w-full rounded-md border border-border bg-surface pl-9 pr-9 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
 
         {products.length > 0 && (
           <div className="mb-5 flex flex-wrap gap-2">
