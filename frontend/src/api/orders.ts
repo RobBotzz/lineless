@@ -90,6 +90,24 @@ function throwIfStockConflict(status: number, data: unknown): void {
   }
 }
 
+function unexpectedOrderResponse(status: number, data: unknown): ApiError {
+  let message = `Unexpected order response (${status})`;
+  if (data && typeof data === 'object') {
+    const response = data as Record<string, unknown>;
+    if (typeof response.error === 'string') message = response.error;
+    else if (typeof response.message === 'string') message = response.message;
+  }
+  return new ApiError(status, message, data);
+}
+
+function createdOrderFromResponse(status: number, data: unknown): Order {
+  if (status === 201 && data && typeof data === 'object') {
+    const order = (data as Record<string, unknown>).order;
+    if (order && typeof order === 'object') return order as Order;
+  }
+  throw unexpectedOrderResponse(status, data);
+}
+
 // --- Cashier order API ---------------------------------------------------------
 // The cashier always acts as its event's CASHIER stand; callers pass that standId
 // (resolved by CashierLayout) for operator auth.
@@ -210,7 +228,7 @@ export async function createManualOrder(
     [409],
   );
   throwIfStockConflict(status, data);
-  return (data as { order: Order }).order;
+  return createdOrderFromResponse(status, data);
 }
 
 // POST /api/orders — creates an order for the attendee's own cart (attendee session auth).
@@ -232,7 +250,7 @@ export async function createOrder(
     [409],
   );
   throwIfStockConflict(status, data);
-  return (data as { order: Order }).order;
+  return createdOrderFromResponse(status, data);
 }
 
 // Outcome of placing a card order against a tab. `created` means the order fit
@@ -269,13 +287,16 @@ export async function createCardOrder(
 
   if (status === 402) {
     const payment = data as { clientSecret?: string; orderId?: string };
+    if (typeof payment.clientSecret !== 'string' || typeof payment.orderId !== 'string') {
+      throw unexpectedOrderResponse(status, data);
+    }
     return {
       status: 'authorizationRequired',
-      clientSecret: payment.clientSecret as string,
-      orderId: payment.orderId as string,
+      clientSecret: payment.clientSecret,
+      orderId: payment.orderId,
     };
   }
-  return { status: 'created', order: (data as { order?: Order }).order as Order };
+  return { status: 'created', order: createdOrderFromResponse(status, data) };
 }
 
 // GET /api/orders/:orderId — the attendee's own order by id. Items include
