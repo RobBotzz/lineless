@@ -122,20 +122,21 @@ function itemsSubtotal(items: ProductUnitsSold[]): { net: number; tax: number; g
   );
 }
 
-// Total sales is the headline; everything that breaks it down or bridges it to
-// the bank payout is indented beneath it. It still reads as a running
-// calculation top to bottom:
-//   Total sales − Cashier = Online sales
-//   Online sales − On open tabs = Card sales captured
-//   Card sales captured − processing fees − platform fee = Net payout.
+// Total sales is the headline; the deductions that bridge it down to the bank
+// payout are indented (↳) beneath the bold milestone subtotals. It reads as a
+// running calculation top to bottom:
+//   Total sales − Cashier payments        = Gross online sales
+//   Gross online sales − Uncaptured auths = Captured online sales
+//   Captured online sales − fees          = Net payout
 // Built once and shared by the UI and the CSV export so the two can never drift.
 type StatementKind = 'line' | 'sub' | 'subtotal' | 'info' | 'total';
-type StatementLine = { label: string; cents: number; kind: StatementKind; indent?: boolean };
+type StatementLine = { label: string; cents: number; kind: StatementKind };
 
 function eventStatement(row: EventRow): StatementLine[] {
   const { event, totalSalesCents, cashSalesCents, cardSalesCents } = row;
-  // Online (card) value still on open, unsettled tabs — the gap between online
-  // sales and what has hit the card. Captured card is a subset, so this is >= 0.
+  // Online (card) value still on open/expired auths that never reached the card —
+  // the gap between gross online sales and what was captured. Captured is a
+  // subset, so this is >= 0.
   const uncapturedCardCents = cardSalesCents - event.capturedCardCents;
 
   // Tax is reported as a single event total; split it across the cash/card
@@ -150,47 +151,23 @@ function eventStatement(row: EventRow): StatementLine[] {
     { label: 'Total sales (incl. tax)', cents: totalSalesCents, kind: 'line' },
   ];
   if (cashSalesCents > 0) {
-    lines.push({ label: 'Cashier payments', cents: cashSalesCents, kind: 'sub', indent: true });
+    lines.push({ label: 'Cashier payments', cents: cashSalesCents, kind: 'sub' });
     if (cashTaxCents > 0) {
-      lines.push({
-        label: 'of which tax (included)',
-        cents: cashTaxCents,
-        kind: 'info',
-        indent: true,
-      });
+      lines.push({ label: 'of which tax (included)', cents: cashTaxCents, kind: 'info' });
     }
   }
   if (cardSalesCents > 0) {
-    lines.push({ label: 'Online sales', cents: cardSalesCents, kind: 'subtotal', indent: true });
+    lines.push({ label: 'Gross online sales', cents: cardSalesCents, kind: 'subtotal' });
     if (cardTaxCents > 0) {
-      lines.push({
-        label: 'of which tax (included)',
-        cents: cardTaxCents,
-        kind: 'info',
-        indent: true,
-      });
+      lines.push({ label: 'of which tax (included)', cents: cardTaxCents, kind: 'info' });
     }
+    // Hidden at €0 per the mockup: only surfaces when some auth never captured.
     if (uncapturedCardCents > 0) {
-      lines.push({
-        label: 'open tabs (not yet captured)',
-        cents: uncapturedCardCents,
-        kind: 'sub',
-        indent: true,
-      });
+      lines.push({ label: 'Uncaptured / expired auths', cents: uncapturedCardCents, kind: 'sub' });
     }
     lines.push(
-      {
-        label: 'Online sales captured',
-        cents: event.capturedCardCents,
-        kind: 'subtotal',
-        indent: true,
-      },
-      {
-        label: 'Online payment processing fees',
-        cents: event.stripeFeeCents,
-        kind: 'sub',
-        indent: true,
-      },
+      { label: 'Captured online sales', cents: event.capturedCardCents, kind: 'subtotal' },
+      { label: 'Online payment processing fees', cents: event.stripeFeeCents, kind: 'sub' },
     );
   }
   lines.push(
@@ -671,21 +648,28 @@ function EventBreakdownRow({ row }: { row: EventRow }) {
 }
 
 function StatementRow({ line }: { line: StatementLine }) {
+  // Deductions ('sub') and the muted tax annotations ('info') are indented (↳)
+  // under the bold milestone lines they roll up into.
+  const indented = line.kind === 'sub' || line.kind === 'info';
   const amount = `${line.kind === 'sub' ? '−' : ''}${eur(line.cents)}`;
-  // 'total' is the final, heavy payout line; 'line' (Total sales headline) and
-  // 'subtotal' (running results) are mid-weight; 'info' is muted; 'sub' is a
-  // plain deduction. Indented lines sit under the Total sales headline.
+  // Milestones (Total sales + the running subtotals) are bold; deductions and
+  // annotations are muted + italic; the final Net payout is bold and highlighted.
   const rowClass =
     line.kind === 'total'
-      ? 'mt-1 border-t border-border pt-2 text-base font-semibold text-text'
+      ? 'mt-1 border-t border-border pt-2 text-base font-semibold text-accent'
       : line.kind === 'line' || line.kind === 'subtotal'
-        ? 'text-sm font-medium text-text'
-        : line.kind === 'info'
-          ? 'text-sm text-text-muted'
-          : 'text-sm text-text';
+        ? 'text-sm font-semibold text-text'
+        : 'text-sm italic text-text-muted';
   return (
     <div className={`flex justify-between py-1 ${rowClass}`}>
-      <dt className={line.indent ? 'pl-4' : ''}>{line.label}</dt>
+      <dt className={indented ? 'pl-4' : ''}>
+        {indented ? (
+          <span aria-hidden="true" className="text-text-muted/60">
+            ↳{' '}
+          </span>
+        ) : null}
+        {line.label}
+      </dt>
       <dd>{amount}</dd>
     </div>
   );
