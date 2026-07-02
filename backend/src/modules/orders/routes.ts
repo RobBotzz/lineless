@@ -14,7 +14,7 @@ import {
   getOrderForOrganizer,
   issueCashRefund,
   listOrdersForAttendee,
-  listUnpaidOrdersForCashier,
+  listUnpaidCashOrdersForEvent,
   submitOrder,
 } from "./service";
 import { SseConnection } from "../../lib/sse";
@@ -146,21 +146,6 @@ ordersRouter.post(
   }
 );
 
-// GET /orders/cashier — unpaid orders for the cashier's event, derived from the
-// operator token. Registered before /:orderId so "cashier" is not read as an id.
-ordersRouter.get(
-  "/cashier",
-  authOperator,
-  async (req: Request, res: Response) => {
-    try {
-      const orders = await listUnpaidOrdersForCashier(req.operator!.standId);
-      return res.status(200).json(orders);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
-);
-
 // GET /orders/cashier/stream — same unpaid-orders list, pushed live over SSE on
 // every relevant order.changed event (new cash order, cashier cancellation, or
 // payment confirmation removing an order from the list). Mirrors the shape of
@@ -174,14 +159,14 @@ ordersRouter.get(
       // Resolve the stand before the SSE headers go out, so a bad/disabled
       // stand still maps to a clean error instead of a half-open stream.
       const stand = await assertActiveCashierStand(standId);
-      const initial = await listUnpaidOrdersForCashier(standId);
+      const initial = await listUnpaidCashOrdersForEvent(stand.eventId);
 
       const sse = new SseConnection(res);
       sse.send("snapshot", initial);
 
       const unsubscribe = subscribe("order.changed", (order) => {
         if (order.eventId !== stand.eventId || order.tabId !== null) return;
-        listUnpaidOrdersForCashier(standId)
+        listUnpaidCashOrdersForEvent(stand.eventId)
           .then((orders) => sse.send("snapshot", orders))
           .catch(() => {
             // stream errors are non-fatal; the client recovers on reconnect
