@@ -28,11 +28,13 @@ import {
   type OrderEmailStandGroup,
 } from "./orderEmailShared";
 
-export interface OrderCreatedEmailProps {
+export interface OrderConfirmedEmailProps {
   /** Human-friendly order number, e.g. "A041". */
   orderNumber: string;
   /** Name of the event the order belongs to. */
   eventName: string;
+  /** Code the attendee shows at the stand to collect the order. */
+  pickupCode: string;
   /** Ordered items grouped by the stand that prepares them. */
   stands: OrderEmailStandGroup[];
   /** Order total including tax, in integer cents. */
@@ -41,23 +43,23 @@ export interface OrderCreatedEmailProps {
   trackOrderUrl: string;
 }
 
-const pendingCard: CSSProperties = {
-  backgroundColor: "#fdf1e3",
-  border: "1px solid #f5ddc0",
+const confirmedCard: CSSProperties = {
+  backgroundColor: "#ecfdf5",
+  border: "1px solid #bbe8d2",
   borderRadius: "14px",
   margin: "0 0 16px",
   padding: "24px 20px",
   textAlign: "center",
 };
 
-const pendingTitle: CSSProperties = {
+const confirmedTitle: CSSProperties = {
   color: "#1f2937",
   fontSize: "20px",
   fontWeight: 700,
   margin: "0 0 6px",
 };
 
-const pendingSubtext: CSSProperties = {
+const confirmedSubtext: CSSProperties = {
   color: "#6b7280",
   fontSize: "14px",
   lineHeight: "20px",
@@ -66,22 +68,23 @@ const pendingSubtext: CSSProperties = {
 
 // A React Email template plus the optional `PreviewProps` the React Email dev
 // server reads to render a preview with sample data (ignored at runtime).
-type EmailTemplate = ((props: OrderCreatedEmailProps) => ReactElement) & {
-  PreviewProps?: OrderCreatedEmailProps;
+type EmailTemplate = ((props: OrderConfirmedEmailProps) => ReactElement) & {
+  PreviewProps?: OrderConfirmedEmailProps;
 };
 
-export const OrderCreatedEmail: EmailTemplate = ({
+export const OrderConfirmedEmail: EmailTemplate = ({
   orderNumber,
   eventName,
+  pickupCode,
   stands,
   totalCents,
   trackOrderUrl,
-}: OrderCreatedEmailProps) => {
+}: OrderConfirmedEmailProps) => {
   return (
     <Html lang="en">
       <Head />
       <Preview>
-        Order {orderNumber} placed — please pay at the cashier to get it started
+        Order {orderNumber} is paid — your pickup code is {pickupCode}
       </Preview>
       <Body style={body}>
         <Container style={container}>
@@ -89,15 +92,15 @@ export const OrderCreatedEmail: EmailTemplate = ({
             <Text style={brand}>lineless</Text>
           </Section>
 
-          <Section style={pendingCard}>
-            <Text style={pendingTitle}>Payment Pending</Text>
-            <Text style={pendingSubtext}>
-              Please go to the cashier to pay for your order at {eventName}. It
-              will only be prepared once it has been paid.
+          <Section style={confirmedCard}>
+            <Text style={confirmedTitle}>Payment Confirmed</Text>
+            <Text style={confirmedSubtext}>
+              Your order at {eventName} is paid and will be prepared. Keep your
+              pickup code ready when you collect it.
             </Text>
           </Section>
 
-          <OrderMetaCards orderNumber={orderNumber} pickupCode={null} />
+          <OrderMetaCards orderNumber={orderNumber} pickupCode={pickupCode} />
 
           <Section style={{ ...card, marginTop: "16px" }}>
             <ProductsByStand stands={stands} totalCents={totalCents} />
@@ -109,8 +112,8 @@ export const OrderCreatedEmail: EmailTemplate = ({
             </Section>
 
             <Text style={paragraph}>
-              Once you have paid, this page will show your pickup code and the
-              live status of your order.
+              Follow the live status of your order on this page — it shows you
+              when each item is ready for pickup.
             </Text>
           </Section>
 
@@ -128,41 +131,25 @@ export const OrderCreatedEmail: EmailTemplate = ({
   );
 };
 
-OrderCreatedEmail.PreviewProps = {
+OrderConfirmedEmail.PreviewProps = {
   orderNumber: "A041",
   eventName: "Sommerfest",
+  pickupCode: "1DA2",
   stands: [
     {
       standName: "Drinks",
       items: [
         {
-          name: "Geile Säue",
-          quantity: 2,
-          unitPriceCents: 1000,
-          imageUrl: null,
-        },
-        {
           name: "Augustiner Helles (0,5 L)",
-          quantity: 1,
+          quantity: 2,
           unitPriceCents: 550,
           imageUrl: null,
         },
       ],
     },
-    {
-      standName: "Grill",
-      items: [
-        {
-          name: "Bratwurst",
-          quantity: 1,
-          unitPriceCents: 350,
-          imageUrl: "https://example.com/bratwurst.jpg",
-        },
-      ],
-    },
   ],
-  totalCents: 2900,
+  totalCents: 1100,
   trackOrderUrl: "https://example.com/event/evt/orders/ord",
 };
 
-export default OrderCreatedEmail;
+export default OrderConfirmedEmail;

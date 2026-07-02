@@ -2,10 +2,9 @@ import { getResend } from "./client";
 import { config } from "../../config/config";
 import { ResetPasswordEmail } from "./templates/ResetPasswordEmail";
 import { WelcomeEmail } from "./templates/WelcomeEmail";
-import {
-  OrderCreatedEmail,
-  type OrderCreatedEmailStandGroup,
-} from "./templates/OrderCreatedEmail";
+import { OrderCreatedEmail } from "./templates/OrderCreatedEmail";
+import { OrderConfirmedEmail } from "./templates/OrderConfirmedEmail";
+import type { OrderEmailStandGroup } from "./templates/orderEmailShared";
 
 export interface SendPasswordResetEmailParams {
   to: string;
@@ -69,7 +68,7 @@ export interface SendOrderCreatedEmailParams {
   to: string;
   orderNumber: string;
   eventName: string;
-  stands: OrderCreatedEmailStandGroup[];
+  stands: OrderEmailStandGroup[];
   totalCents: number;
   trackOrderUrl: string;
 }
@@ -103,6 +102,51 @@ export async function sendOrderCreatedEmail({
   if (error) {
     throw new Error(
       `Resend failed to send order-created email: ${error.message}`
+    );
+  }
+}
+
+export interface SendOrderConfirmedEmailParams {
+  to: string;
+  orderNumber: string;
+  eventName: string;
+  pickupCode: string;
+  stands: OrderEmailStandGroup[];
+  totalCents: number;
+  trackOrderUrl: string;
+}
+
+// "Order paid" confirmation with the now-available pickup code. Sent for card
+// orders right away and for cash orders once the cashier confirms payment.
+// Throws on a Resend error so callers can decide how to handle failures.
+export async function sendOrderConfirmedEmail({
+  to,
+  orderNumber,
+  eventName,
+  pickupCode,
+  stands,
+  totalCents,
+  trackOrderUrl,
+}: SendOrderConfirmedEmailParams): Promise<void> {
+  const { error } = await getResend().emails.send({
+    from: config.resend.fromAddress,
+    to,
+    subject: `Order ${orderNumber} confirmed — pickup code ${pickupCode}`,
+    react: (
+      <OrderConfirmedEmail
+        orderNumber={orderNumber}
+        eventName={eventName}
+        pickupCode={pickupCode}
+        stands={stands}
+        totalCents={totalCents}
+        trackOrderUrl={trackOrderUrl}
+      />
+    ),
+  });
+
+  if (error) {
+    throw new Error(
+      `Resend failed to send order-confirmed email: ${error.message}`
     );
   }
 }

@@ -3,6 +3,8 @@ import { TabPayment } from "./model";
 import { Tab } from "../tabs/model";
 import { withProcessedEventGuard } from "./processedEvents";
 import { markAuthorizedTabOrdersPaid } from "../orders/tabAuthorization";
+import { notifyOrderPaid } from "../orders/emailNotifications";
+import type { OrderDoc } from "../orders/model";
 
 export const TAB_AUTHORIZATION_WINDOW_MS = 12 * 60 * 60 * 1000;
 
@@ -33,6 +35,7 @@ export async function handleAmountCapturableUpdated(
   intentId: string,
   eventId: string
 ) {
+  let newlyPaidOrders: OrderDoc[] = [];
   await withProcessedEventGuard(
     eventId,
     "payment_intent.amount_capturable_updated",
@@ -57,11 +60,19 @@ export async function handleAmountCapturableUpdated(
       payment.expiresAt = new Date(now.getTime() + TAB_AUTHORIZATION_WINDOW_MS);
       await payment.save({ session });
 
-      await markAuthorizedTabOrdersPaid(payment.tabId, session, now);
+      newlyPaidOrders = await markAuthorizedTabOrdersPaid(
+        payment.tabId,
+        session,
+        now
+      );
 
       await reopenTabIfSettled(payment.tabId, session);
     }
   );
+
+  // Confirm the released orders only after the transaction has committed — a
+  // mail inside the transaction could be duplicated by a retry.
+  for (const order of newlyPaidOrders) void notifyOrderPaid(order);
 }
 
 /**

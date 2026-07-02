@@ -3,6 +3,16 @@ import path from "node:path";
 import { render } from "@react-email/components";
 import { ResetPasswordEmail } from "./templates/ResetPasswordEmail";
 import { WelcomeEmail } from "./templates/WelcomeEmail";
+import { OrderCreatedEmail } from "./templates/OrderCreatedEmail";
+import { OrderConfirmedEmail } from "./templates/OrderConfirmedEmail";
+
+// Fallback sample used when a template carries no PreviewProps.
+const sampleStands = [
+  {
+    standName: "Drinks",
+    items: [{ name: "Cola", quantity: 2, unitPriceCents: 250, imageUrl: null }],
+  },
+];
 
 // Local-only dev helper: renders email templates to standalone HTML files you
 // can open in a browser — no preview server, no extra dependencies. Uses each
@@ -22,6 +32,31 @@ async function main(): Promise<void> {
       element: WelcomeEmail(
         WelcomeEmail.PreviewProps ?? {
           dashboardUrl: "https://example.com/organizer",
+        }
+      ),
+    },
+    {
+      name: "OrderCreatedEmail",
+      element: OrderCreatedEmail(
+        OrderCreatedEmail.PreviewProps ?? {
+          orderNumber: "A041",
+          eventName: "Sommerfest",
+          stands: sampleStands,
+          totalCents: 500,
+          trackOrderUrl: "https://example.com/event/evt/orders/ord",
+        }
+      ),
+    },
+    {
+      name: "OrderConfirmedEmail",
+      element: OrderConfirmedEmail(
+        OrderConfirmedEmail.PreviewProps ?? {
+          orderNumber: "A041",
+          eventName: "Sommerfest",
+          pickupCode: "1DA2",
+          stands: sampleStands,
+          totalCents: 500,
+          trackOrderUrl: "https://example.com/event/evt/orders/ord",
         }
       ),
     },
