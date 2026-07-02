@@ -6,6 +6,10 @@ import { OrderCreatedEmail } from "./templates/OrderCreatedEmail";
 import { OrderConfirmedEmail } from "./templates/OrderConfirmedEmail";
 import type { OrderEmailStandGroup } from "./templates/orderEmailShared";
 
+// "Display Name <address>" — the display name is what recipient inboxes show
+// as the sender; it lives in the from header, not in the domain config.
+const FROM = `Lineless <${config.resend.fromAddress}>`;
+
 export interface SendPasswordResetEmailParams {
   to: string;
   resetUrl: string;
@@ -22,7 +26,7 @@ export async function sendPasswordResetEmail({
   expiresInMinutes,
 }: SendPasswordResetEmailParams): Promise<void> {
   const { error } = await getResend().emails.send({
-    from: config.resend.fromAddress,
+    from: FROM,
     to,
     subject: "Reset your Lineless password",
     react: (
@@ -53,7 +57,7 @@ export async function sendWelcomeEmail({
   dashboardUrl,
 }: SendWelcomeEmailParams): Promise<void> {
   const { error } = await getResend().emails.send({
-    from: config.resend.fromAddress,
+    from: FROM,
     to,
     subject: "Welcome to Lineless",
     react: <WelcomeEmail firstName={firstName} dashboardUrl={dashboardUrl} />,
@@ -85,7 +89,7 @@ export async function sendOrderCreatedEmail({
   trackOrderUrl,
 }: SendOrderCreatedEmailParams): Promise<void> {
   const { error } = await getResend().emails.send({
-    from: config.resend.fromAddress,
+    from: FROM,
     to,
     subject: `Order ${orderNumber} placed — payment pending`,
     react: (
@@ -129,7 +133,7 @@ export async function sendOrderConfirmedEmail({
   trackOrderUrl,
 }: SendOrderConfirmedEmailParams): Promise<void> {
   const { error } = await getResend().emails.send({
-    from: config.resend.fromAddress,
+    from: FROM,
     to,
     subject: `Order ${orderNumber} confirmed — pickup code ${pickupCode}`,
     react: (
