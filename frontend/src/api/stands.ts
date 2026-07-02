@@ -14,10 +14,6 @@ export function getOperatorCashierStand(eventId: string): Promise<Stand> {
   return apiFetch<Stand>(`/events/${eventId}/stands/cashier-stand`, { auth: 'operator-link' });
 }
 
-export function getOrganizerCashierStand(eventId: string): Promise<Stand> {
-  return apiFetch<Stand>(`/events/${eventId}/stands/cashier-stand`, { auth: 'organizer' });
-}
-
 export function getAttendeeStands(eventId: string): Promise<Stand[]> {
   return apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'attendee', eventId });
 }

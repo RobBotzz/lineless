@@ -3,13 +3,7 @@ import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from 'reac
 import { ApiError } from '@/api/client';
 import { deleteEvent, getEvent, startEvent, stopEvent, updateEvent } from '@/api/events';
 import { deleteProduct, getStandProducts } from '@/api/products';
-import {
-  createStand,
-  deleteStand,
-  getEventStands,
-  getOrganizerCashierStand,
-  updateStand,
-} from '@/api/stands';
+import { createStand, deleteStand, getEventStands, updateStand } from '@/api/stands';
 import type { Event, UpdateEventInput } from '@/types/event';
 import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
 import type { Product } from '@/types/product';
@@ -21,26 +15,20 @@ export type EventConfigurationLoaderData = {
   stands: Stand[];
   // Products keyed by their stand id.
   productsByStand: Record<string, Product[]>;
-  // The event's cashier stand, or null when the cashier is disabled / absent.
-  cashierStand: Stand | null;
 };
 
 export async function eventConfigurationLoader({
   params,
 }: LoaderFunctionArgs): Promise<EventConfigurationLoaderData> {
   const eventId = params.eventId as string;
-  const [event, stands, cashierStand] = await Promise.all([
-    getEvent(eventId),
-    getEventStands(eventId),
-    getOrganizerCashierStand(eventId).catch(() => null),
-  ]);
+  const [event, stands] = await Promise.all([getEvent(eventId), getEventStands(eventId)]);
   // Fetch each stand's products in parallel, then index by stand id.
   const productLists = await Promise.all(stands.map((stand) => getStandProducts(stand._id)));
   const productsByStand: Record<string, Product[]> = {};
   stands.forEach((stand, i) => {
     productsByStand[stand._id] = productLists[i];
   });
-  return { event, stands, productsByStand, cashierStand };
+  return { event, stands, productsByStand };
 }
 
 // Lifecycle + settings mutations. useFetcher revalidates the loader on success,
