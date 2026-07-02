@@ -184,6 +184,7 @@ export default function EventConfiguration() {
     Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1 && baselineHoldEuros <= 10000;
 
   const nameValid = form.name.trim().length > 0;
+  const settingsValid = baselineHoldValid && nameValid;
 
   const isDateInPast = form.plannedDate
     ? new Date(form.plannedDate) < new Date(new Date().toISOString().split('T')[0])
@@ -260,7 +261,7 @@ export default function EventConfiguration() {
   });
 
   useEffect(() => {
-    if (!baselineHoldValid || !nameValid) return;
+    if (!settingsValid) return;
     if (settingsSnapshot === lastSavedSnapshot) return;
     const handle = setTimeout(() => {
       pendingSnapshotRef.current = settingsSnapshot;
@@ -273,7 +274,7 @@ export default function EventConfiguration() {
       );
     }, 800);
     return () => clearTimeout(handle);
-  }, [settingsSnapshot, lastSavedSnapshot, baselineHoldValid, nameValid]);
+  }, [settingsSnapshot, lastSavedSnapshot, settingsValid]);
 
   // Mark the just-sent snapshot as saved once the request succeeds; on failure
   // it stays "dirty" so the next edit retries.
@@ -875,7 +876,7 @@ export default function EventConfiguration() {
 
               {/* No save button — the form auto-saves; this just reflects status. */}
               <div className="mt-6 flex justify-end text-sm" aria-live="polite">
-                {!baselineHoldValid && settingsDirty ? (
+                {!settingsValid && settingsDirty ? (
                   <span className="text-danger">Fix the highlighted field to save.</span>
                 ) : settingsSaveError ? (
                   <span className="text-danger">
