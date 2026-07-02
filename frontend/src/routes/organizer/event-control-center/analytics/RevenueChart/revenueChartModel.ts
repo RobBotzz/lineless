@@ -1,20 +1,15 @@
-import type { CSSProperties } from 'react';
-
 import type { RevenuePoint, StandRevenueSeries } from '@/api/eventControlCenter';
 import { formatMoney } from '@/types/product';
 
-export const REVENUE_CHART_MIN_WIDTH = 720;
-export const REVENUE_CHART_HEIGHT = 360;
-export const REVENUE_GRANULARITY_OPTIONS = [
-  { label: '15 min', minutes: 15 },
+export const REVENUE_TIME_RANGE_OPTIONS = [
   { label: '30 min', minutes: 30 },
   { label: '1 h', minutes: 60 },
+  { label: '6 h', minutes: 360 },
+  { label: '12 h', minutes: 720 },
+  { label: '24 h', minutes: 1_440 },
 ] as const;
+const REVENUE_BUCKET_COUNT = 30;
 
-const REVENUE_TOOLTIP_HEIGHT = 118;
-const REVENUE_TOOLTIP_MARGIN = 12;
-const REVENUE_TOOLTIP_OFFSET = 12;
-const REVENUE_TOOLTIP_WIDTH = 224;
 const REVENUE_STAND_COLORS = [
   '#020887',
   '#0f766e',
@@ -26,7 +21,7 @@ const REVENUE_STAND_COLORS = [
   '#be123c',
 ];
 
-export type RevenueGranularityMinutes = (typeof REVENUE_GRANULARITY_OPTIONS)[number]['minutes'];
+export type RevenueTimeRangeMinutes = (typeof REVENUE_TIME_RANGE_OPTIONS)[number]['minutes'];
 
 export type StandRevenueBreakdown = {
   color: string;
@@ -37,7 +32,6 @@ export type StandRevenueBreakdown = {
 };
 
 export type RevenueIntervalPoint = {
-  elapsedMinutes: number;
   intervalEndAt: Date;
   intervalEndMinutes: number;
   intervalStartAt: Date;
@@ -46,27 +40,32 @@ export type RevenueIntervalPoint = {
   revenueCents: number;
 };
 
+export type RevenueStandSeries = {
+  color: string;
+  data: number[];
+  intervals: RevenueStandIntervalPoint[];
+  standId: string;
+  standName: string;
+};
+
+export type RevenueStandIntervalPoint = {
+  orderCount: number;
+  products: RevenueStandIntervalProduct[];
+  revenueCents: number;
+};
+
+export type RevenueStandIntervalProduct = {
+  productId: string;
+  productName: string;
+  quantitySold: number;
+  revenueCents: number;
+};
+
 export type RevenueChartModel = {
-  baselineY: number;
-  chartWidth: number;
-  coordinates: { x: number; y: number }[];
   eventStartAt: Date;
-  lineCoordinates: { x: number; y: number }[];
-  maxMinutes: number;
-  maxRevenue: number;
-  plot: {
-    bottom: number;
-    height: number;
-    left: number;
-    right: number;
-    top: number;
-    width: number;
-  };
   points: RevenueIntervalPoint[];
+  standSeries: RevenueStandSeries[];
   totalBreakdown: StandRevenueBreakdown[];
-  xForMinute: (elapsedMinutes: number) => number;
-  yForRevenue: (revenueCents: number) => number;
-  yTicks: number[];
 };
 
 export function createRevenueChartModel(
@@ -74,8 +73,7 @@ export function createRevenueChartModel(
   standRevenue: StandRevenueSeries[],
   standNameById: Map<string, string>,
   eventStartAt: string,
-  granularityMinutes: RevenueGranularityMinutes,
-  chartWidth: number,
+  timeRangeMinutes: RevenueTimeRangeMinutes,
 ): RevenueChartModel {
   const sortedPoints = [...points].sort(
     (left, right) => left.elapsedMinutes - right.elapsedMinutes,
@@ -100,44 +98,45 @@ export function createRevenueChartModel(
       (standRevenueCentsById.get(right.standId) ?? 0) -
       (standRevenueCentsById.get(left.standId) ?? 0),
   );
+  const maxElapsedMinutes = Math.max(
+    ...sortedPoints.map((point) => point.elapsedMinutes),
+    ...standRevenue.flatMap((series) => series.points.map((point) => point.elapsedMinutes)),
+    0,
+  );
+  const bucketMinutes = timeRangeMinutes / REVENUE_BUCKET_COUNT;
+  const elapsedMinutesUntilNow = Math.max(
+    0,
+    Math.ceil((Date.now() - safeEventStartAt.getTime()) / 60_000),
+  );
+  const windowEndMinutes = Math.max(elapsedMinutesUntilNow, maxElapsedMinutes + bucketMinutes);
+  const windowStartMinutes = windowEndMinutes - timeRangeMinutes;
   const intervalPoints = createRevenueIntervalPoints(
     sortedPoints,
     safeEventStartAt,
-    granularityMinutes,
+    bucketMinutes,
+    windowStartMinutes,
   );
-  const maxMinutes = Math.max(
-    ...intervalPoints.map((point) => point.intervalEndMinutes),
-    granularityMinutes * 3,
-    90,
-  );
-  const rawMaxRevenue = Math.max(...intervalPoints.map((point) => point.revenueCents), 100);
-  const maxRevenue = getNiceRevenueCeiling(rawMaxRevenue);
-  const plot = {
-    left: 78,
-    right: 34,
-    top: 42,
-    bottom: 52,
-    width: Math.max(320, chartWidth - 78 - 34),
-    height: 266,
-  };
-  const xForMinute = (elapsedMinutes: number) =>
-    plot.left + (elapsedMinutes / maxMinutes) * plot.width;
-  const yForRevenue = (revenueCents: number) =>
-    plot.top + (1 - revenueCents / maxRevenue) * plot.height;
-  const coordinates = intervalPoints.map((point) => ({
-    x: xForMinute(point.elapsedMinutes),
-    y: yForRevenue(point.revenueCents),
-  }));
-  const lineCoordinates = intervalPoints.map((point) => ({
-    x: xForMinute(point.elapsedMinutes),
-    y: yForRevenue(point.revenueCents),
-  }));
+  const standSeries = rankedStandEntries.map((stand, index) => {
+    const intervals = createStandRevenueIntervalPoints(
+      standRevenue.find((series) => series.standId === stand.standId)?.points ?? [],
+      bucketMinutes,
+      intervalPoints,
+    );
+
+    return {
+      color: getRevenueStandColor(index),
+      data: intervals.map((interval) => interval.revenueCents),
+      intervals,
+      standId: stand.standId,
+      standName: stand.standName,
+    };
+  });
   const totalBreakdownInput = rankedStandEntries
     .map((stand, index) => {
       const revenueCents = standRevenueCentsById.get(stand.standId) ?? 0;
 
       return {
-        color: REVENUE_STAND_COLORS[index % REVENUE_STAND_COLORS.length]!,
+        color: getRevenueStandColor(index),
         revenueCents,
         share: 0,
         standId: stand.standId,
@@ -148,20 +147,164 @@ export function createRevenueChartModel(
   const totalBreakdown = normalizeStandBreakdownShares(totalBreakdownInput);
 
   return {
-    baselineY: plot.top + plot.height,
-    chartWidth,
-    coordinates,
     eventStartAt: safeEventStartAt,
-    lineCoordinates,
-    maxMinutes,
-    maxRevenue,
-    plot,
     points: intervalPoints,
+    standSeries,
     totalBreakdown,
-    xForMinute,
-    yForRevenue,
-    yTicks: [maxRevenue, Math.round(maxRevenue / 2), 0],
   };
+}
+
+function getRevenueStandColor(index: number): string {
+  const predefinedColor = REVENUE_STAND_COLORS[index];
+  if (predefinedColor) return predefinedColor;
+
+  const generatedIndex = index - REVENUE_STAND_COLORS.length;
+  const hue = (generatedIndex * 137.508 + 210) % 360;
+  const lightness = 42 + (Math.floor(generatedIndex / 12) % 2) * 10;
+
+  return hslToHex(hue, 68, lightness);
+}
+
+function hslToHex(hue: number, saturationPercent: number, lightnessPercent: number): string {
+  const saturation = saturationPercent / 100;
+  const lightness = lightnessPercent / 100;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const hueSegment = hue / 60;
+  const secondary = chroma * (1 - Math.abs((hueSegment % 2) - 1));
+  const [redBase, greenBase, blueBase] =
+    hueSegment < 1
+      ? [chroma, secondary, 0]
+      : hueSegment < 2
+        ? [secondary, chroma, 0]
+        : hueSegment < 3
+          ? [0, chroma, secondary]
+          : hueSegment < 4
+            ? [0, secondary, chroma]
+            : hueSegment < 5
+              ? [secondary, 0, chroma]
+              : [chroma, 0, secondary];
+  const match = lightness - chroma / 2;
+  const toHex = (channel: number) =>
+    Math.round((channel + match) * 255)
+      .toString(16)
+      .padStart(2, '0');
+
+  return `#${toHex(redBase)}${toHex(greenBase)}${toHex(blueBase)}`;
+}
+
+function createRevenueIntervalPoints(
+  points: RevenuePoint[],
+  eventStartAt: Date,
+  bucketMinutes: number,
+  windowStartMinutes: number,
+): RevenueIntervalPoint[] {
+  const bucketByStartMinute = new Map<number, { orderCount: number; revenueCents: number }>();
+
+  for (const point of points) {
+    const bucketIndex = Math.floor((point.elapsedMinutes - windowStartMinutes) / bucketMinutes);
+    if (bucketIndex < 0 || bucketIndex >= REVENUE_BUCKET_COUNT) continue;
+
+    const bucketStartMinute = windowStartMinutes + bucketIndex * bucketMinutes;
+    const bucket = bucketByStartMinute.get(bucketStartMinute) ?? {
+      orderCount: 0,
+      revenueCents: 0,
+    };
+
+    bucket.orderCount += point.orderCount;
+    bucket.revenueCents += point.intervalRevenueCents;
+    bucketByStartMinute.set(bucketStartMinute, bucket);
+  }
+
+  const intervalPoints: RevenueIntervalPoint[] = [];
+
+  for (let index = 0; index < REVENUE_BUCKET_COUNT; index += 1) {
+    const intervalStartMinutes = windowStartMinutes + index * bucketMinutes;
+    const intervalEndMinutes = intervalStartMinutes + bucketMinutes;
+    const bucket = bucketByStartMinute.get(intervalStartMinutes) ?? {
+      orderCount: 0,
+      revenueCents: 0,
+    };
+
+    intervalPoints.push({
+      intervalEndAt: addMinutes(eventStartAt, intervalEndMinutes),
+      intervalEndMinutes,
+      intervalStartAt: addMinutes(eventStartAt, intervalStartMinutes),
+      intervalStartMinutes,
+      orderCount: bucket.orderCount,
+      revenueCents: bucket.revenueCents,
+    });
+  }
+
+  return intervalPoints;
+}
+
+function createStandRevenueIntervalPoints(
+  points: StandRevenueSeries['points'],
+  bucketMinutes: number,
+  intervalPoints: RevenueIntervalPoint[],
+): RevenueStandIntervalPoint[] {
+  const bucketByStartMinute = new Map<
+    number,
+    {
+      orderCount: number;
+      productsById: Map<string, RevenueStandIntervalProduct>;
+      revenueCents: number;
+    }
+  >();
+  const firstInterval = intervalPoints[0];
+  if (!firstInterval) return [];
+
+  const windowStartMinutes = firstInterval.intervalStartMinutes;
+
+  for (const point of points) {
+    const bucketIndex = Math.floor((point.elapsedMinutes - windowStartMinutes) / bucketMinutes);
+    if (bucketIndex < 0 || bucketIndex >= intervalPoints.length) continue;
+
+    const bucketStartMinute = windowStartMinutes + bucketIndex * bucketMinutes;
+    const bucket = bucketByStartMinute.get(bucketStartMinute) ?? {
+      orderCount: 0,
+      productsById: new Map<string, RevenueStandIntervalProduct>(),
+      revenueCents: 0,
+    };
+
+    bucket.orderCount += point.orderCount;
+    bucket.revenueCents += point.intervalRevenueCents;
+    for (const product of point.products) {
+      const productBucket = bucket.productsById.get(product.productId) ?? {
+        productId: product.productId,
+        productName: product.productName,
+        quantitySold: 0,
+        revenueCents: 0,
+      };
+
+      productBucket.quantitySold += product.quantitySold;
+      productBucket.revenueCents += product.revenueCents;
+      bucket.productsById.set(product.productId, productBucket);
+    }
+    bucketByStartMinute.set(bucketStartMinute, bucket);
+  }
+
+  return intervalPoints.map((intervalPoint) => {
+    const bucket = bucketByStartMinute.get(intervalPoint.intervalStartMinutes);
+    if (!bucket) {
+      return {
+        orderCount: 0,
+        products: [],
+        revenueCents: 0,
+      };
+    }
+
+    return {
+      orderCount: bucket.orderCount,
+      products: [...bucket.productsById.values()].sort(
+        (left, right) =>
+          right.revenueCents - left.revenueCents ||
+          right.quantitySold - left.quantitySold ||
+          left.productName.localeCompare(right.productName),
+      ),
+      revenueCents: bucket.revenueCents,
+    };
+  });
 }
 
 function getStandRevenueCents(series: StandRevenueSeries): number {
@@ -199,72 +342,6 @@ function normalizeStandBreakdownShares(
   });
 }
 
-function createRevenueIntervalPoints(
-  points: RevenuePoint[],
-  eventStartAt: Date,
-  granularityMinutes: RevenueGranularityMinutes,
-): RevenueIntervalPoint[] {
-  if (points.length === 0) return [];
-
-  const bucketByStartMinute = new Map<number, { orderCount: number; revenueCents: number }>();
-
-  for (const point of points) {
-    const intervalRevenueCents = point.intervalRevenueCents;
-
-    const bucketStartMinute =
-      Math.floor(point.elapsedMinutes / granularityMinutes) * granularityMinutes;
-    const bucket = bucketByStartMinute.get(bucketStartMinute) ?? {
-      orderCount: 0,
-      revenueCents: 0,
-    };
-
-    bucket.orderCount += point.orderCount;
-    bucket.revenueCents += intervalRevenueCents;
-    bucketByStartMinute.set(bucketStartMinute, bucket);
-  }
-
-  const maxElapsedMinutes = Math.max(...points.map((point) => point.elapsedMinutes));
-  const maxIntervalEndMinutes = Math.max(
-    Math.ceil((maxElapsedMinutes + 1) / granularityMinutes) * granularityMinutes,
-    granularityMinutes,
-  );
-
-  const intervalPoints: RevenueIntervalPoint[] = [];
-  for (
-    let intervalStartMinutes = 0;
-    intervalStartMinutes < maxIntervalEndMinutes;
-    intervalStartMinutes += granularityMinutes
-  ) {
-    const intervalEndMinutes = intervalStartMinutes + granularityMinutes;
-    const bucket = bucketByStartMinute.get(intervalStartMinutes) ?? {
-      orderCount: 0,
-      revenueCents: 0,
-    };
-
-    intervalPoints.push({
-      elapsedMinutes: intervalStartMinutes + granularityMinutes / 2,
-      intervalEndAt: addMinutes(eventStartAt, intervalEndMinutes),
-      intervalEndMinutes,
-      intervalStartAt: addMinutes(eventStartAt, intervalStartMinutes),
-      intervalStartMinutes,
-      orderCount: bucket.orderCount,
-      revenueCents: bucket.revenueCents,
-    });
-  }
-
-  return intervalPoints;
-}
-
-function getNiceRevenueCeiling(value: number): number {
-  if (value <= 0) return 100;
-
-  const magnitude = 10 ** Math.floor(Math.log10(value));
-  const normalized = value / magnitude;
-  const niceMultiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
-
-  return niceMultiplier * magnitude;
-}
-
 export function formatAxisMoney(valueCents: number): string {
   return `EUR ${formatMoney(valueCents)}`;
 }
@@ -284,108 +361,9 @@ export function formatIntervalLabel(startAt: Date, endAt: Date): string {
   return `${formatChartTime(startAt)} - ${formatChartTime(endAt)}`;
 }
 
-export function formatGranularityLabel(minutes: RevenueGranularityMinutes): string {
-  return minutes === 60 ? '1 h' : `${minutes} min`;
-}
+export function formatTimeRangeLabel(minutes: RevenueTimeRangeMinutes): string {
+  if (minutes === 30) return 'last 30 min';
+  if (minutes === 60) return 'last 1 h';
 
-export function createAreaPath(
-  path: string,
-  points: { x: number; y: number }[],
-  baselineY: number,
-): string {
-  if (!path || points.length === 0) return '';
-
-  return `${path} L ${points.at(-1)!.x.toFixed(1)} ${baselineY} L ${points[0]!.x.toFixed(
-    1,
-  )} ${baselineY} Z`;
-}
-
-export function findNearestRevenuePointIndex(points: { x: number; y: number }[], pointerX: number) {
-  return points.reduce((nearestIndex, point, index) => {
-    const nearest = points[nearestIndex]!;
-
-    return Math.abs(point.x - pointerX) < Math.abs(nearest.x - pointerX) ? index : nearestIndex;
-  }, 0);
-}
-
-export function getRevenueTooltipLayout(
-  anchor: { x: number; y: number },
-  container: HTMLDivElement | null,
-  svg: SVGSVGElement | null,
-  chartWidth: number,
-  viewportWidth: number,
-): CSSProperties {
-  const safeViewportWidth = Math.max(1, container?.clientWidth ?? viewportWidth);
-  const safeViewportHeight = Math.max(1, container?.clientHeight ?? REVENUE_CHART_HEIGHT);
-  let renderedAnchorX: number;
-  let renderedAnchorY: number;
-
-  const svgMatrix = svg?.getScreenCTM();
-  const containerBounds = container?.getBoundingClientRect();
-  if (svg && svgMatrix && containerBounds) {
-    const svgPoint = svg.createSVGPoint();
-    svgPoint.x = anchor.x;
-    svgPoint.y = anchor.y;
-    const screenPoint = svgPoint.matrixTransform(svgMatrix);
-    renderedAnchorX = screenPoint.x - containerBounds.left;
-    renderedAnchorY = screenPoint.y - containerBounds.top;
-  } else {
-    const scale = safeViewportWidth / chartWidth;
-    renderedAnchorX = anchor.x * scale;
-    renderedAnchorY = anchor.y * scale;
-  }
-
-  const shouldAnchorLeft =
-    renderedAnchorX + REVENUE_TOOLTIP_WIDTH / 2 + REVENUE_TOOLTIP_MARGIN > safeViewportWidth;
-  const shouldAnchorRight =
-    renderedAnchorX - REVENUE_TOOLTIP_WIDTH / 2 - REVENUE_TOOLTIP_MARGIN < 0;
-  const preferredLeft = shouldAnchorLeft
-    ? renderedAnchorX - REVENUE_TOOLTIP_WIDTH - REVENUE_TOOLTIP_OFFSET
-    : shouldAnchorRight
-      ? renderedAnchorX + REVENUE_TOOLTIP_OFFSET
-      : renderedAnchorX - REVENUE_TOOLTIP_WIDTH / 2;
-  const maxLeft = Math.max(
-    REVENUE_TOOLTIP_MARGIN,
-    safeViewportWidth - REVENUE_TOOLTIP_WIDTH - REVENUE_TOOLTIP_MARGIN,
-  );
-  const left = Math.min(Math.max(preferredLeft, REVENUE_TOOLTIP_MARGIN), maxLeft);
-  const aboveTop = renderedAnchorY - REVENUE_TOOLTIP_HEIGHT - REVENUE_TOOLTIP_OFFSET;
-  const belowTop = renderedAnchorY + REVENUE_TOOLTIP_OFFSET;
-  const preferredTop = aboveTop >= REVENUE_TOOLTIP_MARGIN ? aboveTop : belowTop;
-  const maxTop = Math.max(
-    REVENUE_TOOLTIP_MARGIN,
-    safeViewportHeight - REVENUE_TOOLTIP_HEIGHT - REVENUE_TOOLTIP_MARGIN,
-  );
-  const top = Math.min(Math.max(preferredTop, REVENUE_TOOLTIP_MARGIN), maxTop);
-
-  return {
-    transform: `translate3d(${left}px, ${top}px, 0)`,
-    transition: 'transform 0.15s cubic-bezier(0.25, 0.8, 0.25, 1)',
-  };
-}
-
-export function createSmoothRevenuePath(points: { x: number; y: number }[]) {
-  if (points.length === 0) return '';
-  if (points.length === 1) return `M ${points[0]!.x.toFixed(1)} ${points[0]!.y.toFixed(1)}`;
-
-  return points.reduce((path, point, index) => {
-    if (index === 0) return `M ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
-
-    const previous = points[index - 1]!;
-    const controlDistance = (point.x - previous.x) / 2;
-    const controlPointOne = {
-      x: previous.x + controlDistance,
-      y: previous.y,
-    };
-    const controlPointTwo = {
-      x: point.x - controlDistance,
-      y: point.y,
-    };
-
-    return `${path} C ${controlPointOne.x.toFixed(1)} ${controlPointOne.y.toFixed(
-      1,
-    )}, ${controlPointTwo.x.toFixed(1)} ${controlPointTwo.y.toFixed(1)}, ${point.x.toFixed(
-      1,
-    )} ${point.y.toFixed(1)}`;
-  }, '');
+  return `last ${minutes / 60} h`;
 }

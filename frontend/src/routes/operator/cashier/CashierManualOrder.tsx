@@ -13,7 +13,7 @@ import { createManualOrder } from '@/api/orders';
 import { getOperatorStands } from '@/api/stands';
 import { getOperatorEventProducts } from '@/api/products';
 import type { OrderItemView } from '@/types/order';
-import { formatMoney, type Product } from '@/types/product';
+import { formatMoney, productImageSrc, type Product } from '@/types/product';
 import { paths } from '@/paths';
 import type { CashierContext } from './CashierLayout';
 
@@ -163,7 +163,8 @@ function ProductTile({
 }) {
   const [imageOk, setImageOk] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const showImage = !!product.productImageUrl && imageOk;
+  const imageSrc = productImageSrc(product);
+  const showImage = !!imageSrc && imageOk;
 
   // Guards a single tap firing twice (duplicate/ghost events on some browsers).
   const runGuarded = useAddGuard();
@@ -178,7 +179,7 @@ function ProductTile({
         <div className="aspect-[4/3] w-full overflow-hidden bg-surface-muted">
           {showImage ? (
             <img
-              src={product.productImageUrl!}
+              src={imageSrc!}
               alt={product.productName}
               loading="lazy"
               onError={() => setImageOk(false)}

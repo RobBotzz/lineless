@@ -7,15 +7,26 @@ export type RevenuePoint = {
   revenueCents: number;
 };
 
+export type RevenueProductBreakdown = {
+  productId: string;
+  productName: string;
+  quantitySold: number;
+  revenueCents: number;
+};
+
+export type StandRevenuePoint = RevenuePoint & {
+  products: RevenueProductBreakdown[];
+};
+
 export type StandRevenueSeries = {
   standId: string;
-  points: RevenuePoint[];
+  points: StandRevenuePoint[];
 };
 
 export type StandQueueMetric = {
   standId: string;
   queueLength: number;
-  averageWaitMinutes: number;
+  averageWaitMinutes: number | null;
   alert: boolean;
 };
 
@@ -150,7 +161,7 @@ function isStandRevenueSeries(value: unknown): value is StandRevenueSeries {
     isRecord(value) &&
     typeof value.standId === 'string' &&
     Array.isArray(value.points) &&
-    value.points.every(isRevenuePoint)
+    value.points.every(isStandRevenuePoint)
   );
 }
 
@@ -161,6 +172,28 @@ function isRevenuePoint(value: unknown): value is RevenuePoint {
     typeof value.revenueCents === 'number' &&
     typeof value.intervalRevenueCents === 'number' &&
     typeof value.orderCount === 'number'
+  );
+}
+
+function isStandRevenuePoint(value: unknown): value is StandRevenuePoint {
+  return (
+    isRecord(value) &&
+    typeof value.elapsedMinutes === 'number' &&
+    typeof value.revenueCents === 'number' &&
+    typeof value.intervalRevenueCents === 'number' &&
+    typeof value.orderCount === 'number' &&
+    Array.isArray(value.products) &&
+    value.products.every(isRevenueProductBreakdown)
+  );
+}
+
+function isRevenueProductBreakdown(value: unknown): value is RevenueProductBreakdown {
+  return (
+    isRecord(value) &&
+    typeof value.productId === 'string' &&
+    typeof value.productName === 'string' &&
+    typeof value.quantitySold === 'number' &&
+    typeof value.revenueCents === 'number'
   );
 }
 

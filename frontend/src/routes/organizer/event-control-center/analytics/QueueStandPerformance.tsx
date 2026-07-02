@@ -30,7 +30,7 @@ export function QueueStandPerformance({
           standId: stand._id,
           standName: stand.standName,
           queueLength: queue?.queueLength ?? 0,
-          averageWaitMinutes: queue?.averageWaitMinutes ?? 0,
+          averageWaitMinutes: queue?.averageWaitMinutes ?? null,
           alert: queue?.alert ?? false,
         };
       }),
@@ -46,7 +46,7 @@ export function QueueStandPerformance({
       if (right.queueLength !== left.queueLength) {
         return right.queueLength - left.queueLength;
       }
-      return right.averageWaitMinutes - left.averageWaitMinutes;
+      return (right.averageWaitMinutes ?? -1) - (left.averageWaitMinutes ?? -1);
     });
   }, [standNameById, standQueues, stands]);
   const maxQueueLength = useMemo(
@@ -138,7 +138,7 @@ function QueueStandPerformanceRow({
               : 'border-border bg-surface text-text',
           ].join(' ')}
         >
-          Avg. Wait Time: {entry.averageWaitMinutes}m
+          Avg. Wait Time: {entry.averageWaitMinutes === null ? '-' : `${entry.averageWaitMinutes}m`}
         </span>
       </div>
     </div>

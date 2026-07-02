@@ -270,7 +270,7 @@ export default function TrackOrder() {
         <p className="text-sm font-semibold text-text mb-2">Payment Summary</p>
         <div className="flex items-center justify-between">
           <span className="text-sm text-text-muted">Total Amount</span>
-          <span className="text-base font-bold text-accent">
+          <span className="text-base font-bold text-accent-contrast">
             EUR {formatMoney(computeTotal(order))}
           </span>
         </div>

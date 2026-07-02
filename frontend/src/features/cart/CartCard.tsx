@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { formatMoney } from '@/types/product';
+import { formatMoney, productImageSrc } from '@/types/product';
 import { QuantityStepper } from '@/components/shared/QuantityStepper';
 import { ChatIcon, ChevronDownIcon, DeleteIcon, ImageIcon } from '@/components/icons';
 
@@ -31,7 +31,8 @@ export function CartCard({
   // Open by default when a note already exists (e.g. after a refresh).
   const [commentsOpen, setCommentsOpen] = useState(() => comments.some((c) => c.trim() !== ''));
 
-  const showImage = !!product.productImageUrl && imageOk;
+  const imageSrc = productImageSrc(product);
+  const showImage = !!imageSrc && imageOk;
   const lineTotal = product.priceIncludingTax * quantity;
   // Respect stock when bumping quantity, mirroring the product card's sold-out guard.
   const atStockLimit = quantity >= product.productStock;
@@ -68,7 +69,7 @@ export function CartCard({
               alt=""
               className="h-full w-full object-cover"
               onError={() => setImageOk(false)}
-              src={product.productImageUrl!}
+              src={imageSrc!}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-text-muted">
@@ -81,7 +82,7 @@ export function CartCard({
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-6">
           <h3 className="truncate text-sm font-semibold text-text">{product.productName}</h3>
           {standName && <span className="truncate text-xs text-text-muted">{standName}</span>}
-          <span className="text-sm font-semibold text-accent">
+          <span className="text-sm font-semibold text-accent-contrast">
             €{formatMoney(product.priceIncludingTax)}
           </span>
         </div>
@@ -112,7 +113,7 @@ export function CartCard({
           <ChatIcon className="h-4 w-4" />
           <span>Item comments</span>
           {commentCount > 0 && (
-            <span className="rounded-full bg-accent-soft px-1.5 text-[10px] font-bold text-accent">
+            <span className="rounded-full bg-accent-soft px-1.5 text-[10px] font-bold text-accent-contrast">
               {commentCount}
             </span>
           )}

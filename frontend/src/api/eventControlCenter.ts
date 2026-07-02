@@ -14,7 +14,9 @@ export type {
   ProductRating,
   ProductStockAlert,
   RevenuePoint,
+  RevenueProductBreakdown,
   StandAlertThreshold,
+  StandRevenuePoint,
   StandQueueMetric,
   StandRevenueSeries,
 } from '@/types/eventControlCenter';
@@ -22,36 +24,8 @@ export type {
 export const EVENT_CONTROL_CENTER_STREAM_EVENT = 'control-center';
 export const EVENT_ORDERS_STREAM_EVENT = 'orders';
 
-function eventControlCenterSettingsParams(settings?: EventControlCenterSettings): string {
-  if (!settings) return '';
-  const params = new URLSearchParams({
-    standAlertThresholds: stableStandAlertThresholdsParam(settings),
-    stockAlertThreshold: String(settings.stockAlertThreshold),
-  });
-  return `?${params.toString()}`;
-}
-
-function stableStandAlertThresholdsParam(settings: EventControlCenterSettings): string {
-  return JSON.stringify(
-    Object.fromEntries(
-      Object.entries(settings.standAlertThresholds)
-        .sort(([leftStandId], [rightStandId]) => leftStandId.localeCompare(rightStandId))
-        .map(([standId, thresholds]) => [
-          standId,
-          {
-            queueLengthAlertThreshold: thresholds.queueLengthAlertThreshold,
-            averageWaitAlertThresholdMinutes: thresholds.averageWaitAlertThresholdMinutes,
-          },
-        ]),
-    ),
-  );
-}
-
-export function eventControlCenterStreamPath(
-  eventId: string,
-  settings?: EventControlCenterSettings,
-): string {
-  return `/events/${eventId}/event-control-center/stream${eventControlCenterSettingsParams(settings)}`;
+export function eventControlCenterStreamPath(eventId: string): string {
+  return `/events/${eventId}/event-control-center/stream`;
 }
 
 export function eventOrdersStreamPath(eventId: string, standId?: string): string {
@@ -59,16 +33,38 @@ export function eventOrdersStreamPath(eventId: string, standId?: string): string
   return `/events/${eventId}/event-control-center/orders/stream${params}`;
 }
 
-export function getEventControlCenter(
+export function getEventControlCenter(eventId: string): Promise<EventControlCenterData> {
+  return apiFetch<EventControlCenterData>(`/events/${eventId}/event-control-center`, {
+    auth: 'organizer',
+  });
+}
+
+export function getEventControlCenterSettings(
   eventId: string,
-  settings?: EventControlCenterSettings,
-): Promise<EventControlCenterData> {
-  return apiFetch<EventControlCenterData>(
-    `/events/${eventId}/event-control-center${eventControlCenterSettingsParams(settings)}`,
-    {
-      auth: 'organizer',
-    },
-  );
+): Promise<EventControlCenterSettings> {
+  return apiFetch<EventControlCenterSettings>(`/events/${eventId}/event-control-center/settings`, {
+    auth: 'organizer',
+  });
+}
+
+export function updateEventControlCenterSettings(
+  eventId: string,
+  settings: EventControlCenterSettings,
+): Promise<EventControlCenterSettings> {
+  return apiFetch<EventControlCenterSettings>(`/events/${eventId}/event-control-center/settings`, {
+    auth: 'organizer',
+    body: JSON.stringify(settings),
+    method: 'PUT',
+  });
+}
+
+export function resetEventControlCenterSettings(
+  eventId: string,
+): Promise<EventControlCenterSettings> {
+  return apiFetch<EventControlCenterSettings>(`/events/${eventId}/event-control-center/settings`, {
+    auth: 'organizer',
+    method: 'DELETE',
+  });
 }
 
 export function getEventOrders(eventId: string, standId?: string): Promise<LiveOrder[]> {
