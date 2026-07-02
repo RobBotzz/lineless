@@ -1,6 +1,19 @@
+import mongoose from "mongoose";
 import { Product, type ProductDoc } from "./model";
-import { ProductNotFoundError, ProductStateError } from "./errors";
+import { ProductImage, type ProductImageDoc } from "./image.model";
+import {
+  InvalidImageError,
+  ProductImageNotFoundError,
+  ProductNotFoundError,
+  ProductStateError,
+} from "./errors";
 import type { CreateProductInput, UpdateProductInput } from "./types";
+import { config } from "../../config/config";
+import {
+  sniffImageMimeType,
+  toNodeBuffer,
+  type UploadedImage,
+} from "../../shared/imageUpload";
 import { verifyStandOwnership } from "../stands/ownership";
 import { Stand } from "../stands/model";
 import {
@@ -102,7 +115,6 @@ export async function createProduct(
     productDescription: input.productDescription,
     priceIncludingTax: input.priceIncludingTax,
     taxRate: input.taxRate,
-    productImageUrl: input.productImageUrl,
     instantProduct: input.instantProduct,
     productStock: input.productStock,
   });
@@ -241,14 +253,83 @@ export async function updateProduct(
   if (patch.priceIncludingTax !== undefined)
     product.priceIncludingTax = patch.priceIncludingTax;
   if (patch.taxRate !== undefined) product.taxRate = patch.taxRate;
-  if (patch.productImageUrl !== undefined) {
-    product.productImageUrl = patch.productImageUrl;
-  }
   if (patch.instantProduct !== undefined) {
     product.instantProduct = patch.instantProduct;
   }
   if (patch.productStock !== undefined)
     product.productStock = patch.productStock;
+  await product.save();
+  return product.toObject();
+}
+
+// The URL stored on the product points back at our own serve endpoint, so the
+// frontend keeps rendering `productImageUrl` unchanged whether the image is an
+// uploaded file or an external link.
+function productImageServeUrl(productId: string): string {
+  return `/api/products/${productId}/image`;
+}
+
+export async function setProductImage(
+  productId: string,
+  accountId: string,
+  file: UploadedImage
+): Promise<ProductDoc> {
+  const product = await Product.findOne({ _id: productId, deletedAt: null });
+  if (!product) throw new ProductNotFoundError();
+  await verifyStandOwnership(product.standId, accountId);
+
+  const detectedType = sniffImageMimeType(file.buffer);
+  if (
+    !detectedType ||
+    !config.upload.allowedImageMimeTypes.includes(detectedType)
+  ) {
+    throw new InvalidImageError();
+  }
+
+  // One image per product: upsert replaces any existing image atomically.
+  await ProductImage.findOneAndUpdate(
+    { productId },
+    {
+      productId,
+      data: file.buffer,
+      contentType: detectedType,
+      byteSize: file.buffer.length,
+    },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
+
+  product.productImageUrl = productImageServeUrl(productId);
+  // The serve URL is stable, so on a *replace* productImageUrl doesn't actually
+  // change — mark it modified so `updatedAt` still bumps. The frontend uses
+  // updatedAt as a cache-busting version (the image URL is otherwise cached), so
+  // without this a replaced image keeps showing the stale picture.
+  product.markModified("productImageUrl");
+  await product.save();
+  return product.toObject();
+}
+
+export async function getProductImage(
+  productId: string
+): Promise<
+  Pick<ProductImageDoc, "_id" | "data" | "contentType" | "updatedAt">
+> {
+  const image = await ProductImage.findOne({ productId })
+    .select("data contentType updatedAt")
+    .lean();
+  if (!image) throw new ProductImageNotFoundError();
+  return { ...image, data: toNodeBuffer(image.data) };
+}
+
+export async function deleteProductImage(
+  productId: string,
+  accountId: string
+): Promise<ProductDoc> {
+  const product = await Product.findOne({ _id: productId, deletedAt: null });
+  if (!product) throw new ProductNotFoundError();
+  await verifyStandOwnership(product.standId, accountId);
+
+  await ProductImage.deleteOne({ productId });
+  product.productImageUrl = null;
   await product.save();
   return product.toObject();
 }
@@ -260,6 +341,18 @@ export async function softDeleteProduct(
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
   await verifyStandOwnership(product.standId, accountId);
-  product.deletedAt = new Date();
-  await product.save();
+
+  // Soft-deleting the product and dropping its (heavy) image binary must be
+  // atomic — otherwise a crash between the two writes leaves either an orphaned
+  // ProductImage or a live product pointing at a missing image.
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      product.deletedAt = new Date();
+      await product.save({ session: dbSession });
+      await ProductImage.deleteOne({ productId }, { session: dbSession });
+    });
+  } finally {
+    await dbSession.endSession();
+  }
 }

@@ -11,3 +11,16 @@ export class ProductStateError extends Error {
     this.name = "ProductStateError";
   }
 }
+
+export class ProductImageNotFoundError extends Error {
+  constructor() {
+    super("Product image not found");
+    this.name = "ProductImageNotFoundError";
+  }
+}
+
+// Image upload errors are shared across modules that store binary images.
+export {
+  InvalidImageError,
+  ImageTooLargeError,
+} from "../../shared/imageUpload";

@@ -36,15 +36,18 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Products
 
-| Method | URL                               | Description                                  |
-| ------ | --------------------------------- | -------------------------------------------- |
-| POST   | `/stands/{standId}/products`      | Create product                               |
-| GET    | `/products/{productId}`           | Get single product                           |
-| PATCH  | `/products/{productId}`           | Update product, including stock              |
-| DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`) |
-| POST   | `/products/{productId}/pause`     | Pause product                                |
-| POST   | `/products/{productId}/resume`    | Resume product                               |
-| POST   | `/products/{productId}/terminate` | Terminate product                            |
+| Method | URL                               | Description                                             |
+| ------ | --------------------------------- | ------------------------------------------------------- |
+| POST   | `/stands/{standId}/products`      | Create product                                          |
+| GET    | `/products/{productId}`           | Get single product                                      |
+| PATCH  | `/products/{productId}`           | Update product, including stock                         |
+| DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`)            |
+| POST   | `/products/{productId}/pause`     | Pause product                                           |
+| POST   | `/products/{productId}/resume`    | Resume product                                          |
+| POST   | `/products/{productId}/terminate` | Terminate product                                       |
+| PUT    | `/products/{productId}/image`     | Upload/replace product image (multipart, field `image`) |
+| DELETE | `/products/{productId}/image`     | Remove the uploaded product image                       |
+| GET    | `/products/{productId}/image`     | Serve product image bytes (public, cached)              |
 
 ### Event Control Center
 
@@ -54,6 +57,9 @@ Admin dashboard, event configuration, event control center, payout management.
 | GET    | `/events/{eventId}/event-control-center/stream`        | Event control center data stream (SSE)                      |
 | GET    | `/events/{eventId}/event-control-center/orders`        | Latest live paid, unfulfilled orders for the control center |
 | GET    | `/events/{eventId}/event-control-center/orders/stream` | Live order list stream (SSE)                                |
+| GET    | `/events/{eventId}/event-control-center/settings`      | Get effective alert thresholds                              |
+| PUT    | `/events/{eventId}/event-control-center/settings`      | Replace alert thresholds                                    |
+| DELETE | `/events/{eventId}/event-control-center/settings`      | Reset alert thresholds to defaults                          |
 
 ### Account / Payments
 

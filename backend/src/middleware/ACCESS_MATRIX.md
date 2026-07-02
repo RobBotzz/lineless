@@ -22,6 +22,9 @@
 | Events   | `GET /api/events/:eventId/event-control-center/stream`        | no     | own event | no             | no            |
 | Events   | `GET /api/events/:eventId/event-control-center/orders`        | no     | own event | no             | no            |
 | Events   | `GET /api/events/:eventId/event-control-center/orders/stream` | no     | own event | no             | no            |
+| Events   | `GET /api/events/:eventId/event-control-center/settings`      | no     | own event | no             | no            |
+| Events   | `PUT /api/events/:eventId/event-control-center/settings`      | no     | own event | no             | no            |
+| Events   | `DELETE /api/events/:eventId/event-control-center/settings`   | no     | own event | no             | no            |
 | Events   | `GET /api/events/:eventId/pickup-board`                       | no     | no        | event link key | no            |
 | Events   | `GET /api/events/:eventId/pickup-board/stream`                | no     | no        | event link key | no            |
 | Events   | `POST /api/events/:eventId/tabs/checkout`                     | no     | own event | no             | no            |
