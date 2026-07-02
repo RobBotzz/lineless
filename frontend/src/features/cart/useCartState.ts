@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import type { Product } from '@/types/product';
+import { tracksStock, type Product } from '@/types/product';
 import type { StockShortage } from '@/types/order';
 
 // A line in the cart: the product snapshot plus how many were added. We keep a
@@ -67,10 +67,10 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
 
   const addItem = useCallback((product: Product) => {
     setItems((prev) => {
-      if (product.productStock <= 0) return prev;
+      if (tracksStock(product) && product.productStock <= 0) return prev;
       const existing = prev.find((i) => i.product._id === product._id);
       if (existing) {
-        if (existing.quantity >= product.productStock) return prev;
+        if (tracksStock(product) && existing.quantity >= product.productStock) return prev;
         return prev.map((i) =>
           i.product._id === product._id
             ? { ...i, quantity: i.quantity + 1, comments: [...i.comments, ''] }
@@ -84,10 +84,12 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
   const setQuantity = useCallback((productId: string, quantity: number) => {
     setItems((prev) => {
       const item = prev.find((candidate) => candidate.product._id === productId);
-      if (!item || quantity <= 0 || item.product.productStock <= 0) {
+      if (!item || quantity <= 0 || (tracksStock(item.product) && item.product.productStock <= 0)) {
         return prev.filter((candidate) => candidate.product._id !== productId);
       }
-      const nextQuantity = Math.min(quantity, item.product.productStock);
+      const nextQuantity = tracksStock(item.product)
+        ? Math.min(quantity, item.product.productStock)
+        : quantity;
       return prev.map((candidate) =>
         candidate.product._id === productId
           ? {
