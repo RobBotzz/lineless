@@ -23,6 +23,7 @@ import {
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
   EventNotActiveError,
+  InsufficientStockError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
   OrderItemStateError,
@@ -55,6 +56,13 @@ function itemId(req: Request): string {
 }
 
 function handleError(err: unknown, res: Response): unknown {
+  if (err instanceof InsufficientStockError) {
+    return res.status(409).json({
+      code: "INSUFFICIENT_STOCK",
+      error: err.message,
+      shortages: err.shortages,
+    });
+  }
   if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
@@ -94,7 +102,7 @@ ordersRouter.post(
   validateBody(createOrderSchema, async (req, res, data) => {
     try {
       const sessionId = req.attendee?.sessionId ?? null;
-      const result = await submitOrder(sessionId, data);
+      const result = await submitOrder(sessionId, data, req.operator?.standId);
       if (result.status === 402) {
         return res
           .status(402)
