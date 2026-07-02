@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
+  assertActiveCashierStand,
   cancelOrderForOrganizer,
   cancelOrderItemsForOrganizer,
   cancelPendingOrder,
@@ -160,6 +161,40 @@ ordersRouter.get(
   }
 );
 
+// GET /orders/cashier/stream — same unpaid-orders list, pushed live over SSE on
+// every relevant order.changed event (new cash order, cashier cancellation, or
+// payment confirmation removing an order from the list). Mirrors the shape of
+// /operator/board/stream.
+ordersRouter.get(
+  "/cashier/stream",
+  authOperator,
+  async (req: Request, res: Response) => {
+    const standId = req.operator!.standId;
+    try {
+      // Resolve the stand before the SSE headers go out, so a bad/disabled
+      // stand still maps to a clean error instead of a half-open stream.
+      const stand = await assertActiveCashierStand(standId);
+      const initial = await listUnpaidOrdersForCashier(standId);
+
+      const sse = new SseConnection(res);
+      sse.send("snapshot", initial);
+
+      const unsubscribe = subscribe("order.changed", (order) => {
+        if (order.eventId !== stand.eventId || order.tabId !== null) return;
+        listUnpaidOrdersForCashier(standId)
+          .then((orders) => sse.send("snapshot", orders))
+          .catch(() => {
+            // stream errors are non-fatal; the client recovers on reconnect
+          });
+      });
+
+      sse.onClose(() => unsubscribe());
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
 // GET /orders — an attendee's own paid orders (order-status / review entry point).
 ordersRouter.get("/", authAttendee, async (req: Request, res: Response) => {
   try {
@@ -183,7 +218,12 @@ ordersRouter.get(
       sse.send("snapshot", initial);
 
       const unsubscribe = subscribe("order.changed", (order) => {
-        if (order.sessionId !== sessionId || !order.paidAt) return;
+        if (order.sessionId !== sessionId) return;
+        // Cash orders (tabId null) stream regardless of paidAt, so the
+        // pending-payment page sees a cashier confirmation or cancellation
+        // live. Unpaid card orders (mid-Stripe-authorization) are still
+        // dropped — the attendee UI doesn't act on that noise.
+        if (!order.paidAt && order.tabId !== null) return;
         void enrichOrderForAttendee(order)
           .then((enriched) => sse.send("order", enriched))
           .catch(() => {

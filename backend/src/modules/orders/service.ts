@@ -551,7 +551,9 @@ export async function getOrderForOrganizer(
 // Loads the operator's stand and asserts it is the active CASHIER stand — the
 // only operator allowed to read whole orders / unpaid order lists. PRODUCT-stand
 // operators act on individual items via advanceOrderItem, not whole orders.
-async function assertActiveCashierStand(operatorStandId: string) {
+// Exported so the cashier unpaid-orders stream route can resolve the stand's
+// eventId once, for scoping the order.changed subscription.
+export async function assertActiveCashierStand(operatorStandId: string) {
   const stand = await Stand.findOne({
     _id: operatorStandId,
     deletedAt: null,
