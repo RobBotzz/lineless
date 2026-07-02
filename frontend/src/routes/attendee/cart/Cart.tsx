@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
 import { BackButton } from '@/components/shared';
@@ -18,12 +18,14 @@ import { PaymentMethodToggle } from '@/features/cart/PaymentMethodToggle';
 import { CardCheckoutDialog, type PaymentMethod } from '@/features/payment';
 import type { Order } from '@/types/order';
 import { useCart } from './cart-context';
+import type { CartLoaderData } from './data';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Cart() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const { cashierEnabled } = useLoaderData() as CartLoaderData;
   const { items, totalCount, totalCents, setQuantity, setComment, removeItem, clear } = useCart();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD');
@@ -191,7 +193,11 @@ export default function Cart() {
                 </div>
               )}
               <div className="mb-2">
-                <PaymentMethodToggle value={paymentMethod} onChange={setPaymentMethod} />
+                <PaymentMethodToggle
+                  value={paymentMethod}
+                  onChange={setPaymentMethod}
+                  cashEnabled={cashierEnabled}
+                />
               </div>
               <Button
                 className="h-12 w-full gap-2 rounded-xl"

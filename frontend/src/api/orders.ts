@@ -257,6 +257,10 @@ export function confirmCashPayment(orderId: string, standId: string): Promise<vo
     method: 'POST',
     auth: 'operator',
     standId,
+    // Send an empty JSON body so Express parses req.body to {} — the endpoint's
+    // validateBody(z.object({})) rejects an undefined body (no body = no
+    // Content-Type = unparsed) with "Validation failed".
+    body: JSON.stringify({}),
   });
 }
 

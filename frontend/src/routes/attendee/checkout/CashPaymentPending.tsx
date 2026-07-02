@@ -1,8 +1,11 @@
 import { useEffect } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 
 import { CashierLocationAccordion } from '@/features/orders/CashierLocationAccordion';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
+import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
+import { getAttendeeStands } from '@/api/stands';
 import { paths } from '@/paths';
 import { computeTotal, type Order, type OrderItemView } from '@/types/order';
 
@@ -11,39 +14,74 @@ interface CashPaymentPendingState {
   items: OrderItemView[];
 }
 
-// Order data is passed via navigation state from Cart.tsx, same as
-// OrderConfirmed — there is no attendee-scoped "get order by id" endpoint
-// yet, so a direct visit/refresh has nothing to hydrate from and bounces
-// back to the cart.
+// The guest landed here after placing a cash order; the order is unpaid until an
+// operator at the cashier collects the money and confirms it. This page never
+// confirms anything itself — confirmation is operator-only (POST
+// /orders/:id/cash-payment, which sets paidAt). It only *observes*: it polls the
+// order until paidAt is set, then forwards the guest to order tracking. (Polling
+// rather than the order SSE stream is a deliberate project-wide decision.)
+const PAYMENT_POLL_MS = 4000;
+
 export default function CashPaymentPending() {
-  const { eventId } = useParams() as { eventId: string };
+  const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
   const navigate = useNavigate();
   const { state } = useLocation() as { state: CashPaymentPendingState | null };
 
-  const isPaid = state?.order.paidAt != null;
+  // Source of truth for paidAt. Polls until the cashier confirms, then stops.
+  // Always enabled (even with nav state): the handed-over order is always unpaid,
+  // so only the server can tell us when it becomes paid. Nav state still renders
+  // immediately, so there is no loading flash on the happy path.
+  const orderQuery = useQuery({
+    queryKey: ['attendee-order', orderId, eventId],
+    queryFn: () => getAttendeeOrder(orderId, eventId),
+    refetchInterval: (query) => (query.state.data?.paidAt ? false : PAYMENT_POLL_MS),
+  });
 
-  // Once the cash payment is fulfilled the order is confirmed — hand off to the
-  // shared OrderConfirmed page. This won't fire today (a freshly created cash
-  // order is always unpaid and there is no refresh hydration), but the skeleton
-  // is ready for the payments ticket that adds order polling.
+  // Display items: rebuilt from the server only when there is no nav state
+  // (refresh / direct visit); otherwise the nav-state items are used as-is.
+  const standsQuery = useQuery({
+    queryKey: ['attendee-stands', eventId],
+    queryFn: () => getAttendeeStands(eventId),
+    enabled: !state,
+    staleTime: 60_000,
+  });
+
+  const viewItemsQuery = useQuery({
+    queryKey: ['attendee-order-view', orderId, eventId],
+    queryFn: () => buildAttendeeOrderViewItems(orderQuery.data!, eventId, standsQuery.data!),
+    enabled: !state && !!orderQuery.data && !!standsQuery.data,
+    staleTime: 60_000,
+  });
+
+  const order: Order | null = orderQuery.data ?? state?.order ?? null;
+  const isPaid = order?.paidAt != null;
+
+  // Cashier confirmed → hand off to the shared order-tracking page.
   useEffect(() => {
-    if (state && isPaid) {
-      navigate(paths.attendee.trackOrder(eventId, state.order._id), {
-        replace: true,
-        state,
-      });
+    if (order && isPaid) {
+      navigate(paths.attendee.trackOrder(eventId, order._id), { replace: true });
     }
-  }, [state, isPaid, eventId, navigate]);
+  }, [order, isPaid, eventId, navigate]);
 
-  if (!state) return <Navigate to={paths.attendee.cart(eventId)} replace />;
-  if (isPaid) return null; // redirecting to the confirmed page
+  // No nav state and the order could not be loaded — nothing to show.
+  if (!state && (orderQuery.isError || (orderQuery.isSuccess && !orderQuery.data))) {
+    return <Navigate to={paths.attendee.cart(eventId)} replace />;
+  }
+
+  if (!order) {
+    return <p className="mt-10 text-center text-sm text-text-muted">Loading your order…</p>;
+  }
+
+  if (isPaid) return null; // redirecting to the tracking page
+
+  const items = state?.items ?? viewItemsQuery.data ?? [];
 
   return (
     <div className="space-y-6">
       <OrderConfirmation
-        order={state.order}
-        items={state.items}
-        total={computeTotal(state.order)}
+        order={order}
+        items={items}
+        total={computeTotal(order)}
         title="Payment Pending"
         subtitle="Please go to the cashier to pay for your order."
         variant="pending"
