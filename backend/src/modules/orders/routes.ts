@@ -126,10 +126,11 @@ ordersRouter.post(
   })
 );
 
-// POST /orders/:orderId/cancel — attendee abandons an order still awaiting
-// authorization (cancels its gated items and releases any backing hold).
+// POST /orders/:orderId/cancel-pending-authorization — attendee abandons an
+// order still awaiting authorization (cancels its gated items and releases any
+// backing hold).
 ordersRouter.post(
-  "/:orderId/cancel",
+  "/:orderId/cancel-pending-authorization",
   authAttendee,
   async (req: Request, res: Response) => {
     try {
