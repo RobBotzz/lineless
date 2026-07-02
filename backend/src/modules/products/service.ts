@@ -6,8 +6,13 @@ import {
   ProductImageNotFoundError,
   ProductNotFoundError,
   ProductStateError,
+  ProductStockChangedError,
 } from "./errors";
-import type { CreateProductInput, UpdateProductInput } from "./types";
+import type {
+  CreateProductInput,
+  UpdateProductInput,
+  UpdateProductStockInput,
+} from "./types";
 import { config } from "../../config/config";
 import {
   sniffImageMimeType,
@@ -256,10 +261,37 @@ export async function updateProduct(
   if (patch.instantProduct !== undefined) {
     product.instantProduct = patch.instantProduct;
   }
-  if (patch.productStock !== undefined)
-    product.productStock = patch.productStock;
   await product.save();
   return product.toObject();
+}
+
+export async function updateProductStock(
+  productId: string,
+  accountId: string,
+  input: UpdateProductStockInput
+): Promise<ProductDoc> {
+  const existing = await Product.findOne({ _id: productId, deletedAt: null })
+    .select("standId")
+    .lean();
+  if (!existing) throw new ProductNotFoundError();
+  await verifyStandOwnership(existing.standId, accountId);
+
+  const product = await Product.findOneAndUpdate(
+    {
+      _id: productId,
+      deletedAt: null,
+      productStock: input.expectedProductStock,
+    },
+    { $set: { productStock: input.productStock } },
+    { new: true, runValidators: true }
+  ).lean();
+  if (product) return product;
+
+  const current = await Product.findOne({ _id: productId, deletedAt: null })
+    .select("productStock")
+    .lean();
+  if (!current) throw new ProductNotFoundError();
+  throw new ProductStockChangedError(current.productStock);
 }
 
 // The URL stored on the product points back at our own serve endpoint, so the
