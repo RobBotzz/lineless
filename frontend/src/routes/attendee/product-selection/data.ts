@@ -1,15 +1,15 @@
 import type { LoaderFunctionArgs } from 'react-router';
 
-import { getAttendeeEvent } from '@/api/events';
 import { getAttendeeStandProducts } from '@/api/products';
 import { getAttendeeStands } from '@/api/stands';
 import { ensureAttendeeSession } from '@/auth/attendee/attendeeSession';
-import type { Event } from '@/types/event';
 import type { Product } from '@/types/product';
 import type { Stand } from '@/types/stand';
 
+// The event itself is loaded by the parent layout route (attendeeLayoutLoader)
+// and read via useRouteLoaderData('attendee-event'), so this loader fetches only
+// the stand/product data unique to this page.
 export interface ProductSelectionLoaderData {
-  event: Event;
   stands: Stand[];
   productsByStand: Record<string, Product[]>;
 }
@@ -21,10 +21,7 @@ export async function productSelectionLoader({
 
   await ensureAttendeeSession(eventId);
 
-  const [event, stands] = await Promise.all([
-    getAttendeeEvent(eventId),
-    getAttendeeStands(eventId),
-  ]);
+  const stands = await getAttendeeStands(eventId);
 
   const productLists = await Promise.all(
     stands.map((stand) => getAttendeeStandProducts(eventId, stand._id)),
@@ -35,5 +32,5 @@ export async function productSelectionLoader({
     productsByStand[stand._id] = productLists[i].filter((p) => p.productStatus === 'LIVE');
   });
 
-  return { event, stands, productsByStand };
+  return { stands, productsByStand };
 }

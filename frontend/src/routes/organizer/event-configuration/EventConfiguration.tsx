@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useFetcher, useLoaderData, useRevalidator, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
+import { deleteEventLogo, uploadEventLogo } from '@/api/events';
 import { AlertDialog } from '@/components/feedback';
-import { BackButton } from '@/components/shared';
+import { BackButton, ImageDropzone } from '@/components/shared';
 import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,11 +20,12 @@ import {
   ProductsIcon,
   SettingsIcon,
   StandIcon,
-  UploadIcon,
 } from '@/components/icons';
 import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
+import { resolveBranding } from '@/features/branding/applyBranding';
+import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import type { Event, UpdateEventInput } from '@/types/event';
+import { eventLogoSrc, type Event, type UpdateEventInput } from '@/types/event';
 import type { Stand } from '@/types/stand';
 import type { Product } from '@/types/product';
 import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
@@ -55,6 +57,11 @@ export function EventConfigurationError() {
   );
 }
 
+// Mirrors the backend upload limits (config.upload). The server is the source of
+// truth (it also checks the magic bytes); these just give instant feedback.
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 type EventForm = {
   name: string;
   plannedDate: string;
@@ -64,6 +71,8 @@ type EventForm = {
   baselineHold: string;
   primaryColor: string;
   secondaryColor: string;
+  // null = Auto (derive accent text color from primaryColor).
+  accentTextColor: string | null;
   location: Location;
 };
 
@@ -75,6 +84,13 @@ function toDateInputValue(iso?: string) {
   return date.toISOString().slice(0, 10);
 }
 
+function localDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function toForm(event: Event): EventForm {
   return {
     name: event.name,
@@ -84,6 +100,7 @@ function toForm(event: Event): EventForm {
     baselineHold: String(Math.round(event.baselineHoldCents / 100)),
     primaryColor: event.branding.primaryColor,
     secondaryColor: event.branding.secondaryColor,
+    accentTextColor: event.branding.accentTextColor,
     location: event.location ?? emptyLocation,
   };
 }
@@ -95,14 +112,60 @@ export default function EventConfiguration() {
   // lifecycle/stand/product actions so its state drives the "saved" indicator.
   const saveFetcher = useFetcher<EventActionResult>();
   const { logout } = useOrganizerAuth();
+  const revalidator = useRevalidator();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
   const [showCustomerLink, setShowCustomerLink] = useState(false);
   const [showHoldInfo, setShowHoldInfo] = useState(false);
   const [showRatingsInfo, setShowRatingsInfo] = useState(false);
   const [showCashierInfo, setShowCashierInfo] = useState(false);
+  const [showLogoInfo, setShowLogoInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
+
+  // Logo upload is a separate multipart call (like the product image), not part
+  // of the JSON settings auto-save. The event already exists, so we upload/delete
+  // immediately and revalidate the loader to pick up the new branding.logoUrl.
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  // Object URL for the in-flight pick, shown for instant feedback until the
+  // revalidated loader serves the persisted logo. Revoked on change / unmount.
+  const logoFilePreview = useMemo(
+    () => (logoFile ? URL.createObjectURL(logoFile) : null),
+    [logoFile],
+  );
+  useEffect(() => {
+    if (!logoFilePreview) return;
+    return () => URL.revokeObjectURL(logoFilePreview);
+  }, [logoFilePreview]);
+  const logoPreviewUrl = logoFilePreview ?? eventLogoSrc(event);
+
+  function handleSelectLogo(file: File) {
+    setLogoError(null);
+    setLogoFile(file);
+    setLogoBusy(true);
+    uploadEventLogo(event._id, file)
+      .then(() => revalidator.revalidate())
+      .catch((err) =>
+        setLogoError(err instanceof ApiError ? err.message : 'Could not upload the logo.'),
+      )
+      .finally(() => {
+        setLogoBusy(false);
+        setLogoFile(null);
+      });
+  }
+
+  function handleRemoveLogo() {
+    setLogoError(null);
+    setLogoBusy(true);
+    deleteEventLogo(event._id)
+      .then(() => revalidator.revalidate())
+      .catch((err) =>
+        setLogoError(err instanceof ApiError ? err.message : 'Could not remove the logo.'),
+      )
+      .finally(() => setLogoBusy(false));
+  }
 
   const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
   const [editingStand, setEditingStand] = useState<Stand | null>(null);
@@ -124,6 +187,15 @@ export default function EventConfiguration() {
   // at least 100 cents (€1.00).
   const baselineHoldEuros = Number(form.baselineHold);
   const baselineHoldValid = Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1;
+  const minimumPlannedDate = localDateInputValue();
+  const persistedPlannedDate = toDateInputValue(event.plannedDate);
+  // Keep legacy events with an already-persisted past date editable, but reject
+  // any newly selected past date before the auto-save can submit it.
+  const plannedDateValid =
+    !form.plannedDate ||
+    form.plannedDate >= minimumPlannedDate ||
+    form.plannedDate === persistedPlannedDate;
+  const settingsValid = baselineHoldValid && plannedDateValid;
 
   function updateField<K extends keyof EventForm>(key: K, value: EventForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -175,7 +247,11 @@ export default function EventConfiguration() {
     ratingsEnabled: form.ratingsEnabled,
     cashierEnabled: form.cashierEnabled,
     baselineHoldCents: Math.round(baselineHoldEuros * 100),
-    branding: { primaryColor: form.primaryColor, secondaryColor: form.secondaryColor },
+    branding: {
+      primaryColor: form.primaryColor,
+      secondaryColor: form.secondaryColor,
+      accentTextColor: form.accentTextColor,
+    },
     location: form.location,
   });
   // Last successfully-persisted snapshot, kept in state so the render can derive
@@ -190,7 +266,7 @@ export default function EventConfiguration() {
   });
 
   useEffect(() => {
-    if (!baselineHoldValid) return;
+    if (!settingsValid) return;
     if (settingsSnapshot === lastSavedSnapshot) return;
     const handle = setTimeout(() => {
       pendingSnapshotRef.current = settingsSnapshot;
@@ -203,7 +279,7 @@ export default function EventConfiguration() {
       );
     }, 800);
     return () => clearTimeout(handle);
-  }, [settingsSnapshot, lastSavedSnapshot, baselineHoldValid]);
+  }, [settingsSnapshot, lastSavedSnapshot, settingsValid]);
 
   // Mark the just-sent snapshot as saved once the request succeeds; on failure
   // it stays "dirty" so the next edit retries.
@@ -217,6 +293,15 @@ export default function EventConfiguration() {
       pendingSnapshotRef.current = null;
     }
   }, [saveFetcher]);
+
+  // Colors actually rendered after contrast clamping — shared with the attendee
+  // runtime via resolveBranding, so the preview can't drift from what guests see.
+  const resolvedBranding = resolveBranding({
+    primaryColor: form.primaryColor,
+    secondaryColor: form.secondaryColor,
+    accentTextColor: form.accentTextColor,
+    logoUrl: null,
+  });
 
   const settingsDirty = settingsSnapshot !== lastSavedSnapshot;
   const isSavingSettings = saveFetcher.state !== 'idle';
@@ -440,7 +525,7 @@ export default function EventConfiguration() {
             <CardContent className="@container">
               <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
                 {/* Core fields */}
-                <div className="space-y-5">
+                <div className="flex h-full flex-col space-y-5">
                   <TextField
                     id="event-name"
                     label="Event Name"
@@ -451,8 +536,10 @@ export default function EventConfiguration() {
                   />
 
                   <TextField
+                    error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
                     id="event-date"
                     label="Event Date"
+                    min={minimumPlannedDate}
                     onChange={(e) => updateField('plannedDate', e.target.value)}
                     type="date"
                     value={form.plannedDate}
@@ -619,33 +706,161 @@ export default function EventConfiguration() {
                 </div>
 
                 {/* Branding — sits beside the core fields when the card is wide enough */}
-                <div className="space-y-5">
+                <div className="flex flex-col justify-between space-y-5">
                   <div>
-                    <p className="mb-2 block text-sm font-medium">Logo</p>
-                    <Button disabled variant="outline">
-                      <UploadIcon /> <span className="ml-2">Upload</span>
-                    </Button>
+                    <p className="mb-2 block text-sm font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        Logo
+                        <span className="relative inline-flex">
+                          <button
+                            type="button"
+                            aria-label="About the event logo"
+                            aria-expanded={showLogoInfo}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setShowLogoInfo((open) => !open);
+                            }}
+                            className="text-text-muted transition hover:text-text"
+                          >
+                            <InfoIcon />
+                          </button>
+                          {showLogoInfo && (
+                            <>
+                              <button
+                                type="button"
+                                aria-hidden="true"
+                                tabIndex={-1}
+                                className="fixed inset-0 z-40 cursor-default"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setShowLogoInfo(false);
+                                }}
+                              />
+                              <span
+                                role="tooltip"
+                                className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                              >
+                                Replaces the Lineless logo for attendees. Shown at the size of the
+                                current logo — smaller images sit left, larger ones scale down to
+                                fit.
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      </span>
+                    </p>
+                    <ImageDropzone
+                      previewUrl={logoPreviewUrl}
+                      onSelect={handleSelectLogo}
+                      onRemove={handleRemoveLogo}
+                      onError={setLogoError}
+                      acceptedTypes={ACCEPTED_IMAGE_TYPES}
+                      maxBytes={MAX_IMAGE_BYTES}
+                      disabled={logoBusy}
+                    />
+                    {logoError && <p className="mt-1 text-xs text-danger">{logoError}</p>}
                   </div>
 
-                  <ColorField
-                    id="primary-color"
-                    label="Primary Color"
-                    onChange={(value) => updateField('primaryColor', value)}
-                    value={form.primaryColor}
+                  {/* Presets — one click fills all three roles with a contrast-safe
+                      palette; the organizer can still fine-tune afterwards. Full
+                      width below the logo so all six pills get the row. */}
+                  <BrandPresetRow
+                    current={form}
+                    onApply={(preset) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        primaryColor: preset.primaryColor,
+                        secondaryColor: preset.secondaryColor,
+                        accentTextColor: preset.accentTextColor,
+                      }))
+                    }
                   />
-                  {/* secondaryColor in the backend = the button text color in the UI. */}
-                  <ColorField
-                    id="secondary-color"
-                    label="Button Text Color"
-                    onChange={(value) => updateField('secondaryColor', value)}
-                    value={form.secondaryColor}
-                  />
+
+                  {/* The three color controls share one row: 3-up when wide, then
+                      2-up, then stacked. Nested @container keys off the branding
+                      half, not the whole card. */}
+                  <div className="@container">
+                    <div className="grid grid-cols-1 items-stretch gap-4 @sm:grid-cols-2 @lg:grid-cols-3">
+                      {/* Role 1 — brand fill (buttons/highlights). */}
+                      <BrandColorField
+                        id="primary-color"
+                        label="Brand"
+                        onChange={(value) => updateField('primaryColor', value)}
+                        value={form.primaryColor}
+                      />
+                      {/* Role 3 — accent used as standalone text (links, prices,
+                          headings) on the neutral page. null = Auto (derive). */}
+                      <BrandColorField
+                        id="accent-text-color"
+                        label="Brand Text"
+                        onChange={(value) => updateField('accentTextColor', value)}
+                        value={resolvedBranding.accentText}
+                        auto={{
+                          active: form.accentTextColor === null,
+                          onEnable: () => updateField('accentTextColor', null),
+                        }}
+                      />
+                      {/* Role 2 — text on the brand fill. secondaryColor in the backend. */}
+                      <ButtonTextColorField
+                        onChange={(value) => updateField('secondaryColor', value)}
+                        value={form.secondaryColor}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-lg border border-border bg-surface-muted">
+                    <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                        Preview
+                      </span>
+                      <span className="text-xs text-text-muted">As attendees will see it</span>
+                    </div>
+                    {/* White canvas — matches the attendee page so brand colors read
+                        true. Uses the resolved (clamped) colors, so what's shown here
+                        is exactly what attendees get. */}
+                    <div className="flex items-center gap-8 bg-surface p-4">
+                      <Button
+                        className="shrink-0"
+                        style={{
+                          backgroundColor: resolvedBranding.accent,
+                          color: resolvedBranding.buttonText,
+                        }}
+                      >
+                        Order Now
+                      </Button>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <p
+                          className="text-sm font-semibold"
+                          style={{ color: resolvedBranding.accentText }}
+                        >
+                          {form.name || 'Lineless Event'}
+                        </p>
+                        <p className="text-sm text-text">
+                          Tonight only —{' '}
+                          <span
+                            className="font-medium underline underline-offset-2"
+                            style={{ color: resolvedBranding.accentText }}
+                          >
+                            view the menu
+                          </span>{' '}
+                          and order from{' '}
+                          <span
+                            className="font-semibold"
+                            style={{ color: resolvedBranding.accentText }}
+                          >
+                            €4.50
+                          </span>
+                          .
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* No save button — the form auto-saves; this just reflects status. */}
               <div className="mt-6 flex justify-end text-sm" aria-live="polite">
-                {!baselineHoldValid && settingsDirty ? (
+                {!settingsValid && settingsDirty ? (
                   <span className="text-danger">Fix the highlighted field to save.</span>
                 ) : settingsSaveError ? (
                   <span className="text-danger">
@@ -788,37 +1003,254 @@ export default function EventConfiguration() {
   );
 }
 
-function ColorField({
+// Curated, contrast-safe palettes. Each fills all three roles at once so a
+// non-designer can start from a good baseline, then tweak. accentTextColor is
+// pre-picked to clear AA on the neutral canvas (or null = Auto-derive).
+type BrandPreset = {
+  name: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentTextColor: string | null;
+};
+
+const BRAND_PRESETS: readonly BrandPreset[] = [
+  { name: 'Midnight', primaryColor: '#020887', secondaryColor: '#ffffff', accentTextColor: null },
+  { name: 'Ocean', primaryColor: '#0e7490', secondaryColor: '#ffffff', accentTextColor: '#0e6c84' },
+  {
+    name: 'Forest',
+    primaryColor: '#15803d',
+    secondaryColor: '#ffffff',
+    accentTextColor: '#15703a',
+  },
+  {
+    name: 'Sunset',
+    primaryColor: '#ea580c',
+    secondaryColor: '#ffffff',
+    accentTextColor: '#b7430a',
+  },
+  { name: 'Berry', primaryColor: '#be185d', secondaryColor: '#ffffff', accentTextColor: '#be185d' },
+  { name: 'Mono', primaryColor: '#1f2937', secondaryColor: '#ffffff', accentTextColor: '#1f2937' },
+] as const;
+
+const HEX_RE = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
+
+// Generic brand color picker (swatch + hex input). `auto` adds an Auto chip for
+// roles that can derive their value (the live preview shows the result).
+function BrandColorField({
   id,
   label,
   value,
   onChange,
+  auto,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  auto?: { active: boolean; onEnable: () => void };
+}) {
+  const [showAutoInfo, setShowAutoInfo] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  // Sync draft when an external change (e.g. preset applied) lands.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDraft(value);
+  }, [value]);
+
+  const isValidHex = HEX_RE.test(draft);
+  const showError = draft.length > 1 && !isValidHex;
+
+  function handleTextChange(raw: string) {
+    let next = raw;
+    if (next === '') {
+      next = '#';
+    } else if (!next.startsWith('#')) {
+      next = '#' + next;
+    }
+    setDraft(next);
+    if (HEX_RE.test(next)) onChange(next);
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="mb-2 flex min-h-7 items-center justify-start gap-2">
+        <label className="block text-sm font-medium text-text" htmlFor={id}>
+          {label}
+        </label>
+        {auto && (
+          <>
+            <button
+              aria-pressed={auto.active}
+              className={cn(
+                'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+                auto.active
+                  ? 'border-accent/30 bg-accent-soft text-accent-contrast'
+                  : 'border-border bg-surface text-text-muted hover:text-text',
+              )}
+              onClick={auto.onEnable}
+              type="button"
+            >
+              Auto
+            </button>
+            <span className="relative inline-flex">
+              <button
+                type="button"
+                aria-label="About Auto brand text"
+                aria-expanded={showAutoInfo}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowAutoInfo((open) => !open);
+                }}
+                className="text-text-muted transition hover:text-text"
+              >
+                <InfoIcon />
+              </button>
+              {showAutoInfo && (
+                <>
+                  <button
+                    type="button"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowAutoInfo(false);
+                    }}
+                  />
+                  <span
+                    role="tooltip"
+                    className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                  >
+                    Auto picks the text color for you from your Brand color, darkening it only if
+                    needed so it stays easy to read on the page. Click the swatch to choose your own
+                    color instead.
+                  </span>
+                </>
+              )}
+            </span>
+          </>
+        )}
+      </div>
+      <div className="flex flex-1 flex-wrap items-center gap-2">
+        <div
+          className={cn(
+            'flex flex-1 items-center justify-center gap-2 rounded-lg border bg-surface px-3 py-2',
+            showError ? 'border-danger' : 'border-border',
+            auto?.active && 'opacity-60',
+          )}
+        >
+          <input
+            aria-label={`${label} swatch`}
+            className="h-8 w-10 shrink-0 cursor-pointer rounded border border-border bg-transparent"
+            onChange={(e) => {
+              setDraft(e.target.value);
+              onChange(e.target.value);
+            }}
+            type="color"
+            value={isValidHex ? draft : value}
+          />
+          <input
+            className="w-24 bg-transparent text-center text-sm text-text outline-none"
+            id={id}
+            maxLength={7}
+            onChange={(e) => handleTextChange(e.target.value)}
+            type="text"
+            value={draft}
+          />
+        </div>
+      </div>
+      <p className={cn('mt-1.5 text-xs text-danger', !showError && 'invisible')}>Invalid color</p>
+    </div>
+  );
+}
+
+// Button labels only ever read well as white or black, so this offers a
+// White/Black choice instead of a free picker.
+const BUTTON_TEXT_OPTIONS = [
+  { label: 'White', value: '#ffffff' },
+  { label: 'Black', value: '#000000' },
+] as const;
+
+function ButtonTextColorField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
 }) {
   return (
+    <div className="flex h-full flex-col">
+      <span className="mb-2 flex min-h-7 items-center text-sm font-medium text-text">
+        Button Text
+      </span>
+      <div className="flex flex-1 items-center justify-start">
+        <div className="flex rounded-lg border border-border bg-surface p-1">
+          {BUTTON_TEXT_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              aria-pressed={value === option.value}
+              className={cn(
+                'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                value === option.value
+                  ? 'bg-surface-muted text-text'
+                  : 'text-text-muted hover:text-text',
+              )}
+              onClick={() => onChange(option.value)}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="invisible mt-1.5 text-xs">.</p>
+    </div>
+  );
+}
+
+// Preset palettes — clicking one fills all three brand roles. The active preset
+// (if the current colors match one exactly) is highlighted.
+function BrandPresetRow({
+  current,
+  onApply,
+}: {
+  current: Pick<EventForm, 'primaryColor' | 'secondaryColor' | 'accentTextColor'>;
+  onApply: (preset: BrandPreset) => void;
+}) {
+  const matches = (p: BrandPreset) =>
+    p.primaryColor.toLowerCase() === current.primaryColor.toLowerCase() &&
+    p.secondaryColor.toLowerCase() === current.secondaryColor.toLowerCase() &&
+    p.accentTextColor === current.accentTextColor;
+  return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-text" htmlFor={id}>
-        {label}
-      </label>
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
-        <input
-          aria-label={`${label} swatch`}
-          className="h-8 w-10 shrink-0 cursor-pointer rounded border border-border bg-transparent"
-          onChange={(e) => onChange(e.target.value)}
-          type="color"
-          value={value}
-        />
-        <input
-          className="w-full bg-transparent text-sm text-text outline-none"
-          id={id}
-          onChange={(e) => onChange(e.target.value)}
-          type="text"
-          value={value}
-        />
+      <span className="mb-2 block text-sm font-medium text-text">Palette</span>
+      <div className="flex flex-wrap gap-2">
+        {BRAND_PRESETS.map((preset) => {
+          const active = matches(preset);
+          return (
+            <button
+              key={preset.name}
+              aria-pressed={active}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                active
+                  ? 'border-accent/40 bg-accent-soft text-text'
+                  : 'border-border bg-surface text-text-muted hover:text-text',
+              )}
+              onClick={() => onApply(preset)}
+              title={`Apply the ${preset.name} palette`}
+              type="button"
+            >
+              <span
+                aria-hidden
+                className="h-3.5 w-3.5 rounded-full border border-border"
+                style={{ backgroundColor: preset.primaryColor }}
+              />
+              {preset.name}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

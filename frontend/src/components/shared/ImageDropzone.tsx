@@ -82,7 +82,7 @@ export function ImageDropzone({
       />
 
       {previewUrl ? (
-        <div className="relative h-40 overflow-hidden rounded-lg border border-border bg-surface-muted">
+        <div className="relative h-28 overflow-hidden rounded-lg border border-border bg-surface-muted">
           <img
             src={previewUrl}
             alt="Product image preview"
@@ -112,7 +112,7 @@ export function ImageDropzone({
           onClick={openPicker}
           disabled={disabled}
           className={cn(
-            'flex h-40 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 text-center transition',
+            'flex h-28 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 text-center transition',
             dragOver
               ? 'border-accent bg-accent-soft'
               : 'border-border bg-surface hover:bg-surface-muted',

@@ -33,6 +33,27 @@ export function updateEvent(eventId: string, patch: UpdateEventInput): Promise<v
   });
 }
 
+// Uploads (or replaces) the event logo — multipart/form-data, single field
+// "image". Returns the updated event (branding.logoUrl now points at the served
+// logo). The browser sets the multipart boundary, so no Content-Type is forced.
+export function uploadEventLogo(eventId: string, file: File): Promise<Event> {
+  const formData = new FormData();
+  formData.append('image', file);
+  return apiFetch<Event>(`/events/${eventId}/logo`, {
+    method: 'PUT',
+    body: formData,
+    auth: 'organizer',
+  });
+}
+
+// Removes the uploaded event logo. Returns the updated event.
+export function deleteEventLogo(eventId: string): Promise<Event> {
+  return apiFetch<Event>(`/events/${eventId}/logo`, {
+    method: 'DELETE',
+    auth: 'organizer',
+  });
+}
+
 export function startEvent(eventId: string): Promise<void> {
   return apiFetch<void>(`/events/${eventId}/start`, {
     method: 'POST',
