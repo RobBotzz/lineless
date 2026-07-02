@@ -1,5 +1,5 @@
 // Mirrors the backend payouts module. Money is always integer cents.
-export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED';
+export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED' | 'COMPLETED';
 
 export interface ProductUnitsSold {
   productId: string;
