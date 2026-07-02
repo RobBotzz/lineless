@@ -1,5 +1,5 @@
 import { ApiError, apiFetch } from './client';
-import type { CreateProductInput, Product, UpdateProductInput } from '../types/product';
+import type { CreateProductInput, Product, StockMode, UpdateProductInput } from '../types/product';
 
 export function getStandProducts(standId: string): Promise<Product[]> {
   return apiFetch<Product[]>(`/stands/${standId}/products`, { auth: 'organizer' });
@@ -60,30 +60,41 @@ export function deleteProductImage(productId: string): Promise<Product> {
 
 export class ProductStockChangedError extends ApiError {
   readonly currentProductStock: number;
+  readonly currentStockMode: StockMode;
 
-  constructor(currentProductStock: number) {
+  constructor(currentProductStock: number, currentStockMode: StockMode) {
     super(409, 'Product stock changed while it was being edited');
     this.name = 'ProductStockChangedError';
     this.currentProductStock = currentProductStock;
+    this.currentStockMode = currentStockMode;
   }
 }
 
 export async function updateProductStock(
   productId: string,
-  expectedProductStock: number,
-  productStock: number,
+  expected: { productStock: number; stockMode: StockMode },
+  next: { productStock: number; stockMode: StockMode },
 ): Promise<Product> {
   try {
     return await apiFetch<Product>(`/products/${productId}/stock`, {
       method: 'PATCH',
-      body: JSON.stringify({ productStock, expectedProductStock }),
+      body: JSON.stringify({
+        productStock: next.productStock,
+        stockMode: next.stockMode,
+        expectedProductStock: expected.productStock,
+        expectedStockMode: expected.stockMode,
+      }),
       auth: 'organizer',
     });
   } catch (error) {
     if (error instanceof ApiError && error.status === 409 && error.data) {
       const data = error.data as Record<string, unknown>;
-      if (data.code === 'STOCK_CHANGED' && typeof data.currentProductStock === 'number') {
-        throw new ProductStockChangedError(data.currentProductStock);
+      if (
+        data.code === 'STOCK_CHANGED' &&
+        typeof data.currentProductStock === 'number' &&
+        (data.currentStockMode === 'UNLIMITED' || data.currentStockMode === 'TRACKED')
+      ) {
+        throw new ProductStockChangedError(data.currentProductStock, data.currentStockMode);
       }
     }
     throw error;
