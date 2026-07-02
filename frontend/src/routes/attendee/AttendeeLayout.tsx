@@ -4,7 +4,7 @@ import { ApiError } from '@/api/client';
 
 import { AttendeeNavbar } from '@/components/layout/navbars';
 import { paths } from '@/paths';
-import { eventLogoSrc, type Event } from '@/types/event';
+import { eventLogoSrc, type PublicEventInfo } from '@/types/event';
 import { BrandingProvider } from '@/features/branding/BrandingContext';
 import { BrandLogo } from '@/features/branding/BrandLogo';
 
@@ -93,7 +93,13 @@ function NavbarActions({ eventId }: { eventId?: string }) {
   );
 }
 
-function EventGateShell({ event, children }: { event: Event; children: React.ReactNode }) {
+function EventGateShell({
+  event,
+  children,
+}: {
+  event: PublicEventInfo;
+  children: React.ReactNode;
+}) {
   return (
     <BrandingProvider branding={event.branding}>
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
@@ -107,7 +113,7 @@ function EventGateShell({ event, children }: { event: Event; children: React.Rea
   );
 }
 
-function EventComingSoonGate({ event }: { event: Event }) {
+function EventComingSoonGate({ event }: { event: PublicEventInfo }) {
   return (
     <EventGateShell event={event}>
       <p className="text-text-muted">
@@ -122,7 +128,7 @@ function EventComingSoonGate({ event }: { event: Event }) {
   );
 }
 
-function EventStoppedGate({ event }: { event: Event }) {
+function EventStoppedGate({ event }: { event: PublicEventInfo }) {
   return (
     <EventGateShell event={event}>
       <p className="text-text-muted">This event is not accepting new orders.</p>
@@ -133,7 +139,7 @@ function EventStoppedGate({ event }: { event: Event }) {
   );
 }
 
-function EventCompletedGate({ event }: { event: Event }) {
+function EventCompletedGate({ event }: { event: PublicEventInfo }) {
   return (
     <EventGateShell event={event}>
       <p className="text-text-muted">This event has ended.</p>

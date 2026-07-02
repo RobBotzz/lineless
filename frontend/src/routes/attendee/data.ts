@@ -2,10 +2,10 @@ import type { LoaderFunctionArgs } from 'react-router';
 
 import { getAttendeeEvent, getEventPublicInfo } from '@/api/events';
 import { ensureAttendeeSession, hasValidAttendeeSession } from '@/auth/attendee/attendeeSession';
-import type { Event } from '@/types/event';
+import type { Event, PublicEventInfo } from '@/types/event';
 
 export interface AttendeeLayoutLoaderData {
-  event: Event;
+  event: Event | PublicEventInfo;
   hasSession: boolean;
 }
 

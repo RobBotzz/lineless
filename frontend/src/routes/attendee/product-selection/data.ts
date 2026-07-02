@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from 'react-router';
 
+import { ApiError } from '@/api/client';
 import { getAttendeeStandProducts } from '@/api/products';
 import { getAttendeeStands } from '@/api/stands';
 import { ensureAttendeeSession } from '@/auth/attendee/attendeeSession';
@@ -21,10 +22,14 @@ export async function productSelectionLoader({
 
   try {
     await ensureAttendeeSession(eventId);
-  } catch {
-    // Event is not ACTIVE (stopped/completed/draft) — session creation fails.
+  } catch (err) {
+    // Session creation returns 404 when the event is not ACTIVE (DRAFT/STOPPED/COMPLETED).
     // Return empty data so the layout gate renders instead of an error boundary.
-    return { stands: [], productsByStand: {} };
+    // Re-throw anything else (network failure, 500) so the error boundary catches it.
+    if (err instanceof ApiError && err.status === 404) {
+      return { stands: [], productsByStand: {} };
+    }
+    throw err;
   }
 
   const stands = await getAttendeeStands(eventId);

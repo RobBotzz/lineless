@@ -37,6 +37,8 @@ export default function ProductSelection() {
     return productsByStand[selectedStand] ?? [];
   }, [selectedStand, productsByStand]);
 
+  // Second-layer guard for session holders whose event stopped while they were browsing.
+  // The layout gate handles the no-session case; this handles the in-session stopped/completed case.
   if (event.status !== 'ACTIVE') {
     const message =
       event.status === 'COMPLETED'
