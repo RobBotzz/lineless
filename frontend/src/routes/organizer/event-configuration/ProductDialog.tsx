@@ -18,6 +18,7 @@ import {
   productImageSrc,
   type CreateProductInput,
   type Product,
+  type StockMode,
   type UpdateProductInput,
 } from '@/types/product';
 
@@ -70,6 +71,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
   const [price, setPrice] = useState(product ? formatMoney(product.priceIncludingTax) : '');
   const [taxRate, setTaxRate] = useState(product ? String(product.taxRate / 100) : '19');
   const [instantProduct, setInstantProduct] = useState(product?.instantProduct ?? false);
+  const [stockMode, setStockMode] = useState<StockMode>(product?.stockMode ?? 'UNLIMITED');
   const [stock, setStock] = useState(product ? String(product.productStock) : '0');
   const [description, setDescription] = useState(product?.productDescription ?? '');
 
@@ -82,7 +84,12 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
   // succeeds so a failed image upload (and a subsequent retry) updates that
   // product instead of creating a duplicate.
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
-  const [createdProductStock, setCreatedProductStock] = useState<number | null>(null);
+  const [savedProductStock, setSavedProductStock] = useState<number | null>(
+    product?.productStock ?? null,
+  );
+  const [savedStockMode, setSavedStockMode] = useState<StockMode | null>(
+    product?.stockMode ?? null,
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -145,11 +152,12 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
       setError('Enter a valid tax rate between 0 and 100 (e.g. 19 or 19,5)');
       return;
     }
-    const productStock = parseStock(stock);
-    if (productStock === null) {
+    const parsedProductStock = parseStock(stock);
+    if (stockMode === 'TRACKED' && parsedProductStock === null) {
       setError('Enter a valid initial stock amount');
       return;
     }
+    const productStock = parsedProductStock ?? 0;
 
     const productDescription = description.trim() || null;
     setError(null);
@@ -168,14 +176,20 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
           taxRate: taxRateBp,
           instantProduct,
         };
-        const expectedProductStock = product?.productStock ?? createdProductStock;
-        if (expectedProductStock !== null && productStock !== expectedProductStock) {
+        const expectedProductStock = savedProductStock;
+        const expectedStockMode = savedStockMode;
+        if (
+          expectedProductStock !== null &&
+          expectedStockMode !== null &&
+          (productStock !== expectedProductStock || stockMode !== expectedStockMode)
+        ) {
           const updatedStock = await updateProductStock(
             existingProductId,
-            expectedProductStock,
-            productStock,
+            { productStock: expectedProductStock, stockMode: expectedStockMode },
+            { productStock, stockMode },
           );
-          setCreatedProductStock(updatedStock.productStock);
+          setSavedProductStock(updatedStock.productStock);
+          setSavedStockMode(updatedStock.stockMode);
         }
         await updateProduct(existingProductId, patch);
         // Image is a separate endpoint: upload a new one, or drop the old one.
@@ -191,13 +205,15 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
           priceIncludingTax,
           taxRate: taxRateBp,
           instantProduct,
+          stockMode,
           productStock,
         };
         // Create first to get the id, then attach the image if one was picked.
         // Remember the id so a later failure + retry never creates a duplicate.
         const created = await createProduct(standId, patch);
         setCreatedProductId(created._id);
-        setCreatedProductStock(created.productStock);
+        setSavedProductStock(created.productStock);
+        setSavedStockMode(created.stockMode);
         if (imageFile) {
           await uploadProductImage(created._id, imageFile);
         }
@@ -208,7 +224,9 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
     } catch (err) {
       if (err instanceof ProductStockChangedError) {
         setStock(String(err.currentProductStock));
-        setCreatedProductStock(err.currentProductStock);
+        setSavedProductStock(err.currentProductStock);
+        setStockMode(err.currentStockMode);
+        setSavedStockMode(err.currentStockMode);
         setError('Stock changed during editing. The current value was loaded.');
       } else {
         setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
@@ -268,14 +286,63 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                   />
                 </div>
 
-                <TextField
-                  id="product-stock"
-                  label="Initial Stock *"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  placeholder="0"
-                  inputMode="numeric"
-                />
+                <fieldset>
+                  <legend className="mb-2 block text-sm font-medium text-text">Stock</legend>
+                  <div className="space-y-2">
+                    {[
+                      {
+                        value: 'UNLIMITED' as const,
+                        title: 'Unlimited',
+                        description: 'Orders are not limited by a stock count',
+                      },
+                      {
+                        value: 'TRACKED' as const,
+                        title: 'Track stock',
+                        description: 'Stop accepting orders when stock reaches zero',
+                      },
+                    ].map((option) => {
+                      const selected = stockMode === option.value;
+                      return (
+                        <label
+                          key={option.value}
+                          className={[
+                            'flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition',
+                            selected
+                              ? 'border-accent bg-accent-soft'
+                              : 'border-border bg-surface hover:bg-surface-muted',
+                          ].join(' ')}
+                        >
+                          <input
+                            type="radio"
+                            name="product-stock-mode"
+                            className="h-4 w-4 shrink-0 accent-accent"
+                            checked={selected}
+                            onChange={() => setStockMode(option.value)}
+                          />
+                          <span>
+                            <span className="block text-sm font-medium text-text">
+                              {option.title}
+                            </span>
+                            <span className="block text-xs text-text-muted">
+                              {option.description}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                {stockMode === 'TRACKED' ? (
+                  <TextField
+                    id="product-stock"
+                    label="Initial Stock *"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                    placeholder="0"
+                    inputMode="numeric"
+                  />
+                ) : null}
 
                 {/* Fulfillment type — instant (served immediately) vs manufactured. */}
                 <fieldset>
