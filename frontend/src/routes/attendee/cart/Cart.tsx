@@ -186,7 +186,7 @@ export default function Cart() {
                     type="button"
                     onClick={() => setEditingEmail(true)}
                     disabled={isCheckingOut}
-                    className="shrink-0 text-xs font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className="shrink-0 text-xs font-semibold text-accent-contrast hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     Change
                   </button>
