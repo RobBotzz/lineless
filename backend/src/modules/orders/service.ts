@@ -25,6 +25,7 @@ import {
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
+  OrderRequestDeletedError,
   OrderValidationError,
 } from "./errors";
 import type { CreateOrderInput, IssueCashRefundInput } from "./types";
@@ -165,6 +166,9 @@ async function existingSubmission(
       "requestId has already been used for another order"
     );
   }
+  // A soft-deleted order remains the idempotency tombstone for this requestId.
+  // Replaying it must not report a deleted resource as a fresh successful order.
+  if (order.deletedAt) throw new OrderRequestDeletedError();
   if (order.tabId && !order.paidAt) {
     const payment = await TabPayment.findOne({ orderId: order._id }).sort({
       createdAt: -1,

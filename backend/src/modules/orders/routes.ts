@@ -28,6 +28,7 @@ import {
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
+  OrderRequestDeletedError,
   OrderValidationError,
   StandNotFoundError,
 } from "./errors";
@@ -73,6 +74,11 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotActiveError)
     return res.status(409).json({ error: err.message });
+  if (err instanceof OrderRequestDeletedError)
+    return res.status(409).json({
+      code: "ORDER_REQUEST_DELETED",
+      error: err.message,
+    });
   if (err instanceof OrderValidationError)
     return res.status(400).json({ error: err.message });
   if (err instanceof CashierDisabledError)

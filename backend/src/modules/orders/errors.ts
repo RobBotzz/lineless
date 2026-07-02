@@ -5,6 +5,13 @@ export class OrderValidationError extends Error {
   }
 }
 
+export class OrderRequestDeletedError extends Error {
+  constructor() {
+    super("requestId belongs to a deleted order");
+    this.name = "OrderRequestDeletedError";
+  }
+}
+
 export interface StockShortage {
   productId: string;
   requested: number;
