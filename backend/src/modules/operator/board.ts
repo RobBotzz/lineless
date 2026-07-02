@@ -1,6 +1,6 @@
 import { Order } from "../orders/model";
 import { getItemState } from "../orders/service";
-import { Product, type ProductStatus } from "../products/model";
+import { Product, type ProductStatus, type StockMode } from "../products/model";
 
 export type BoardItemState = "PENDING" | "PREPARING" | "READY";
 
@@ -26,6 +26,7 @@ export interface BoardProduct {
   taxRate: number;
   productImageUrl: string | null;
   instantProduct: boolean;
+  stockMode: StockMode;
   productStock: number;
   productStatus: ProductStatus;
   openToDo: number;
@@ -96,6 +97,7 @@ export async function buildOperatorBoard(
     taxRate: p.taxRate,
     productImageUrl: p.productImageUrl,
     instantProduct: p.instantProduct,
+    stockMode: p.stockMode ?? "UNLIMITED",
     productStock: p.productStock,
     productStatus: p.productStatus,
     openToDo: items.filter(
