@@ -7,6 +7,7 @@ import type { Stand } from '@/types/stand';
 import { ChipFilter } from '../components/ChipFilter';
 import { EmptyState } from '../components/EmptyState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ProductStockChangedError } from '@/api/products';
 
 type StockProductEntry = Product & {
   standName: string;
@@ -154,8 +155,12 @@ function StockProductRow({
     setError(null);
     try {
       await onSave(parsedStock);
-    } catch {
-      setError('Stock could not be saved.');
+    } catch (saveError) {
+      setError(
+        saveError instanceof ProductStockChangedError
+          ? 'Stock changed during editing. The current value was loaded.'
+          : 'Stock could not be saved.',
+      );
     } finally {
       setIsSaving(false);
     }
