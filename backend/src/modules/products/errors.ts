@@ -13,7 +13,10 @@ export class ProductStateError extends Error {
 }
 
 export class ProductStockChangedError extends Error {
-  constructor(public readonly currentProductStock: number) {
+  constructor(
+    public readonly currentProductStock: number,
+    public readonly currentStockMode: "UNLIMITED" | "TRACKED"
+  ) {
     super("Product stock changed while it was being edited");
     this.name = "ProductStockChangedError";
   }

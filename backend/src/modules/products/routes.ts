@@ -70,6 +70,7 @@ function handleError(err: unknown, res: Response): unknown {
       code: "STOCK_CHANGED",
       error: err.message,
       currentProductStock: err.currentProductStock,
+      currentStockMode: err.currentStockMode,
     });
   }
   if (err instanceof ProductNotFoundError)

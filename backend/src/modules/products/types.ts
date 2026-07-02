@@ -10,6 +10,7 @@ const taxRate = z.number().int().min(0).max(10000);
 
 // Stock is a non-negative integer count of units.
 const stock = z.number().int().min(0);
+const stockMode = z.enum(["UNLIMITED", "TRACKED"]);
 
 export const createProductSchema = z.object({
   productName: z.string().min(1),
@@ -17,6 +18,7 @@ export const createProductSchema = z.object({
   priceIncludingTax: cents,
   taxRate: taxRate,
   instantProduct: z.boolean().default(false),
+  stockMode: stockMode.default("UNLIMITED"),
   productStock: stock.default(0),
 });
 
@@ -29,7 +31,9 @@ export const updateProductSchema = z.object({
 });
 
 export const updateProductStockSchema = z.object({
+  stockMode,
   productStock: stock,
+  expectedStockMode: stockMode,
   expectedProductStock: stock,
 });
 

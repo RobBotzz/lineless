@@ -37,7 +37,11 @@ import { Event } from "../events/model";
 // declares `rating` and has no ratingSum/ratingCount.
 export function toProductResponse(p: ProductDoc) {
   const { ratingSum, ratingCount, ...rest } = p;
-  return { ...rest, rating: ratingCount > 0 ? ratingSum / ratingCount : null };
+  return {
+    ...rest,
+    stockMode: p.stockMode ?? "UNLIMITED",
+    rating: ratingCount > 0 ? ratingSum / ratingCount : null,
+  };
 }
 
 async function productsForStand(standId: string): Promise<ProductDoc[]> {
@@ -121,6 +125,7 @@ export async function createProduct(
     priceIncludingTax: input.priceIncludingTax,
     taxRate: input.taxRate,
     instantProduct: input.instantProduct,
+    stockMode: input.stockMode,
     productStock: input.productStock,
   });
   return product.toObject();
@@ -281,17 +286,33 @@ export async function updateProductStock(
       _id: productId,
       deletedAt: null,
       productStock: input.expectedProductStock,
+      ...(input.expectedStockMode === "TRACKED"
+        ? { stockMode: "TRACKED" }
+        : {
+            $or: [
+              { stockMode: "UNLIMITED" },
+              { stockMode: { $exists: false } },
+            ],
+          }),
     },
-    { $set: { productStock: input.productStock } },
+    {
+      $set: {
+        stockMode: input.stockMode,
+        productStock: input.productStock,
+      },
+    },
     { new: true, runValidators: true }
   ).lean();
   if (product) return product;
 
   const current = await Product.findOne({ _id: productId, deletedAt: null })
-    .select("productStock")
+    .select("stockMode productStock")
     .lean();
   if (!current) throw new ProductNotFoundError();
-  throw new ProductStockChangedError(current.productStock);
+  throw new ProductStockChangedError(
+    current.productStock,
+    current.stockMode ?? "UNLIMITED"
+  );
 }
 
 // The URL stored on the product points back at our own serve endpoint, so the
