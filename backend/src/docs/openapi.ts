@@ -19,6 +19,7 @@ import {
   authOrganizerOrAttendeeOrEventLink,
   authOrganizerOrOperator,
   authOrganizerOrOperatorOrAttendee,
+  authOperatorOrAttendee,
   authOperatorLink,
 } from "../middleware/auth/guards";
 
@@ -80,6 +81,7 @@ const AUTH = new Map<unknown, SecurityRequirement[]>([
     [{ organizerAuth: [] }, { attendeeSessionAuth: [] }],
   ],
   [authOrganizerOrOperator, [{ organizerAuth: [] }, { standAuth: [] }]],
+  [authOperatorOrAttendee, [{ standAuth: [] }, { attendeeSessionAuth: [] }]],
   [
     authOrganizerOrOperatorOrAttendee,
     [{ organizerAuth: [] }, { standAuth: [] }, { attendeeSessionAuth: [] }],

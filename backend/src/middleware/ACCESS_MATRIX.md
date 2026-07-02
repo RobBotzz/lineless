@@ -27,6 +27,7 @@
 | Events   | `DELETE /api/events/:eventId/event-control-center/settings`   | no     | own event | no             | no            |
 | Events   | `GET /api/events/:eventId/pickup-board`                       | no     | no        | event link key | no            |
 | Events   | `GET /api/events/:eventId/pickup-board/stream`                | no     | no        | event link key | no            |
+| Orders   | `POST /api/orders`                                            | no     | no        | cashier stand  | session event |
 | Orders   | `POST /api/orders/:orderId/cancel`                            | no     | own event | no             | no            |
 | Orders   | `POST /api/orders/:orderId/cancel-pending-authorization`      | no     | no        | no             | own order     |
 | Orders   | `POST /api/orders/:orderId/items/cancel`                      | no     | own event | no             | no            |
@@ -41,6 +42,7 @@
 | Products | `GET /api/stands/:standId/products`                           | no     | own event | own stand      | session event |
 | Products | `GET /api/products/:productId`                                | no     | own event | no             | no            |
 | Products | `PATCH /api/products/:productId`                              | no     | own event | no             | no            |
+| Products | `PATCH /api/products/:productId/stock`                        | no     | own event | no             | no            |
 | Products | `DELETE /api/products/:productId`                             | no     | own event | no             | no            |
 | Products | `POST /api/products/:productId/pause`                         | no     | own event | own stand      | no            |
 | Products | `POST /api/products/:productId/resume`                        | no     | own event | own stand      | no            |
