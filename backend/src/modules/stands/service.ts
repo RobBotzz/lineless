@@ -144,6 +144,9 @@ export async function listStandsForAttendee(
   sessionEventId: string
 ): Promise<SafeStand[]> {
   assertSessionOwnsEvent(eventId, sessionEventId);
+  // COMPLETED is intentionally excluded: once an event is completed, no new
+  // orders can be placed, so the stand list is no longer useful to guests.
+  // The frontend gate for COMPLETED replaces the product page for this case.
   const event = await Event.findOne({
     _id: eventId,
     status: { $in: ["ACTIVE", "STOPPED"] },

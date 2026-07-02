@@ -20,6 +20,13 @@ import type { CreateEventInput, UpdateEventInput } from "./types";
 
 type AttendeeEvent = Omit<EventDoc, "operatorAccessKey">;
 
+// Fields safe to return without authentication. Excludes accountId, operatorAccessKey,
+// and internal config/billing fields so the endpoint is safe to call without any credential.
+export type PublicEventInfo = Pick<
+  EventDoc,
+  "_id" | "name" | "status" | "plannedDate" | "branding" | "updatedAt"
+>;
+
 function stripOperatorAccessKey(event: EventDoc): AttendeeEvent {
   const safe: Partial<EventDoc> = { ...event };
   delete safe.operatorAccessKey;
@@ -52,14 +59,21 @@ export async function listEvents(accountId: string): Promise<EventDoc[]> {
     .lean();
 }
 
-// Public — no auth. Returns enough info for the attendee gate pages (coming soon,
-// closed, finished) without exposing the operator access key or account id.
+// Public — no auth. Returns only the fields needed for gate pages (coming soon,
+// closed, finished). accountId and operatorAccessKey are intentionally excluded.
 export async function getPublicEventInfo(
   eventId: string
-): Promise<ReturnType<typeof stripOperatorAccessKey>> {
+): Promise<PublicEventInfo> {
   const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
   if (!event) throw new EventNotFoundError();
-  return stripOperatorAccessKey(event);
+  return {
+    _id: event._id,
+    name: event.name,
+    status: event.status,
+    plannedDate: event.plannedDate,
+    branding: event.branding,
+    updatedAt: event.updatedAt,
+  };
 }
 
 export async function getEventForOrganizer(

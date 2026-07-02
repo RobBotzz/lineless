@@ -661,6 +661,8 @@ export async function cancelUnpaidCashOrdersForEvent(
   eventId: string
 ): Promise<void> {
   const now = new Date();
+  // tabId: null targets cash-intent orders only. Tab-backed orders are settled
+  // separately by finalizeEventTabs, which captures charges for ready items.
   await Order.updateMany(
     { eventId, paidAt: null, tabId: null, deletedAt: null },
     { $set: { "items.$[item].cancelledAt": now } },
@@ -678,6 +680,8 @@ export async function advanceOrderItem(
   if (!order) throw new OrderNotFoundError();
   if (!order.paidAt) throw new OrderNotFoundError();
 
+  // Operators may not advance items after completion: tabs are already settled
+  // and further state changes would produce billing inconsistencies.
   const event = await Event.findById(order.eventId).lean();
   if (!event || event.status === "COMPLETED") throw new EventNotActiveError();
 
