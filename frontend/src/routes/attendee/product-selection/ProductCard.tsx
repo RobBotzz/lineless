@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { formatMoney, productImageSrc, type Product } from '@/types/product';
+import { formatMoney, productImageSrc, tracksStock, type Product } from '@/types/product';
 
 import { ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
 import { QuantityStepper } from '@/components/shared/QuantityStepper';
@@ -28,8 +28,9 @@ export function ProductCard({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const imageSrc = productImageSrc(product);
   const showImage = !!imageSrc && imageOk;
-  const soldOut = product.productStock <= 0;
-  const atStockLimit = !soldOut && cartQuantity >= product.productStock;
+  const stockTracked = tracksStock(product);
+  const soldOut = stockTracked && product.productStock <= 0;
+  const atStockLimit = stockTracked && !soldOut && cartQuantity >= product.productStock;
 
   const rating = product.rating ?? null;
   // No inline preview — the full description lives in the details dialog, opened
