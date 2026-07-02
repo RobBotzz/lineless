@@ -35,6 +35,7 @@ import AttendeeProductSelection, {
 } from './routes/attendee/product-selection/ProductSelection';
 import { productSelectionLoader } from './routes/attendee/product-selection/data';
 import AttendeeCart from './routes/attendee/cart/Cart';
+import { cartLoader } from './routes/attendee/cart/data';
 import AttendeeOrderConfirmed from './routes/attendee/checkout/OrderConfirmed';
 import AttendeeCashPaymentPending from './routes/attendee/checkout/CashPaymentPending';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
@@ -121,7 +122,7 @@ export const router = createBrowserRouter(
           loader={productSelectionLoader}
           errorElement={<ProductSelectionError />}
         />
-        <Route path="cart" element={<AttendeeCart />} />
+        <Route path="cart" element={<AttendeeCart />} loader={cartLoader} />
         <Route path="checkout/:orderId/confirmed" element={<AttendeeOrderConfirmed />} />
         <Route path="checkout/:orderId/pending" element={<AttendeeCashPaymentPending />} />
         <Route path="orders" element={<AttendeeOrderHistory />} loader={ordersLoader} />
