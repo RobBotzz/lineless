@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
@@ -9,7 +9,7 @@ import { CartCard } from '@/features/cart/CartCard';
 import { useCartState } from '@/features/cart/useCartState';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { useAddGuard } from '@/lib/useAddGuard';
-import { createManualOrder } from '@/api/orders';
+import { createManualOrder, InsufficientStockError } from '@/api/orders';
 import { getOperatorStands } from '@/api/stands';
 import { getOperatorEventProducts } from '@/api/products';
 import type { OrderItemView } from '@/types/order';
@@ -22,13 +22,23 @@ export default function CashierManualOrder() {
   const { eventId, standId } = useOutletContext<CashierContext>();
   const navigate = useNavigate();
 
-  const { items, totalCents, addItem, setQuantity, setComment, removeItem, clear } = useCartState();
+  const {
+    items,
+    totalCents,
+    addItem,
+    setQuantity,
+    setComment,
+    removeItem,
+    applyStockShortages,
+    clear,
+  } = useCartState();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [standNameById, setStandNameById] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const checkoutAttempt = useRef<{ fingerprint: string; requestId: string } | null>(null);
 
   // The cashier sells the whole event menu, so the catalog spans every stand.
   useEffect(() => {
@@ -56,11 +66,30 @@ export default function CashierManualOrder() {
         quantity: item.quantity,
         comments: item.comments.map((comment) => comment.trim()),
       }));
-      const order = await createManualOrder({ eventId, items: orderItems }, standId);
+      const fingerprint = JSON.stringify(orderItems);
+      if (checkoutAttempt.current?.fingerprint !== fingerprint) {
+        checkoutAttempt.current = { fingerprint, requestId: crypto.randomUUID() };
+      }
+      const order = await createManualOrder(
+        { eventId, items: orderItems },
+        standId,
+        checkoutAttempt.current.requestId,
+      );
       clear(); // next customer starts with an empty cart
       // Skip the order-selection step: go straight to the new order's payment.
       navigate(paths.operator.cashierPaymentOrder(eventId, order._id));
     } catch (err) {
+      if (err instanceof InsufficientStockError) {
+        const details = err.shortages.map((shortage) => {
+          const item = items.find((candidate) => candidate.product._id === shortage.productId);
+          return `${item?.product.productName ?? 'Product'}: ${shortage.available} available`;
+        });
+        applyStockShortages(err.shortages);
+        checkoutAttempt.current = null;
+        setError(`Stock changed. ${details.join(', ')}.`);
+        setIsCheckingOut(false);
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Could not create the order.');
       setIsCheckingOut(false);
     }
@@ -88,6 +117,9 @@ export default function CashierManualOrder() {
                     key={product._id}
                     product={product}
                     standName={standNameFor(product)}
+                    cartQuantity={
+                      items.find((item) => item.product._id === product._id)?.quantity ?? 0
+                    }
                     onAdd={() => addItem(product)}
                   />
                 ))
@@ -155,16 +187,20 @@ export default function CashierManualOrder() {
 function ProductTile({
   product,
   standName,
+  cartQuantity,
   onAdd,
 }: {
   product: Product;
   standName: string;
+  cartQuantity: number;
   onAdd: () => void;
 }) {
   const [imageOk, setImageOk] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const imageSrc = productImageSrc(product);
   const showImage = !!imageSrc && imageOk;
+  const soldOut = product.productStock <= 0;
+  const atStockLimit = soldOut || cartQuantity >= product.productStock;
 
   // Guards a single tap firing twice (duplicate/ghost events on some browsers).
   const runGuarded = useAddGuard();
@@ -173,8 +209,9 @@ function ProductTile({
     <div className="relative">
       <button
         type="button"
+        disabled={atStockLimit}
         onClick={() => runGuarded(onAdd)}
-        className="group flex w-full flex-col overflow-hidden rounded-lg border border-border bg-surface text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="group flex w-full flex-col overflow-hidden rounded-lg border border-border bg-surface text-left shadow-sm transition enabled:hover:-translate-y-0.5 enabled:hover:border-accent/40 enabled:hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <div className="aspect-[4/3] w-full overflow-hidden bg-surface-muted">
           {showImage ? (
@@ -195,11 +232,15 @@ function ProductTile({
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-text">{product.productName}</p>
             <p className="text-sm font-semibold text-accent">
-              €{formatMoney(product.priceIncludingTax)}
+              {soldOut ? 'Sold out' : `€${formatMoney(product.priceIncludingTax)}`}
             </p>
           </div>
           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text transition-colors group-hover:bg-surface-muted">
-            <PlusIcon className="h-4 w-4" />
+            {atStockLimit ? (
+              <span className="text-xs font-bold tabular-nums">{cartQuantity}</span>
+            ) : (
+              <PlusIcon className="h-4 w-4" />
+            )}
           </span>
         </div>
       </button>
