@@ -15,6 +15,7 @@ import {
   getReadyTabTotalCents,
   isTabReadyForCheckout,
 } from "../orders/tabAuthorization";
+import { releaseReservedStock } from "../orders/inventory";
 
 const stripe = new Stripe(config.stripe.secretKey);
 
@@ -285,33 +286,29 @@ export async function checkoutTabsForOrganizerEvent(
 // unchanged settlement path charges exactly those and releases the remaining
 // authorization.
 async function finalizeTabForEventEnd(tabId: string): Promise<void> {
-  // Release unconfirmed top-up holds on Stripe first (Stripe is not transactional).
-  const pendingHolds = await TabPayment.find({
-    tabId,
-    tabPaymentStatus: "PENDING",
-  });
-  for (const hold of pendingHolds) {
-    try {
-      await stripe.paymentIntents.cancel(hold.stripePaymentIntentId);
-    } catch {
-      // Already resolved on Stripe's side — nothing to release.
-    }
-  }
-
   const dbSession = await mongoose.startSession();
+  let pendingIntentIds: string[] = [];
   try {
     await dbSession.withTransaction(async () => {
+      const pendingHolds = await TabPayment.find({
+        tabId,
+        tabPaymentStatus: "PENDING",
+      }).session(dbSession);
+      // withTransaction may retry the callback, so replace instead of append.
+      pendingIntentIds = pendingHolds.map((hold) => hold.stripePaymentIntentId);
+
       const orders = await Order.find({ tabId }).session(dbSession);
       const now = new Date();
       for (const order of orders) {
-        let touched = false;
-        order.items.forEach((item) => {
-          if (!item.readyAt && !item.fulfilledAt && !item.cancelledAt) {
-            item.cancelledAt = now;
-            touched = true;
-          }
+        const cancelledItems = order.items.filter(
+          (item) => !item.readyAt && !item.fulfilledAt && !item.cancelledAt
+        );
+        if (cancelledItems.length === 0) continue;
+        await releaseReservedStock(cancelledItems, dbSession);
+        cancelledItems.forEach((item) => {
+          item.cancelledAt = now;
         });
-        if (touched) await order.save({ session: dbSession });
+        await order.save({ session: dbSession });
       }
 
       await TabPayment.updateMany(
@@ -329,6 +326,12 @@ async function finalizeTabForEventEnd(tabId: string): Promise<void> {
     });
   } finally {
     await dbSession.endSession();
+  }
+
+  // MongoDB decides whether cleanup or the authorization webhook wins. Stripe
+  // is cancelled afterwards because it cannot participate in that transaction.
+  for (const intentId of pendingIntentIds) {
+    await stripe.paymentIntents.cancel(intentId).catch(() => undefined);
   }
 }
 
@@ -365,44 +368,61 @@ async function releaseStaleUnconfirmedTopUps(cutoff: Date): Promise<void> {
   });
 
   for (const payment of stale) {
-    try {
-      await stripe.paymentIntents.cancel(payment.stripePaymentIntentId);
-    } catch {
-      // Already resolved on Stripe's side — nothing to release.
-    }
-
     const dbSession = await mongoose.startSession();
+    let claimedIntentId: string | null = null;
     try {
       await dbSession.withTransaction(async () => {
-        const order = await Order.findById(payment.orderId).session(dbSession);
+        claimedIntentId = null;
+        const claimedPayment = await TabPayment.findOne({
+          _id: payment._id,
+          tabPaymentStatus: "PENDING",
+          updatedAt: { $lte: cutoff },
+        }).session(dbSession);
+        if (!claimedPayment) return;
+
+        const order = await Order.findById(claimedPayment.orderId).session(
+          dbSession
+        );
         if (order) {
           const now = new Date();
-          order.items.forEach((item) => {
-            if (!item.startedAt && !item.cancelledAt) item.cancelledAt = now;
+          const cancelledItems = order.items.filter(
+            (item) => !item.startedAt && !item.cancelledAt
+          );
+          await releaseReservedStock(cancelledItems, dbSession);
+          cancelledItems.forEach((item) => {
+            item.cancelledAt = now;
           });
           await order.save({ session: dbSession });
         }
 
-        await TabPayment.updateOne(
-          { _id: payment._id, tabPaymentStatus: "PENDING" },
-          { tabPaymentStatus: "RELEASED" },
-          { session: dbSession }
-        );
+        claimedPayment.tabPaymentStatus = "RELEASED";
+        await claimedPayment.save({ session: dbSession });
 
         const pending = await TabPayment.countDocuments({
-          tabId: payment.tabId,
+          tabId: claimedPayment.tabId,
           tabPaymentStatus: "PENDING",
         }).session(dbSession);
         if (pending === 0) {
           await Tab.updateOne(
-            { _id: payment.tabId, status: "PENDING_AUTHORIZATION" },
+            {
+              _id: claimedPayment.tabId,
+              status: "PENDING_AUTHORIZATION",
+            },
             { status: "OPEN" },
             { session: dbSession }
           );
         }
+
+        claimedIntentId = claimedPayment.stripePaymentIntentId;
       });
     } finally {
       await dbSession.endSession();
+    }
+
+    if (claimedIntentId) {
+      await stripe.paymentIntents
+        .cancel(claimedIntentId)
+        .catch(() => undefined);
     }
   }
 }
