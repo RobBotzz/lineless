@@ -1,5 +1,4 @@
 import type { EventControlCenterSettings, StandAlertThreshold } from '@/api/eventControlCenter';
-import { readJsonFromStorage, writeJsonToStorage } from '@/lib/browserStorage';
 import type { Stand } from '@/types/stand';
 
 export const defaultStandControlCenterThresholds: StandAlertThreshold = {
@@ -8,24 +7,6 @@ export const defaultStandControlCenterThresholds: StandAlertThreshold = {
 };
 
 export const defaultStockAlertThreshold = 5;
-
-export const defaultControlCenterSettings: EventControlCenterSettings = {
-  standAlertThresholds: {},
-  stockAlertThreshold: defaultStockAlertThreshold,
-};
-
-function controlCenterSettingsKey(eventId: string): string {
-  return `lineless.event-control-center.${eventId}.settings`;
-}
-
-export function readControlCenterSettings(eventId: string): EventControlCenterSettings {
-  const parsed = readJsonFromStorage(controlCenterSettingsKey(eventId));
-  return parsed === null ? defaultControlCenterSettings : normalizeControlCenterSettings(parsed);
-}
-
-export function writeControlCenterSettings(eventId: string, settings: EventControlCenterSettings) {
-  writeJsonToStorage(controlCenterSettingsKey(eventId), settings);
-}
 
 export function createControlCenterSettingsSignature(settings: EventControlCenterSettings): string {
   return JSON.stringify({

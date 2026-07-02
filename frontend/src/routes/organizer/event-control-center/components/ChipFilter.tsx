@@ -25,11 +25,7 @@ export function ChipFilter({
       <p className="text-right text-xs font-semibold uppercase tracking-wide text-text-muted">
         {label}
       </p>
-      <div
-        aria-label={ariaLabel}
-        className="flex justify-end gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        role="group"
-      >
+      <div aria-label={ariaLabel} className="flex flex-wrap justify-end gap-2 pb-1" role="group">
         {options.map((option) => (
           <button
             aria-pressed={selectedValue === option.value}

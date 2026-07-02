@@ -2,11 +2,11 @@ import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from 'reac
 
 import { ApiError } from '@/api/client';
 import { deleteEvent, getEvent, startEvent, stopEvent, updateEvent } from '@/api/events';
-import { createProduct, deleteProduct, getStandProducts, updateProduct } from '@/api/products';
+import { deleteProduct, getStandProducts } from '@/api/products';
 import { createStand, deleteStand, getEventStands, updateStand } from '@/api/stands';
 import type { Event, UpdateEventInput } from '@/types/event';
 import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
-import type { Product, CreateProductInput, UpdateProductInput } from '@/types/product';
+import type { Product } from '@/types/product';
 
 export type EventActionResult = { ok: true } | { ok: false; error: string };
 
@@ -44,8 +44,6 @@ export async function eventConfigurationAction({
     | { intent: 'createStand'; patch: CreateStandInput }
     | { intent: 'updateStand'; standId: string; patch: UpdateStandInput }
     | { intent: 'deleteStand'; standId: string }
-    | { intent: 'createProduct'; standId: string; patch: CreateProductInput }
-    | { intent: 'updateProduct'; productId: string; patch: UpdateProductInput }
     | { intent: 'deleteProduct'; productId: string }
     | { intent: 'deleteEvent' };
 
@@ -68,12 +66,6 @@ export async function eventConfigurationAction({
         break;
       case 'deleteStand':
         await deleteStand(body.standId);
-        break;
-      case 'createProduct':
-        await createProduct(body.standId, body.patch);
-        break;
-      case 'updateProduct':
-        await updateProduct(body.productId, body.patch);
         break;
       case 'deleteProduct':
         await deleteProduct(body.productId);

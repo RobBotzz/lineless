@@ -1,26 +1,46 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { LineChart, type LineSeriesOption } from 'echarts/charts';
+import {
+  GridComponent,
+  TooltipComponent,
+  type GridComponentOption,
+  type TooltipComponentOption,
+} from 'echarts/components';
+import * as echarts from 'echarts/core';
+import type { ComposeOption, ECharts } from 'echarts/core';
+import { SVGRenderer } from 'echarts/renderers';
 
 import type { RevenuePoint, StandRevenueSeries } from '@/api/eventControlCenter';
 import { formatMoney } from '@/types/product';
 import {
-  REVENUE_CHART_HEIGHT,
-  REVENUE_CHART_MIN_WIDTH,
-  REVENUE_GRANULARITY_OPTIONS,
-  addMinutes,
-  createAreaPath,
+  REVENUE_TIME_RANGE_OPTIONS,
   createRevenueChartModel,
-  createSmoothRevenuePath,
-  findNearestRevenuePointIndex,
   formatAxisMoney,
   formatChartTime,
-  formatGranularityLabel,
   formatIntervalLabel,
-  getRevenueTooltipLayout,
+  formatTimeRangeLabel,
   type RevenueChartModel,
-  type RevenueGranularityMinutes,
-  type RevenueIntervalPoint,
+  type RevenueTimeRangeMinutes,
   type StandRevenueBreakdown,
 } from './revenueChartModel';
+
+echarts.use([GridComponent, LineChart, SVGRenderer, TooltipComponent]);
+
+type RevenueChartOption = ComposeOption<
+  GridComponentOption | LineSeriesOption | TooltipComponentOption
+>;
+
+type PointerPosition = {
+  x: number;
+  y: number;
+};
+
+type TooltipParam = {
+  dataIndex?: number;
+  seriesIndex?: number;
+  seriesName?: string;
+  value?: number | string | Array<number | string | null>;
+};
 
 export function RevenueChart({
   eventStartAt,
@@ -33,191 +53,90 @@ export function RevenueChart({
   standNameById: Map<string, string>;
   standRevenue: StandRevenueSeries[];
 }) {
-  const chartContainerRef = useRef<HTMLDivElement | null>(null);
-  const chartSvgRef = useRef<SVGSVGElement | null>(null);
-  const [chartWidth, setChartWidth] = useState(REVENUE_CHART_MIN_WIDTH);
-  const [chartViewportWidth, setChartViewportWidth] = useState(REVENUE_CHART_MIN_WIDTH);
-  const [granularityMinutes, setGranularityMinutes] = useState<RevenueGranularityMinutes>(
-    REVENUE_GRANULARITY_OPTIONS[0]!.minutes,
+  const chartElementRef = useRef<HTMLDivElement | null>(null);
+  const chartInstanceRef = useRef<ECharts | null>(null);
+  const pointerPositionRef = useRef<PointerPosition | null>(null);
+  const [timeRangeMinutes, setTimeRangeMinutes] = useState<RevenueTimeRangeMinutes>(
+    REVENUE_TIME_RANGE_OPTIONS[0]!.minutes,
   );
-  const [tooltipLayout, setTooltipLayout] = useState<CSSProperties | null>(null);
   const model = useMemo(
     () =>
-      createRevenueChartModel(
-        points,
-        standRevenue,
-        standNameById,
-        eventStartAt,
-        granularityMinutes,
-        chartWidth,
-      ),
-    [chartWidth, eventStartAt, granularityMinutes, points, standNameById, standRevenue],
+      createRevenueChartModel(points, standRevenue, standNameById, eventStartAt, timeRangeMinutes),
+    [eventStartAt, points, standNameById, standRevenue, timeRangeMinutes],
   );
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const hasPoints = points.length > 0;
-  const activeIndex = hoveredIndex;
-  const activeCoordinates = activeIndex === null ? null : model.coordinates[activeIndex];
-  const activePoint = activeIndex === null ? null : model.points[activeIndex];
-  const linePath = useMemo(
-    () => createSmoothRevenuePath(model.lineCoordinates),
-    [model.lineCoordinates],
-  );
-  const areaPath = useMemo(
-    () => createAreaPath(linePath, model.lineCoordinates, model.baselineY),
-    [linePath, model.baselineY, model.lineCoordinates],
-  );
+  const hasRevenueInSelectedRange = model.points.some((point) => point.revenueCents > 0);
+  const hasTotalRevenue = model.totalBreakdown.some((entry) => entry.revenueCents > 0);
 
   useEffect(() => {
-    const container = chartContainerRef.current;
-    if (!container) return;
+    const element = chartElementRef.current;
+    if (!element) return;
 
-    const updateChartWidth = () => {
-      const nextViewportWidth = Math.round(container.clientWidth);
-      setChartViewportWidth(nextViewportWidth);
-      setChartWidth(Math.max(REVENUE_CHART_MIN_WIDTH, nextViewportWidth));
+    const chart = echarts.init(element, undefined, { renderer: 'svg' });
+    chartInstanceRef.current = chart;
+    const clearPointerPosition = () => {
+      pointerPositionRef.current = null;
     };
+    const setPointerPosition = (event: unknown) => {
+      const pointerPosition = normalizePointerPosition(event);
+      if (!pointerPosition) return;
 
-    updateChartWidth();
+      pointerPositionRef.current = pointerPosition;
+    };
+    const renderer = chart.getZr();
+    renderer.on('mousemove', setPointerPosition);
+    renderer.on('globalout', clearPointerPosition);
+    const resizeObserver = new ResizeObserver(() => chart.resize());
+    resizeObserver.observe(element);
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-
-      const nextViewportWidth = Math.round(entry.contentRect.width);
-      setChartViewportWidth(nextViewportWidth);
-      setChartWidth(Math.max(REVENUE_CHART_MIN_WIDTH, nextViewportWidth));
-    });
-    resizeObserver.observe(container);
-
-    return () => resizeObserver.disconnect();
+    return () => {
+      resizeObserver.disconnect();
+      renderer.off('mousemove', setPointerPosition);
+      renderer.off('globalout', clearPointerPosition);
+      chart.dispose();
+      chartInstanceRef.current = null;
+    };
   }, []);
 
-  function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
-    if (!hasPoints) return;
-
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const pointerX = ((event.clientX - bounds.left) / bounds.width) * model.chartWidth;
-    const nearestIndex = findNearestRevenuePointIndex(model.coordinates, pointerX);
-    const coordinates = model.coordinates[nearestIndex];
-    setHoveredIndex(nearestIndex);
-    setTooltipLayout(
-      coordinates
-        ? getRevenueTooltipLayout(
-            coordinates,
-            chartContainerRef.current,
-            chartSvgRef.current,
-            model.chartWidth,
-            chartViewportWidth,
-          )
-        : null,
+  useEffect(() => {
+    pointerPositionRef.current = null;
+    chartInstanceRef.current?.setOption(
+      createRevenueChartOption(model, (dataIndex) =>
+        getHoveredSeriesIndexAtPointer(
+          chartInstanceRef.current,
+          model,
+          dataIndex,
+          pointerPositionRef.current,
+        ),
+      ),
+      {
+        notMerge: true,
+      },
     );
-  }
+  }, [model]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background">
       <div className="px-4 pt-4">
-        <RevenueGranularityControl
-          selectedMinutes={granularityMinutes}
-          onSelect={(minutes) => {
-            setGranularityMinutes(minutes);
-            setHoveredIndex(null);
-            setTooltipLayout(null);
-          }}
+        <RevenueTimeRangeControl
+          selectedMinutes={timeRangeMinutes}
+          onSelect={setTimeRangeMinutes}
         />
       </div>
 
-      <div className="relative bg-background pt-3" ref={chartContainerRef}>
-        <svg
-          aria-label={`Event revenue by ${formatGranularityLabel(granularityMinutes)} interval`}
-          className="block h-[22rem] w-full touch-none"
-          ref={chartSvgRef}
+      <div className="relative bg-background pt-3">
+        <div
+          aria-label={`Event revenue for the ${formatTimeRangeLabel(timeRangeMinutes)}`}
+          className="h-[22rem] w-full"
+          ref={chartElementRef}
           role="img"
-          viewBox={`0 0 ${model.chartWidth} ${REVENUE_CHART_HEIGHT}`}
-          onPointerLeave={() => {
-            setHoveredIndex(null);
-            setTooltipLayout(null);
-          }}
-          onPointerMove={handlePointerMove}
-        >
-          <RevenueChartDefinitions />
-          <RevenueChartSurface model={model} />
-          {hasPoints ? (
-            <>
-              <path d={areaPath} fill="url(#eventRevenueArea)" />
-              <path
-                d={linePath}
-                fill="none"
-                stroke="var(--color-accent)"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="5"
-                style={{
-                  filter:
-                    'drop-shadow(0 10px 18px color-mix(in srgb, var(--color-accent) 22%, transparent))',
-                }}
-              />
-              <path
-                d={linePath}
-                fill="none"
-                opacity="0.22"
-                stroke="white"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-              />
-              {model.coordinates.map((point, index) => (
-                <circle
-                  className="transition-all duration-150 ease-out"
-                  cx={point.x}
-                  cy={point.y}
-                  fill={index === activeIndex ? 'var(--color-accent)' : 'var(--color-surface)'}
-                  key={`${model.points[index]!.intervalStartMinutes}-${model.points[index]!.intervalEndMinutes}`}
-                  r={index === activeIndex ? '6' : '4'}
-                  stroke="var(--color-accent)"
-                  strokeWidth={index === activeIndex ? '2.5' : '2'}
-                />
-              ))}
-              {activeCoordinates ? (
-                <g>
-                  <line
-                    stroke="var(--color-border)"
-                    strokeDasharray="4 6"
-                    strokeOpacity="0.86"
-                    x1={activeCoordinates.x}
-                    x2={activeCoordinates.x}
-                    y1={model.plot.top}
-                    y2={model.baselineY}
-                  />
-                  <circle
-                    cx={activeCoordinates.x}
-                    cy={activeCoordinates.y}
-                    fill="var(--color-accent)"
-                    fillOpacity="0.12"
-                    r="13"
-                  />
-                  <circle
-                    cx={activeCoordinates.x}
-                    cy={activeCoordinates.y}
-                    fill="var(--color-surface)"
-                    r="7"
-                    stroke="var(--color-accent)"
-                    strokeWidth="3"
-                  />
-                </g>
-              ) : null}
-            </>
-          ) : (
-            <RevenueEmptyState model={model} />
-          )}
-          <RevenueXAxis model={model} />
-        </svg>
-        {tooltipLayout && activePoint ? (
-          <RevenueTooltip point={activePoint} style={tooltipLayout} />
+        />
+        {!hasRevenueInSelectedRange ? (
+          <RevenueEmptyState hasTotalRevenue={hasTotalRevenue} />
         ) : null}
       </div>
 
       <div className="border-t border-border bg-surface/70 p-4">
-        {hasPoints ? (
+        {hasTotalRevenue ? (
           <RevenueStandMix breakdown={model.totalBreakdown} />
         ) : (
           <p className="text-sm text-text-muted">
@@ -229,22 +148,127 @@ export function RevenueChart({
   );
 }
 
-function RevenueGranularityControl({
+function createRevenueChartOption(
+  model: RevenueChartModel,
+  getHoveredSeriesIndexAtDataIndex: (dataIndex: number) => number | null,
+): RevenueChartOption {
+  return {
+    animationDuration: 650,
+    color: model.standSeries.map((series) => series.color),
+    grid: {
+      bottom: 42,
+      containLabel: true,
+      left: 18,
+      right: 28,
+      top: 24,
+    },
+    tooltip: {
+      appendToBody: true,
+      backgroundColor: 'var(--color-surface)',
+      borderColor: 'var(--color-border)',
+      borderRadius: 6,
+      borderWidth: 1,
+      className: 'revenue-chart-tooltip',
+      confine: true,
+      extraCssText: 'box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);',
+      formatter: (params: unknown) =>
+        formatRevenueTooltip(params, model, getHoveredSeriesIndexAtDataIndex),
+      padding: 0,
+      trigger: 'axis',
+      triggerOn: 'mousemove|click|mousewheel',
+    },
+    xAxis: {
+      axisLabel: {
+        color: 'var(--color-text-muted)',
+        fontSize: 11,
+        fontWeight: 600,
+        hideOverlap: true,
+        margin: 14,
+      },
+      axisLine: {
+        lineStyle: {
+          color: 'var(--color-border)',
+        },
+      },
+      axisTick: {
+        show: false,
+      },
+      boundaryGap: false,
+      data: model.points.map((point) => formatChartTime(point.intervalStartAt)),
+      splitLine: {
+        lineStyle: {
+          color: 'var(--color-border)',
+          opacity: 0.28,
+        },
+        show: true,
+      },
+      type: 'category',
+    },
+    yAxis: {
+      axisLabel: {
+        color: 'var(--color-text-muted)',
+        fontSize: 11,
+        fontWeight: 600,
+        formatter: (value: number) => formatAxisMoney(value),
+      },
+      axisLine: {
+        show: false,
+      },
+      axisTick: {
+        show: false,
+      },
+      minInterval: 100,
+      splitLine: {
+        lineStyle: {
+          color: 'var(--color-border)',
+          opacity: 0.62,
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+    series: model.standSeries.map((series) => ({
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { color: hexToRgba(series.color, 0.72), offset: 0 },
+          { color: hexToRgba(series.color, 0.14), offset: 1 },
+        ]),
+      },
+      data: series.data,
+      emphasis: {
+        focus: 'series',
+      },
+      lineStyle: {
+        color: series.color,
+        width: 2,
+      },
+      name: series.standName,
+      showSymbol: false,
+      smooth: 0.34,
+      stack: 'revenue',
+      symbol: 'circle',
+      symbolSize: 7,
+      type: 'line',
+    })),
+  };
+}
+
+function RevenueTimeRangeControl({
   onSelect,
   selectedMinutes,
 }: {
-  onSelect: (minutes: RevenueGranularityMinutes) => void;
-  selectedMinutes: RevenueGranularityMinutes;
+  onSelect: (minutes: RevenueTimeRangeMinutes) => void;
+  selectedMinutes: RevenueTimeRangeMinutes;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <span className="text-sm font-semibold text-text">Time granularity</span>
+      <span className="text-sm font-semibold text-text">Time range</span>
       <div
-        aria-label="Revenue chart time granularity"
-        className="inline-grid grid-cols-3 rounded-lg border border-border bg-surface-muted p-1"
+        aria-label="Revenue chart time range"
+        className="inline-grid grid-cols-5 rounded-lg border border-border bg-surface-muted p-1"
         role="group"
       >
-        {REVENUE_GRANULARITY_OPTIONS.map((option) => (
+        {REVENUE_TIME_RANGE_OPTIONS.map((option) => (
           <button
             aria-pressed={selectedMinutes === option.minutes}
             className={`min-w-16 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
@@ -259,40 +283,6 @@ function RevenueGranularityControl({
             {option.label}
           </button>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function RevenueTooltip({ point, style }: { point: RevenueIntervalPoint; style: CSSProperties }) {
-  const averageOrderValueCents =
-    point.orderCount > 0 ? Math.round(point.revenueCents / point.orderCount) : 0;
-
-  return (
-    <div
-      className="pointer-events-none absolute left-0 top-0 z-10 w-56 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-background p-3 text-sm shadow-lg transition-transform"
-      style={style}
-    >
-      <p className="text-xs font-medium tabular-nums text-text-muted">
-        {formatIntervalLabel(point.intervalStartAt, point.intervalEndAt)}
-      </p>
-      <div className="mt-2 space-y-1.5">
-        <div className="flex justify-between gap-3">
-          <span className="text-text-muted">Revenue</span>
-          <span className="font-semibold tabular-nums text-text">
-            EUR {formatMoney(point.revenueCents)}
-          </span>
-        </div>
-        <div className="flex justify-between gap-3">
-          <span className="text-text-muted">Orders</span>
-          <span className="font-semibold tabular-nums text-text">{point.orderCount}</span>
-        </div>
-        <div className="flex justify-between gap-3">
-          <span className="text-text-muted">AOV</span>
-          <span className="font-semibold tabular-nums text-text">
-            EUR {formatMoney(averageOrderValueCents)}
-          </span>
-        </div>
       </div>
     </div>
   );
@@ -345,148 +335,229 @@ function RevenueStandMix({ breakdown }: { breakdown: StandRevenueBreakdown[] }) 
   );
 }
 
-function RevenueChartDefinitions() {
+function RevenueEmptyState({ hasTotalRevenue }: { hasTotalRevenue: boolean }) {
   return (
-    <defs>
-      <linearGradient id="eventRevenueArea" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.18" />
-        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.03" />
-      </linearGradient>
-    </defs>
-  );
-}
-
-function RevenueChartSurface({ model }: { model: RevenueChartModel }) {
-  return (
-    <>
-      {model.yTicks.map((tick) => {
-        const y = model.yForRevenue(tick);
-
-        return (
-          <g key={tick}>
-            <text
-              fill="var(--color-text-muted)"
-              fontSize="8"
-              fontWeight="600"
-              textAnchor="end"
-              x={model.plot.left - 10}
-              y={y + 3}
-            >
-              {formatAxisMoney(tick)}
-            </text>
-            <line
-              stroke="var(--color-border)"
-              strokeDasharray={tick === 0 ? '0' : '4 7'}
-              strokeOpacity={tick === 0 ? '0.9' : '0.62'}
-              strokeWidth={tick === 0 ? '1.5' : '1'}
-              x1={model.plot.left}
-              x2={model.plot.left + model.plot.width}
-              y1={y}
-              y2={y}
-            />
-          </g>
-        );
-      })}
-      {[0, 0.25, 0.5, 0.75, 1].map((position) => {
-        const x = model.plot.left + position * model.plot.width;
-
-        return (
-          <line
-            key={position}
-            stroke="var(--color-border)"
-            strokeOpacity="0.28"
-            x1={x}
-            x2={x}
-            y1={model.plot.top}
-            y2={model.baselineY}
+    <div className="pointer-events-none absolute inset-x-0 top-3 flex h-[22rem] items-center justify-center">
+      <div className="text-center">
+        <svg aria-hidden="true" className="mx-auto mb-4 h-16 w-48" viewBox="0 0 192 64">
+          <path
+            d="M 8 48 C 42 42, 68 21, 101 30 C 134 39, 150 18, 184 12"
+            fill="none"
+            stroke="var(--color-accent)"
+            strokeDasharray="5 7"
+            strokeLinecap="round"
+            strokeOpacity="0.38"
+            strokeWidth="3"
           />
-        );
-      })}
-    </>
+          <circle
+            cx="101"
+            cy="30"
+            fill="var(--color-surface)"
+            r="5"
+            stroke="var(--color-accent)"
+            strokeOpacity="0.55"
+            strokeWidth="2"
+          />
+        </svg>
+        <p className="text-base font-extrabold text-text">
+          {hasTotalRevenue ? 'No paid orders in this time range' : 'Awaiting first paid order'}
+        </p>
+        <p className="mt-1 text-sm font-medium text-text-muted">
+          {hasTotalRevenue
+            ? 'Select a longer range to see earlier revenue'
+            : 'Revenue will draw in from left to right'}
+        </p>
+      </div>
+    </div>
   );
 }
 
-function RevenueXAxis({ model }: { model: RevenueChartModel }) {
-  return (
-    <>
-      <text
-        fill="var(--color-text-muted)"
-        fontSize="8"
-        fontWeight="600"
-        x={model.plot.left}
-        y={model.baselineY + 38}
-      >
-        {formatChartTime(model.eventStartAt)}
-      </text>
-      <text
-        fill="var(--color-text-muted)"
-        fontSize="8"
-        fontWeight="600"
-        textAnchor="middle"
-        x={model.plot.left + model.plot.width / 2}
-        y={model.baselineY + 38}
-      >
-        {formatChartTime(addMinutes(model.eventStartAt, model.maxMinutes / 2))}
-      </text>
-      <text
-        fill="var(--color-text-muted)"
-        fontSize="8"
-        fontWeight="600"
-        textAnchor="end"
-        x={model.plot.left + model.plot.width}
-        y={model.baselineY + 38}
-      >
-        {formatChartTime(addMinutes(model.eventStartAt, model.maxMinutes))}
-      </text>
-    </>
-  );
+function formatRevenueTooltip(
+  params: unknown,
+  model: RevenueChartModel,
+  getHoveredSeriesIndexAtDataIndex: (dataIndex: number) => number | null,
+): string {
+  const tooltipParams = normalizeTooltipParams(params);
+  const dataIndex = tooltipParams.find((param) => typeof param.dataIndex === 'number')?.dataIndex;
+  if (typeof dataIndex !== 'number') return '';
+
+  const point = model.points[dataIndex];
+  if (!point) return '';
+
+  const hoveredSeriesIndex = getHoveredSeriesIndexAtDataIndex(dataIndex);
+  const hoveredSeries =
+    typeof hoveredSeriesIndex === 'number' ? model.standSeries[hoveredSeriesIndex] : undefined;
+  const hoveredSeriesInterval = hoveredSeries?.intervals[dataIndex];
+  const revenueCents = hoveredSeriesInterval?.revenueCents ?? point.revenueCents;
+  const orderCount = hoveredSeriesInterval?.orderCount ?? point.orderCount;
+  const averageOrderValueCents = orderCount > 0 ? Math.round(revenueCents / orderCount) : 0;
+  const entries = model.standSeries
+    .map((series) => ({
+      color: series.color,
+      revenueCents: series.intervals[dataIndex]?.revenueCents ?? 0,
+      standName: series.standName,
+    }))
+    .filter((entry) => entry.revenueCents > 0)
+    .sort((left, right) => right.revenueCents - left.revenueCents);
+  const focusedStandBadge = hoveredSeries
+    ? `
+      <div class="mt-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-text">
+        <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:${hoveredSeries.color}"></span>
+        <span class="truncate">${escapeHtml(hoveredSeries.standName)}</span>
+      </div>
+    `
+    : '';
+  const standRows =
+    entries.length > 0
+      ? entries
+          .map(
+            (entry) => `
+              <div class="mt-1.5 flex justify-between gap-4">
+                <span class="flex min-w-0 items-center gap-2 text-text-muted">
+                  <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:${entry.color}"></span>
+                  <span class="truncate">${escapeHtml(entry.standName)}</span>
+                </span>
+                <span class="shrink-0 font-semibold tabular-nums text-text">EUR ${formatMoney(entry.revenueCents)}</span>
+              </div>
+            `,
+          )
+          .join('')
+      : '<p class="mt-2 text-text-muted">No stand revenue in this interval</p>';
+  const productRows = hoveredSeriesInterval
+    ? hoveredSeriesInterval.products.length > 0
+      ? hoveredSeriesInterval.products
+          .map(
+            (product) => `
+              <div class="mt-2 flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="truncate text-text">${escapeHtml(product.productName)}</p>
+                  <p class="text-xs text-text-muted">Qty ${product.quantitySold}</p>
+                </div>
+                <span class="shrink-0 font-semibold tabular-nums text-text">EUR ${formatMoney(product.revenueCents)}</span>
+              </div>
+            `,
+          )
+          .join('')
+      : '<p class="mt-2 text-text-muted">No product sales in this interval</p>'
+    : '';
+  const breakdownMarkup = hoveredSeries
+    ? `
+      <div class="mt-3 border-t border-border pt-2">
+        <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Products sold</p>
+        ${productRows}
+      </div>
+    `
+    : `<div class="mt-3 border-t border-border pt-2">${standRows}</div>`;
+
+  return `
+    <div class="w-72 rounded-md bg-background p-3 text-sm text-text">
+      <p class="text-xs font-medium tabular-nums text-text-muted">${formatIntervalLabel(
+        point.intervalStartAt,
+        point.intervalEndAt,
+      )}</p>
+      ${focusedStandBadge}
+      <div class="mt-2 space-y-1.5">
+        <div class="flex justify-between gap-3">
+          <span class="text-text-muted">Revenue</span>
+          <span class="font-semibold tabular-nums text-text">EUR ${formatMoney(revenueCents)}</span>
+        </div>
+        <div class="flex justify-between gap-3">
+          <span class="text-text-muted">Orders</span>
+          <span class="font-semibold tabular-nums text-text">${orderCount}</span>
+        </div>
+        <div class="flex justify-between gap-3">
+          <span class="text-text-muted">AOV</span>
+          <span class="font-semibold tabular-nums text-text">EUR ${formatMoney(averageOrderValueCents)}</span>
+        </div>
+      </div>
+      ${breakdownMarkup}
+    </div>
+  `;
 }
 
-function RevenueEmptyState({ model }: { model: RevenueChartModel }) {
-  return (
-    <g>
-      <path
-        d={`M ${model.plot.left} ${model.baselineY} C ${
-          model.plot.left + model.plot.width * 0.25
-        } ${model.baselineY - 6}, ${model.plot.left + model.plot.width * 0.55} ${
-          model.baselineY - 6
-        }, ${model.plot.left + model.plot.width} ${model.baselineY}`}
-        fill="none"
-        stroke="var(--color-accent)"
-        strokeDasharray="5 7"
-        strokeLinecap="round"
-        strokeOpacity="0.38"
-        strokeWidth="2.5"
-      />
-      <circle
-        cx={model.plot.left + model.plot.width / 2}
-        cy={model.baselineY - 5}
-        fill="var(--color-surface)"
-        r="5"
-        stroke="var(--color-accent)"
-        strokeOpacity="0.55"
-        strokeWidth="2"
-      />
-      <text
-        fill="var(--color-text)"
-        fontSize="16"
-        fontWeight="800"
-        textAnchor="middle"
-        x={model.chartWidth / 2}
-        y="132"
-      >
-        Awaiting first paid order
-      </text>
-      <text
-        fill="var(--color-text-muted)"
-        fontSize="12"
-        fontWeight="500"
-        textAnchor="middle"
-        x={model.chartWidth / 2}
-        y="154"
-      >
-        Revenue will draw in from left to right
-      </text>
-    </g>
-  );
+function normalizeTooltipParams(params: unknown): TooltipParam[] {
+  const rawParams = Array.isArray(params) ? params : [params];
+
+  return rawParams.filter((param): param is TooltipParam => {
+    return typeof param === 'object' && param !== null;
+  });
+}
+
+function normalizePointerPosition(event: unknown): PointerPosition | null {
+  if (typeof event !== 'object' || event === null) return null;
+
+  const pointerEvent = event as { offsetX?: number; offsetY?: number };
+  if (typeof pointerEvent.offsetX !== 'number' || typeof pointerEvent.offsetY !== 'number') {
+    return null;
+  }
+
+  return {
+    x: pointerEvent.offsetX,
+    y: pointerEvent.offsetY,
+  };
+}
+
+function getHoveredSeriesIndexAtPointer(
+  chart: ECharts | null,
+  model: RevenueChartModel,
+  dataIndex: number,
+  pointerPosition: PointerPosition | null,
+): number | null {
+  if (!chart || !pointerPosition) return null;
+  if (!chart.containPixel({ gridIndex: 0 }, [pointerPosition.x, pointerPosition.y])) return null;
+
+  let stackedRevenueCents = 0;
+
+  for (const [seriesIndex, series] of model.standSeries.entries()) {
+    const intervalRevenueCents = series.intervals[dataIndex]?.revenueCents ?? 0;
+    if (intervalRevenueCents <= 0) continue;
+
+    const intervalTopRevenueCents = stackedRevenueCents + intervalRevenueCents;
+    const lowerPixel = chart.convertToPixel({ yAxisIndex: 0 }, stackedRevenueCents);
+    const upperPixel = chart.convertToPixel({ yAxisIndex: 0 }, intervalTopRevenueCents);
+    if (typeof lowerPixel !== 'number' || typeof upperPixel !== 'number') {
+      stackedRevenueCents = intervalTopRevenueCents;
+      continue;
+    }
+
+    const topPixel = Math.min(lowerPixel, upperPixel);
+    const bottomPixel = Math.max(lowerPixel, upperPixel);
+
+    if (pointerPosition.y >= topPixel && pointerPosition.y <= bottomPixel) {
+      return seriesIndex;
+    }
+
+    stackedRevenueCents = intervalTopRevenueCents;
+  }
+
+  return null;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const normalizedHex = hex.replace('#', '');
+  const parsed = Number.parseInt(normalizedHex, 16);
+  const red = (parsed >> 16) & 255;
+  const green = (parsed >> 8) & 255;
+  const blue = parsed & 255;
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    switch (character) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return character;
+    }
+  });
 }

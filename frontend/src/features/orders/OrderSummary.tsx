@@ -38,7 +38,7 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
                     <ItemComments productName={item.productName} comments={item.comments} />
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-accent">
+                    <p className="text-sm font-semibold text-accent-contrast">
                       EUR {formatMoney(item.unitPrice * item.quantity)}
                     </p>
                     <p className="text-xs text-text-muted">
@@ -54,7 +54,7 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
 
       <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
         <span className="text-base font-semibold text-text">Total Amount</span>
-        <span className="text-lg font-bold text-accent">EUR {formatMoney(total)}</span>
+        <span className="text-lg font-bold text-accent-contrast">EUR {formatMoney(total)}</span>
       </div>
     </div>
   );

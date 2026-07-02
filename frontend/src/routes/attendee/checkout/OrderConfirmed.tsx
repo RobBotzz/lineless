@@ -10,17 +10,13 @@ interface OrderConfirmedState {
   items: OrderItemView[];
 }
 
-// Order data is passed via navigation state from Cart.tsx — there is no
-// attendee-scoped "get order by id" endpoint yet (that lands with the
-// separate Detailed Order View ticket), so a direct visit/refresh has nothing
-// to hydrate from and bounces back to the cart.
+// Order data is passed via navigation state from Cart.tsx. A direct visit or
+// refresh has nothing to hydrate from and bounces back to the cart.
 export default function OrderConfirmed() {
   const { eventId } = useParams() as { eventId: string };
   const navigate = useNavigate();
   const { state } = useLocation() as { state: OrderConfirmedState | null };
 
-  // TODO: Replace router state check with actual order.paidAt validation once
-  // the backend payment module is fully integrated.
   if (!state) return <Navigate to={paths.attendee.cart(eventId)} replace />;
 
   return (

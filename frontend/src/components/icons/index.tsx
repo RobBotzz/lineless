@@ -94,6 +94,14 @@ export function ChevronDownIcon({ className }: IconProps) {
   );
 }
 
+export function ChevronRightIcon({ className }: IconProps) {
+  return (
+    <svg className={['h-4 w-4', className].filter(Boolean).join(' ')} {...strokeProps}>
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
 export function EditIcon({ className = 'h-4 w-4' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>

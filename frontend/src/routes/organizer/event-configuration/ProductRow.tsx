@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react';
-import { EditIcon, ImageIcon } from '@/components/icons';
+import { EditIcon, ImageIcon, StarIcon } from '@/components/icons';
 import { DeleteIconButton } from '@/components/shared';
-import { formatMoney, priceExclTax, type Product } from '@/types/product';
+import { formatMoney, priceExclTax, productImageSrc, type Product } from '@/types/product';
+import { ProductReviewsDialog } from './ProductReviewsDialog';
 
 interface ProductRowProps {
   product: Product;
+  eventId?: string;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
+export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowProps) {
+  const [reviewsOpen, setReviewsOpen] = useState(false);
   // Fall back to the placeholder when there is no URL or the image fails to load.
   const [imageOk, setImageOk] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const showImage = !!product.productImageUrl && imageOk;
+  const imageSrc = productImageSrc(product);
+  const showImage = !!imageSrc && imageOk;
 
   const exclTax = priceExclTax(product);
 
@@ -32,7 +36,7 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
               alt=""
               className="h-full w-full object-cover"
               onError={() => setImageOk(false)}
-              src={product.productImageUrl!}
+              src={imageSrc!}
             />
           </button>
         ) : (
@@ -45,7 +49,7 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
       {showImage && lightboxOpen && (
         <ImageLightbox
           alt={product.productName}
-          src={product.productImageUrl!}
+          src={imageSrc!}
           onClose={() => setLightboxOpen(false)}
         />
       )}
@@ -73,6 +77,16 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
 
       {/* Actions */}
       <div className="flex shrink-0 items-center gap-1">
+        {eventId && (
+          <button
+            aria-label={`Reviews for ${product.productName}`}
+            className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+            onClick={() => setReviewsOpen(true)}
+            type="button"
+          >
+            <StarIcon className="h-4 w-4" />
+          </button>
+        )}
         <button
           aria-label={`Edit ${product.productName}`}
           className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
@@ -83,6 +97,15 @@ export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
         </button>
         <DeleteIconButton label={`Delete ${product.productName}`} onClick={onDelete} />
       </div>
+
+      {reviewsOpen && eventId && (
+        <ProductReviewsDialog
+          productId={product._id}
+          productName={product.productName}
+          eventId={eventId}
+          onClose={() => setReviewsOpen(false)}
+        />
+      )}
     </div>
   );
 }

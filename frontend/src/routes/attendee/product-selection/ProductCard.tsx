@@ -1,24 +1,13 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { formatMoney, type Product } from '@/types/product';
+import { formatMoney, productImageSrc, type Product } from '@/types/product';
 
 import { ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
 import { QuantityStepper } from '@/components/shared/QuantityStepper';
 import { useAddGuard } from '@/lib/useAddGuard';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { Rating } from '@/features/catalog/Rating';
-
-// TODO: dev-only placeholder until the backend exposes an aggregate product
-// rating. Once `product.rating` is populated from the API, drop this helper and
-// read `product.rating ?? null` directly. For now it deterministically leaves
-// ~half of the products unrated so the "no rating yet" state stays visible.
-function resolveRating(product: Product): number | null {
-  if (typeof product.rating === 'number') return product.rating;
-  const seed = product._id.charCodeAt(product._id.length - 1);
-  if (seed % 2 === 0) return null;
-  return Math.round((3.6 + (seed % 14) / 10) * 10) / 10;
-}
 
 interface ProductCardProps {
   product: Product;
@@ -37,12 +26,15 @@ export function ProductCard({
 }: ProductCardProps) {
   const [imageOk, setImageOk] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const showImage = !!product.productImageUrl && imageOk;
+  const imageSrc = productImageSrc(product);
+  const showImage = !!imageSrc && imageOk;
   const soldOut = product.productStock <= 0;
   const atStockLimit = !soldOut && cartQuantity >= product.productStock;
 
-  // TODO: currently null when the product has no rating yet (see resolveRating).
-  const rating = resolveRating(product);
+  const rating = product.rating ?? null;
+  // No inline preview — the full description lives in the details dialog, opened
+  // via the "i" button, which is shown only when a description exists.
+  const hasDescription = !!product.productDescription?.trim();
 
   // Guards a single tap firing twice (duplicate/ghost events on some browsers).
   const runGuarded = useAddGuard();
@@ -53,15 +45,18 @@ export function ProductCard({
 
   return (
     <div className="relative flex gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm">
-      {/* Details button — grey "i" in the top-right corner. */}
-      <button
-        type="button"
-        onClick={() => setDetailsOpen(true)}
-        aria-label={`Details for ${product.productName}`}
-        className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-      >
-        <InfoIcon />
-      </button>
+      {/* Details button — grey "i" in the top-right corner. Shown only when there
+          is a description to reveal. */}
+      {hasDescription && (
+        <button
+          type="button"
+          onClick={() => setDetailsOpen(true)}
+          aria-label={`Details for ${product.productName}`}
+          className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <InfoIcon />
+        </button>
+      )}
 
       {/* Thumbnail */}
       <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-muted">
@@ -70,7 +65,7 @@ export function ProductCard({
             alt=""
             className="h-full w-full object-cover"
             onError={() => setImageOk(false)}
-            src={product.productImageUrl!}
+            src={imageSrc!}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-text-muted">
@@ -84,9 +79,6 @@ export function ProductCard({
         {/* pr-6 keeps the name clear of the info button. */}
         <h3 className="truncate pr-6 text-sm font-semibold text-text">{product.productName}</h3>
         <Rating value={rating} />
-        {product.productDescription && (
-          <p className="line-clamp-2 text-xs text-text-muted">{product.productDescription}</p>
-        )}
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-3">
           <span className="text-sm font-semibold text-text">
