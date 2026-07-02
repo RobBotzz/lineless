@@ -1,0 +1,44 @@
+meta {
+  name: replay order
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders
+  body: json
+  auth: none
+}
+
+headers {
+  X-Attendee-Session-ID: {{attendeeSessionId}}
+}
+
+body:json {
+  {
+    "eventId": "{{eventId}}",
+    "requestId": "{{orderRequestId}}",
+    "items": [
+      {
+        "productId": "{{productId}}",
+        "customerComment": "No ice please"
+      },
+      {
+        "productId": "{{productId}}"
+      }
+    ]
+  }
+}
+
+tests {
+  test("same requestId replays the existing order", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.order._id).to.equal(bru.getEnvVar("orderId"));
+    expect(res.body.order.requestId).to.equal(bru.getEnvVar("orderRequestId"));
+    expect(res.body.order.pickupCode).to.equal(bru.getEnvVar("pickupCode"));
+  });
+}
+
+settings {
+  encodeUrl: true
+}
