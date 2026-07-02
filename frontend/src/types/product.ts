@@ -36,7 +36,6 @@ export interface UpdateProductInput {
   priceIncludingTax?: number;
   taxRate?: number;
   instantProduct?: boolean;
-  productStock?: number;
 }
 
 // Price excluding tax, in integer cents — derived from the stored incl.-tax price.

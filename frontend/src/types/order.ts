@@ -11,6 +11,7 @@ export interface OrderItem {
   readyAt: string | null;
   fulfilledAt: string | null;
   cancelledAt: string | null;
+  inventoryState: 'UNTRACKED' | 'RESERVED' | 'CONSUMED' | 'RELEASED';
 }
 
 // Mirrors OrderDoc from backend (modules/orders/model.ts).
@@ -19,6 +20,7 @@ export interface Order {
   eventId: string;
   tabId: string | null;
   sessionId: string | null;
+  requestId: string | null;
   orderNumber: string; // human-readable display ID, e.g. "A001"
   pickupCode: string; // 4-char hex pickup code shown to the customer
   customerEmail: string | null;
@@ -26,6 +28,12 @@ export interface Order {
   items: OrderItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StockShortage {
+  productId: string;
+  requested: number;
+  available: number;
 }
 
 // Total in integer cents — not stored by the backend, derived from items.

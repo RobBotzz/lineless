@@ -5,10 +5,12 @@ const BASE_URL = '/api';
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  data: unknown;
+  constructor(status: number, message: string, data?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -120,8 +122,8 @@ async function doFetch<T>(
   }
 
   if (!res.ok && !allowStatuses.includes(res.status)) {
-    const message = await extractError(res);
-    throw new ApiError(res.status, message);
+    const data = await extractErrorData(res);
+    throw new ApiError(res.status, errorMessage(data, res.statusText), data);
   }
 
   if (res.status === 204) return { status: res.status, data: undefined as T };
@@ -173,12 +175,24 @@ function throwMissingCredential(scope: AuthScope, ids?: ScopeIds): never {
 
 // Backend errors come back as { message } or { error }; fall back to status text.
 async function extractError(res: Response): Promise<string> {
+  const data = await extractErrorData(res);
+  return errorMessage(data, res.statusText);
+}
+
+async function extractErrorData(res: Response): Promise<unknown> {
   try {
-    const data = await res.json();
-    return data?.message ?? data?.error ?? res.statusText;
+    return await res.json();
   } catch {
-    return res.statusText;
+    return null;
   }
+}
+
+function errorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== 'object') return fallback;
+  const record = data as Record<string, unknown>;
+  if (typeof record.message === 'string') return record.message;
+  if (typeof record.error === 'string') return record.error;
+  return fallback;
 }
 
 export interface SseFrame {
