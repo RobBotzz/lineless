@@ -26,8 +26,13 @@ export const updateProductSchema = z.object({
   priceIncludingTax: cents.optional(),
   taxRate: taxRate.optional(),
   instantProduct: z.boolean().optional(),
-  productStock: stock.optional(),
+});
+
+export const updateProductStockSchema = z.object({
+  productStock: stock,
+  expectedProductStock: stock,
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+export type UpdateProductStockInput = z.infer<typeof updateProductStockSchema>;
