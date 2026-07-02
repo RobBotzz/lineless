@@ -5,7 +5,9 @@ import { ApiError } from '@/api/client';
 import {
   createProduct,
   deleteProductImage,
+  ProductStockChangedError,
   updateProduct,
+  updateProductStock,
   uploadProductImage,
 } from '@/api/products';
 import { Button } from '@/components/ui/button';
@@ -80,6 +82,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
   // succeeds so a failed image upload (and a subsequent retry) updates that
   // product instead of creating a duplicate.
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+  const [createdProductStock, setCreatedProductStock] = useState<number | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -164,8 +167,16 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
           priceIncludingTax,
           taxRate: taxRateBp,
           instantProduct,
-          productStock,
         };
+        const expectedProductStock = product?.productStock ?? createdProductStock;
+        if (expectedProductStock !== null && productStock !== expectedProductStock) {
+          const updatedStock = await updateProductStock(
+            existingProductId,
+            expectedProductStock,
+            productStock,
+          );
+          setCreatedProductStock(updatedStock.productStock);
+        }
         await updateProduct(existingProductId, patch);
         // Image is a separate endpoint: upload a new one, or drop the old one.
         if (imageFile) {
@@ -186,6 +197,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
         // Remember the id so a later failure + retry never creates a duplicate.
         const created = await createProduct(standId, patch);
         setCreatedProductId(created._id);
+        setCreatedProductStock(created.productStock);
         if (imageFile) {
           await uploadProductImage(created._id, imageFile);
         }
@@ -194,7 +206,13 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
       await revalidator.revalidate();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+      if (err instanceof ProductStockChangedError) {
+        setStock(String(err.currentProductStock));
+        setCreatedProductStock(err.currentProductStock);
+        setError('Stock changed during editing. The current value was loaded.');
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+      }
       setSaving(false);
     }
   }
