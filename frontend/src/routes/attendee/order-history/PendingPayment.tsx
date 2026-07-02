@@ -119,12 +119,14 @@ export default function PendingPayment() {
     return (
       <div className="space-y-4">
         <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 p-8 text-center">
-          <h2 className="text-xl font-semibold text-text">Order cancelled</h2>
-          <p className="text-sm text-text-muted">
-            This order was cancelled at the cashier and can no longer be paid.
-          </p>
-        </div>
+        <OrderConfirmation
+          order={order}
+          items={items}
+          total={computeTotal(order)}
+          title="Order Cancelled"
+          subtitle="This order was cancelled at the cashier and can no longer be paid."
+          variant="cancelled"
+        />
       </div>
     );
   }
