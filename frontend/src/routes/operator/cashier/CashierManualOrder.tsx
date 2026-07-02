@@ -84,6 +84,15 @@ export default function CashierManualOrder() {
           const item = items.find((candidate) => candidate.product._id === shortage.productId);
           return `${item?.product.productName ?? 'Product'}: ${shortage.available} available`;
         });
+        const availableById = new Map(
+          err.shortages.map((shortage) => [shortage.productId, shortage.available]),
+        );
+        setProducts((current) =>
+          current.map((product) => {
+            const available = availableById.get(product._id);
+            return available === undefined ? product : { ...product, productStock: available };
+          }),
+        );
         applyStockShortages(err.shortages);
         checkoutAttempt.current = null;
         setError(`Stock changed. ${details.join(', ')}.`);
