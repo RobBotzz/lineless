@@ -23,6 +23,7 @@ export interface Order {
   pickupCode: string; // 4-char hex pickup code shown to the customer
   customerEmail: string | null;
   paidAt: string | null; // null = unpaid; non-null = paid
+  deletedAt: string | null; // set only when a cashier cancels an unpaid cash order
   items: OrderItem[];
   createdAt: string;
   updatedAt: string;
@@ -63,4 +64,16 @@ export function deriveOrderStatus(order: Order): 'in-preparation' | 'fulfilled' 
   if (nonCancelledItems.length === 0) return 'cancelled';
   const allFulfilled = nonCancelledItems.every((item) => item.fulfilledAt);
   return allFulfilled ? 'fulfilled' : 'in-preparation';
+}
+
+export type OrderListStatus = 'pending-payment' | 'in-preparation' | 'fulfilled' | 'cancelled';
+
+// Payment-aware status for the order-history list, which now includes unpaid cash
+// orders. A cashier-cancelled cash order (deletedAt) or an all-items-cancelled
+// order is 'cancelled'; an unpaid order awaiting the cashier is 'pending-payment';
+// otherwise it follows the preparation-tracking status.
+export function deriveOrderListStatus(order: Order): OrderListStatus {
+  if (order.deletedAt) return 'cancelled';
+  if (!order.paidAt) return 'pending-payment';
+  return deriveOrderStatus(order);
 }
