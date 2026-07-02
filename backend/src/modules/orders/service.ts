@@ -28,6 +28,7 @@ import {
   OrderValidationError,
 } from "./errors";
 import type { CreateOrderInput, IssueCashRefundInput } from "./types";
+import { sendOrderCreatedEmail } from "../../lib/email/mailer";
 
 const stripe = new Stripe(config.stripe.secretKey);
 
@@ -100,11 +101,14 @@ export async function submitOrder(
   }
 
   const eventStands = await Stand.find({ eventId, deletedAt: null })
-    .select("_id standStatus")
+    .select("_id standStatus standName")
     .lean();
   const eventStandIds = eventStands.map((s) => s._id);
   const standStatusById = new Map(
     eventStands.map((stand) => [stand._id, stand.standStatus ?? "LIVE"])
+  );
+  const standNameById = new Map(
+    eventStands.map((stand) => [stand._id, stand.standName])
   );
 
   const productIds = [...new Set(items.map((item) => item.productId))];
@@ -150,7 +154,7 @@ export async function submitOrder(
 
   if (!tabId) {
     const dbSession = await mongoose.startSession();
-    let createdOrder;
+    let createdOrder: OrderDoc | undefined;
     await dbSession.withTransaction(async () => {
       const orders = await Order.create(
         [
@@ -169,6 +173,62 @@ export async function submitOrder(
       createdOrder = orders[0];
     });
     await dbSession.endSession();
+
+    // Cash orders start out unpaid — nudge the attendee (never the cashier;
+    // operator orders have no session/email) to go pay. Fire-and-forget: a
+    // failed mail must never fail a successfully created order.
+    if (createdOrder && sessionId !== null && customerEmail) {
+      const orderId = createdOrder._id;
+      // Aggregate the per-unit order items into quantity rows and group them
+      // by stand, mirroring the webview's "Products by Stand" layout.
+      const rowsByStand = new Map<
+        string,
+        Map<
+          string,
+          {
+            name: string;
+            quantity: number;
+            unitPriceCents: number;
+            imageUrl: string | null;
+          }
+        >
+      >();
+      for (const item of processedItems) {
+        const product = productById.get(item.productId);
+        if (!product) continue;
+        const standRows =
+          rowsByStand.get(product.standId) ?? new Map<string, never>();
+        const row = standRows.get(item.productId) ?? {
+          name: product.productName,
+          quantity: 0,
+          unitPriceCents: item.priceIncludingTaxAtPurchase,
+          // Relative image paths point at our own serve endpoint; email
+          // clients need them absolute.
+          imageUrl: product.productImageUrl
+            ? product.productImageUrl.startsWith("http")
+              ? product.productImageUrl
+              : `${config.appBaseUrl}${product.productImageUrl}`
+            : null,
+        };
+        row.quantity += 1;
+        standRows.set(item.productId, row);
+        rowsByStand.set(product.standId, standRows);
+      }
+      const stands = [...rowsByStand.entries()].map(([standId, rows]) => ({
+        standName: standNameById.get(standId) ?? "Stand",
+        items: [...rows.values()],
+      }));
+
+      void sendOrderCreatedEmail({
+        to: customerEmail,
+        orderNumber,
+        eventName: event.name,
+        stands,
+        totalCents,
+        trackOrderUrl: `${config.appBaseUrl}/event/${eventId}/orders/${orderId}`,
+      }).catch((err) => console.error("Order-created email failed:", err));
+    }
+
     return { status: 201 as const, order: createdOrder };
   }
 
