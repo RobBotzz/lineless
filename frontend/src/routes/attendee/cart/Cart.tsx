@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
-import { createOrder } from '@/api/orders';
+import { createOrder, InsufficientStockError } from '@/api/orders';
 import { setAttendeeSessionEmail } from '@/api/sessions';
 import { getAttendeeStands } from '@/api/stands';
 import { getAttendeeSession, rememberAttendeeEmail } from '@/auth/keychain';
@@ -26,13 +26,23 @@ export default function Cart() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const { cashierEnabled } = useLoaderData() as CartLoaderData;
-  const { items, totalCount, totalCents, setQuantity, setComment, removeItem, clear } = useCart();
+  const {
+    items,
+    totalCount,
+    totalCents,
+    setQuantity,
+    setComment,
+    removeItem,
+    applyStockShortages,
+    clear,
+  } = useCart();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   // Non-null while the card flow runs: the items the dialog is paying for.
   const [cardItems, setCardItems] = useState<OrderItemView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const checkoutAttempt = useRef<{ fingerprint: string; requestId: string } | null>(null);
 
   // Prefill from the email the attendee already gave on this session; if it's
   // known we don't ask again (just offer to change it).
@@ -43,6 +53,18 @@ export default function Cart() {
   const [editingEmail, setEditingEmail] = useState(() => email === '');
 
   const backTo = eventId ? paths.attendee.event(eventId) : paths.home;
+
+  function handleStockConflict(conflict: InsufficientStockError) {
+    const names = conflict.shortages.map((shortage) => {
+      const item = items.find((candidate) => candidate.product._id === shortage.productId);
+      return `${item?.product.productName ?? 'Product'}: ${shortage.available} available`;
+    });
+    applyStockShortages(conflict.shortages);
+    checkoutAttempt.current = null;
+    setCardItems(null);
+    setError(`Stock changed. ${names.join(', ')}.`);
+    setIsCheckingOut(false);
+  }
 
   // Joins each cart line with its stand name for display on the confirmation.
   async function buildOrderItems(currentEventId: string): Promise<OrderItemView[]> {
@@ -86,12 +108,20 @@ export default function Cart() {
         setCardItems(orderItems);
         return;
       }
-      const order = await createOrder(eventId, orderItems);
+      const fingerprint = JSON.stringify(orderItems);
+      if (checkoutAttempt.current?.fingerprint !== fingerprint) {
+        checkoutAttempt.current = { fingerprint, requestId: crypto.randomUUID() };
+      }
+      const order = await createOrder(eventId, orderItems, checkoutAttempt.current.requestId);
       clear();
       navigate(paths.attendee.checkoutPending(eventId, order._id), {
         state: { order, items: orderItems },
       });
     } catch (err) {
+      if (err instanceof InsufficientStockError) {
+        handleStockConflict(err);
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Could not place the order.');
       setIsCheckingOut(false);
     }
@@ -226,6 +256,7 @@ export default function Cart() {
           items={cardItems}
           onSuccess={handleCardSuccess}
           onClose={handleCardClose}
+          onStockConflict={handleStockConflict}
         />
       )}
 
