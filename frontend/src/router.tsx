@@ -53,6 +53,9 @@ import CashierManualOrder from './routes/operator/cashier/CashierManualOrder';
 import CashierPayment from './routes/operator/cashier/CashierPayment';
 import CashierPaymentDetails from './routes/operator/cashier/CashierPaymentDetails';
 import CashierPaymentConfirmed from './routes/operator/cashier/CashierPaymentConfirmed';
+import CashierRefund from './routes/operator/cashier/CashierRefund';
+import CashierRefundDetails from './routes/operator/cashier/CashierRefundDetails';
+import CashierRefundConfirmed from './routes/operator/cashier/CashierRefundConfirmed';
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -157,6 +160,17 @@ export const router = createBrowserRouter(
             path="payment/:orderId/confirmed"
             element={<CashierPaymentConfirmed />}
             handle={{ title: 'Payment Confirmed' }}
+          />
+          <Route path="refund" element={<CashierRefund />} handle={{ title: 'Refund' }} />
+          <Route
+            path="refund/:orderId"
+            element={<CashierRefundDetails />}
+            handle={{ title: 'Refund' }}
+          />
+          <Route
+            path="refund/:orderId/confirmed"
+            element={<CashierRefundConfirmed />}
+            handle={{ title: 'Refund Confirmed' }}
           />
         </Route>
         <Route

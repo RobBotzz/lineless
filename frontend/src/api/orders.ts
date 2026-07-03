@@ -268,3 +268,114 @@ export function confirmCashPayment(orderId: string, standId: string): Promise<vo
 export function getAttendeeOrders(eventId: string): Promise<Order[]> {
   return apiFetch<Order[]>('/orders', { auth: 'attendee', eventId });
 }
+
+// --- Cash refund API -----------------------------------------------------------
+
+// GET /api/orders/cashier/refundable — cash-paid orders for the cashier's event
+// that still have at least one refundable (cancelled, not-refunded) item.
+export function getRefundableOrders(standId: string): Promise<Order[]> {
+  return apiFetch<Order[]>('/orders/cashier/refundable', { auth: 'operator', standId });
+}
+
+// POST /api/orders/:orderId/refund — refund the given cancelled items in one go.
+export function refundOrderItems(
+  orderId: string,
+  itemIds: string[],
+  standId: string,
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}/refund`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+    body: JSON.stringify({ itemIds }),
+  });
+}
+
+// Live cash figures for the net-cash panel, all integer cents.
+export interface CashSummary {
+  cashSalesCents: number;
+  cashRefundCents: number;
+  netCashCents: number;
+}
+
+// GET /api/orders/cashier/cash-summary — one-shot snapshot for the net-cash panel.
+export function getCashSummary(standId: string): Promise<CashSummary> {
+  return apiFetch<CashSummary>('/orders/cashier/cash-summary', { auth: 'operator', standId });
+}
+
+// SSE path for live net-cash updates (see useSSE). Recomputes on every order change.
+export const CASHIER_CASH_SUMMARY_STREAM_PATH = '/orders/cashier/cash-summary/stream';
+
+// One display row per individual order item — unlike buildOrderViewItems this keeps
+// cancelled/refunded items so the refund screen can show the whole order and offer
+// the refundable items for selection by their real item ids.
+export interface RefundItemRow {
+  _id: string;
+  productName: string;
+  standName: string;
+  unitPrice: number; // integer cents
+  cancelledAt: string | null;
+  refundedAt: string | null;
+}
+
+// Grouped view of the items already refunded on an order — feeds OrderSummary /
+// OrderConfirmation on the refund success screen.
+export async function buildRefundedViewItems(
+  order: Order,
+  eventId: string,
+  standId: string,
+): Promise<OrderItemView[]> {
+  const [products, stands] = await Promise.all([
+    getOperatorEventProducts(eventId, standId),
+    getOperatorStands(eventId),
+  ]);
+  const productById = new Map(products.map((p) => [p._id, p]));
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+
+  const groups = new Map<string, OrderItemView>();
+  for (const item of order.items) {
+    if (!item.refundedAt) continue;
+    const existing = groups.get(item.productId);
+    if (existing) {
+      existing.quantity += 1;
+      existing.comments.push(item.customerComment ?? '');
+      continue;
+    }
+    const product = productById.get(item.productId);
+    groups.set(item.productId, {
+      productId: item.productId,
+      productName: product?.productName ?? item.productName ?? item.productId,
+      standId: product?.standId ?? '',
+      standName: product ? (standNameById.get(product.standId) ?? '') : '',
+      unitPrice: item.priceIncludingTaxAtPurchase,
+      quantity: 1,
+      comments: [item.customerComment ?? ''],
+    });
+  }
+  return [...groups.values()];
+}
+
+export async function buildRefundRows(
+  order: Order,
+  eventId: string,
+  standId: string,
+): Promise<RefundItemRow[]> {
+  const [products, stands] = await Promise.all([
+    getOperatorEventProducts(eventId, standId),
+    getOperatorStands(eventId),
+  ]);
+  const productById = new Map(products.map((p) => [p._id, p]));
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+
+  return order.items.map((item) => {
+    const product = productById.get(item.productId);
+    return {
+      _id: item._id,
+      productName: product?.productName ?? item.productName ?? item.productId,
+      standName: product ? (standNameById.get(product.standId) ?? '') : '',
+      unitPrice: item.priceIncludingTaxAtPurchase,
+      cancelledAt: item.cancelledAt,
+      refundedAt: item.refundedAt,
+    };
+  });
+}

@@ -27,8 +27,8 @@ export default function CashierHome() {
           title="Cash Payment"
           description="Confirm cash payments for orders"
         />
-        {/* Placeholder for an upcoming feature — intentionally not linked. */}
         <ChoiceCard
+          to={paths.operator.cashierRefund(eventId)}
           icon={<RefundIcon className="h-8 w-8" />}
           title="Cash Refund"
           description="Refund orders paid in cash"
