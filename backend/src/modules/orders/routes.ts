@@ -9,11 +9,15 @@ import {
   deleteUnpaidOrder,
   enrichOrderForAttendee,
   getOrderForAttendee,
+  getCashSummary,
   getOrderForCashier,
   getOrderForOrganizer,
   issueCashRefund,
   listOrdersForAttendee,
+  listRefundableCashOrders,
   listUnpaidOrdersForCashier,
+  refundCashOrderItems,
+  resolveCashierEventId,
   submitOrder,
 } from "./service";
 import { SseConnection } from "../../lib/sse";
@@ -22,6 +26,7 @@ import {
   CashierDisabledError,
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
+  CashRefundInvalidItemsError,
   EventNotActiveError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
@@ -36,6 +41,7 @@ import {
   confirmCashPaymentSchema,
   createOrderSchema,
   issueCashRefundSchema,
+  refundByItemsSchema,
 } from "./types";
 import {
   authAttendee,
@@ -77,6 +83,8 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof CashRefundExceedsTotalError)
     return res.status(422).json({ error: err.message });
+  if (err instanceof CashRefundInvalidItemsError)
+    return res.status(409).json({ error: err.message });
   console.error("Orders error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -126,6 +134,27 @@ ordersRouter.post(
   })
 );
 
+// POST /orders/:orderId/refund — cashier refunds specific cancelled items of a
+// cash-paid order. Item-level so an item can never be refunded twice.
+ordersRouter.post(
+  "/:orderId/refund",
+  authOrganizerOrOperator,
+  validateBody(refundByItemsSchema, async (req, res, data) => {
+    try {
+      const order = await refundCashOrderItems(
+        orderId(req),
+        data.itemIds,
+        req.organizer
+          ? { organizerAccountId: req.organizer.accountId }
+          : { operatorStandId: req.operator!.standId }
+      );
+      return res.status(201).json(order);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  })
+);
+
 // POST /orders/:orderId/cancel-pending-authorization — attendee abandons an
 // order still awaiting authorization (cancels its gated items and releases any
 // backing hold).
@@ -156,6 +185,64 @@ ordersRouter.get(
       return res.status(200).json(orders);
     } catch (err) {
       return handleError(err, res);
+    }
+  }
+);
+
+// GET /orders/cashier/refundable — cash-paid orders for the cashier's event that
+// still have at least one refundable (cancelled, not-yet-refunded) item.
+ordersRouter.get(
+  "/cashier/refundable",
+  authOperator,
+  async (req: Request, res: Response) => {
+    try {
+      const eventId = await resolveCashierEventId(req.operator!.standId);
+      const orders = await listRefundableCashOrders(eventId);
+      return res.status(200).json(orders);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  }
+);
+
+// GET /orders/cashier/cash-summary — live cash sales / refunds / net for the panel.
+ordersRouter.get(
+  "/cashier/cash-summary",
+  authOperator,
+  async (req: Request, res: Response) => {
+    try {
+      const eventId = await resolveCashierEventId(req.operator!.standId);
+      const summary = await getCashSummary(eventId);
+      return res.status(200).json(summary);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  }
+);
+
+// GET /orders/cashier/cash-summary/stream — SSE net-cash updates. Recomputes and
+// pushes on every order change for the event (payments and refunds both apply).
+ordersRouter.get(
+  "/cashier/cash-summary/stream",
+  authOperator,
+  async (req: Request, res: Response) => {
+    try {
+      const eventId = await resolveCashierEventId(req.operator!.standId);
+      const sse = new SseConnection(res);
+      sse.send("snapshot", await getCashSummary(eventId));
+
+      const unsubscribe = subscribe("order.changed", (order) => {
+        if (order.eventId !== eventId) return;
+        void getCashSummary(eventId)
+          .then((summary) => sse.send("summary", summary))
+          .catch(() => {
+            // transient errors are non-fatal; the client recovers on reconnect
+          });
+      });
+
+      sse.onClose(() => unsubscribe());
+    } catch (err) {
+      handleError(err, res);
     }
   }
 );

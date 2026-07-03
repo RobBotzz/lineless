@@ -20,6 +20,7 @@ import {
   CashierDisabledError,
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
+  CashRefundInvalidItemsError,
   EventNotActiveError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
@@ -27,6 +28,7 @@ import {
   OrderNotFoundError,
   OrderValidationError,
 } from "./errors";
+import { computeCashTotals, type CashTotals } from "./cashTotals";
 import type { CreateOrderInput, IssueCashRefundInput } from "./types";
 
 const stripe = new Stripe(config.stripe.secretKey);
@@ -390,11 +392,96 @@ export async function issueCashRefund(
   order.cashRefunds.push({
     _id: crypto.randomUUID(),
     amountCents: input.amountCents,
+    refundedItemIds: [],
     createdAt: new Date(),
   });
   await order.save();
 
   return order.cashRefunds[order.cashRefunds.length - 1];
+}
+
+// An item is refundable only if it was cancelled and has not been refunded yet.
+function isRefundableItem(item: OrderItemDoc): boolean {
+  return item.cancelledAt != null && item.refundedAt == null;
+}
+
+// Item-level cash refund: refunds the given cancelled items in one atomic save,
+// stamping refundedAt so the same item can never be refunded twice.
+export async function refundCashOrderItems(
+  orderId: string,
+  itemIds: string[],
+  actor: CashPaymentActor
+) {
+  const order = await Order.findById(orderId);
+  if (!order) throw new OrderNotFoundError();
+  if (order.tabId !== null || !order.paidAt)
+    throw new CashPaymentNotFoundError();
+
+  await verifyCashPaymentActor(order.eventId, actor, {
+    requireActiveEvent: false,
+  });
+
+  const requested = new Set(itemIds);
+  const items = order.items.filter((i) => requested.has(i._id));
+  if (items.length !== requested.size) throw new OrderItemNotFoundError();
+  if (!items.every(isRefundableItem)) throw new CashRefundInvalidItemsError();
+
+  const amountCents = items.reduce(
+    (sum, i) => sum + i.priceIncludingTaxAtPurchase,
+    0
+  );
+
+  // Defensive invariant — refundedAt already prevents double refunds, but this
+  // keeps the same guard the amount-based refund path enforces.
+  const orderTotal = order.items.reduce(
+    (sum, i) => sum + i.priceIncludingTaxAtPurchase,
+    0
+  );
+  const alreadyRefunded = order.cashRefunds.reduce(
+    (sum, r) => sum + r.amountCents,
+    0
+  );
+  if (alreadyRefunded + amountCents > orderTotal) {
+    throw new CashRefundExceedsTotalError();
+  }
+
+  const now = new Date();
+  for (const item of items) {
+    item.refundedAt = now;
+  }
+  order.cashRefunds.push({
+    _id: crypto.randomUUID(),
+    amountCents,
+    refundedItemIds: items.map((i) => i._id),
+    createdAt: now,
+  });
+  await order.save();
+
+  return order;
+}
+
+// Cash-paid orders for the event that still have at least one refundable item.
+export async function listRefundableCashOrders(
+  eventId: string
+): Promise<OrderDoc[]> {
+  const orders = await Order.find({
+    eventId,
+    tabId: null,
+    paidAt: { $ne: null },
+    deletedAt: null,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  return orders.filter((o) => o.items.some(isRefundableItem));
+}
+
+// Live cash figures for the cashier net-cash panel — shares computeCashTotals
+// with the payout report so the two never disagree.
+export async function getCashSummary(eventId: string): Promise<CashTotals> {
+  const orders = await Order.find({ eventId, deletedAt: null })
+    .select("tabId items cashRefunds")
+    .lean();
+  return computeCashTotals(orders);
 }
 
 /**
@@ -575,6 +662,15 @@ async function assertActiveCashierStand(operatorStandId: string) {
   if (!event || event.status !== "ACTIVE" || !event.cashierEnabled)
     throw new CashierDisabledError();
   return stand;
+}
+
+// Resolves the event a cashier operator token is scoped to, after asserting it is
+// the active CASHIER stand. Used by the refund list / net-cash routes.
+export async function resolveCashierEventId(
+  operatorStandId: string
+): Promise<string> {
+  const stand = await assertActiveCashierStand(operatorStandId);
+  return stand.eventId;
 }
 
 // Single order read for the cashier collecting a cash payment — returns the full
