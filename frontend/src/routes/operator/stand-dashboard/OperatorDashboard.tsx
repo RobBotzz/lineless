@@ -250,13 +250,15 @@ export default function OperatorDashboard() {
   );
   const colorOf = (productId: string) => productColors.get(productId) ?? PRODUCT_PALETTE[0];
   // Product chips AND the text search both narrow the board. The search matches
-  // the order number (case-insensitive substring).
+  // the order number (case-insensitive substring). Chip counts are based on the
+  // search-narrowed list (not the chip-filtered one), so they mirror the board
+  // during a search but selecting a chip never zeroes out the other chips.
   const searchQuery = search.trim().toLowerCase();
-  const visibleItems = items.filter((item) => {
-    if (filters.size > 0 && !filters.has(item.productId)) return false;
-    if (searchQuery && !item.orderNumber.toLowerCase().includes(searchQuery)) return false;
-    return true;
-  });
+  const searchedItems = searchQuery
+    ? items.filter((item) => item.orderNumber.toLowerCase().includes(searchQuery))
+    : items;
+  const visibleItems =
+    filters.size > 0 ? searchedItems.filter((item) => filters.has(item.productId)) : searchedItems;
   // The products overview is filtered the same way (it no longer drives the filter).
   const visibleProducts =
     filters.size > 0 ? products.filter((product) => filters.has(product.productId)) : products;
@@ -339,7 +341,8 @@ export default function OperatorDashboard() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search order number"
             aria-label="Search orders by number"
-            className="h-10 w-full rounded-md border border-border bg-surface pl-9 pr-9 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent"
+            // Hide WebKit's native clear button — the XIcon below is the only ✕.
+            className="h-10 w-full rounded-md border border-border bg-surface pl-9 pr-9 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent [&::-webkit-search-cancel-button]:appearance-none"
           />
           {search && (
             <button
@@ -360,7 +363,7 @@ export default function OperatorDashboard() {
                 key={product.productId}
                 product={product}
                 color={colorOf(product.productId)}
-                count={items.filter((item) => item.productId === product.productId).length}
+                count={searchedItems.filter((item) => item.productId === product.productId).length}
                 active={filters.has(product.productId)}
                 onToggle={() => toggleFilter(product.productId)}
               />
