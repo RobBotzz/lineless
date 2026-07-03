@@ -18,3 +18,15 @@ export async function createAttendeeSession(eventId: string): Promise<AttendeeSe
   });
   return response;
 }
+
+export async function setAttendeeSessionEmail(
+  eventId: string,
+  email: string,
+): Promise<{ email: string }> {
+  return apiFetch<{ email: string }>('/sessions/email', {
+    method: 'PATCH',
+    body: JSON.stringify({ email }),
+    auth: 'attendee',
+    eventId,
+  });
+}

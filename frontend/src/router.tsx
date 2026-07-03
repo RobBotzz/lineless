@@ -23,16 +23,19 @@ import {
 import { EventControlCenterError } from './routes/organizer/event-control-center/EventControlCenter';
 import EventControlCenterRoute from './routes/organizer/event-control-center/EventControlCenterRoute';
 import { eventControlCenterLoader } from './routes/organizer/event-control-center/data';
-import OrganizerPayment from './routes/organizer/Payment';
+import OrganizerPayment, { PaymentError } from './routes/organizer/Payment';
+import { paymentAction, paymentLoader } from './routes/organizer/Payment.data';
 import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Settings';
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
 
 import AttendeeLayout from './routes/attendee/AttendeeLayout';
+import { attendeeLayoutLoader } from './routes/attendee/data';
 import AttendeeProductSelection, {
   ProductSelectionError,
 } from './routes/attendee/product-selection/ProductSelection';
 import { productSelectionLoader } from './routes/attendee/product-selection/data';
 import AttendeeCart from './routes/attendee/cart/Cart';
+import { cartLoader } from './routes/attendee/cart/data';
 import AttendeeOrderConfirmed from './routes/attendee/checkout/OrderConfirmed';
 import AttendeeCashPaymentPending from './routes/attendee/checkout/CashPaymentPending';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
@@ -73,7 +76,13 @@ export const router = createBrowserRouter(
           action={dashboardAction}
           errorElement={<DashboardError />}
         />
-        <Route path="payment" element={<OrganizerPayment />} />
+        <Route
+          path="payment"
+          element={<OrganizerPayment />}
+          loader={paymentLoader}
+          action={paymentAction}
+          errorElement={<PaymentError />}
+        />
         <Route
           path="settings"
           element={<OrganizerSettings />}
@@ -101,14 +110,19 @@ export const router = createBrowserRouter(
         errorElement={<EventConfigurationError />}
       />
 
-      <Route path="event/:eventId" element={<AttendeeLayout />}>
+      <Route
+        path="event/:eventId"
+        id="attendee-event"
+        element={<AttendeeLayout />}
+        loader={attendeeLayoutLoader}
+      >
         <Route
           index
           element={<AttendeeProductSelection />}
           loader={productSelectionLoader}
           errorElement={<ProductSelectionError />}
         />
-        <Route path="cart" element={<AttendeeCart />} />
+        <Route path="cart" element={<AttendeeCart />} loader={cartLoader} />
         <Route path="checkout/:orderId/confirmed" element={<AttendeeOrderConfirmed />} />
         <Route path="checkout/:orderId/pending" element={<AttendeeCashPaymentPending />} />
         <Route path="orders" element={<AttendeeOrderHistory />} loader={ordersLoader} />

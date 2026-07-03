@@ -1,23 +1,20 @@
-import { Outlet, useParams } from 'react-router';
+import { Navigate, Outlet, useParams } from 'react-router';
 import { skipToken, useQuery } from '@tanstack/react-query';
 
 import { getOperatorEvent } from '@/api/events';
 import { loginOperator } from '@/api/stands';
 import { getOperatorStandToken } from '@/auth/keychain';
+import { paths } from '@/paths';
 import { operatorCashierStandQueryOptions, operatorQueryKeys } from '../operatorQueries';
 
 // Context handed to every cashier page: the event and the CASHIER stand the
-// cashier acts as (its operator token is resolved/ensured here, once).
+// cashier acts as.
 export interface CashierContext {
   eventId: string;
   standId: string;
   ratingsEnabled: boolean;
 }
 
-// Wraps the /cashier routes. The "Cashier" tile only navigates here; this layout
-// resolves the event's CASHIER stand via its dedicated endpoint (it's excluded
-// from the stand list) and ensures an operator token for it (the stand has no
-// password), so child pages can make operator-auth calls.
 export default function CashierLayout() {
   const { eventId } = useParams() as { eventId: string };
 
@@ -54,8 +51,8 @@ export default function CashierLayout() {
     );
   }
 
-  if (sessionQuery.isError || !sessionQuery.data) {
-    return <Centered>Could not open the cashier stand. Please try again.</Centered>;
+  if (!getOperatorStandToken(cashierStand._id)) {
+    return <Navigate to={paths.operator.root(eventId)} replace />;
   }
 
   return (
@@ -63,7 +60,7 @@ export default function CashierLayout() {
       context={
         {
           eventId,
-          standId: sessionQuery.data,
+          standId: sessionQuery.data ?? cashierStand._id,
           ratingsEnabled: eventQuery.data?.ratingsEnabled ?? false,
         } satisfies CashierContext
       }

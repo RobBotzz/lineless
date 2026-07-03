@@ -24,7 +24,7 @@ export default function OrderHistory() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-6">
       <BackButton to={paths.attendee.event(eventId)}>Shop</BackButton>
       <h1 className="text-lg font-semibold text-text">Order History</h1>
 
@@ -52,7 +52,7 @@ export default function OrderHistory() {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2">
-                  <p className="text-sm font-semibold text-accent">#{order.orderNumber}</p>
+                  <p className="text-sm font-semibold text-accent-contrast">#{order.orderNumber}</p>
                   <span
                     className={cn(
                       'inline-block px-2 py-1 rounded text-xs font-medium border',
@@ -74,7 +74,7 @@ export default function OrderHistory() {
                 </p>
               </div>
 
-              <ChevronRightIcon className="h-5 w-5 text-accent shrink-0" />
+              <ChevronRightIcon className="h-5 w-5 text-accent-contrast shrink-0" />
             </Link>
           );
         })}

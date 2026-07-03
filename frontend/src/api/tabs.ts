@@ -3,14 +3,16 @@
 import { apiFetch } from './client';
 import type { CreateTabResponse, TabView } from '../types/tab';
 
-// POST /api/tabs — opens a tab and creates the baseline card hold. The returned
+// POST /api/tabs — opens a tab and creates the first card hold. The returned
 // clientSecret must be confirmed with Stripe.js to authorize that hold.
-export function createTab(eventId: string): Promise<CreateTabResponse> {
+// firstOrderCents sizes the hold to cover the first order (rounded up to a
+// multiple of the baseline) so the guest needs a single authorization.
+export function createTab(eventId: string, firstOrderCents = 0): Promise<CreateTabResponse> {
   return apiFetch<CreateTabResponse>('/tabs', {
     method: 'POST',
     auth: 'attendee',
     eventId,
-    body: JSON.stringify({ eventId }),
+    body: JSON.stringify({ eventId, firstOrderCents }),
   });
 }
 

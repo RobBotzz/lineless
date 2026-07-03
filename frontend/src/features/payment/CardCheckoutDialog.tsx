@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Elements } from '@stripe/react-stripe-js';
 
-import { Button } from '@/components/ui/button';
-import { createCardOrder, getAttendeeOrder } from '@/api/orders';
+import { AlertDialog } from '@/components/feedback';
+import { cancelPendingOrderAuthorization, createCardOrder, getAttendeeOrder } from '@/api/orders';
 import { createTab, getTabStatus } from '@/api/tabs';
 import { clearAttendeeTab, getAttendeeTab, setAttendeeTab } from '@/auth/keychain';
 import type { Order, OrderItemView } from '@/types/order';
@@ -58,6 +58,8 @@ export function CardCheckoutDialog({
   // Bridges the imperative card form into the linear async runner: the runner
   // sets a prompt and awaits this deferred; the form resolves it on success.
   const cardDeferred = useRef<{ resolve: () => void; reject: (e: Error) => void } | null>(null);
+  const pendingOrderId = useRef<string | null>(null);
+  const cancelled = useRef(false);
   const started = useRef(false);
 
   useEffect(() => {
@@ -97,6 +99,14 @@ export function CardCheckoutDialog({
     throw new Error('Timed out waiting for your bank to authorize the card.');
   }
 
+  async function cancelPendingAuthorization(): Promise<void> {
+    const orderId = pendingOrderId.current;
+    if (!orderId) return;
+
+    await cancelPendingOrderAuthorization(orderId, eventId);
+    if (pendingOrderId.current === orderId) pendingOrderId.current = null;
+  }
+
   // Returns the id of an OPEN tab, opening + authorizing a new one if the stored
   // tab is missing or no longer usable.
   async function ensureOpenTab(): Promise<string> {
@@ -121,7 +131,8 @@ export function CardCheckoutDialog({
       clearAttendeeTab(eventId); // PAID / CHECKOUT_PENDING / FAILED / dead
     }
 
-    const { tabId, clientSecret } = await createTab(eventId);
+    const firstOrderCents = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+    const { tabId, clientSecret } = await createTab(eventId, firstOrderCents);
     setAttendeeTab(eventId, tabId);
     setMessage('Authorizing your card…');
     await awaitCard(clientSecret, 'Authorize card');
@@ -138,21 +149,27 @@ export function CardCheckoutDialog({
 
       const result = await createCardOrder(eventId, items, tabId);
       if (result.status === 'created') {
+        if (cancelled.current) return;
         onSuccess(result.order);
         return;
       }
 
       // The order exceeded the current hold; the backend already created it
       // (gated) and needs a top-up authorization to release it.
+      pendingOrderId.current = result.orderId;
       setMessage('A little more authorization is needed…');
       await awaitCard(result.clientSecret, 'Authorize remaining amount');
       setPrompt(null);
       setMessage('Confirming authorization…');
       await pollUntilOpen(tabId);
       const order = await getAttendeeOrder(result.orderId, eventId);
+      pendingOrderId.current = null;
+      if (cancelled.current) return;
       onSuccess(order);
     } catch (err) {
       if (err instanceof CancelledError) return;
+      await cancelPendingAuthorization().catch(() => undefined);
+      if (cancelled.current) return;
       setError(err instanceof Error ? err.message : 'Payment failed. Please try again.');
       setPhase('error');
     }
@@ -170,8 +187,10 @@ export function CardCheckoutDialog({
   }
 
   function handleCancel(): void {
+    cancelled.current = true;
     cardDeferred.current?.reject(new CancelledError());
     cardDeferred.current = null;
+    void cancelPendingAuthorization().catch(() => undefined);
     onClose();
   }
 
@@ -181,6 +200,21 @@ export function CardCheckoutDialog({
     setPhase('working');
     setMessage('Setting up your payment…');
     void runCheckout();
+  }
+
+  // Failures use the shared alert so this matches the app's other popups.
+  if (phase === 'error') {
+    return (
+      <AlertDialog
+        message={error}
+        title="Payment couldn't be completed"
+        variant="danger"
+        cancelLabel="Cancel"
+        onCancel={handleCancel}
+        acknowledgeLabel="Try again"
+        onAcknowledge={handleRetry}
+      />
+    );
   }
 
   return (
@@ -209,19 +243,7 @@ export function CardCheckoutDialog({
         </div>
 
         <div className="overflow-y-auto px-6 py-5">
-          {phase === 'error' ? (
-            <div className="space-y-4">
-              <p className="text-sm text-danger">{error}</p>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={handleCancel}>
-                  Cancel
-                </Button>
-                <Button className="flex-1" onClick={handleRetry}>
-                  Try again
-                </Button>
-              </div>
-            </div>
-          ) : prompt ? (
+          {prompt ? (
             <div className="space-y-4">
               <p className="text-sm text-text-muted">
                 {prompt.amountCents != null

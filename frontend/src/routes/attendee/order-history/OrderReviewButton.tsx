@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 
 import { getMyOrderRatings } from '@/api/ratings';
 import { StarIcon } from '@/components/icons';
-import { Button } from '@/components/ui/button';
+import { PrimaryButton } from '@/components/shared';
 import { paths } from '@/paths';
 
 interface Props {
@@ -25,13 +25,10 @@ export function OrderReviewButton({ orderId, eventId, rateableProductIds }: Prop
 
   return (
     <Link to={paths.attendee.reviewOrder(eventId, orderId)} className="block">
-      <Button
-        variant="default"
-        className="w-full h-12 rounded-xl gap-2 shadow-[0_8px_24px_rgba(2,8,135,0.25)]"
-      >
+      <PrimaryButton className="gap-2 shadow-[0_8px_24px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]">
         <StarIcon className="h-4 w-4" />
         {allRated ? 'Show review' : 'Leave a review'}
-      </Button>
+      </PrimaryButton>
     </Link>
   );
 }

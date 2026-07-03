@@ -3,11 +3,17 @@
 // fine here since these modules don't reference the DOM Event.
 import type { Location } from './location';
 
-export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED';
+// COMPLETED is emitted by the event-completion flow. Kept here so events left in
+// that state (e.g. created on a branch that has the feature) render instead of
+// crashing the view when the running backend build predates it.
+export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED' | 'COMPLETED';
 
 export interface EventBranding {
   primaryColor: string;
   secondaryColor: string;
+  // Accent used as standalone text on the light page (links, prices, headings).
+  // null = Auto: derive a legible color from primaryColor at render time.
+  accentTextColor: string | null;
   logoUrl: string | null;
 }
 
@@ -31,6 +37,19 @@ export interface Event {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// The logo is served from a stable URL (/api/events/:id/logo) with a long cache
+// lifetime, so replacing it would otherwise keep showing the stale image.
+// Appending the event's updatedAt as a version busts the cache whenever the
+// event (and thus its logo) changes. Returns null when there is no logo.
+export function eventLogoSrc(event: Pick<Event, 'branding' | 'updatedAt'>): string | null {
+  const { logoUrl } = event.branding;
+  if (!logoUrl) return null;
+  const version = Date.parse(event.updatedAt);
+  if (Number.isNaN(version)) return logoUrl;
+  const separator = logoUrl.includes('?') ? '&' : '?';
+  return `${logoUrl}${separator}v=${version}`;
 }
 
 // Partial patch accepted by PATCH /events/:id (mirrors updateEventSchema).
