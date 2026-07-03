@@ -131,7 +131,8 @@ export function CardCheckoutDialog({
       clearAttendeeTab(eventId); // PAID / CHECKOUT_PENDING / FAILED / dead
     }
 
-    const { tabId, clientSecret } = await createTab(eventId);
+    const firstOrderCents = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+    const { tabId, clientSecret } = await createTab(eventId, firstOrderCents);
     setAttendeeTab(eventId, tabId);
     setMessage('Authorizing your card…');
     await awaitCard(clientSecret, 'Authorize card');
