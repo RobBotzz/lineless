@@ -6,8 +6,7 @@ import { getAttendeeOrder } from '@/api/orders';
 import { getAttendeeEvent } from '@/api/events';
 import { getMyOrderRatings, submitRating } from '@/api/ratings';
 import { ApiError } from '@/api/client';
-import { BackButton } from '@/components/shared';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { BackButton, PrimaryButton } from '@/components/shared';
 import { CheckCircleIcon } from '@/components/icons';
 import { ProductReviewCard } from '../review/ProductReviewCard';
 
@@ -141,9 +140,9 @@ export default function ReviewOrder() {
               : 'products'}
             .
           </p>
-          <button className={`${buttonVariants()} mt-6 w-full`} onClick={() => navigate(-1)}>
-            Back
-          </button>
+          <BackButton className="mt-6 w-full justify-center" onClick={() => navigate(-1)}>
+            Track Order
+          </BackButton>
         </div>
       </div>
     );
@@ -210,20 +209,14 @@ export default function ReviewOrder() {
                   <p className="mb-3 text-center text-sm text-text-muted">
                     You have already reviewed all products in this order.
                   </p>
-                  <button className={`${buttonVariants()} w-full`} onClick={() => navigate(-1)}>
-                    Back
-                  </button>
+                  <BackButton onClick={() => navigate(-1)}>Back</BackButton>
                 </>
               ) : (
                 <>
                   {submitError && <p className="mb-3 text-sm text-danger">{submitError}</p>}
-                  <Button
-                    className="w-full"
-                    disabled={!allRated || isSubmitting}
-                    onClick={handleSubmit}
-                  >
+                  <PrimaryButton disabled={!allRated || isSubmitting} onClick={handleSubmit}>
                     {isSubmitting ? 'Submitting…' : 'Submit ratings'}
-                  </Button>
+                  </PrimaryButton>
                 </>
               )}
             </div>

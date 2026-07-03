@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
+import { BackButton } from '@/components/shared';
 import { CashierLocationAccordion } from '@/features/orders/CashierLocationAccordion';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
 import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
@@ -78,6 +79,7 @@ export default function CashPaymentPending() {
 
   return (
     <div className="space-y-6">
+      <BackButton to={paths.attendee.event(eventId)}>Shop</BackButton>
       <OrderConfirmation
         order={order}
         items={items}
