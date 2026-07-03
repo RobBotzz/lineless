@@ -2,12 +2,19 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useFetcher, useLoaderData, useRevalidator, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { deleteEventLogo, uploadEventLogo } from '@/api/events';
+import { deleteEventLogo, updateEvent, uploadEventLogo } from '@/api/events';
 import { AlertDialog } from '@/components/feedback';
 import { BackButton, ImageDropzone } from '@/components/shared';
 import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import {
@@ -32,9 +39,13 @@ import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
 import { CustomerLinkPanel } from './CustomerLinkPanel';
 import { OperatorLinkPanel } from './OperatorLinkPanel';
 import { StandDialog } from './StandDialog';
+import { CashierSettings } from './CashierSettings';
 import { ProductDialog } from './ProductDialog';
 import { ProductRow } from './ProductRow';
 import type { EventActionResult, EventConfigurationLoaderData } from './data';
+
+// Cap products per stand to keep the organizer dashboard scannable.
+const MAX_PRODUCTS_PER_STAND = 10;
 
 // Lazy-loaded so Leaflet only ships when the location section is expanded.
 const LocationPicker = lazy(() =>
@@ -106,7 +117,8 @@ function toForm(event: Event): EventForm {
 }
 
 export default function EventConfiguration() {
-  const { event, stands, productsByStand } = useLoaderData() as EventConfigurationLoaderData;
+  const { event, stands, productsByStand, cashierStand } =
+    useLoaderData() as EventConfigurationLoaderData;
   const fetcher = useFetcher<EventActionResult>();
   // Dedicated fetcher for the auto-saving settings form, kept separate from the
   // lifecycle/stand/product actions so its state drives the "saved" indicator.
@@ -118,7 +130,6 @@ export default function EventConfiguration() {
   const [showCustomerLink, setShowCustomerLink] = useState(false);
   const [showHoldInfo, setShowHoldInfo] = useState(false);
   const [showRatingsInfo, setShowRatingsInfo] = useState(false);
-  const [showCashierInfo, setShowCashierInfo] = useState(false);
   const [showLogoInfo, setShowLogoInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
@@ -129,6 +140,9 @@ export default function EventConfiguration() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  // Enabling/disabling the cashier saves on its own (not via the settings
+  // auto-save), so it never touches the settings "saved" indicator.
+  const [cashierEnableError, setCashierEnableError] = useState<string | null>(null);
   // Object URL for the in-flight pick, shown for instant feedback until the
   // revalidated loader serves the persisted logo. Revoked on change / unmount.
   const logoFilePreview = useMemo(
@@ -165,6 +179,21 @@ export default function EventConfiguration() {
         setLogoError(err instanceof ApiError ? err.message : 'Could not remove the logo.'),
       )
       .finally(() => setLogoBusy(false));
+  }
+
+  function handleToggleCashier(value: boolean) {
+    setForm((prev) => ({ ...prev, cashierEnabled: value }));
+    setCashierEnableError(null);
+    updateEvent(event._id, { cashierEnabled: value })
+      // Revalidate so the cashier stand loads (enable) / clears (disable).
+      .then(() => revalidator.revalidate())
+      .catch((err) => {
+        // This save is independent of the settings auto-save, so self-correct.
+        setForm((prev) => ({ ...prev, cashierEnabled: !value }));
+        setCashierEnableError(
+          err instanceof ApiError ? err.message : 'Could not update the cashier.',
+        );
+      });
   }
 
   const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
@@ -245,7 +274,6 @@ export default function EventConfiguration() {
     // Send undefined rather than an empty string to leave the date unchanged.
     plannedDate: form.plannedDate || undefined,
     ratingsEnabled: form.ratingsEnabled,
-    cashierEnabled: form.cashierEnabled,
     baselineHoldCents: Math.round(baselineHoldEuros * 100),
     branding: {
       primaryColor: form.primaryColor,
@@ -326,66 +354,78 @@ export default function EventConfiguration() {
     standColumnWeights[target] += weight;
   }
 
-  const renderStand = (stand: Stand) => (
-    <div key={stand._id} className="rounded-lg border border-border bg-surface">
-      {/* Stand header — subtly raised (accent tint) so the start of each stand is easy to spot */}
-      <div className="flex items-center justify-between rounded-t-lg border-b border-accent/15 bg-accent/10 px-4 py-3">
-        <div>
-          <h3 className="font-medium text-text">{stand.standName}</h3>
-          {stand.location.locationName && (
-            <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
-              <PinIcon className="h-4 w-4 text-text-muted" /> {stand.location.locationName}
+  const renderStand = (stand: Stand) => {
+    const products = productsByStand[stand._id] ?? [];
+    const atProductLimit = products.length >= MAX_PRODUCTS_PER_STAND;
+    return (
+      <div key={stand._id} className="rounded-lg border border-border bg-surface">
+        {/* Stand header — subtly raised (accent tint) so the start of each stand is easy to spot */}
+        <div className="flex items-center justify-between rounded-t-lg border-b border-accent/15 bg-accent/10 px-4 py-3">
+          <div>
+            <h3 className="font-medium text-text">{stand.standName}</h3>
+            {stand.location.locationName && (
+              <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
+                <PinIcon className="h-4 w-4 text-text-muted" /> {stand.location.locationName}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditingStand(stand);
+                setIsStandDialogOpen(true);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
+              onClick={() => handleDeleteStand(stand._id)}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+        {/* Products list */}
+        {products.map((product) => (
+          <ProductRow
+            key={product._id}
+            product={product}
+            eventId={event.ratingsEnabled ? event._id : undefined}
+            onEdit={() => setProductDialog({ standId: stand._id, product })}
+            onDelete={() => setPendingDeleteProduct(product)}
+          />
+        ))}
+
+        {/* Products footer */}
+        <div className="border-t border-border px-4 py-2.5">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-sm text-text-muted">
+              <ProductsIcon />
+              {products.length} Products
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={atProductLimit}
+              onClick={() => setProductDialog({ standId: stand._id, product: null })}
+            >
+              + Add Product
+            </Button>
+          </div>
+          {atProductLimit && (
+            <p className="mt-1.5 text-xs text-text-muted">
+              Product limit reached. Remove a product to add a new one.
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEditingStand(stand);
-              setIsStandDialogOpen(true);
-            }}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
-            onClick={() => handleDeleteStand(stand._id)}
-          >
-            Delete
-          </Button>
-        </div>
       </div>
-      {/* Products list */}
-      {(productsByStand[stand._id] ?? []).map((product) => (
-        <ProductRow
-          key={product._id}
-          product={product}
-          eventId={event.ratingsEnabled ? event._id : undefined}
-          onEdit={() => setProductDialog({ standId: stand._id, product })}
-          onDelete={() => setPendingDeleteProduct(product)}
-        />
-      ))}
-
-      {/* Products footer */}
-      <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-        <span className="flex items-center gap-1.5 text-sm text-text-muted">
-          <ProductsIcon />
-          {(productsByStand[stand._id] ?? []).length} Products
-        </span>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setProductDialog({ standId: stand._id, product: null })}
-        >
-          + Add Product
-        </Button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -653,56 +693,6 @@ export default function EventConfiguration() {
                       onChange={(value) => updateField('ratingsEnabled', value)}
                     />
                   </div>
-
-                  <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
-                    <label
-                      className="inline-flex items-center gap-1.5 text-sm font-medium"
-                      htmlFor="cashier-enabled"
-                    >
-                      Cashier
-                      <span className="relative inline-flex">
-                        <button
-                          type="button"
-                          aria-label="About the cashier"
-                          aria-expanded={showCashierInfo}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowCashierInfo((open) => !open);
-                          }}
-                          className="text-text-muted transition hover:text-text"
-                        >
-                          <InfoIcon />
-                        </button>
-                        {showCashierInfo && (
-                          <>
-                            <button
-                              type="button"
-                              aria-hidden="true"
-                              tabIndex={-1}
-                              className="fixed inset-0 z-40 cursor-default"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setShowCashierInfo(false);
-                              }}
-                            />
-                            <span
-                              role="tooltip"
-                              className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                            >
-                              When enabled, operators get a cashier station to take manual orders
-                              and collect cash payments at the event.
-                            </span>
-                          </>
-                        )}
-                      </span>
-                    </label>
-                    <Toggle
-                      checked={form.cashierEnabled}
-                      id="cashier-enabled"
-                      label="Cashier"
-                      onChange={(value) => updateField('cashierEnabled', value)}
-                    />
-                  </div>
                 </div>
 
                 {/* Branding — sits beside the core fields when the card is wide enough */}
@@ -878,6 +868,16 @@ export default function EventConfiguration() {
             </CardContent>
           </Card>
 
+          {/* Cashier — always shown; the enable toggle lives in its header and
+              expands the location + optional password config (manual save). */}
+          <CashierSettings
+            enabled={form.cashierEnabled}
+            onToggleEnabled={handleToggleCashier}
+            enableError={cashierEnableError}
+            cashierStand={cashierStand}
+            eventLocation={form.location}
+          />
+
           {/* Stands & Products */}
           <Card className="scroll-mt-24" id="stands-products">
             <CardHeader>
@@ -885,6 +885,10 @@ export default function EventConfiguration() {
                 <StandIcon className="h-5 w-5" />
                 Stands &amp; Products
               </CardTitle>
+              <CardDescription>
+                Limit: {MAX_PRODUCTS_PER_STAND} products per stand. This ensures a clean Operator
+                Dashboard.
+              </CardDescription>
               <CardAction>
                 <Button
                   size="sm"
