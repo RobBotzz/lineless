@@ -81,7 +81,9 @@ export function StockManagementSection({
             {visibleGroups.map((group) => (
               <section className="space-y-3" key={group.standId}>
                 {!boothSelected && (
-                  <h3 className="text-sm font-semibold text-text-muted">{group.standName}</h3>
+                  <h3 className="text-sm font-semibold text-text-muted [overflow-wrap:anywhere]">
+                    {group.standName}
+                  </h3>
                 )}
                 {group.products.map((product) => (
                   <StockProductRow
@@ -170,9 +172,11 @@ function StockProductRow({
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="truncate font-semibold text-text">{product.productName}</h3>
-          <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-muted">
-            {product.standName}
+          <h3 className="min-w-0 flex-[1_1_10rem] font-semibold text-text [overflow-wrap:anywhere]">
+            {product.productName}
+          </h3>
+          <span className="inline-flex min-w-0 max-w-full rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-muted">
+            <span className="[overflow-wrap:anywhere]">{product.standName}</span>
           </span>
           <ProductStatusBadge status={product.productStatus} />
         </div>
