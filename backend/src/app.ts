@@ -17,7 +17,6 @@ import {
 import {
   orderRatingsRouter,
   orderSelfRatingsRouter,
-  productRatingsRouter,
 } from "./modules/ratings/routes";
 import { operatorRouter } from "./modules/operator/routes";
 import { eventControlCenterRouter } from "./modules/eventControlCenter/routes";
@@ -58,7 +57,6 @@ app.use("/api/events/:eventId/stands", eventStandsRouter);
 app.use("/api/events/:eventId/products", eventProductsRouter);
 app.use("/api/stands/:standId/products", standProductsRouter);
 app.use("/api/stands", standsRouter);
-app.use("/api/products/:productId/ratings", productRatingsRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/tabs", tabsRouter);
 app.use("/api/orders/:orderId/ratings", orderSelfRatingsRouter);

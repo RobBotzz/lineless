@@ -13,10 +13,7 @@ import sessionsRouter from "../modules/sessions/routes";
 import tabsRouter from "../modules/tabs/routes";
 import { eventControlCenterRouter } from "../modules/eventControlCenter/routes";
 import payoutsRouter from "../modules/payouts/routes";
-import {
-  orderRatingsRouter,
-  productRatingsRouter,
-} from "../modules/ratings/routes";
+import { orderRatingsRouter } from "../modules/ratings/routes";
 import { operatorRouter } from "../modules/operator/routes";
 import stripeWebhookRouter from "../modules/payments/routes";
 import { pickupBoardRouter } from "../modules/pickupBoard/routes";
@@ -72,11 +69,6 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
     tag: "Products",
   },
   { base: "/api/products", router: productsRouter, tag: "Products" },
-  {
-    base: "/api/products/:productId/ratings",
-    router: productRatingsRouter,
-    tag: "Ratings",
-  },
   {
     base: "/api/orders/:orderId/products/:productId/ratings",
     router: orderRatingsRouter,
