@@ -14,6 +14,8 @@ export interface AccountDoc {
   lastName?: string;
   iban: string | null;
   ibanHolderName: string | null;
+  /** Bumped inside each payout transaction to serialize concurrent payouts. */
+  payoutLockVersion: number;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -48,6 +50,10 @@ const accountSchema = new Schema<AccountDoc>(
     ibanHolderName: {
       type: String,
       default: null,
+    },
+    payoutLockVersion: {
+      type: Number,
+      default: 0,
     },
     deletedAt: {
       type: Date,

@@ -18,6 +18,33 @@ import {
 
 const stripe = new Stripe(config.stripe.secretKey);
 
+// Reads settlement info from a captured PaymentIntent whose
+// latest_charge.balance_transaction was expanded: the processing fee and the
+// `available_on` date when the funds clear Stripe's pending balance. Stripe only
+// reports these once the charge settles, so this is the single source of truth.
+type CapturedIntent = Awaited<ReturnType<typeof stripe.paymentIntents.capture>>;
+
+function extractCaptureSettlement(intent: CapturedIntent): {
+  feeCents: number;
+  balanceTxnId: string | null;
+  availableOn: Date | null;
+} {
+  const charge = intent.latest_charge;
+  if (!charge || typeof charge === "string") {
+    return { feeCents: 0, balanceTxnId: null, availableOn: null };
+  }
+  const balanceTxn = charge.balance_transaction;
+  if (!balanceTxn || typeof balanceTxn === "string") {
+    return { feeCents: 0, balanceTxnId: null, availableOn: null };
+  }
+  return {
+    feeCents: balanceTxn.fee,
+    balanceTxnId: balanceTxn.id,
+    // Stripe sends available_on as a unix timestamp in seconds.
+    availableOn: new Date(balanceTxn.available_on * 1000),
+  };
+}
+
 export interface TabCheckoutResult {
   tabId: string;
   status: "PAID" | "SKIPPED" | "FAILED";
@@ -182,14 +209,23 @@ async function settleTab(tabId: string, filters: { eventId?: string }) {
     for (const payment of paymentsToCapture) {
       const captureAmount = Math.min(remaining, payment.authorizedCentsAmount);
       if (captureAmount > 0) {
-        await stripe.paymentIntents.capture(payment.stripePaymentIntentId, {
-          amount_to_capture: captureAmount,
-        });
+        const intent = await stripe.paymentIntents.capture(
+          payment.stripePaymentIntentId,
+          {
+            amount_to_capture: captureAmount,
+            expand: ["latest_charge.balance_transaction"],
+          }
+        );
+        const { feeCents, balanceTxnId, availableOn } =
+          extractCaptureSettlement(intent);
         await TabPayment.updateOne(
           { _id: payment._id },
           {
             tabPaymentStatus: "CAPTURED",
             capturedCentsAmount: captureAmount,
+            processingFeeCents: feeCents,
+            stripeBalanceTxnId: balanceTxnId,
+            availableOn,
           }
         );
         totalCaptured += captureAmount;
@@ -276,6 +312,9 @@ export async function checkoutTabsForOrganizerEvent(
   accountId: string
 ): Promise<BulkTabCheckoutResult> {
   await verifyEventOwnership(eventId, accountId);
+  // Free tabs stuck in PENDING_AUTHORIZATION by unconfirmed top-ups first, so
+  // their delivered items become chargeable in this same run.
+  await releaseGatedTopUpsForEvent(eventId);
   return checkoutReadyTabsForEvent(eventId);
 }
 
@@ -352,58 +391,85 @@ export async function finalizeEventTabs(
   return checkoutReadyTabsForEvent(eventId);
 }
 
+type HydratedTabPayment = Awaited<ReturnType<typeof TabPayment.find>>[number];
+
+// Releases one unconfirmed top-up hold: cancels it on Stripe, cancels its gated
+// order's not-yet-started items, marks the hold RELEASED, and reopens the tab to
+// OPEN once no PENDING holds remain. Mirrors cancelPendingOrder.
+async function releaseUnconfirmedTopUp(
+  payment: HydratedTabPayment
+): Promise<void> {
+  try {
+    await stripe.paymentIntents.cancel(payment.stripePaymentIntentId);
+  } catch {
+    // Already resolved on Stripe's side — nothing to release.
+  }
+
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      const order = await Order.findById(payment.orderId).session(dbSession);
+      if (order) {
+        const now = new Date();
+        order.items.forEach((item) => {
+          if (!item.startedAt && !item.cancelledAt) item.cancelledAt = now;
+        });
+        await order.save({ session: dbSession });
+      }
+
+      await TabPayment.updateOne(
+        { _id: payment._id, tabPaymentStatus: "PENDING" },
+        { tabPaymentStatus: "RELEASED" },
+        { session: dbSession }
+      );
+
+      const pending = await TabPayment.countDocuments({
+        tabId: payment.tabId,
+        tabPaymentStatus: "PENDING",
+      }).session(dbSession);
+      if (pending === 0) {
+        await Tab.updateOne(
+          { _id: payment.tabId, status: "PENDING_AUTHORIZATION" },
+          { status: "OPEN" },
+          { session: dbSession }
+        );
+      }
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
 // A top-up the guest never confirmed leaves its order's items gated and the tab
 // stuck in PENDING_AUTHORIZATION, which blocks settlement and would let the
 // baseline hold expire uncaptured (lost revenue). Release these stale PENDING
-// holds and cancel their gated orders before the sweep settles, mirroring
-// cancelPendingOrder.
+// holds and cancel their gated orders before the sweep settles.
 async function releaseStaleUnconfirmedTopUps(cutoff: Date): Promise<void> {
   const stale = await TabPayment.find({
     tabPaymentStatus: "PENDING",
     orderId: { $ne: null },
     updatedAt: { $lte: cutoff },
   });
-
   for (const payment of stale) {
-    try {
-      await stripe.paymentIntents.cancel(payment.stripePaymentIntentId);
-    } catch {
-      // Already resolved on Stripe's side — nothing to release.
-    }
+    await releaseUnconfirmedTopUp(payment);
+  }
+}
 
-    const dbSession = await mongoose.startSession();
-    try {
-      await dbSession.withTransaction(async () => {
-        const order = await Order.findById(payment.orderId).session(dbSession);
-        if (order) {
-          const now = new Date();
-          order.items.forEach((item) => {
-            if (!item.startedAt && !item.cancelledAt) item.cancelledAt = now;
-          });
-          await order.save({ session: dbSession });
-        }
-
-        await TabPayment.updateOne(
-          { _id: payment._id, tabPaymentStatus: "PENDING" },
-          { tabPaymentStatus: "RELEASED" },
-          { session: dbSession }
-        );
-
-        const pending = await TabPayment.countDocuments({
-          tabId: payment.tabId,
-          tabPaymentStatus: "PENDING",
-        }).session(dbSession);
-        if (pending === 0) {
-          await Tab.updateOne(
-            { _id: payment.tabId, status: "PENDING_AUTHORIZATION" },
-            { status: "OPEN" },
-            { session: dbSession }
-          );
-        }
-      });
-    } finally {
-      await dbSession.endSession();
-    }
+// Same release, but for every unconfirmed top-up on an event's tabs regardless
+// of age. The organizer's manual "charge open tabs" only scans OPEN/
+// CHECKOUT_PENDING tabs, so a tab parked in PENDING_AUTHORIZATION by an
+// unconfirmed top-up — whose gated items never reach an operator — would
+// otherwise be uncharge-able. Freeing the hold reopens the tab so its delivered
+// items can settle in the same charge.
+async function releaseGatedTopUpsForEvent(eventId: string): Promise<void> {
+  const tabIds = await Tab.find({ eventId }).distinct("_id");
+  const gated = await TabPayment.find({
+    tabId: { $in: tabIds },
+    tabPaymentStatus: "PENDING",
+    orderId: { $ne: null },
+  });
+  for (const payment of gated) {
+    await releaseUnconfirmedTopUp(payment);
   }
 }
 
