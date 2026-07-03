@@ -1,8 +1,20 @@
 import { Event, generateOperatorAccessKey, type EventDoc } from "./model";
-import { EventNotFoundError, EventStateError } from "./errors";
+import { EventLogo, type EventLogoDoc } from "./logo.model";
+import {
+  EventLogoNotFoundError,
+  EventNotFoundError,
+  EventStateError,
+  InvalidImageError,
+} from "./errors";
 import { assertSessionOwnsEvent } from "./ownership";
 import { ensureCashierStand } from "../stands/service";
 import { finalizeEventTabs } from "../tabs/service";
+import { config } from "../../config/config";
+import {
+  sniffImageMimeType,
+  toNodeBuffer,
+  type UploadedImage,
+} from "../../shared/imageUpload";
 import type { CreateEventInput, UpdateEventInput } from "./types";
 
 type AttendeeEvent = Omit<EventDoc, "operatorAccessKey">;
@@ -118,9 +130,11 @@ export async function updateEvent(
     if (patch.branding.secondaryColor !== undefined) {
       event.branding.secondaryColor = patch.branding.secondaryColor;
     }
-    if (patch.branding.logoUrl !== undefined) {
-      event.branding.logoUrl = patch.branding.logoUrl;
+    if (patch.branding.accentTextColor !== undefined) {
+      event.branding.accentTextColor = patch.branding.accentTextColor;
     }
+    // logoUrl is intentionally not patchable here: it is managed server-side by
+    // the logo upload/delete endpoints (see setEventLogo / deleteEventLogo).
   }
   if (patch.location) {
     event.location.locationName = patch.location.locationName;
@@ -183,4 +197,67 @@ export async function softDeleteEvent(
   }
   event.deletedAt = new Date();
   await event.save();
+}
+
+// The URL stored on the event's branding points back at our own serve endpoint,
+// so the frontend renders branding.logoUrl directly as an <img> src.
+function eventLogoServeUrl(eventId: string): string {
+  return `/api/events/${eventId}/logo`;
+}
+
+export async function setEventLogo(
+  eventId: string,
+  accountId: string,
+  file: UploadedImage
+): Promise<EventDoc> {
+  const event = await findActiveEvent(eventId, accountId);
+
+  const detectedType = sniffImageMimeType(file.buffer);
+  if (
+    !detectedType ||
+    !config.upload.allowedImageMimeTypes.includes(detectedType)
+  ) {
+    throw new InvalidImageError();
+  }
+
+  // One logo per event: upsert replaces any existing logo atomically.
+  await EventLogo.findOneAndUpdate(
+    { eventId },
+    {
+      eventId,
+      data: file.buffer,
+      contentType: detectedType,
+      byteSize: file.buffer.length,
+    },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
+
+  event.branding.logoUrl = eventLogoServeUrl(eventId);
+  // The serve URL is stable, so on a *replace* logoUrl doesn't change — mark it
+  // modified so `updatedAt` still bumps. The frontend uses updatedAt as a
+  // cache-busting version, so without this a replaced logo keeps showing stale.
+  event.markModified("branding.logoUrl");
+  await event.save();
+  return event;
+}
+
+export async function getEventLogo(
+  eventId: string
+): Promise<Pick<EventLogoDoc, "_id" | "data" | "contentType" | "updatedAt">> {
+  const logo = await EventLogo.findOne({ eventId })
+    .select("data contentType updatedAt")
+    .lean();
+  if (!logo) throw new EventLogoNotFoundError();
+  return { ...logo, data: toNodeBuffer(logo.data) };
+}
+
+export async function deleteEventLogo(
+  eventId: string,
+  accountId: string
+): Promise<EventDoc> {
+  const event = await findActiveEvent(eventId, accountId);
+  await EventLogo.deleteOne({ eventId });
+  event.branding.logoUrl = null;
+  await event.save();
+  return event;
 }

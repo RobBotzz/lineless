@@ -7,6 +7,7 @@ export interface AttendeeSessionDoc {
   _id: string;
   eventId: string;
   status: AttendeeSessionStatus;
+  email: string | null;
   expiresAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -22,6 +23,7 @@ const attendeeSessionSchema = new Schema<AttendeeSessionDoc>(
       default: "active",
       index: true,
     },
+    email: { type: String, default: null },
     expiresAt: { type: Date, required: true, expires: 0 },
   },
   { timestamps: true }

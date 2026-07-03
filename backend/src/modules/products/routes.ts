@@ -1,12 +1,6 @@
-import {
-  Router,
-  type NextFunction,
-  type Request,
-  type Response,
-} from "express";
-import multer from "multer";
+import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
-import { config } from "../../config/config";
+import { uploadSingleImage } from "../../shared/imageUpload";
 import {
   createProduct,
   listProductsForOrganizer,
@@ -87,44 +81,8 @@ function handleError(err: unknown, res: Response): unknown {
   return res.status(500).json({ error: "Internal server error" });
 }
 
-// Memory-storage upload: the bytes go straight into MongoDB, never to disk. The
-// size cap is enforced by multer; the MIME whitelist here is a cheap first pass
-// (the real format check happens against the magic bytes in the service).
-const imageUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: config.upload.maxImageBytes },
-  fileFilter: (_req, file, cb) => {
-    if (config.upload.allowedImageMimeTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new InvalidImageError(`Unsupported image type: ${file.mimetype}`));
-    }
-  },
-});
-
-// Runs the multer middleware and maps its errors onto our domain errors so the
-// route's handleError produces consistent JSON status codes.
-function uploadProductImage(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
-  imageUpload.single("image")(req, res, (err: unknown) => {
-    if (err instanceof multer.MulterError) {
-      if (err.code === "LIMIT_FILE_SIZE") {
-        handleError(new ImageTooLargeError(), res);
-      } else {
-        handleError(new InvalidImageError(err.message), res);
-      }
-      return;
-    }
-    if (err) {
-      handleError(err, res);
-      return;
-    }
-    next();
-  });
-}
+// Accepts a single multipart "image" field; maps multer errors via handleError.
+const uploadProductImage = uploadSingleImage("image", handleError);
 
 // =============================================================================
 // Stand-scoped product routes — mounted at /stands/:standId/products
