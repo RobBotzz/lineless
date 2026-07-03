@@ -32,7 +32,10 @@ export async function eventConfigurationLoader({
   const [event, stands, cashierStand] = await Promise.all([
     getEvent(eventId),
     getEventStands(eventId),
-    getOrganizerCashierStand(eventId).catch(() => null),
+    getOrganizerCashierStand(eventId).catch((err) => {
+      if (err instanceof ApiError && (err.status === 403 || err.status === 404)) return null;
+      throw err;
+    }),
   ]);
   // Fetch each stand's products in parallel, then index by stand id.
   const productLists = await Promise.all(stands.map((stand) => getStandProducts(stand._id)));

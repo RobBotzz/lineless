@@ -49,7 +49,7 @@ export function CashierSettings({
       </CardHeader>
       <CardContent>
         <p className="text-sm text-text-muted">
-          A cashier station lets operators take manual orders, collect cash payments, and give
+          A cashier station lets operators take manual orders, collect cash payments, and give cash
           refunds at the event.
         </p>
 
