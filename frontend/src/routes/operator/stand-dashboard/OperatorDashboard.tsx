@@ -83,8 +83,8 @@ export default function OperatorDashboard() {
   const [board, setBoard] = useState<OperatorBoard | null>(null);
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
   const [filters, setFilters] = useState<ReadonlySet<string>>(() => new Set());
-  // Free-text search over all items by order number / pickup code — quick lookup
-  // when a customer asks about a specific order across a long board.
+  // Free-text search over all items by order number — quick lookup when a
+  // customer asks about a specific order across a long board.
   const [search, setSearch] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   // The item awaiting pickup-code confirmation before it is handed over.
