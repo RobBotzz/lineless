@@ -196,6 +196,13 @@ export async function completeEvent(
     throw new EventStateError("Only a stopped event can be completed");
   }
 
+  // Not wrapped in a single Mongo transaction on purpose: finalizeEventTabs makes
+  // external Stripe capture/release calls (and runs its own per-tab transactions),
+  // which cannot participate in an outer session transaction. Instead each step is
+  // idempotent and the status flip below is the last write, so a failure here leaves
+  // the event STOPPED and retrying completeEvent safely re-runs the sweeps. Retry is
+  // the intended recovery path for a mid-completion failure.
+  //
   // Cancel all items on unpaid cash orders so they are not charged.
   await cancelUnpaidCashOrdersForEvent(event._id);
   // Settle open tabs: charge guests for READY/FULFILLED items and release the rest.
