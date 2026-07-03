@@ -24,6 +24,7 @@ export default function ReviewOrder() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedCount, setSubmittedCount] = useState(0);
 
   const eventQuery = useQuery({
     queryKey: ['attendee', 'event', eventId],
@@ -103,26 +104,26 @@ export default function ReviewOrder() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
+      const toSubmit = reviewableProducts.filter((p) => p.existingRating === null);
       await Promise.all(
-        reviewableProducts
-          .filter((p) => p.existingRating === null)
-          .map((p) => {
-            const state = ratings[p.productId];
-            return submitRating(orderId, p.productId, eventId, {
-              stars: state.stars,
-              comment: state.comment.trim() || null,
-            }).catch((err) => {
-              // 409 = already reviewed — treat as success for this product
-              if (err instanceof ApiError && err.status === 409) return;
-              throw err;
-            });
-          }),
+        toSubmit.map((p) => {
+          const state = ratings[p.productId];
+          return submitRating(orderId, p.productId, eventId, {
+            stars: state.stars,
+            comment: state.comment.trim() || null,
+          }).catch((err) => {
+            // 409 = already reviewed — treat as success for this product
+            if (err instanceof ApiError && err.status === 409) return;
+            throw err;
+          });
+        }),
       );
       // Refresh the cached ratings so the Track Order button flips from
       // "Leave a review" to "Show review" without a manual reload.
       await queryClient.invalidateQueries({
         queryKey: ['attendee', 'order', orderId, 'ratings'],
       });
+      setSubmittedCount(toSubmit.length);
       setSubmitted(true);
     } catch {
       setSubmitError('Something went wrong. Please try again.');
@@ -140,11 +141,7 @@ export default function ReviewOrder() {
           <CheckCircleIcon className="mx-auto h-12 w-12 text-green-500" />
           <h1 className="mt-3 text-lg font-semibold text-text">Thanks for your ratings!</h1>
           <p className="mt-1 text-sm text-text-muted">
-            You rated {reviewableProducts.filter((p) => p.existingRating === null).length}{' '}
-            {reviewableProducts.filter((p) => p.existingRating === null).length === 1
-              ? 'product'
-              : 'products'}
-            .
+            You rated {submittedCount} {submittedCount === 1 ? 'product' : 'products'}.
           </p>
           <BackButton className="mt-6 w-full justify-center" onClick={() => navigate(-1)}>
             Track Order
