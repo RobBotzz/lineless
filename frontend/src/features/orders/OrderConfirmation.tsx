@@ -8,8 +8,10 @@ import { OrderSummary } from './OrderSummary';
 interface OrderConfirmationProps {
   order: Order;
   // Enriched items — caller joins backend OrderItem[] with product catalog data.
-  items: OrderItemView[];
-  total: number;
+  // Only used to render the default (image-based) product summary; omit when
+  // passing `children` to render a different item breakdown instead.
+  items?: OrderItemView[];
+  total?: number;
   // Banner copy is passed in so each persona words it its own way.
   title: string;
   subtitle: string;
@@ -19,6 +21,9 @@ interface OrderConfirmationProps {
   // Extra section rendered right after the order-number/pickup-code meta grid
   // and before the product summary (e.g. cashier stand location).
   afterMeta?: ReactNode;
+  // Overrides the default "Products by Stand" section with a caller-supplied
+  // one (e.g. the cashier refund flow's text-only OrderDetailsSection).
+  children?: ReactNode;
 }
 
 export function OrderConfirmation({
@@ -29,6 +34,7 @@ export function OrderConfirmation({
   subtitle,
   variant = 'success',
   afterMeta,
+  children,
 }: OrderConfirmationProps) {
   const banner =
     variant === 'pending' ? (
@@ -65,7 +71,7 @@ export function OrderConfirmation({
         <h3 className="font-semibold">Products by Stand</h3>
       </div>
       <div className="mt-4">
-        <OrderSummary items={items} total={total} />
+        <OrderSummary items={items ?? []} total={total ?? 0} />
       </div>
     </section>
   );
@@ -75,7 +81,7 @@ export function OrderConfirmation({
       {banner}
       {orderMeta}
       {afterMeta}
-      {productSummary}
+      {children ?? productSummary}
     </div>
   );
 }

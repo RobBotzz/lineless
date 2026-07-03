@@ -318,43 +318,6 @@ export interface RefundItemRow {
   refundedAt: string | null;
 }
 
-// Grouped view of the items already refunded on an order — feeds OrderSummary /
-// OrderConfirmation on the refund success screen.
-export async function buildRefundedViewItems(
-  order: Order,
-  eventId: string,
-  standId: string,
-): Promise<OrderItemView[]> {
-  const [products, stands] = await Promise.all([
-    getOperatorEventProducts(eventId, standId),
-    getOperatorStands(eventId),
-  ]);
-  const productById = new Map(products.map((p) => [p._id, p]));
-  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
-
-  const groups = new Map<string, OrderItemView>();
-  for (const item of order.items) {
-    if (!item.refundedAt) continue;
-    const existing = groups.get(item.productId);
-    if (existing) {
-      existing.quantity += 1;
-      existing.comments.push(item.customerComment ?? '');
-      continue;
-    }
-    const product = productById.get(item.productId);
-    groups.set(item.productId, {
-      productId: item.productId,
-      productName: product?.productName ?? item.productName ?? item.productId,
-      standId: product?.standId ?? '',
-      standName: product ? (standNameById.get(product.standId) ?? '') : '',
-      unitPrice: item.priceIncludingTaxAtPurchase,
-      quantity: 1,
-      comments: [item.customerComment ?? ''],
-    });
-  }
-  return [...groups.values()];
-}
-
 export async function buildRefundRows(
   order: Order,
   eventId: string,

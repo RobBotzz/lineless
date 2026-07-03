@@ -1,43 +1,19 @@
-import { useEffect, useState } from 'react';
-import { useOutletContext, useParams } from 'react-router';
+import { useNavigate, useOutletContext, useParams } from 'react-router';
 
 import { BackButton } from '@/components/shared';
-import { buildRefundedViewItems, getOrder } from '@/api/orders';
-import type { Order, OrderItemView } from '@/types/order';
+import { Button } from '@/components/ui/button';
 import { paths } from '@/paths';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
+import { OrderDetailsSection } from './OrderDetailsSection';
 import type { CashierContext } from './CashierLayout';
+import { useCashierRefundOrder } from './useCashierRefundOrder';
 
 export default function CashierRefundConfirmed() {
   const { orderId } = useParams() as { orderId: string };
   const { eventId, standId } = useOutletContext<CashierContext>();
+  const navigate = useNavigate();
 
-  const [order, setOrder] = useState<Order | null>(null);
-  const [items, setItems] = useState<OrderItemView[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    getOrder(orderId, standId)
-      .then(async (result) => {
-        const view = await buildRefundedViewItems(result, eventId, standId);
-        if (active) {
-          setOrder(result);
-          setItems(view);
-        }
-      })
-      .catch(() => {
-        if (active) setOrder(null);
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [orderId, eventId, standId]);
-
-  const refundedTotal = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+  const { order, rows, isLoading } = useCashierRefundOrder(orderId, eventId, standId);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -50,14 +26,17 @@ export default function CashierRefundConfirmed() {
           Order &quot;{orderId}&quot; could not be found.
         </p>
       ) : (
-        <div className="mt-6">
+        <div className="mt-6 space-y-6">
           <OrderConfirmation
             order={order}
-            items={items}
-            total={refundedTotal}
             title="Refund Successful!"
             subtitle="The cancelled items have been refunded in cash."
-          />
+          >
+            <OrderDetailsSection order={order} rows={rows} />
+          </OrderConfirmation>
+          <Button className="w-full" onClick={() => navigate(paths.operator.cashier(eventId))}>
+            Back to Cashier Stand
+          </Button>
         </div>
       )}
     </div>
