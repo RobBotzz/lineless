@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
-import { BackButton } from '@/components/shared';
-import { Button } from '@/components/ui/button';
+import { BackButton, PrimaryButton } from '@/components/shared';
 import { createOrder } from '@/api/orders';
 import { setAttendeeSessionEmail } from '@/api/sessions';
 import { getAttendeeStands } from '@/api/stands';
@@ -18,12 +17,14 @@ import { PaymentMethodToggle } from '@/features/cart/PaymentMethodToggle';
 import { CardCheckoutDialog, type PaymentMethod } from '@/features/payment';
 import type { Order } from '@/types/order';
 import { useCart } from './cart-context';
+import type { CartLoaderData } from './data';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Cart() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const { cashierEnabled } = useLoaderData() as CartLoaderData;
   const { items, totalCount, totalCents, setQuantity, setComment, removeItem, clear } = useCart();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD');
@@ -143,8 +144,8 @@ export default function Cart() {
 
           {/* Sticky checkout bar — pinned to the viewport bottom while scrolling,
               parking below the last item (above the footer) at the end. */}
-          <div className="pointer-events-none sticky bottom-0 z-20 pb-4 pt-3">
-            <div className="pointer-events-auto rounded-2xl border border-border bg-surface/95 p-3 shadow-[0_8px_24px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] backdrop-blur">
+          <div className="sticky bottom-0 z-30 pb-4 pt-3">
+            <div className="rounded-2xl border border-border bg-surface/95 p-3 shadow-[0_-6px_20px_color-mix(in_srgb,var(--color-accent)_10%,transparent)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm text-text-muted">Total</span>
                 <span className="text-base font-bold text-accent-contrast">
@@ -184,20 +185,20 @@ export default function Cart() {
                     type="button"
                     onClick={() => setEditingEmail(true)}
                     disabled={isCheckingOut}
-                    className="shrink-0 text-xs font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className="shrink-0 text-xs font-semibold text-accent-contrast hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     Change
                   </button>
                 </div>
               )}
               <div className="mb-2">
-                <PaymentMethodToggle value={paymentMethod} onChange={setPaymentMethod} />
+                <PaymentMethodToggle
+                  value={paymentMethod}
+                  onChange={setPaymentMethod}
+                  cashEnabled={cashierEnabled}
+                />
               </div>
-              <Button
-                className="h-12 w-full gap-2 rounded-xl"
-                disabled={isCheckingOut}
-                onClick={handleCheckout}
-              >
+              <PrimaryButton className="gap-2" disabled={isCheckingOut} onClick={handleCheckout}>
                 {isCheckingOut ? (
                   'Processing Payment…'
                 ) : (
@@ -208,7 +209,7 @@ export default function Cart() {
                     </span>
                   </>
                 )}
-              </Button>
+              </PrimaryButton>
             </div>
           </div>
         </>

@@ -84,6 +84,13 @@ function toDateInputValue(iso?: string) {
   return date.toISOString().slice(0, 10);
 }
 
+function localDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function toForm(event: Event): EventForm {
   return {
     name: event.name,
@@ -180,6 +187,15 @@ export default function EventConfiguration() {
   // at least 100 cents (€1.00).
   const baselineHoldEuros = Number(form.baselineHold);
   const baselineHoldValid = Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1;
+  const minimumPlannedDate = localDateInputValue();
+  const persistedPlannedDate = toDateInputValue(event.plannedDate);
+  // Keep legacy events with an already-persisted past date editable, but reject
+  // any newly selected past date before the auto-save can submit it.
+  const plannedDateValid =
+    !form.plannedDate ||
+    form.plannedDate >= minimumPlannedDate ||
+    form.plannedDate === persistedPlannedDate;
+  const settingsValid = baselineHoldValid && plannedDateValid;
 
   function updateField<K extends keyof EventForm>(key: K, value: EventForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -250,7 +266,7 @@ export default function EventConfiguration() {
   });
 
   useEffect(() => {
-    if (!baselineHoldValid) return;
+    if (!settingsValid) return;
     if (settingsSnapshot === lastSavedSnapshot) return;
     const handle = setTimeout(() => {
       pendingSnapshotRef.current = settingsSnapshot;
@@ -263,7 +279,7 @@ export default function EventConfiguration() {
       );
     }, 800);
     return () => clearTimeout(handle);
-  }, [settingsSnapshot, lastSavedSnapshot, baselineHoldValid]);
+  }, [settingsSnapshot, lastSavedSnapshot, settingsValid]);
 
   // Mark the just-sent snapshot as saved once the request succeeds; on failure
   // it stays "dirty" so the next edit retries.
@@ -520,8 +536,10 @@ export default function EventConfiguration() {
                   />
 
                   <TextField
+                    error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
                     id="event-date"
                     label="Event Date"
+                    min={minimumPlannedDate}
                     onChange={(e) => updateField('plannedDate', e.target.value)}
                     type="date"
                     value={form.plannedDate}
@@ -842,7 +860,7 @@ export default function EventConfiguration() {
 
               {/* No save button — the form auto-saves; this just reflects status. */}
               <div className="mt-6 flex justify-end text-sm" aria-live="polite">
-                {!baselineHoldValid && settingsDirty ? (
+                {!settingsValid && settingsDirty ? (
                   <span className="text-danger">Fix the highlighted field to save.</span>
                 ) : settingsSaveError ? (
                   <span className="text-danger">
