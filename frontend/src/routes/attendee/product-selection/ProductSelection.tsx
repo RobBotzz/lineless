@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link, useLoaderData, useParams, useRouteError } from 'react-router';
+import { Link, useLoaderData, useParams, useRouteError, useRouteLoaderData } from 'react-router';
 
 import { paths } from '@/paths';
 
 import { useCart } from '../cart/cart-context';
+import type { AttendeeLayoutLoaderData } from '../data';
 import { CartIcon } from '@/components/icons';
 import { PRIMARY_BTN_CLASS } from '@/components/shared';
 import { ProductCard } from './ProductCard';
@@ -11,7 +12,8 @@ import { ALL_STANDS, StandFilter } from './StandFilter';
 import type { productSelectionLoader } from './data';
 
 export default function ProductSelection() {
-  const { event, stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
+  const { stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
+  const { event } = useRouteLoaderData('attendee-event') as AttendeeLayoutLoaderData;
   const { eventId } = useParams();
   const { addItem, setQuantity, totalCount, items } = useCart();
 
@@ -65,7 +67,7 @@ export default function ProductSelection() {
       <div className="sticky bottom-0 z-30 mt-auto pb-2 pt-3">
         <Link
           to={eventId ? paths.attendee.cart(eventId) : '#'}
-          className={`${PRIMARY_BTN_CLASS} flex items-center justify-center gap-2 bg-accent px-4 font-semibold text-button-text shadow-[0_-6px_20px_rgba(2,8,135,0.12)] transition-colors hover:bg-accent/90`}
+          className={`${PRIMARY_BTN_CLASS} flex items-center justify-center gap-2 bg-accent px-4 font-semibold text-button-text shadow-[0_-6px_20px_color-mix(in_srgb,var(--color-accent)_12%,transparent)] transition-colors hover:bg-accent/90`}
         >
           <CartIcon className="h-5 w-5" />
           <span>View Cart</span>

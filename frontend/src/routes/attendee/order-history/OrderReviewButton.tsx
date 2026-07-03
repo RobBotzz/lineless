@@ -25,7 +25,7 @@ export function OrderReviewButton({ orderId, eventId, rateableProductIds }: Prop
 
   return (
     <Link to={paths.attendee.reviewOrder(eventId, orderId)} className="block">
-      <PrimaryButton className="gap-2 shadow-[0_8px_24px_rgba(2,8,135,0.25)]">
+      <PrimaryButton className="gap-2 shadow-[0_8px_24px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]">
         <StarIcon className="h-4 w-4" />
         {allRated ? 'Show review' : 'Leave a review'}
       </PrimaryButton>

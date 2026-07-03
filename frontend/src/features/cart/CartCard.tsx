@@ -82,7 +82,7 @@ export function CartCard({
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-6">
           <h3 className="truncate text-sm font-semibold text-text">{product.productName}</h3>
           {standName && <span className="truncate text-xs text-text-muted">{standName}</span>}
-          <span className="text-sm font-semibold text-accent">
+          <span className="text-sm font-semibold text-accent-contrast">
             €{formatMoney(product.priceIncludingTax)}
           </span>
         </div>
@@ -113,7 +113,7 @@ export function CartCard({
           <ChatIcon className="h-4 w-4" />
           <span>Item comments</span>
           {commentCount > 0 && (
-            <span className="rounded-full bg-accent-soft px-1.5 text-[10px] font-bold text-accent">
+            <span className="rounded-full bg-accent-soft px-1.5 text-[10px] font-bold text-accent-contrast">
               {commentCount}
             </span>
           )}

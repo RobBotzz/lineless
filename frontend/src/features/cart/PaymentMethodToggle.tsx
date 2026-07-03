@@ -4,9 +4,16 @@ import type { PaymentMethod } from '@/features/payment';
 interface PaymentMethodToggleProps {
   value: PaymentMethod;
   onChange: (method: PaymentMethod) => void;
+  // Hide the Cash option when the event runs no cashier — the backend would
+  // reject a cash order anyway (createOrder: !tabId && !cashierEnabled → 4xx).
+  cashEnabled?: boolean;
 }
 
-export function PaymentMethodToggle({ value, onChange }: PaymentMethodToggleProps) {
+export function PaymentMethodToggle({
+  value,
+  onChange,
+  cashEnabled = true,
+}: PaymentMethodToggleProps) {
   return (
     <div className="flex gap-2">
       <Button
@@ -16,13 +23,15 @@ export function PaymentMethodToggle({ value, onChange }: PaymentMethodToggleProp
       >
         Card
       </Button>
-      <Button
-        variant={value === 'CASH' ? 'default' : 'outline'}
-        className="flex-1"
-        onClick={() => onChange('CASH')}
-      >
-        Cash
-      </Button>
+      {cashEnabled ? (
+        <Button
+          variant={value === 'CASH' ? 'default' : 'outline'}
+          className="flex-1"
+          onClick={() => onChange('CASH')}
+        >
+          Cash
+        </Button>
+      ) : null}
     </div>
   );
 }

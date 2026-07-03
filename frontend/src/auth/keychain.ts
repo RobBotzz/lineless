@@ -144,6 +144,9 @@ export function clearOperatorCredential(): void {
 export interface AttendeeSession {
   sessionId: string;
   expiresAt: string;
+  // Email the attendee gave at checkout, remembered so we don't ask again while
+  // the same session is active (the backend has no read endpoint for it).
+  email?: string;
 }
 
 export interface AttendeeTab {
@@ -164,7 +167,11 @@ function parseAttendee(data: Record<string, unknown>): AttendeeCredential | null
   if (isRecord(data.sessions)) {
     for (const [eventId, value] of Object.entries(data.sessions)) {
       if (isRecord(value) && isString(value.sessionId) && isString(value.expiresAt)) {
-        sessions[eventId] = { sessionId: value.sessionId, expiresAt: value.expiresAt };
+        sessions[eventId] = {
+          sessionId: value.sessionId,
+          expiresAt: value.expiresAt,
+          ...(isString(value.email) ? { email: value.email } : {}),
+        };
       }
     }
   }
@@ -204,6 +211,24 @@ function emptyAttendeeCredential(): AttendeeCredential {
 export function setAttendeeSession(eventId: string, sessionId: string, expiresAt: string): void {
   const credential = getCredential('attendee') ?? emptyAttendeeCredential();
   credential.sessions[eventId] = { sessionId, expiresAt };
+  write(KEYS.attendee, credential);
+  notifyAttendee();
+}
+
+export function rememberAttendeeEmail(eventId: string, email: string): void {
+  const credential = getCredential('attendee');
+  const session = credential?.sessions[eventId];
+  // The session may have been evicted (e.g. a 401 in another tab) between the
+  // backend save and this local cache write. Don't resurrect it — we'd have no
+  // valid sessionId/expiresAt. The email is safe on the backend and re-read from
+  // the session on next mount; just surface the rare miss in dev.
+  if (!credential || !session) {
+    console.warn(
+      `rememberAttendeeEmail: no attendee session for event ${eventId}; skipping local email cache`,
+    );
+    return;
+  }
+  credential.sessions[eventId] = { ...session, email };
   write(KEYS.attendee, credential);
   notifyAttendee();
 }
