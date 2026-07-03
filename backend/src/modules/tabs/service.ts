@@ -61,7 +61,11 @@ export interface BulkTabCheckoutResult {
   results: TabCheckoutResult[];
 }
 
-export async function createTab(sessionId: string, eventId: string) {
+export async function createTab(
+  sessionId: string,
+  eventId: string,
+  firstOrderCents = 0
+) {
   // The attendee session is bound to one event and is the sole authority on
   // which event a tab belongs to; never authorize a card for an event that is
   // not currently accepting orders.
@@ -75,9 +79,15 @@ export async function createTab(sessionId: string, eventId: string) {
   if (!event) throw new EventNotFoundError();
   const baselineHoldCents =
     event.baselineHoldCents ?? DEFAULT_BASELINE_HOLD_CENTS;
+  // Size the first hold to cover the first order in a single authorization,
+  // rounded up to a whole multiple of the baseline hold (mirrors the top-up
+  // rounding in orders). A missing/zero first order falls back to one baseline.
+  const holdCents =
+    Math.max(1, Math.ceil(firstOrderCents / baselineHoldCents)) *
+    baselineHoldCents;
 
   const pi = await stripe.paymentIntents.create({
-    amount: baselineHoldCents,
+    amount: holdCents,
     currency: "eur",
     capture_method: "manual",
     // Card only — Apple Pay / Google Pay ride on the card type, so they are
@@ -101,7 +111,7 @@ export async function createTab(sessionId: string, eventId: string) {
             tabId,
             stripePaymentIntentId: pi.id,
             tabPaymentStatus: "PENDING",
-            authorizedCentsAmount: baselineHoldCents,
+            authorizedCentsAmount: holdCents,
           },
         ],
         { session: dbSession }
