@@ -291,21 +291,6 @@ export function refundOrderItems(
   });
 }
 
-// Live cash figures for the net-cash panel, all integer cents.
-export interface CashSummary {
-  cashSalesCents: number;
-  cashRefundCents: number;
-  netCashCents: number;
-}
-
-// GET /api/orders/cashier/cash-summary — one-shot snapshot for the net-cash panel.
-export function getCashSummary(standId: string): Promise<CashSummary> {
-  return apiFetch<CashSummary>('/orders/cashier/cash-summary', { auth: 'operator', standId });
-}
-
-// SSE path for live net-cash updates (see useSSE). Recomputes on every order change.
-export const CASHIER_CASH_SUMMARY_STREAM_PATH = '/orders/cashier/cash-summary/stream';
-
 // One display row per individual order item — unlike buildOrderViewItems this keeps
 // cancelled/refunded items so the refund screen can show the whole order and offer
 // the refundable items for selection by their real item ids.

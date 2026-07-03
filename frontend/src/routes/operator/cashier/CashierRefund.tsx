@@ -9,7 +9,6 @@ import { computeRefundableTotal } from '../../../types/order';
 import { formatMoney } from '../../../types/product';
 import { paths } from '../../../paths';
 import { formatOrderTime } from './orderFormat';
-import { CashierNetCash } from './CashierNetCash';
 import type { CashierContext } from './CashierLayout';
 
 export default function CashierRefund() {
@@ -65,7 +64,7 @@ export default function CashierRefund() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <BackButton to={paths.operator.cashier(eventId)}>Cashier Stand</BackButton>
 
-      <div className="mt-6 space-y-4 lg:grid lg:grid-cols-[1fr_320px] lg:items-start lg:gap-6 lg:space-y-0">
+      <div className="mt-6">
         <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -136,10 +135,6 @@ export default function CashierRefund() {
             )}
           </div>
         </section>
-
-        <div className="lg:sticky lg:top-6">
-          <CashierNetCash standId={standId} />
-        </div>
       </div>
     </div>
   );
