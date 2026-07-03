@@ -79,6 +79,22 @@ export async function getEventForAttendee(
   return stripOperatorAccessKey(event);
 }
 
+// Operators reach an event via the event-scoped operator access key. Unlike the
+// attendee, they may work the event in any lifecycle state, so no status gate.
+export async function getEventForOperatorLink(
+  eventId: string,
+  linkEventId: string
+): Promise<AttendeeEvent> {
+  assertSessionOwnsEvent(eventId, linkEventId);
+
+  const event = await Event.findOne({
+    _id: eventId,
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+  return stripOperatorAccessKey(event);
+}
+
 async function findActiveEvent(eventId: string, accountId: string) {
   const event = await Event.findOne({
     _id: eventId,
