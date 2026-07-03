@@ -6,6 +6,7 @@ import { paths } from '@/paths';
 import { useCart } from '../cart/cart-context';
 import type { AttendeeLayoutLoaderData } from '../data';
 import { CartIcon } from '@/components/icons';
+import { PRIMARY_BTN_CLASS } from '@/components/shared';
 import { ProductCard } from './ProductCard';
 import { ALL_STANDS, StandFilter } from './StandFilter';
 import type { productSelectionLoader } from './data';
@@ -37,8 +38,8 @@ export default function ProductSelection() {
   }, [selectedStand, productsByStand]);
 
   return (
-    <div>
-      <div className="sticky top-0 z-10 bg-background/95 pb-2 pt-1 backdrop-blur">
+    <div className="flex flex-1 flex-col">
+      <div className="sticky top-16 z-40 pb-2 pt-1">
         <h1 className="sr-only">Products — {event.name}</h1>
         <StandFilter stands={stands} selected={selectedStand} onSelect={setSelectedStand} />
       </div>
@@ -62,23 +63,20 @@ export default function ProductSelection() {
         )}
       </div>
 
-      {/* Sticky cart bar — pinned to the viewport bottom while scrolling, but it
-          parks below the last product (above the footer) once you reach the end. */}
-      <div className="pointer-events-none sticky bottom-0 z-20 pb-4 pt-3">
-        <div className="pointer-events-auto">
-          <Link
-            to={eventId ? paths.attendee.cart(eventId) : '#'}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 font-semibold text-[var(--color-button-text)] shadow-[0_8px_24px_color-mix(in_srgb,var(--color-accent)_25%,transparent)] transition-colors hover:bg-accent/90"
-          >
-            <CartIcon className="h-5 w-5" />
-            <span>View Cart</span>
-            {totalCount > 0 && (
-              <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--color-button-text)] px-1.5 text-xs font-bold text-accent">
-                {totalCount}
-              </span>
-            )}
-          </Link>
-        </div>
+      {/* Sticky to the viewport bottom; settles above the footer at page end */}
+      <div className="sticky bottom-0 z-30 mt-auto pb-2 pt-3">
+        <Link
+          to={eventId ? paths.attendee.cart(eventId) : '#'}
+          className={`${PRIMARY_BTN_CLASS} flex items-center justify-center gap-2 bg-accent px-4 font-semibold text-button-text shadow-[0_-6px_20px_color-mix(in_srgb,var(--color-accent)_12%,transparent)] transition-colors hover:bg-accent/90`}
+        >
+          <CartIcon className="h-5 w-5" />
+          <span>View Cart</span>
+          {totalCount > 0 && (
+            <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-button-text px-1.5 text-xs font-bold text-accent">
+              {totalCount}
+            </span>
+          )}
+        </Link>
       </div>
     </div>
   );

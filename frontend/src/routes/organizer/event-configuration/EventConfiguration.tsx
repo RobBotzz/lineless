@@ -7,7 +7,14 @@ import { AlertDialog } from '@/components/feedback';
 import { BackButton, ImageDropzone } from '@/components/shared';
 import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import {
@@ -36,6 +43,9 @@ import { StandDialog } from './StandDialog';
 import { ProductDialog } from './ProductDialog';
 import { ProductRow } from './ProductRow';
 import type { EventActionResult, EventConfigurationLoaderData } from './data';
+
+// Cap products per stand to keep the organizer dashboard scannable.
+const MAX_PRODUCTS_PER_STAND = 10;
 
 // Lazy-loaded so Leaflet only ships when the location section is expanded.
 const LocationPicker = lazy(() =>
@@ -335,65 +345,77 @@ export default function EventConfiguration() {
     standColumnWeights[target] += weight;
   }
 
-  const renderStand = (stand: Stand) => (
-    <div key={stand._id} className="rounded-lg border border-border bg-surface">
-      {/* Stand header — subtly raised (accent tint) so the start of each stand is easy to spot */}
-      <div className="flex items-center justify-between rounded-t-lg border-b border-accent/15 bg-accent/10 px-4 py-3">
-        <div>
-          <h3 className="font-medium text-text">{stand.standName}</h3>
-          {stand.location.locationName && (
-            <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
-              <PinIcon className="h-4 w-4 text-text-muted" /> {stand.location.locationName}
+  const renderStand = (stand: Stand) => {
+    const products = productsByStand[stand._id] ?? [];
+    const atProductLimit = products.length >= MAX_PRODUCTS_PER_STAND;
+    return (
+      <div key={stand._id} className="rounded-lg border border-border bg-surface">
+        {/* Stand header — subtly raised (accent tint) so the start of each stand is easy to spot */}
+        <div className="flex items-center justify-between rounded-t-lg border-b border-accent/15 bg-accent/10 px-4 py-3">
+          <div>
+            <h3 className="font-medium text-text">{stand.standName}</h3>
+            {stand.location.locationName && (
+              <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
+                <PinIcon className="h-4 w-4 text-text-muted" /> {stand.location.locationName}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditingStand(stand);
+                setIsStandDialogOpen(true);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
+              onClick={() => handleDeleteStand(stand._id)}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+        {/* Products list */}
+        {products.map((product) => (
+          <ProductRow
+            key={product._id}
+            product={product}
+            onEdit={() => setProductDialog({ standId: stand._id, product })}
+            onDelete={() => setPendingDeleteProduct(product)}
+          />
+        ))}
+
+        {/* Products footer */}
+        <div className="border-t border-border px-4 py-2.5">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-sm text-text-muted">
+              <ProductsIcon />
+              {products.length} Products
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={atProductLimit}
+              onClick={() => setProductDialog({ standId: stand._id, product: null })}
+            >
+              + Add Product
+            </Button>
+          </div>
+          {atProductLimit && (
+            <p className="mt-1.5 text-xs text-text-muted">
+              Product limit reached. Remove a product to add a new one.
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEditingStand(stand);
-              setIsStandDialogOpen(true);
-            }}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
-            onClick={() => handleDeleteStand(stand._id)}
-          >
-            Delete
-          </Button>
-        </div>
       </div>
-      {/* Products list */}
-      {(productsByStand[stand._id] ?? []).map((product) => (
-        <ProductRow
-          key={product._id}
-          product={product}
-          onEdit={() => setProductDialog({ standId: stand._id, product })}
-          onDelete={() => setPendingDeleteProduct(product)}
-        />
-      ))}
-
-      {/* Products footer */}
-      <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-        <span className="flex items-center gap-1.5 text-sm text-text-muted">
-          <ProductsIcon />
-          {(productsByStand[stand._id] ?? []).length} Products
-        </span>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setProductDialog({ standId: stand._id, product: null })}
-        >
-          + Add Product
-        </Button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -929,6 +951,10 @@ export default function EventConfiguration() {
                 <StandIcon className="h-5 w-5" />
                 Stands &amp; Products
               </CardTitle>
+              <CardDescription>
+                Limit: {MAX_PRODUCTS_PER_STAND} products per stand. This ensures a clean Operator
+                Dashboard.
+              </CardDescription>
               <CardAction>
                 <Button
                   size="sm"
