@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getAttendeeOrder } from '@/api/orders';
 import { getAttendeeEvent } from '@/api/events';
@@ -18,6 +18,7 @@ interface RatingState {
 export default function ReviewOrder() {
   const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [ratings, setRatings] = useState<Record<string, RatingState>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,6 +118,11 @@ export default function ReviewOrder() {
             });
           }),
       );
+      // Refresh the cached ratings so the Track Order button flips from
+      // "Leave a review" to "Show review" without a manual reload.
+      await queryClient.invalidateQueries({
+        queryKey: ['attendee', 'order', orderId, 'ratings'],
+      });
       setSubmitted(true);
     } catch {
       setSubmitError('Something went wrong. Please try again.');
