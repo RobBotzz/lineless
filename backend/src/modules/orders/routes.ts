@@ -9,10 +9,8 @@ import {
   deleteUnpaidOrder,
   enrichOrderForAttendee,
   getOrderForAttendee,
-  getCashSummary,
   getOrderForCashier,
   getOrderForOrganizer,
-  issueCashRefund,
   listOrdersForAttendee,
   listRefundableCashOrders,
   listUnpaidOrdersForCashier,
@@ -40,7 +38,6 @@ import {
   cancelOrderItemsSchema,
   confirmCashPaymentSchema,
   createOrderSchema,
-  issueCashRefundSchema,
   refundByItemsSchema,
 } from "./types";
 import {
@@ -205,48 +202,6 @@ ordersRouter.get(
   }
 );
 
-// GET /orders/cashier/cash-summary — live cash sales / refunds / net for the panel.
-ordersRouter.get(
-  "/cashier/cash-summary",
-  authOperator,
-  async (req: Request, res: Response) => {
-    try {
-      const eventId = await resolveCashierEventId(req.operator!.standId);
-      const summary = await getCashSummary(eventId);
-      return res.status(200).json(summary);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  }
-);
-
-// GET /orders/cashier/cash-summary/stream — SSE net-cash updates. Recomputes and
-// pushes on every order change for the event (payments and refunds both apply).
-ordersRouter.get(
-  "/cashier/cash-summary/stream",
-  authOperator,
-  async (req: Request, res: Response) => {
-    try {
-      const eventId = await resolveCashierEventId(req.operator!.standId);
-      const sse = new SseConnection(res);
-      sse.send("snapshot", await getCashSummary(eventId));
-
-      const unsubscribe = subscribe("order.changed", (order) => {
-        if (order.eventId !== eventId) return;
-        void getCashSummary(eventId)
-          .then((summary) => sse.send("summary", summary))
-          .catch(() => {
-            // transient errors are non-fatal; the client recovers on reconnect
-          });
-      });
-
-      sse.onClose(() => unsubscribe());
-    } catch (err) {
-      handleError(err, res);
-    }
-  }
-);
-
 // GET /orders — an attendee's own paid orders (order-status / review entry point).
 ordersRouter.get("/", authAttendee, async (req: Request, res: Response) => {
   try {
@@ -394,27 +349,4 @@ ordersRouter.delete(
       return handleError(err, res);
     }
   }
-);
-
-// Cash refunds are addressed by the embedded cashPayment id, so they live on a
-// separate router mounted at /api/cash-payments while sharing the orders logic.
-export const cashPaymentsRouter = Router();
-
-cashPaymentsRouter.post(
-  "/:cashPaymentId/refund",
-  authOrganizerOrOperator,
-  validateBody(issueCashRefundSchema, async (req, res, data) => {
-    try {
-      const refund = await issueCashRefund(
-        req.params["cashPaymentId"] as string,
-        data,
-        req.organizer
-          ? { organizerAccountId: req.organizer.accountId }
-          : { operatorStandId: req.operator!.standId }
-      );
-      return res.status(201).json(refund);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  })
 );

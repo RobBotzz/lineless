@@ -3,7 +3,6 @@ import { Event } from "../events/model";
 import { EventNotFoundError } from "../events/errors";
 import { verifyEventOwnership } from "../events/ownership";
 import { Order, type OrderItemDoc } from "../orders/model";
-import { computeCashTotals } from "../orders/cashTotals";
 import { Tab } from "../tabs/model";
 import { TabPayment } from "../payments/model";
 import { Product } from "../products/model";
@@ -91,9 +90,15 @@ export async function computeEventPayout(
   const pendingUnits = await buildUnitsSold(pendingItems);
 
   // Cash sales are recognized on delivery like card, for one consistent rule,
-  // and reported separately so the organizer sees what is already in hand. Shared
-  // with the cashier net-cash panel via computeCashTotals so the two never drift.
-  const { cashSalesCents, cashRefundCents } = computeCashTotals(orders);
+  // and reported separately so the organizer sees what is already in hand.
+  const cashSalesCents = orders
+    .filter((o) => o.tabId === null)
+    .flatMap((o) => o.items.filter(isDeliveredItem))
+    .reduce((sum, i) => sum + i.priceIncludingTaxAtPurchase, 0);
+  const cashRefundCents = orders.reduce(
+    (sum, o) => sum + o.cashRefunds.reduce((s, r) => s + r.amountCents, 0),
+    0
+  );
 
   // Card money that actually flows through the platform.
   const capturedPayments = await TabPayment.find({

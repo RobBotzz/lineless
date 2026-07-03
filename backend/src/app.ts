@@ -4,7 +4,7 @@ import swaggerUi from "swagger-ui-express";
 
 import stripeWebhookRouter from "./modules/payments/routes";
 import tabsRouter from "./modules/tabs/routes";
-import { ordersRouter, cashPaymentsRouter } from "./modules/orders/routes";
+import { ordersRouter } from "./modules/orders/routes";
 import accountRouter from "./modules/accounts/routes";
 import eventsRouter from "./modules/events/routes";
 import sessionsRouter from "./modules/sessions/routes";
@@ -64,7 +64,6 @@ app.use("/api/tabs", tabsRouter);
 app.use("/api/orders/:orderId/ratings", orderSelfRatingsRouter);
 app.use("/api/orders/:orderId/products/:productId/ratings", orderRatingsRouter);
 app.use("/api/orders", ordersRouter);
-app.use("/api/cash-payments", cashPaymentsRouter);
 app.use("/api/payouts", payoutsRouter);
 
 // View-based
