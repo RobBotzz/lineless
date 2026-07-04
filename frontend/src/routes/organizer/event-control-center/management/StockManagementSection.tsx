@@ -121,6 +121,7 @@ function StockProductRow({
 }) {
   const [draftState, setDraftState] = useState(() => ({
     productId: product._id,
+    baselineStockMode: product.stockMode,
     stockMode: product.stockMode,
     productStock: product.productStock,
     value: String(product.productStock),
@@ -131,11 +132,12 @@ function StockProductRow({
   if (
     draftState.productId !== product._id ||
     draftState.productStock !== product.productStock ||
-    draftState.stockMode !== product.stockMode
+    draftState.baselineStockMode !== product.stockMode
   ) {
     draftStock = String(product.productStock);
     setDraftState({
       productId: product._id,
+      baselineStockMode: product.stockMode,
       stockMode: product.stockMode,
       productStock: product.productStock,
       value: draftStock,
