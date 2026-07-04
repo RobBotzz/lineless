@@ -82,10 +82,29 @@ export class InsufficientStockError extends ApiError {
   }
 }
 
+function isStockShortage(value: unknown): value is StockShortage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const shortage = value as Record<string, unknown>;
+  return (
+    typeof shortage.productId === 'string' &&
+    shortage.productId.length > 0 &&
+    typeof shortage.requested === 'number' &&
+    Number.isInteger(shortage.requested) &&
+    shortage.requested > 0 &&
+    typeof shortage.available === 'number' &&
+    Number.isInteger(shortage.available) &&
+    shortage.available >= 0
+  );
+}
+
 function throwIfStockConflict(status: number, data: unknown): void {
   if (status !== 409 || !data || typeof data !== 'object') return;
   const response = data as Partial<InsufficientStockResponse>;
-  if (response.code === 'INSUFFICIENT_STOCK' && Array.isArray(response.shortages)) {
+  if (
+    response.code === 'INSUFFICIENT_STOCK' &&
+    Array.isArray(response.shortages) &&
+    response.shortages.every(isStockShortage)
+  ) {
     throw new InsufficientStockError(response.shortages);
   }
 }
