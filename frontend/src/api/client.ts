@@ -121,9 +121,12 @@ async function doFetch<T>(
     }
   }
 
-  if (!res.ok && !allowStatuses.includes(res.status)) {
+  if (!res.ok) {
     const data = await extractErrorData(res);
-    throw new ApiError(res.status, errorMessage(data, res.statusText), data);
+    if (!allowStatuses.includes(res.status)) {
+      throw new ApiError(res.status, errorMessage(data, res.statusText), data);
+    }
+    return { status: res.status, data: data as T };
   }
 
   if (res.status === 204) return { status: res.status, data: undefined as T };
