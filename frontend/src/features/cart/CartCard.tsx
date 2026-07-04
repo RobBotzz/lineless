@@ -86,7 +86,7 @@ export function CartCard({
           {standName && (
             <span className="text-xs text-text-muted [overflow-wrap:anywhere]">{standName}</span>
           )}
-          <span className="text-sm font-semibold text-accent">
+          <span className="text-sm font-semibold text-accent-contrast">
             €{formatMoney(product.priceIncludingTax)}
           </span>
         </div>
