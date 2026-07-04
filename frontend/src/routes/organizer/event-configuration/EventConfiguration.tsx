@@ -894,13 +894,16 @@ export default function EventConfiguration() {
                 </div>
               </div>
 
-              {/* No save button — branding auto-saves; this just reflects status. */}
+              {/* No save button — branding auto-saves; this reflects both the
+                  color auto-save and the separate logo upload/removal. */}
               <div className="mt-6 flex justify-end text-sm" aria-live="polite">
                 {brandingSave.saveError ? (
                   <span className="text-danger">
                     Couldn’t save changes — edit a field to retry.
                   </span>
-                ) : brandingSave.saving || brandingSave.dirty ? (
+                ) : logoError ? (
+                  <span className="text-danger">Couldn’t save the logo — try again.</span>
+                ) : brandingSave.saving || brandingSave.dirty || logoBusy ? (
                   <span className="text-text-muted">Saving…</span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 text-success">

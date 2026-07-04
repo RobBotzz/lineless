@@ -15,8 +15,9 @@ type ImageDropzoneProps = {
   acceptedTypes: readonly string[];
   maxBytes: number;
   disabled?: boolean;
-  // Sizing for the drop target / preview box. Defaults to a wide banner; pass
-  // e.g. "aspect-square" for a square logo slot.
+  // Sizing for the drop target / preview box. Height-only by default (h-28); the
+  // box always spans the parent's width on its own, so pass a height (e.g. "h-40")
+  // or an aspect ratio ("aspect-square" for a square logo slot), not a width.
   sizeClassName?: string;
 };
 
