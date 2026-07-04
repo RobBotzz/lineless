@@ -374,9 +374,9 @@ export async function submitOrder(
     } catch (err) {
       const duplicate = await existingSubmission(sessionId, input);
       if (duplicate) return duplicate;
-      // The transaction rolled back, so cancel the top-up PaymentIntent created
-      // above — otherwise it is orphaned (no TabPayment row references it).
-      await stripe.paymentIntents.cancel(pi.id).catch(() => undefined);
+      // Keep the unconfirmed intent reusable. Stripe replays the original result
+      // for this requestId's idempotency key, so cancelling it here would make a
+      // safe retry create a TabPayment that points at an already-cancelled intent.
       throw err;
     } finally {
       await dbSession.endSession();
