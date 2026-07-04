@@ -14,7 +14,7 @@ interface ProductCardProps {
   standName: string;
   cartQuantity: number;
   onAdd: (product: Product) => void;
-  onSetQuantity: (productId: string, quantity: number) => void;
+  onSetQuantity: (productId: string, quantity: number, currentProduct?: Product) => void;
 }
 
 export function ProductCard({
@@ -90,8 +90,8 @@ export function ProductCard({
             // quantity to 0, removing the line and reverting to the Add button.
             <QuantityStepper
               quantity={cartQuantity}
-              onDecrease={() => onSetQuantity(product._id, cartQuantity - 1)}
-              onIncrease={() => onSetQuantity(product._id, cartQuantity + 1)}
+              onDecrease={() => onSetQuantity(product._id, cartQuantity - 1, product)}
+              onIncrease={() => onSetQuantity(product._id, cartQuantity + 1, product)}
               disableIncrease={atStockLimit}
               decreaseLabel={`Decrease ${product.productName} quantity`}
               increaseLabel={`Increase ${product.productName} quantity`}

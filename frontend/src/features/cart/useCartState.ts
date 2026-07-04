@@ -16,7 +16,7 @@ export interface CartState {
   totalCount: number;
   totalCents: number;
   addItem: (product: Product) => void;
-  setQuantity: (productId: string, quantity: number) => void;
+  setQuantity: (productId: string, quantity: number, currentProduct?: Product) => void;
   setComment: (productId: string, index: number, comment: string) => void;
   removeItem: (productId: string) => void;
   applyStockShortages: (shortages: StockShortage[]) => void;
@@ -70,10 +70,14 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
       if (tracksStock(product) && product.productStock <= 0) return prev;
       const existing = prev.find((i) => i.product._id === product._id);
       if (existing) {
-        if (tracksStock(product) && existing.quantity >= product.productStock) return prev;
+        if (tracksStock(product) && existing.quantity >= product.productStock) {
+          return prev.map((item) =>
+            item.product._id === product._id ? { ...item, product } : item,
+          );
+        }
         return prev.map((i) =>
           i.product._id === product._id
-            ? { ...i, quantity: i.quantity + 1, comments: [...i.comments, ''] }
+            ? { ...i, product, quantity: i.quantity + 1, comments: [...i.comments, ''] }
             : i,
         );
       }
@@ -81,26 +85,36 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
     });
   }, []);
 
-  const setQuantity = useCallback((productId: string, quantity: number) => {
-    setItems((prev) => {
-      const item = prev.find((candidate) => candidate.product._id === productId);
-      if (!item || quantity <= 0 || (tracksStock(item.product) && item.product.productStock <= 0)) {
-        return prev.filter((candidate) => candidate.product._id !== productId);
-      }
-      const nextQuantity = tracksStock(item.product)
-        ? Math.min(quantity, item.product.productStock)
-        : quantity;
-      return prev.map((candidate) =>
-        candidate.product._id === productId
-          ? {
-              ...candidate,
-              quantity: nextQuantity,
-              comments: resizeComments(candidate.comments, nextQuantity),
-            }
-          : candidate,
-      );
-    });
-  }, []);
+  const setQuantity = useCallback(
+    (productId: string, quantity: number, currentProduct?: Product) => {
+      setItems((prev) => {
+        const item = prev.find((candidate) => candidate.product._id === productId);
+        const product = currentProduct ?? item?.product;
+        if (
+          !item ||
+          !product ||
+          quantity <= 0 ||
+          (tracksStock(product) && product.productStock <= 0)
+        ) {
+          return prev.filter((candidate) => candidate.product._id !== productId);
+        }
+        const nextQuantity = tracksStock(product)
+          ? Math.min(quantity, product.productStock)
+          : quantity;
+        return prev.map((candidate) =>
+          candidate.product._id === productId
+            ? {
+                ...candidate,
+                product,
+                quantity: nextQuantity,
+                comments: resizeComments(candidate.comments, nextQuantity),
+              }
+            : candidate,
+        );
+      });
+    },
+    [],
+  );
 
   const setComment = useCallback((productId: string, index: number, comment: string) => {
     setItems((prev) =>
