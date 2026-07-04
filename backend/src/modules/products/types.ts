@@ -22,13 +22,15 @@ export const createProductSchema = z.object({
   productStock: stock.default(0),
 });
 
-export const updateProductSchema = z.object({
-  productName: z.string().min(1).optional(),
-  productDescription: z.string().min(1).nullable().optional(),
-  priceIncludingTax: cents.optional(),
-  taxRate: taxRate.optional(),
-  instantProduct: z.boolean().optional(),
-});
+export const updateProductSchema = z
+  .object({
+    productName: z.string().min(1).optional(),
+    productDescription: z.string().min(1).nullable().optional(),
+    priceIncludingTax: cents.optional(),
+    taxRate: taxRate.optional(),
+    instantProduct: z.boolean().optional(),
+  })
+  .strict();
 
 export const updateProductStockSchema = z.object({
   stockMode,
