@@ -32,6 +32,8 @@ interface CardPrompt {
   amountCents: number | null;
 }
 
+type PendingOrderResolution = 'none' | 'cancelled' | 'completed';
+
 // The tab only flips to OPEN once Stripe's authorization webhook reaches the
 // backend, so we poll briefly after each card confirmation.
 const POLL_INTERVAL_MS = 1500;
@@ -117,6 +119,29 @@ export function CardCheckoutDialog({
     if (pendingOrderId.current === orderId) pendingOrderId.current = null;
   }
 
+  // A failed request does not tell us whether the server processed it. Resolve
+  // that ambiguity before another checkout can create a new order/requestId.
+  async function reconcilePendingOrder(): Promise<PendingOrderResolution> {
+    const orderId = pendingOrderId.current;
+    if (!orderId) return 'none';
+
+    try {
+      const order = await getAttendeeOrder(orderId, eventId);
+      if (order.paidAt) {
+        pendingOrderId.current = null;
+        onSuccess(order);
+        return 'completed';
+      }
+    } catch {
+      // The status read is best-effort. Cancellation remains safe: the backend
+      // rejects paid orders and is idempotent for an already-cancelled order.
+    }
+
+    await cancelPendingAuthorization();
+    requestId.current = crypto.randomUUID();
+    return 'cancelled';
+  }
+
   // Returns the id of an OPEN tab, opening + authorizing a new one if the stored
   // tab is missing or no longer usable.
   async function ensureOpenTab(): Promise<string> {
@@ -153,6 +178,9 @@ export function CardCheckoutDialog({
 
   async function runCheckout(): Promise<void> {
     try {
+      const pendingResolution = await reconcilePendingOrder();
+      if (pendingResolution === 'completed') return;
+
       const tabId = await ensureOpenTab();
       setMessage('Placing your order…');
 
@@ -190,14 +218,27 @@ export function CardCheckoutDialog({
       setIsCreatingOrder(false);
       if (err instanceof CancelledError) return;
       const abandonedOrder = pendingOrderId.current !== null;
-      await cancelPendingAuthorization().catch(() => undefined);
+      let cleanupFailed = false;
+      if (abandonedOrder) {
+        try {
+          const pendingResolution = await reconcilePendingOrder();
+          if (pendingResolution === 'completed') return;
+        } catch {
+          cleanupFailed = true;
+        }
+      }
       if (cancelled.current) return;
       if (err instanceof InsufficientStockError) {
         onStockConflict(err);
         return;
       }
-      if (abandonedOrder) requestId.current = crypto.randomUUID();
-      setError(err instanceof Error ? err.message : 'Payment failed. Please try again.');
+      setError(
+        cleanupFailed
+          ? 'We could not confirm the previous order status. Retry to safely resume checkout.'
+          : err instanceof Error
+            ? err.message
+            : 'Payment failed. Please try again.',
+      );
       setPhase('error');
     }
   }
