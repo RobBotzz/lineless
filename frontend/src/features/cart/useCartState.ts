@@ -20,6 +20,7 @@ export interface CartState {
   setComment: (productId: string, index: number, comment: string) => void;
   removeItem: (productId: string) => void;
   applyStockShortages: (shortages: StockShortage[]) => void;
+  syncProducts: (products: Product[]) => void;
   clear: () => void;
 }
 
@@ -152,6 +153,28 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
     );
   }, []);
 
+  const syncProducts = useCallback((products: Product[]) => {
+    const productById = new Map(products.map((product) => [product._id, product]));
+    setItems((prev) =>
+      prev.flatMap((item) => {
+        const product = productById.get(item.product._id);
+        if (!product) return [item];
+        if (tracksStock(product) && product.productStock <= 0) return [];
+        const quantity = tracksStock(product)
+          ? Math.min(item.quantity, product.productStock)
+          : item.quantity;
+        return [
+          {
+            ...item,
+            product,
+            quantity,
+            comments: resizeComments(item.comments, quantity),
+          },
+        ];
+      }),
+    );
+  }, []);
+
   const clear = useCallback(() => setItems([]), []);
 
   return useMemo<CartState>(() => {
@@ -166,7 +189,17 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
       setComment,
       removeItem,
       applyStockShortages,
+      syncProducts,
       clear,
     };
-  }, [items, addItem, setQuantity, setComment, removeItem, applyStockShortages, clear]);
+  }, [
+    items,
+    addItem,
+    setQuantity,
+    setComment,
+    removeItem,
+    applyStockShortages,
+    syncProducts,
+    clear,
+  ]);
 }

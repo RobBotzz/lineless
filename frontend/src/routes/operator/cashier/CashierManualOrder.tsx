@@ -30,6 +30,7 @@ export default function CashierManualOrder() {
     setComment,
     removeItem,
     applyStockShortages,
+    syncProducts,
     clear,
   } = useCartState();
 
@@ -88,16 +89,24 @@ export default function CashierManualOrder() {
             productName: item?.product.productName ?? 'Product',
           };
         });
-        const availableById = new Map(
-          err.shortages.map((shortage) => [shortage.productId, shortage.available]),
-        );
-        setProducts((current) =>
-          current.map((product) => {
-            const available = availableById.get(product._id);
-            return available === undefined ? product : { ...product, productStock: available };
-          }),
-        );
         applyStockShortages(err.shortages);
+        try {
+          const refreshedProducts = await getOperatorEventProducts(eventId, standId);
+          setProducts(refreshedProducts);
+          syncProducts(refreshedProducts);
+        } catch {
+          // Keep the shortage response as a fallback if the catalog refresh is
+          // unavailable. A later checkout conflict will retry the refresh.
+          const availableById = new Map(
+            err.shortages.map((shortage) => [shortage.productId, shortage.available]),
+          );
+          setProducts((current) =>
+            current.map((product) => {
+              const available = availableById.get(product._id);
+              return available === undefined ? product : { ...product, productStock: available };
+            }),
+          );
+        }
         checkoutAttempt.current = null;
         setStockConflict(affectedItems);
         setIsCheckingOut(false);
