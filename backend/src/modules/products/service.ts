@@ -31,6 +31,10 @@ import {
   verifyOperableEvent,
 } from "../events/ownership";
 import { Event } from "../events/model";
+import {
+  effectiveStockMode,
+  effectiveUnlimitedStockModeFilter,
+} from "./stockMode";
 
 // The wire shape for a product: hides the raw rating aggregate and exposes the
 // computed average (null until the first review). The frontend Product type
@@ -39,7 +43,7 @@ export function toProductResponse(p: ProductDoc) {
   const { ratingSum, ratingCount, ...rest } = p;
   return {
     ...rest,
-    stockMode: p.stockMode ?? "UNLIMITED",
+    stockMode: effectiveStockMode(p),
     rating: ratingCount > 0 ? ratingSum / ratingCount : null,
   };
 }
@@ -288,12 +292,7 @@ export async function updateProductStock(
       productStock: input.expectedProductStock,
       ...(input.expectedStockMode === "TRACKED"
         ? { stockMode: "TRACKED" }
-        : {
-            $or: [
-              { stockMode: "UNLIMITED" },
-              { stockMode: { $exists: false } },
-            ],
-          }),
+        : effectiveUnlimitedStockModeFilter()),
     },
     {
       $set: {
@@ -311,7 +310,7 @@ export async function updateProductStock(
   if (!current) throw new ProductNotFoundError();
   throw new ProductStockChangedError(
     current.productStock,
-    current.stockMode ?? "UNLIMITED"
+    effectiveStockMode(current)
   );
 }
 

@@ -1,5 +1,10 @@
 import type { ClientSession } from "mongoose";
 import { Product } from "../products/model";
+import {
+  DEFAULT_STOCK_MODE,
+  nonTrackedStockModeCondition,
+  tracksProductStock,
+} from "../products/stockMode";
 import type { OrderItemDoc } from "./model";
 import { InsufficientStockError } from "./errors";
 
@@ -37,9 +42,7 @@ export async function reserveProductStock(
     products.map((product) => [product._id, product])
   );
   const trackedProductIds = new Set(
-    products
-      .filter((product) => product.stockMode === "TRACKED")
-      .map((product) => product._id)
+    products.filter(tracksProductStock).map((product) => product._id)
   );
   const shortages = requested
     .filter(
@@ -64,9 +67,9 @@ export async function reserveProductStock(
           _id: productId,
           deletedAt: null,
           productStatus: "LIVE",
-          stockMode: { $ne: "TRACKED" },
+          stockMode: nonTrackedStockModeCondition(),
         },
-        { $set: { stockMode: "UNLIMITED" } },
+        { $set: { stockMode: DEFAULT_STOCK_MODE } },
         { session }
       );
       if (result.matchedCount !== 1) {

@@ -1,6 +1,7 @@
 import { Order } from "../orders/model";
 import { getItemState } from "../orders/service";
 import { Product, type ProductStatus, type StockMode } from "../products/model";
+import { effectiveStockMode } from "../products/stockMode";
 
 export type BoardItemState = "PENDING" | "PREPARING" | "READY";
 
@@ -97,7 +98,7 @@ export async function buildOperatorBoard(
     taxRate: p.taxRate,
     productImageUrl: p.productImageUrl,
     instantProduct: p.instantProduct,
-    stockMode: p.stockMode ?? "UNLIMITED",
+    stockMode: effectiveStockMode(p),
     productStock: p.productStock,
     productStatus: p.productStatus,
     openToDo: items.filter(
