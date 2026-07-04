@@ -40,7 +40,8 @@ Admin dashboard, event configuration, event control center, payout management.
 | ------ | --------------------------------- | ------------------------------------------------------- |
 | POST   | `/stands/{standId}/products`      | Create product                                          |
 | GET    | `/products/{productId}`           | Get single product                                      |
-| PATCH  | `/products/{productId}`           | Update product, including stock                         |
+| PATCH  | `/products/{productId}`           | Update product metadata                                 |
+| PATCH  | `/products/{productId}/stock`     | Compare-and-set product stock                           |
 | DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`)            |
 | POST   | `/products/{productId}/pause`     | Pause product                                           |
 | POST   | `/products/{productId}/resume`    | Resume product                                          |
@@ -87,13 +88,23 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 | Method | URL                                              | Description                                                           |
 | ------ | ------------------------------------------------ | --------------------------------------------------------------------- |
-| POST   | `/orders`                                        | Create order                                                          |
+| POST   | `/orders`                                        | Idempotently create order and reserve available stock                 |
 | GET    | `/orders`                                        | List attendee's own paid orders                                       |
 | GET    | `/orders/{orderId}`                              | Get order details (confirmation / tracking view)                      |
 | GET    | `/orders/stream`                                 | Attendee's live order feed over SSE — session-wide snapshot + updates |
 | POST   | `/orders/{orderId}/cancel`                       | Organizer cancels all open order items                                |
-| POST   | `/orders/{orderId}/cancel-pending-authorization` | Attendee abandons a card order awaiting additional authorization      |
+| POST   | `/orders/{orderId}/cancel-pending-authorization` | Idempotently abandons a card order awaiting additional authorization  |
 | POST   | `/orders/{orderId}/items/cancel`                 | Organizer cancels selected order items                                |
+
+`POST /orders` requires a client-generated UUID `requestId`. If stock is
+insufficient, the full request is rejected with `409 INSUFFICIENT_STOCK` and no
+partial reservation is kept. Replaying the `requestId` of a soft-deleted order
+returns `409 ORDER_REQUEST_DELETED`; replaying a fully cancelled or released
+order returns `409 ORDER_REQUEST_CANCELLED`. `PATCH /products/{productId}/stock` requires both
+`stockMode`, `productStock`, `expectedStockMode`, and `expectedProductStock`.
+`UNLIMITED` products are not reserved or included in low-stock alerts. Products
+without a stored `stockMode` are treated as `UNLIMITED` for backward
+compatibility. A stale expected mode or value returns `409 STOCK_CHANGED`.
 
 ### Payment
 

@@ -9,9 +9,12 @@ export interface OrderItemDoc {
   readyAt: Date | null;
   fulfilledAt: Date | null;
   cancelledAt: Date | null;
+  inventoryState: InventoryState;
   priceIncludingTaxAtPurchase: number;
   taxRateAtPurchase: number;
 }
+
+export type InventoryState = "UNTRACKED" | "RESERVED" | "CONSUMED" | "RELEASED";
 
 /** Created when an operator confirms cash was received for the order. */
 export interface CashPaymentDoc {
@@ -34,6 +37,8 @@ export interface OrderDoc {
   tabId: string | null;
   /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
   sessionId: string | null;
+  /** Client-generated idempotency key. Null only for legacy orders. */
+  requestId: string | null;
   orderNumber: string;
   pickupCode: string;
   customerEmail: string | null;
@@ -54,6 +59,13 @@ const OrderItemSchema = new Schema<OrderItemDoc>({
   readyAt: { type: Date, default: null },
   fulfilledAt: { type: Date, default: null },
   cancelledAt: { type: Date, default: null },
+  // Legacy items receive UNTRACKED so cancelling historical orders can never
+  // create stock that was not reserved by the inventory flow.
+  inventoryState: {
+    type: String,
+    enum: ["UNTRACKED", "RESERVED", "CONSUMED", "RELEASED"],
+    default: "UNTRACKED",
+  },
   priceIncludingTaxAtPurchase: { type: Number, required: true },
   taxRateAtPurchase: { type: Number, required: true },
 });
@@ -79,6 +91,7 @@ const OrderSchema = new Schema<OrderDoc>(
     eventId: { type: String, required: true, index: true },
     tabId: { type: String, default: null, index: true },
     sessionId: { type: String, default: null, index: true },
+    requestId: { type: String, default: null },
     orderNumber: { type: String, required: true },
     pickupCode: { type: String, required: true, index: true },
     customerEmail: { type: String, default: null },
@@ -89,6 +102,16 @@ const OrderSchema = new Schema<OrderDoc>(
     cashRefunds: { type: [CashRefundSchema], default: [] },
   },
   { timestamps: true }
+);
+
+// A partial index ignores missing/null legacy keys while enforcing idempotency
+// for every new order, whose request schema requires a UUID string.
+OrderSchema.index(
+  { requestId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { requestId: { $type: "string" } },
+  }
 );
 
 export const Order = model<OrderDoc>("Order", OrderSchema);

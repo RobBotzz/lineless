@@ -1,0 +1,36 @@
+meta {
+  name: patch product stock
+  type: http
+  seq: 5
+}
+
+patch {
+  url: http://{{host}}:{{port}}/api/products/{{productId}}/stock
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {
+    "stockMode": "TRACKED",
+    "productStock": 80,
+    "expectedStockMode": "TRACKED",
+    "expectedProductStock": 100
+  }
+}
+
+tests {
+  test("stock is updated with compare-and-set", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.stockMode).to.equal("TRACKED");
+    expect(res.body.productStock).to.equal(80);
+  });
+}
+
+settings {
+  encodeUrl: true
+}
