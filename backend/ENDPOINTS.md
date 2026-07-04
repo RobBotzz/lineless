@@ -93,7 +93,7 @@ Mobile guest web app: browse, order, pay, track, rate.
 | GET    | `/orders/{orderId}`                              | Get order details (confirmation / tracking view)                      |
 | GET    | `/orders/stream`                                 | Attendee's live order feed over SSE — session-wide snapshot + updates |
 | POST   | `/orders/{orderId}/cancel`                       | Organizer cancels all open order items                                |
-| POST   | `/orders/{orderId}/cancel-pending-authorization` | Attendee abandons a card order awaiting additional authorization      |
+| POST   | `/orders/{orderId}/cancel-pending-authorization` | Idempotently abandons a card order awaiting additional authorization  |
 | POST   | `/orders/{orderId}/items/cancel`                 | Organizer cancels selected order items                                |
 
 `POST /orders` requires a client-generated UUID `requestId`. If stock is

@@ -526,7 +526,8 @@ export async function issueCashRefund(
 /**
  * Attendee abandons an order still awaiting authorization. Cancels its gated
  * items, releases any backing Stripe hold, and lets the tab become orderable
- * again. Only orders with un-started (gated) items can be cancelled this way.
+ * again. Repeating cleanup for an already fully-cancelled order is safe so a
+ * client can recover when the first response was lost.
  */
 export async function cancelPendingOrder(
   orderId: string,
@@ -537,7 +538,8 @@ export async function cancelPendingOrder(
   if (order.paidAt) throw new OrderAlreadyPaidError();
 
   const hasGatedItems = order.items.some((i) => !i.startedAt && !i.cancelledAt);
-  if (!hasGatedItems) {
+  const isFullyCancelled = order.items.every((i) => i.cancelledAt);
+  if (!hasGatedItems && !isFullyCancelled) {
     throw new OrderItemStateError("Order has no pending items to cancel");
   }
 
@@ -562,7 +564,8 @@ export async function cancelPendingOrder(
       const cancelledItems = fresh.items.filter(
         (item) => !item.startedAt && !item.cancelledAt
       );
-      if (cancelledItems.length === 0) {
+      const isAlreadyCancelled = fresh.items.every((item) => item.cancelledAt);
+      if (cancelledItems.length === 0 && !isAlreadyCancelled) {
         throw new OrderItemStateError("Order has no pending items to cancel");
       }
 

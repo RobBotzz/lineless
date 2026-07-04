@@ -142,7 +142,7 @@ ordersRouter.post(
 
 // POST /orders/:orderId/cancel-pending-authorization — attendee abandons an
 // order still awaiting authorization (cancels its gated items and releases any
-// backing hold).
+// backing hold). Repeating a completed cleanup is idempotent.
 ordersRouter.post(
   "/:orderId/cancel-pending-authorization",
   authAttendee,
