@@ -25,7 +25,7 @@ import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
 import { resolveBranding } from '@/features/branding/applyBranding';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import { eventLogoSrc, type Event, type UpdateEventInput } from '@/types/event';
+import { eventLogoSrc, type Event, type EventStatus, type UpdateEventInput } from '@/types/event';
 import type { Stand } from '@/types/stand';
 import type { Product } from '@/types/product';
 import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
@@ -56,6 +56,25 @@ export function EventConfigurationError() {
     </div>
   );
 }
+
+const STATUS_HINTS: Record<EventStatus, string[]> = {
+  DRAFT: [
+    'Add stands & products',
+    'Configure event details',
+    'Start the event when ordering begins',
+  ],
+  ACTIVE: [
+    'Operators can now join via the operator link',
+    'Monitor incoming orders in the control center',
+    'Stop the event when ordering ends',
+  ],
+  STOPPED: [
+    'Operators are still fulfilling open orders',
+    'No new orders are being accepted',
+    'Complete the event to settle all payments',
+  ],
+  COMPLETED: ['All tabs have been settled', 'Event is now archived'],
+};
 
 // Mirrors the backend upload limits (config.upload). The server is the source of
 // truth (it also checks the magic bytes); these just give instant feedback.
@@ -463,6 +482,16 @@ export default function EventConfiguration() {
                       Event completed
                     </div>
                   )}
+                  <ul className="space-y-1.5 pl-1">
+                    {STATUS_HINTS[event.status].map((hint) => (
+                      <li key={hint} className="flex items-center gap-2 text-sm text-text-muted">
+                        <span aria-hidden className="shrink-0">
+                          ·
+                        </span>
+                        {hint}
+                      </li>
+                    ))}
+                  </ul>
                   {canDelete && (
                     <Button
                       className="w-full border-danger/40 text-danger hover:bg-danger/5"
