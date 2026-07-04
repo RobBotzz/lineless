@@ -12,6 +12,13 @@ export class OrderRequestDeletedError extends Error {
   }
 }
 
+export class OrderRequestCancelledError extends Error {
+  constructor() {
+    super("requestId belongs to a cancelled order");
+    this.name = "OrderRequestCancelledError";
+  }
+}
+
 export interface StockShortage {
   productId: string;
   requested: number;

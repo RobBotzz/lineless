@@ -99,7 +99,8 @@ Mobile guest web app: browse, order, pay, track, rate.
 `POST /orders` requires a client-generated UUID `requestId`. If stock is
 insufficient, the full request is rejected with `409 INSUFFICIENT_STOCK` and no
 partial reservation is kept. Replaying the `requestId` of a soft-deleted order
-returns `409 ORDER_REQUEST_DELETED`. `PATCH /products/{productId}/stock` requires both
+returns `409 ORDER_REQUEST_DELETED`; replaying a fully cancelled or released
+order returns `409 ORDER_REQUEST_CANCELLED`. `PATCH /products/{productId}/stock` requires both
 `stockMode`, `productStock`, `expectedStockMode`, and `expectedProductStock`.
 `UNLIMITED` products are not reserved or included in low-stock alerts. Products
 without a stored `stockMode` are treated as `UNLIMITED` for backward

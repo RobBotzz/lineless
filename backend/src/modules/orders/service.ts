@@ -25,6 +25,7 @@ import {
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
+  OrderRequestCancelledError,
   OrderRequestDeletedError,
   OrderValidationError,
 } from "./errors";
@@ -190,6 +191,9 @@ async function existingSubmission(
   // A soft-deleted order remains the idempotency tombstone for this requestId.
   // Replaying it must not report a deleted resource as a fresh successful order.
   if (order.deletedAt) throw new OrderRequestDeletedError();
+  if (order.items.length > 0 && order.items.every((item) => item.cancelledAt)) {
+    throw new OrderRequestCancelledError();
+  }
   if (order.tabId && !order.paidAt) {
     const payment = await TabPayment.findOne({ orderId: order._id }).sort({
       createdAt: -1,
@@ -205,6 +209,9 @@ async function existingSubmission(
           orderId: order._id,
         };
       }
+    }
+    if (payment?.tabPaymentStatus === "RELEASED") {
+      throw new OrderRequestCancelledError();
     }
   }
   return { status: 201, order };
