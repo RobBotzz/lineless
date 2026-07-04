@@ -157,7 +157,11 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
       setError('Enter a valid initial stock amount');
       return;
     }
-    const productStock = parsedProductStock ?? 0;
+    // UNLIMITED keeps the last persisted count dormant. Do not let a hidden,
+    // invalid draft silently overwrite it with zero; when tracking is enabled
+    // again the organizer can review that preserved count before saving.
+    const productStock =
+      stockMode === 'UNLIMITED' ? (savedProductStock ?? 0) : (parsedProductStock ?? 0);
 
     const productDescription = description.trim() || null;
     setError(null);
