@@ -7,7 +7,7 @@ type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 const inputClasses =
-  'w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted disabled:opacity-80 read-only:bg-surface';
+  'w-full rounded-lg border border-border bg-surface px-4 py-3 text-base text-text outline-none transition placeholder:text-text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted disabled:opacity-80 read-only:bg-surface';
 
 export function TextField({ className, error, helperText, id, label, ...props }: TextFieldProps) {
   const helperId = helperText ? `${id}-helper` : undefined;

@@ -2,18 +2,26 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useFetcher, useLoaderData, useRevalidator, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { deleteEventLogo, uploadEventLogo } from '@/api/events';
+import { deleteEventLogo, updateEvent, uploadEventLogo } from '@/api/events';
 import { AlertDialog } from '@/components/feedback';
 import { BackButton, ImageDropzone } from '@/components/shared';
 import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import {
   ArrowRightIcon,
   CheckCircleIcon,
   ChevronDownIcon,
+  ImageIcon,
   InfoIcon,
   LinkIcon,
   PinIcon,
@@ -32,9 +40,13 @@ import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
 import { CustomerLinkPanel } from './CustomerLinkPanel';
 import { OperatorLinkPanel } from './OperatorLinkPanel';
 import { StandDialog } from './StandDialog';
+import { CashierSettings } from './CashierSettings';
 import { ProductDialog } from './ProductDialog';
 import { ProductRow } from './ProductRow';
 import type { EventActionResult, EventConfigurationLoaderData } from './data';
+
+// Cap products per stand to keep the organizer dashboard scannable.
+const MAX_PRODUCTS_PER_STAND = 10;
 
 // Lazy-loaded so Leaflet only ships when the location section is expanded.
 const LocationPicker = lazy(() =>
@@ -105,12 +117,57 @@ function toForm(event: Event): EventForm {
   };
 }
 
-export default function EventConfiguration() {
-  const { event, stands, productsByStand } = useLoaderData() as EventConfigurationLoaderData;
+// Debounced auto-save for one slice of the event (a JSON snapshot). Returns the
+// dirty/saving/error state so a card can render its own "saved" indicator. Each
+// caller gets its own fetcher, so independent slices save (and report) apart.
+function useEventAutoSave(snapshot: string, valid: boolean) {
   const fetcher = useFetcher<EventActionResult>();
-  // Dedicated fetcher for the auto-saving settings form, kept separate from the
-  // lifecycle/stand/product actions so its state drives the "saved" indicator.
-  const saveFetcher = useFetcher<EventActionResult>();
+  // Last successfully-persisted snapshot, kept in state so the render can derive
+  // the dirty flag (reading a ref during render is disallowed).
+  const [lastSaved, setLastSaved] = useState(snapshot);
+  const pendingRef = useRef<string | null>(null);
+  // Mirror the latest fetcher into a ref (updated in an effect, never during
+  // render) so the debounce effect can call it without depending on its identity.
+  const fetcherRef = useRef(fetcher);
+  useEffect(() => {
+    fetcherRef.current = fetcher;
+  });
+
+  useEffect(() => {
+    if (!valid || snapshot === lastSaved) return;
+    const handle = setTimeout(() => {
+      pendingRef.current = snapshot;
+      fetcherRef.current.submit(
+        {
+          intent: 'save',
+          patch: JSON.parse(snapshot) as UpdateEventInput,
+        } as unknown as Parameters<typeof fetcherRef.current.submit>[0],
+        { method: 'post', encType: 'application/json' },
+      );
+    }, 800);
+    return () => clearTimeout(handle);
+  }, [snapshot, lastSaved, valid]);
+
+  // Mark the just-sent snapshot as saved once the request succeeds; on failure
+  // it stays "dirty" so the next edit retries.
+  useEffect(() => {
+    if (fetcher.state === 'idle' && fetcher.data?.ok && pendingRef.current !== null) {
+      setLastSaved(pendingRef.current);
+      pendingRef.current = null;
+    }
+  }, [fetcher]);
+
+  return {
+    dirty: snapshot !== lastSaved,
+    saving: fetcher.state !== 'idle',
+    saveError: fetcher.data && !fetcher.data.ok ? fetcher.data.error : null,
+  };
+}
+
+export default function EventConfiguration() {
+  const { event, stands, productsByStand, cashierStand } =
+    useLoaderData() as EventConfigurationLoaderData;
+  const fetcher = useFetcher<EventActionResult>();
   const { logout } = useOrganizerAuth();
   const revalidator = useRevalidator();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
@@ -118,7 +175,6 @@ export default function EventConfiguration() {
   const [showCustomerLink, setShowCustomerLink] = useState(false);
   const [showHoldInfo, setShowHoldInfo] = useState(false);
   const [showRatingsInfo, setShowRatingsInfo] = useState(false);
-  const [showCashierInfo, setShowCashierInfo] = useState(false);
   const [showLogoInfo, setShowLogoInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
@@ -129,6 +185,9 @@ export default function EventConfiguration() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  // Enabling/disabling the cashier saves on its own (not via the settings
+  // auto-save), so it never touches the settings "saved" indicator.
+  const [cashierEnableError, setCashierEnableError] = useState<string | null>(null);
   // Object URL for the in-flight pick, shown for instant feedback until the
   // revalidated loader serves the persisted logo. Revoked on change / unmount.
   const logoFilePreview = useMemo(
@@ -165,6 +224,21 @@ export default function EventConfiguration() {
         setLogoError(err instanceof ApiError ? err.message : 'Could not remove the logo.'),
       )
       .finally(() => setLogoBusy(false));
+  }
+
+  function handleToggleCashier(value: boolean) {
+    setForm((prev) => ({ ...prev, cashierEnabled: value }));
+    setCashierEnableError(null);
+    updateEvent(event._id, { cashierEnabled: value })
+      // Revalidate so the cashier stand loads (enable) / clears (disable).
+      .then(() => revalidator.revalidate())
+      .catch((err) => {
+        // This save is independent of the settings auto-save, so self-correct.
+        setForm((prev) => ({ ...prev, cashierEnabled: !value }));
+        setCashierEnableError(
+          err instanceof ApiError ? err.message : 'Could not update the cashier.',
+        );
+      });
   }
 
   const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
@@ -240,59 +314,27 @@ export default function EventConfiguration() {
     setPendingCompleteEvent(false);
   }
 
+  // Two independent auto-saves — core settings and branding — each with its own
+  // snapshot + fetcher (see useEventAutoSave) so their "saved" indicators stay
+  // separate: editing a color never flips the settings status and vice versa.
   const settingsSnapshot = JSON.stringify({
     name: form.name,
     // Send undefined rather than an empty string to leave the date unchanged.
     plannedDate: form.plannedDate || undefined,
     ratingsEnabled: form.ratingsEnabled,
-    cashierEnabled: form.cashierEnabled,
     baselineHoldCents: Math.round(baselineHoldEuros * 100),
+    location: form.location,
+  });
+  const brandingSnapshot = JSON.stringify({
     branding: {
       primaryColor: form.primaryColor,
       secondaryColor: form.secondaryColor,
       accentTextColor: form.accentTextColor,
     },
-    location: form.location,
   });
-  // Last successfully-persisted snapshot, kept in state so the render can derive
-  // the dirty flag (reading a ref during render is disallowed).
-  const [lastSavedSnapshot, setLastSavedSnapshot] = useState(settingsSnapshot);
-  const pendingSnapshotRef = useRef<string | null>(null);
-  // Mirror the latest fetcher into a ref (updated in an effect, never during
-  // render) so the debounce effect can call it without depending on its identity.
-  const saveFetcherRef = useRef(saveFetcher);
-  useEffect(() => {
-    saveFetcherRef.current = saveFetcher;
-  });
-
-  useEffect(() => {
-    if (!settingsValid) return;
-    if (settingsSnapshot === lastSavedSnapshot) return;
-    const handle = setTimeout(() => {
-      pendingSnapshotRef.current = settingsSnapshot;
-      saveFetcherRef.current.submit(
-        {
-          intent: 'save',
-          patch: JSON.parse(settingsSnapshot) as UpdateEventInput,
-        } as unknown as Parameters<typeof saveFetcherRef.current.submit>[0],
-        { method: 'post', encType: 'application/json' },
-      );
-    }, 800);
-    return () => clearTimeout(handle);
-  }, [settingsSnapshot, lastSavedSnapshot, settingsValid]);
-
-  // Mark the just-sent snapshot as saved once the request succeeds; on failure
-  // it stays "dirty" so the next edit retries.
-  useEffect(() => {
-    if (
-      saveFetcher.state === 'idle' &&
-      saveFetcher.data?.ok &&
-      pendingSnapshotRef.current !== null
-    ) {
-      setLastSavedSnapshot(pendingSnapshotRef.current);
-      pendingSnapshotRef.current = null;
-    }
-  }, [saveFetcher]);
+  const settingsSave = useEventAutoSave(settingsSnapshot, settingsValid);
+  // Color inputs only ever commit valid hex, so branding is always saveable.
+  const brandingSave = useEventAutoSave(brandingSnapshot, true);
 
   // Colors actually rendered after contrast clamping — shared with the attendee
   // runtime via resolveBranding, so the preview can't drift from what guests see.
@@ -302,11 +344,6 @@ export default function EventConfiguration() {
     accentTextColor: form.accentTextColor,
     logoUrl: null,
   });
-
-  const settingsDirty = settingsSnapshot !== lastSavedSnapshot;
-  const isSavingSettings = saveFetcher.state !== 'idle';
-  const settingsSaveError =
-    saveFetcher.data && !saveFetcher.data.ok ? saveFetcher.data.error : null;
 
   // Lifecycle rules mirror the backend: start only from DRAFT, stop only from ACTIVE.
   const canStart = event.status === 'DRAFT';
@@ -326,66 +363,77 @@ export default function EventConfiguration() {
     standColumnWeights[target] += weight;
   }
 
-  const renderStand = (stand: Stand) => (
-    <div key={stand._id} className="rounded-lg border border-border bg-surface">
-      {/* Stand header — subtly raised (accent tint) so the start of each stand is easy to spot */}
-      <div className="flex items-center justify-between rounded-t-lg border-b border-accent/15 bg-accent/10 px-4 py-3">
-        <div>
-          <h3 className="font-medium text-text">{stand.standName}</h3>
-          {stand.location.locationName && (
-            <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
-              <PinIcon className="h-4 w-4 text-text-muted" /> {stand.location.locationName}
+  const renderStand = (stand: Stand) => {
+    const products = productsByStand[stand._id] ?? [];
+    const atProductLimit = products.length >= MAX_PRODUCTS_PER_STAND;
+    return (
+      <div key={stand._id} className="rounded-lg border border-border bg-surface">
+        {/* Stand header — subtly raised (accent tint) so the start of each stand is easy to spot */}
+        <div className="flex items-center justify-between rounded-t-lg border-b border-accent/15 bg-accent/10 px-4 py-3">
+          <div>
+            <h3 className="font-medium text-text">{stand.standName}</h3>
+            {stand.location.locationName && (
+              <p className="text-sm text-text-muted mt-0.5 flex items-center gap-1">
+                <PinIcon className="h-4 w-4 text-text-muted" /> {stand.location.locationName}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditingStand(stand);
+                setIsStandDialogOpen(true);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
+              onClick={() => handleDeleteStand(stand._id)}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+        {/* Products list */}
+        {products.map((product) => (
+          <ProductRow
+            key={product._id}
+            product={product}
+            onEdit={() => setProductDialog({ standId: stand._id, product })}
+            onDelete={() => setPendingDeleteProduct(product)}
+          />
+        ))}
+
+        {/* Products footer */}
+        <div className="border-t border-border px-4 py-2.5">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-sm text-text-muted">
+              <ProductsIcon />
+              {products.length} Products
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={atProductLimit}
+              onClick={() => setProductDialog({ standId: stand._id, product: null })}
+            >
+              + Add Product
+            </Button>
+          </div>
+          {atProductLimit && (
+            <p className="mt-1.5 text-xs text-text-muted">
+              Product limit reached. Remove a product to add a new one.
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEditingStand(stand);
-              setIsStandDialogOpen(true);
-            }}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-danger hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
-            onClick={() => handleDeleteStand(stand._id)}
-          >
-            Delete
-          </Button>
-        </div>
       </div>
-      {/* Products list */}
-      {(productsByStand[stand._id] ?? []).map((product) => (
-        <ProductRow
-          key={product._id}
-          product={product}
-          eventId={event.ratingsEnabled ? event._id : undefined}
-          onEdit={() => setProductDialog({ standId: stand._id, product })}
-          onDelete={() => setPendingDeleteProduct(product)}
-        />
-      ))}
-
-      {/* Products footer */}
-      <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-        <span className="flex items-center gap-1.5 text-sm text-text-muted">
-          <ProductsIcon />
-          {(productsByStand[stand._id] ?? []).length} Products
-        </span>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setProductDialog({ standId: stand._id, product: null })}
-        >
-          + Add Product
-        </Button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -524,231 +572,210 @@ export default function EventConfiguration() {
                   a variable-width column), pairing up when there's room. */}
             <CardContent className="@container">
               <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
-                {/* Core fields */}
-                <div className="flex h-full flex-col space-y-5">
-                  <TextField
-                    id="event-name"
-                    label="Event Name"
-                    onChange={(e) => updateField('name', e.target.value)}
-                    placeholder="Event name"
-                    type="text"
-                    value={form.name}
-                  />
+                <TextField
+                  id="event-name"
+                  label="Event Name"
+                  onChange={(e) => updateField('name', e.target.value)}
+                  placeholder="Event name"
+                  type="text"
+                  value={form.name}
+                />
 
-                  <TextField
-                    error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
-                    id="event-date"
-                    label="Event Date"
-                    min={minimumPlannedDate}
-                    onChange={(e) => updateField('plannedDate', e.target.value)}
-                    type="date"
-                    value={form.plannedDate}
-                  />
+                <TextField
+                  error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
+                  id="event-date"
+                  label="Event Date"
+                  min={minimumPlannedDate}
+                  onChange={(e) => updateField('plannedDate', e.target.value)}
+                  type="date"
+                  value={form.plannedDate}
+                />
 
-                  <EventLocationField
-                    onChange={(location) => updateField('location', location)}
-                    value={form.location}
-                  />
+                <EventLocationField
+                  onChange={(location) => updateField('location', location)}
+                  value={form.location}
+                />
 
-                  <TextField
-                    id="baseline-hold"
-                    label={
-                      <span className="inline-flex items-center gap-1.5">
-                        Card pre-authorization hold (€)
-                        <span className="relative inline-flex">
+                <TextField
+                  id="baseline-hold"
+                  label={
+                    <span className="inline-flex items-center gap-1.5">
+                      Card pre-authorization hold (€)
+                      <span className="relative inline-flex">
+                        <button
+                          type="button"
+                          aria-label="About the card pre-authorization hold"
+                          aria-expanded={showHoldInfo}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowHoldInfo((open) => !open);
+                          }}
+                          className="text-text-muted transition hover:text-text"
+                        >
+                          <InfoIcon />
+                        </button>
+                        {showHoldInfo && (
+                          <>
+                            <button
+                              type="button"
+                              aria-hidden="true"
+                              tabIndex={-1}
+                              className="fixed inset-0 z-40 cursor-default"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setShowHoldInfo(false);
+                              }}
+                            />
+                            <span
+                              role="tooltip"
+                              className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                            >
+                              {
+                                "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
+                              }
+                            </span>
+                          </>
+                        )}
+                      </span>
+                    </span>
+                  }
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  step="1"
+                  value={form.baselineHold}
+                  onChange={(e) => updateField('baselineHold', e.target.value)}
+                  error={
+                    baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
+                  }
+                />
+
+                <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
+                  <label
+                    className="inline-flex items-center gap-1.5 text-sm font-medium"
+                    htmlFor="ratings-enabled"
+                  >
+                    Customer Product Ratings
+                    <span className="relative inline-flex">
+                      <button
+                        type="button"
+                        aria-label="About customer product ratings"
+                        aria-expanded={showRatingsInfo}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowRatingsInfo((open) => !open);
+                        }}
+                        className="text-text-muted transition hover:text-text"
+                      >
+                        <InfoIcon />
+                      </button>
+                      {showRatingsInfo && (
+                        <>
                           <button
                             type="button"
-                            aria-label="About the card pre-authorization hold"
-                            aria-expanded={showHoldInfo}
+                            aria-hidden="true"
+                            tabIndex={-1}
+                            className="fixed inset-0 z-40 cursor-default"
                             onClick={(e) => {
                               e.preventDefault();
-                              setShowHoldInfo((open) => !open);
+                              setShowRatingsInfo(false);
                             }}
-                            className="text-text-muted transition hover:text-text"
+                          />
+                          <span
+                            role="tooltip"
+                            className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
                           >
-                            <InfoIcon />
-                          </button>
-                          {showHoldInfo && (
-                            <>
-                              <button
-                                type="button"
-                                aria-hidden="true"
-                                tabIndex={-1}
-                                className="fixed inset-0 z-40 cursor-default"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setShowHoldInfo(false);
-                                }}
-                              />
-                              <span
-                                role="tooltip"
-                                className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                              >
-                                {
-                                  "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
-                                }
-                              </span>
-                            </>
-                          )}
-                        </span>
-                      </span>
-                    }
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    step="1"
-                    value={form.baselineHold}
-                    onChange={(e) => updateField('baselineHold', e.target.value)}
-                    error={
-                      baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
-                    }
+                            When enabled, guests can rate the products they ordered, and the average
+                            rating is shown on each product.
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </label>
+                  <Toggle
+                    checked={form.ratingsEnabled}
+                    id="ratings-enabled"
+                    label="Customer Product Ratings"
+                    onChange={(value) => updateField('ratingsEnabled', value)}
                   />
-
-                  <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
-                    <label
-                      className="inline-flex items-center gap-1.5 text-sm font-medium"
-                      htmlFor="ratings-enabled"
-                    >
-                      Customer Product Ratings
-                      <span className="relative inline-flex">
-                        <button
-                          type="button"
-                          aria-label="About customer product ratings"
-                          aria-expanded={showRatingsInfo}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowRatingsInfo((open) => !open);
-                          }}
-                          className="text-text-muted transition hover:text-text"
-                        >
-                          <InfoIcon />
-                        </button>
-                        {showRatingsInfo && (
-                          <>
-                            <button
-                              type="button"
-                              aria-hidden="true"
-                              tabIndex={-1}
-                              className="fixed inset-0 z-40 cursor-default"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setShowRatingsInfo(false);
-                              }}
-                            />
-                            <span
-                              role="tooltip"
-                              className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                            >
-                              When enabled, guests can rate the products they ordered, and the
-                              average rating is shown on each product.
-                            </span>
-                          </>
-                        )}
-                      </span>
-                    </label>
-                    <Toggle
-                      checked={form.ratingsEnabled}
-                      id="ratings-enabled"
-                      label="Customer Product Ratings"
-                      onChange={(value) => updateField('ratingsEnabled', value)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
-                    <label
-                      className="inline-flex items-center gap-1.5 text-sm font-medium"
-                      htmlFor="cashier-enabled"
-                    >
-                      Cashier
-                      <span className="relative inline-flex">
-                        <button
-                          type="button"
-                          aria-label="About the cashier"
-                          aria-expanded={showCashierInfo}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowCashierInfo((open) => !open);
-                          }}
-                          className="text-text-muted transition hover:text-text"
-                        >
-                          <InfoIcon />
-                        </button>
-                        {showCashierInfo && (
-                          <>
-                            <button
-                              type="button"
-                              aria-hidden="true"
-                              tabIndex={-1}
-                              className="fixed inset-0 z-40 cursor-default"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setShowCashierInfo(false);
-                              }}
-                            />
-                            <span
-                              role="tooltip"
-                              className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                            >
-                              When enabled, operators get a cashier station to take manual orders
-                              and collect cash payments at the event.
-                            </span>
-                          </>
-                        )}
-                      </span>
-                    </label>
-                    <Toggle
-                      checked={form.cashierEnabled}
-                      id="cashier-enabled"
-                      label="Cashier"
-                      onChange={(value) => updateField('cashierEnabled', value)}
-                    />
-                  </div>
                 </div>
+              </div>
 
-                {/* Branding — sits beside the core fields when the card is wide enough */}
-                <div className="flex flex-col justify-between space-y-5">
-                  <div>
-                    <p className="mb-2 block text-sm font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        Logo
-                        <span className="relative inline-flex">
-                          <button
-                            type="button"
-                            aria-label="About the event logo"
-                            aria-expanded={showLogoInfo}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setShowLogoInfo((open) => !open);
-                            }}
-                            className="text-text-muted transition hover:text-text"
-                          >
-                            <InfoIcon />
-                          </button>
-                          {showLogoInfo && (
-                            <>
-                              <button
-                                type="button"
-                                aria-hidden="true"
-                                tabIndex={-1}
-                                className="fixed inset-0 z-40 cursor-default"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setShowLogoInfo(false);
-                                }}
-                              />
-                              <span
-                                role="tooltip"
-                                className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                              >
-                                Replaces the Lineless logo for attendees. Shown at the size of the
-                                current logo — smaller images sit left, larger ones scale down to
-                                fit.
-                              </span>
-                            </>
-                          )}
-                        </span>
+              {/* No save button — the form auto-saves; this just reflects status. */}
+              <div className="mt-6 flex justify-end text-sm" aria-live="polite">
+                {!settingsValid && settingsSave.dirty ? (
+                  <span className="text-danger">Fix the highlighted field to save.</span>
+                ) : settingsSave.saveError ? (
+                  <span className="text-danger">
+                    Couldn’t save changes — edit a field to retry.
+                  </span>
+                ) : settingsSave.saving || settingsSave.dirty ? (
+                  <span className="text-text-muted">Saving…</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-success">
+                    <CheckCircleIcon className="h-4 w-4" />
+                    All changes saved
+                  </span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Branding — logo, palette, and live preview; auto-saves on its own */}
+          <Card className="scroll-mt-24" id="branding">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ImageIcon className="h-5 w-5" />
+                Branding
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="@container">
+              <div className="flex flex-col gap-x-8 gap-y-6 @2xl:flex-row @2xl:items-stretch">
+                {/* Logo — fixed-width square tile on the left */}
+                <div className="@2xl:w-52 @2xl:shrink-0">
+                  <p className="mb-2 block text-sm font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      Logo
+                      <span className="relative inline-flex">
+                        <button
+                          type="button"
+                          aria-label="About the event logo"
+                          aria-expanded={showLogoInfo}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowLogoInfo((open) => !open);
+                          }}
+                          className="text-text-muted transition hover:text-text"
+                        >
+                          <InfoIcon />
+                        </button>
+                        {showLogoInfo && (
+                          <>
+                            <button
+                              type="button"
+                              aria-hidden="true"
+                              tabIndex={-1}
+                              className="fixed inset-0 z-40 cursor-default"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setShowLogoInfo(false);
+                              }}
+                            />
+                            <span
+                              role="tooltip"
+                              className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                            >
+                              Replaces the Lineless logo for attendees. Shown at the size of the
+                              current logo — smaller images sit left, larger ones scale down to fit.
+                            </span>
+                          </>
+                        )}
                       </span>
-                    </p>
+                    </span>
+                  </p>
+                  {/* Full-width banner while the layout is stacked (mobile);
+                      square 13rem tile once the logo column kicks in. */}
+                  <div className="@2xl:max-w-52">
                     <ImageDropzone
                       previewUrl={logoPreviewUrl}
                       onSelect={handleSelectLogo}
@@ -757,13 +784,17 @@ export default function EventConfiguration() {
                       acceptedTypes={ACCEPTED_IMAGE_TYPES}
                       maxBytes={MAX_IMAGE_BYTES}
                       disabled={logoBusy}
+                      sizeClassName="h-40 @2xl:h-auto @2xl:aspect-square"
                     />
                     {logoError && <p className="mt-1 text-xs text-danger">{logoError}</p>}
                   </div>
+                </div>
 
+                {/* Palette + color roles sit directly on the card, top-aligned
+                    with the logo label. */}
+                <div className="flex flex-1 flex-col gap-5">
                   {/* Presets — one click fills all three roles with a contrast-safe
-                      palette; the organizer can still fine-tune afterwards. Full
-                      width below the logo so all six pills get the row. */}
+                      palette; the organizer can still fine-tune afterwards. */}
                   <BrandPresetRow
                     current={form}
                     onApply={(preset) =>
@@ -776,11 +807,12 @@ export default function EventConfiguration() {
                     }
                   />
 
-                  {/* The three color controls share one row: 3-up when wide, then
-                      2-up, then stacked. Nested @container keys off the branding
-                      half, not the whole card. */}
+                  {/* The three color controls: 3-up on a wide card, then Brand +
+                      Brand Text pair up and Button Text takes its own full row,
+                      then everything stacks. Nested @container keys off the
+                      branding half, not the whole card. */}
                   <div className="@container">
-                    <div className="grid grid-cols-1 items-stretch gap-4 @sm:grid-cols-2 @lg:grid-cols-3">
+                    <div className="grid grid-cols-1 items-stretch gap-4 @sm:grid-cols-2 @3xl:grid-cols-3">
                       {/* Role 1 — brand fill (buttons/highlights). */}
                       <BrandColorField
                         id="primary-color"
@@ -800,83 +832,98 @@ export default function EventConfiguration() {
                           onEnable: () => updateField('accentTextColor', null),
                         }}
                       />
-                      {/* Role 2 — text on the brand fill. secondaryColor in the backend. */}
-                      <ButtonTextColorField
-                        onChange={(value) => updateField('secondaryColor', value)}
-                        value={form.secondaryColor}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="overflow-hidden rounded-lg border border-border bg-surface-muted">
-                    <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                        Preview
-                      </span>
-                      <span className="text-xs text-text-muted">As attendees will see it</span>
-                    </div>
-                    {/* White canvas — matches the attendee page so brand colors read
-                        true. Uses the resolved (clamped) colors, so what's shown here
-                        is exactly what attendees get. */}
-                    <div className="flex items-center gap-8 bg-surface p-4">
-                      <Button
-                        className="shrink-0"
-                        style={{
-                          backgroundColor: resolvedBranding.accent,
-                          color: resolvedBranding.buttonText,
-                        }}
-                      >
-                        Order Now
-                      </Button>
-                      <div className="min-w-0 flex-1 space-y-2">
-                        <p
-                          className="text-sm font-semibold"
-                          style={{ color: resolvedBranding.accentText }}
-                        >
-                          {form.name || 'Lineless Event'}
-                        </p>
-                        <p className="text-sm text-text">
-                          Tonight only —{' '}
-                          <span
-                            className="font-medium underline underline-offset-2"
-                            style={{ color: resolvedBranding.accentText }}
-                          >
-                            view the menu
-                          </span>{' '}
-                          and order from{' '}
-                          <span
-                            className="font-semibold"
-                            style={{ color: resolvedBranding.accentText }}
-                          >
-                            €4.50
-                          </span>
-                          .
-                        </p>
+                      {/* Role 2 — text on the brand fill. secondaryColor in the
+                          backend. Spans the 2-up row so it never sits half-width. */}
+                      <div className="@sm:col-span-2 @3xl:col-span-1">
+                        <ButtonTextColorField
+                          onChange={(value) => updateField('secondaryColor', value)}
+                          value={form.secondaryColor}
+                        />
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* No save button — the form auto-saves; this just reflects status. */}
+              {/* Preview — full width below so brand colors read true across the row */}
+              <div className="mt-6 overflow-hidden rounded-lg border border-border bg-surface-muted">
+                <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                    Preview
+                  </span>
+                  <span className="text-xs text-text-muted">As attendees will see it</span>
+                </div>
+                {/* White canvas — matches the attendee page so brand colors read
+                    true. Uses the resolved (clamped) colors, so what's shown here
+                    is exactly what attendees get. */}
+                <div className="flex items-center gap-6 bg-surface p-4">
+                  <Button
+                    className="shrink-0"
+                    style={{
+                      backgroundColor: resolvedBranding.accent,
+                      color: resolvedBranding.buttonText,
+                    }}
+                  >
+                    Order Now
+                  </Button>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p
+                      className="text-sm font-semibold"
+                      style={{ color: resolvedBranding.accentText }}
+                    >
+                      {form.name || 'Lineless Event'}
+                    </p>
+                    <p className="text-sm text-text">
+                      Tonight only —{' '}
+                      <span
+                        className="font-medium underline underline-offset-2"
+                        style={{ color: resolvedBranding.accentText }}
+                      >
+                        view the menu
+                      </span>{' '}
+                      and order from{' '}
+                      <span
+                        className="font-semibold"
+                        style={{ color: resolvedBranding.accentText }}
+                      >
+                        €4.50
+                      </span>
+                      .
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* No save button — branding auto-saves; this reflects both the
+                  color auto-save and the separate logo upload/removal. */}
               <div className="mt-6 flex justify-end text-sm" aria-live="polite">
-                {!settingsValid && settingsDirty ? (
-                  <span className="text-danger">Fix the highlighted field to save.</span>
-                ) : settingsSaveError ? (
+                {brandingSave.saveError ? (
                   <span className="text-danger">
                     Couldn’t save changes — edit a field to retry.
                   </span>
-                ) : isSavingSettings || settingsDirty ? (
+                ) : logoError ? (
+                  <span className="text-danger">Couldn’t save the logo — try again.</span>
+                ) : brandingSave.saving || brandingSave.dirty || logoBusy ? (
                   <span className="text-text-muted">Saving…</span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 text-text-muted">
-                    <CheckCircleIcon className="h-4 w-4 text-success" />
+                  <span className="inline-flex items-center gap-1.5 text-success">
+                    <CheckCircleIcon className="h-4 w-4" />
                     All changes saved
                   </span>
                 )}
               </div>
             </CardContent>
           </Card>
+
+          {/* Cashier — always shown; the enable toggle lives in its header and
+              expands the location + optional password config (manual save). */}
+          <CashierSettings
+            enabled={form.cashierEnabled}
+            onToggleEnabled={handleToggleCashier}
+            enableError={cashierEnableError}
+            cashierStand={cashierStand}
+            eventLocation={form.location}
+          />
 
           {/* Stands & Products */}
           <Card className="scroll-mt-24" id="stands-products">
@@ -885,6 +932,10 @@ export default function EventConfiguration() {
                 <StandIcon className="h-5 w-5" />
                 Stands &amp; Products
               </CardTitle>
+              <CardDescription>
+                Limit: {MAX_PRODUCTS_PER_STAND} products per stand. This ensures a clean Operator
+                Dashboard.
+              </CardDescription>
               <CardAction>
                 <Button
                   size="sm"
@@ -1132,26 +1183,33 @@ function BrandColorField({
           </>
         )}
       </div>
-      <div className="flex flex-1 flex-wrap items-center gap-2">
+      <div className="flex flex-1 items-center">
+        {/* The swatch is a solid block filling the field's left edge; the
+            native color input sits invisibly on top so it stays the picker. */}
         <div
           className={cn(
-            'flex flex-1 items-center justify-center gap-2 rounded-lg border bg-surface px-3 py-2',
+            'flex w-full items-stretch overflow-hidden rounded-lg border bg-surface',
             showError ? 'border-danger' : 'border-border',
             auto?.active && 'opacity-60',
           )}
         >
+          <span
+            className="relative w-14 shrink-0"
+            style={{ backgroundColor: isValidHex ? draft : value }}
+          >
+            <input
+              aria-label={`${label} swatch`}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              onChange={(e) => {
+                setDraft(e.target.value);
+                onChange(e.target.value);
+              }}
+              type="color"
+              value={isValidHex ? draft : value}
+            />
+          </span>
           <input
-            aria-label={`${label} swatch`}
-            className="h-8 w-10 shrink-0 cursor-pointer rounded border border-border bg-transparent"
-            onChange={(e) => {
-              setDraft(e.target.value);
-              onChange(e.target.value);
-            }}
-            type="color"
-            value={isValidHex ? draft : value}
-          />
-          <input
-            className="w-24 bg-transparent text-center text-sm text-text outline-none"
+            className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-text outline-none"
             id={id}
             maxLength={7}
             onChange={(e) => handleTextChange(e.target.value)}
@@ -1184,16 +1242,16 @@ function ButtonTextColorField({
       <span className="mb-2 flex min-h-7 items-center text-sm font-medium text-text">
         Button Text
       </span>
-      <div className="flex flex-1 items-center justify-start">
-        <div className="flex rounded-lg border border-border bg-surface p-1">
+      <div className="flex flex-1 items-center">
+        <div className="flex w-full rounded-lg bg-surface-muted p-1">
           {BUTTON_TEXT_OPTIONS.map((option) => (
             <button
               key={option.value}
               aria-pressed={value === option.value}
               className={cn(
-                'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 value === option.value
-                  ? 'bg-surface-muted text-text'
+                  ? 'bg-surface text-text shadow-sm'
                   : 'text-text-muted hover:text-text',
               )}
               onClick={() => onChange(option.value)}
