@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { formatMoney, productImageSrc } from '@/types/product';
+import { formatMoney, productImageSrc, tracksStock } from '@/types/product';
 import { QuantityStepper } from '@/components/shared/QuantityStepper';
 import { ChatIcon, ChevronDownIcon, DeleteIcon, ImageIcon } from '@/components/icons';
 
@@ -35,7 +35,7 @@ export function CartCard({
   const showImage = !!imageSrc && imageOk;
   const lineTotal = product.priceIncludingTax * quantity;
   // Respect stock when bumping quantity, mirroring the product card's sold-out guard.
-  const atStockLimit = quantity >= product.productStock;
+  const atStockLimit = tracksStock(product) && quantity >= product.productStock;
   const commentCount = comments.filter((c) => c.trim() !== '').length;
 
   // Progressive disclosure: show every field up to the last one that has text,

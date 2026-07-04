@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { formatMoney, productImageSrc, type Product } from '@/types/product';
+import { formatMoney, productImageSrc, tracksStock, type Product } from '@/types/product';
 
 import { ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
 import { QuantityStepper } from '@/components/shared/QuantityStepper';
@@ -14,7 +14,7 @@ interface ProductCardProps {
   standName: string;
   cartQuantity: number;
   onAdd: (product: Product) => void;
-  onSetQuantity: (productId: string, quantity: number) => void;
+  onSetQuantity: (productId: string, quantity: number, currentProduct?: Product) => void;
 }
 
 export function ProductCard({
@@ -28,8 +28,9 @@ export function ProductCard({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const imageSrc = productImageSrc(product);
   const showImage = !!imageSrc && imageOk;
-  const soldOut = product.productStock <= 0;
-  const atStockLimit = !soldOut && cartQuantity >= product.productStock;
+  const stockTracked = tracksStock(product);
+  const soldOut = stockTracked && product.productStock <= 0;
+  const atStockLimit = stockTracked && (soldOut || cartQuantity >= product.productStock);
 
   const rating = product.rating ?? null;
   // No inline preview — the full description lives in the details dialog, opened
@@ -89,8 +90,8 @@ export function ProductCard({
             // quantity to 0, removing the line and reverting to the Add button.
             <QuantityStepper
               quantity={cartQuantity}
-              onDecrease={() => onSetQuantity(product._id, cartQuantity - 1)}
-              onIncrease={() => onSetQuantity(product._id, cartQuantity + 1)}
+              onDecrease={() => onSetQuantity(product._id, cartQuantity - 1, product)}
+              onIncrease={() => onSetQuantity(product._id, cartQuantity + 1, product)}
               disableIncrease={atStockLimit}
               decreaseLabel={`Decrease ${product.productName} quantity`}
               increaseLabel={`Increase ${product.productName} quantity`}

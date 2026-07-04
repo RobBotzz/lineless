@@ -2,11 +2,12 @@ import { useMemo, useState, type ReactNode } from 'react';
 
 import { MinusIcon, PlusIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import type { Product } from '@/types/product';
+import type { Product, StockMode } from '@/types/product';
 import type { Stand } from '@/types/stand';
 import { ChipFilter } from '../components/ChipFilter';
 import { EmptyState } from '../components/EmptyState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ProductStockChangedError } from '@/api/products';
 
 type StockProductEntry = Product & {
   standName: string;
@@ -23,7 +24,12 @@ export function StockManagementSection({
   productsByStand,
   stands,
 }: {
-  onProductStockChange: (standId: string, product: Product, productStock: number) => Promise<void>;
+  onProductStockChange: (
+    standId: string,
+    product: Product,
+    productStock: number,
+    stockMode: StockMode,
+  ) => Promise<void>;
   productsByStand: Record<string, Product[]>;
   stands: Stand[];
 }) {
@@ -87,8 +93,8 @@ export function StockManagementSection({
                   <StockProductRow
                     key={product._id}
                     product={product}
-                    onSave={(nextStock) =>
-                      onProductStockChange(product.standId, product, nextStock)
+                    onSave={(nextStock, stockMode) =>
+                      onProductStockChange(product.standId, product, nextStock, stockMode)
                     }
                   />
                 ))}
@@ -110,41 +116,53 @@ function StockProductRow({
   onSave,
   product,
 }: {
-  onSave: (productStock: number) => Promise<void>;
+  onSave: (productStock: number, stockMode: StockMode) => Promise<void>;
   product: StockProductEntry;
 }) {
   const [draftState, setDraftState] = useState(() => ({
     productId: product._id,
+    baselineStockMode: product.stockMode,
+    stockMode: product.stockMode,
     productStock: product.productStock,
     value: String(product.productStock),
   }));
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   let draftStock = draftState.value;
-  if (draftState.productId !== product._id || draftState.productStock !== product.productStock) {
+  if (
+    draftState.productId !== product._id ||
+    draftState.productStock !== product.productStock ||
+    draftState.baselineStockMode !== product.stockMode
+  ) {
     draftStock = String(product.productStock);
     setDraftState({
       productId: product._id,
+      baselineStockMode: product.stockMode,
+      stockMode: product.stockMode,
       productStock: product.productStock,
       value: draftStock,
     });
   }
   const parsedStock = parseStockDraft(draftStock);
+  const draftStockMode = draftState.stockMode;
   const isTerminated = product.productStatus === 'TERMINATED';
-  const isDirty = parsedStock !== null && parsedStock !== product.productStock;
-  const canSave = !isTerminated && isDirty && !isSaving;
+  const validStock = draftStockMode === 'UNLIMITED' || parsedStock !== null;
+  const isDirty =
+    validStock && (draftStockMode !== product.stockMode || parsedStock !== product.productStock);
+  const canSave = !isTerminated && validStock && isDirty && !isSaving;
 
   function stepStock(delta: number) {
     const base = parsedStock ?? product.productStock;
     setDraftState((current) => ({
       ...current,
+      stockMode: 'TRACKED',
       value: String(Math.max(0, base + delta)),
     }));
     setError(null);
   }
 
   async function handleSave() {
-    if (parsedStock === null) {
+    if (draftStockMode === 'TRACKED' && parsedStock === null) {
       setError('Enter a non-negative whole number.');
       return;
     }
@@ -153,9 +171,13 @@ function StockProductRow({
     setIsSaving(true);
     setError(null);
     try {
-      await onSave(parsedStock);
-    } catch {
-      setError('Stock could not be saved.');
+      await onSave(parsedStock ?? product.productStock, draftStockMode);
+    } catch (saveError) {
+      setError(
+        saveError instanceof ProductStockChangedError
+          ? 'Stock changed during editing. The current value was loaded.'
+          : 'Stock could not be saved.',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -178,14 +200,37 @@ function StockProductRow({
         </div>
         <p className="mt-1 text-sm text-text-muted">
           Current stock:{' '}
-          <span className="font-semibold tabular-nums text-text">{product.productStock}</span>
+          <span className="font-semibold tabular-nums text-text">
+            {product.stockMode === 'TRACKED' ? product.productStock : 'Unlimited'}
+          </span>
         </p>
       </div>
 
       <div className="flex flex-col gap-2 md:items-end">
+        <label className="flex items-center gap-2 text-sm text-text-muted">
+          <input
+            checked={draftStockMode === 'TRACKED'}
+            className="h-4 w-4 accent-accent"
+            disabled={isTerminated || isSaving}
+            onChange={(event) => {
+              setDraftState((current) => ({
+                ...current,
+                stockMode: event.target.checked ? 'TRACKED' : 'UNLIMITED',
+              }));
+              setError(null);
+            }}
+            type="checkbox"
+          />
+          Track stock
+        </label>
         <div className="flex items-center gap-2">
           <IconButton
-            disabled={isTerminated || isSaving || (parsedStock ?? product.productStock) <= 0}
+            disabled={
+              isTerminated ||
+              isSaving ||
+              draftStockMode === 'UNLIMITED' ||
+              (parsedStock ?? product.productStock) <= 0
+            }
             label={`Decrease ${product.productName} stock`}
             onClick={() => stepStock(-1)}
           >
@@ -194,7 +239,7 @@ function StockProductRow({
           <input
             aria-label={`${product.productName} stock`}
             className="h-10 w-24 rounded-lg border border-border bg-surface px-3 text-center text-sm font-semibold tabular-nums text-text outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted"
-            disabled={isTerminated || isSaving}
+            disabled={isTerminated || isSaving || draftStockMode === 'UNLIMITED'}
             min={0}
             onChange={(event) => {
               setDraftState((current) => ({
@@ -208,7 +253,7 @@ function StockProductRow({
             value={draftStock}
           />
           <IconButton
-            disabled={isTerminated || isSaving}
+            disabled={isTerminated || isSaving || draftStockMode === 'UNLIMITED'}
             label={`Increase ${product.productName} stock`}
             onClick={() => stepStock(1)}
           >
@@ -220,12 +265,14 @@ function StockProductRow({
         </div>
         {error ? (
           <p className="text-xs font-medium text-danger">{error}</p>
-        ) : parsedStock === null ? (
+        ) : draftStockMode === 'TRACKED' && parsedStock === null ? (
           <p className="text-xs text-danger">Enter a non-negative whole number.</p>
         ) : isDirty ? (
           <p className="text-xs text-text-muted">Unsaved stock change.</p>
         ) : (
-          <p className="text-xs text-text-muted">Stock is up to date.</p>
+          <p className="text-xs text-text-muted">
+            {draftStockMode === 'TRACKED' ? 'Stock is up to date.' : 'Stock is unlimited.'}
+          </p>
         )}
       </div>
     </section>

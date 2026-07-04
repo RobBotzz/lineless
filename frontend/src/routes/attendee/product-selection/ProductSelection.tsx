@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLoaderData, useParams, useRouteError, useRouteLoaderData } from 'react-router';
 
 import { paths } from '@/paths';
@@ -15,7 +15,7 @@ export default function ProductSelection() {
   const { stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
   const { event } = useRouteLoaderData('attendee-event') as AttendeeLayoutLoaderData;
   const { eventId } = useParams();
-  const { addItem, setQuantity, totalCount, items } = useCart();
+  const { addItem, setQuantity, syncProducts, totalCount, items } = useCart();
 
   const [selectedStand, setSelectedStand] = useState<string>(ALL_STANDS);
 
@@ -31,11 +31,17 @@ export default function ProductSelection() {
     [items],
   );
 
+  const allProducts = useMemo(() => Object.values(productsByStand).flat(), [productsByStand]);
+
+  useEffect(() => {
+    syncProducts(allProducts);
+  }, [allProducts, syncProducts]);
+
   // Flatten across stands for "All", otherwise show the picked stand only.
   const visibleProducts = useMemo(() => {
-    if (selectedStand === ALL_STANDS) return Object.values(productsByStand).flat();
+    if (selectedStand === ALL_STANDS) return allProducts;
     return productsByStand[selectedStand] ?? [];
-  }, [selectedStand, productsByStand]);
+  }, [selectedStand, productsByStand, allProducts]);
 
   return (
     <div className="flex flex-1 flex-col">
