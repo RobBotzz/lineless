@@ -170,6 +170,11 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
     // Operate on the existing product, the one created on a previous (partly
     // failed) attempt, or create a fresh one.
     const existingProductId = product?._id ?? createdProductId;
+    const imageChangeRequested =
+      imageFile !== null || (removeExistingImage && !!product?.productImageUrl);
+    let stockWasSaved = false;
+    let productWasSaved = false;
+    let imageWasSaved = false;
 
     try {
       if (existingProductId) {
@@ -194,13 +199,17 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
           );
           setSavedProductStock(updatedStock.productStock);
           setSavedStockMode(updatedStock.stockMode);
+          stockWasSaved = true;
         }
         await updateProduct(existingProductId, patch);
+        productWasSaved = true;
         // Image is a separate endpoint: upload a new one, or drop the old one.
         if (imageFile) {
           await uploadProductImage(existingProductId, imageFile);
+          imageWasSaved = true;
         } else if (removeExistingImage && product?.productImageUrl) {
           await deleteProductImage(existingProductId);
+          imageWasSaved = true;
         }
       } else {
         const patch: CreateProductInput = {
@@ -218,8 +227,10 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
         setCreatedProductId(created._id);
         setSavedProductStock(created.productStock);
         setSavedStockMode(created.stockMode);
+        productWasSaved = true;
         if (imageFile) {
           await uploadProductImage(created._id, imageFile);
+          imageWasSaved = true;
         }
       }
 
@@ -232,6 +243,12 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
         setStockMode(err.currentStockMode);
         setSavedStockMode(err.currentStockMode);
         setError('Stock changed during editing. The current value was loaded.');
+      } else if (stockWasSaved && !productWasSaved) {
+        setError('Stock was saved, but the remaining product changes could not be saved.');
+      } else if (productWasSaved && imageChangeRequested && !imageWasSaved) {
+        setError('Product details were saved, but the image change could not be saved.');
+      } else if (productWasSaved) {
+        setError('The product was saved, but the page could not refresh. Please reload the page.');
       } else {
         setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
       }
