@@ -30,7 +30,7 @@ export function ProductCard({
   const showImage = !!imageSrc && imageOk;
   const stockTracked = tracksStock(product);
   const soldOut = stockTracked && product.productStock <= 0;
-  const atStockLimit = stockTracked && !soldOut && cartQuantity >= product.productStock;
+  const atStockLimit = stockTracked && (soldOut || cartQuantity >= product.productStock);
 
   const rating = product.rating ?? null;
   // No inline preview — the full description lives in the details dialog, opened
