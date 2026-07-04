@@ -105,7 +105,9 @@ export function CardCheckoutDialog({
 
   async function pollUntilOpen(tabId: string): Promise<void> {
     for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt += 1) {
+      if (cancelled.current) throw new CancelledError();
       const tab = await getTabStatus(tabId, eventId);
+      if (cancelled.current) throw new CancelledError();
       if (tab.status === 'OPEN') return;
       if (tab.status === 'FAILED') throw new Error('Your card could not be authorized.');
       await delay(POLL_INTERVAL_MS);
@@ -184,6 +186,7 @@ export function CardCheckoutDialog({
     }
 
     const { tabId, clientSecret } = await createTab(eventId);
+    if (cancelled.current) throw new CancelledError();
     setAttendeeTab(eventId, tabId);
     setMessage('Authorizing your card…');
     await awaitCard(clientSecret, 'Authorize card');
@@ -199,6 +202,7 @@ export function CardCheckoutDialog({
       if (pendingResolution === 'completed') return;
 
       const tabId = await ensureOpenTab();
+      if (cancelled.current) throw new CancelledError();
       setMessage('Placing your order…');
 
       creatingOrder.current = true;
