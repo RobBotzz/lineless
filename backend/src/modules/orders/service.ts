@@ -41,6 +41,12 @@ function generatePickupCode(): string {
   return crypto.randomBytes(2).toString("hex").toUpperCase();
 }
 
+// Joins names for user-facing text: "A", "A and B", "A, B and C".
+function formatNameList(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 export type ItemState =
   | "PENDING"
   | "PREPARING"
@@ -99,18 +105,33 @@ async function prepareOrderItems(
     products.map((product) => [product._id, product])
   );
 
+  // Collect every unavailable item so the attendee can be told exactly which
+  // products to remove, rather than failing one at a time.
+  const unavailable = input.items
+    .filter((item) => {
+      const product = productById.get(item.productId);
+      return (
+        !product ||
+        product.productStatus !== "LIVE" ||
+        standStatusById.get(product.standId) === "PAUSED"
+      );
+    })
+    .map((item) => productById.get(item.productId)?.productName ?? "a product");
+
+  if (unavailable.length > 0) {
+    const names = formatNameList(unavailable);
+    const subject =
+      unavailable.length === 1
+        ? `${names} is currently not available for ordering. It may become available again later`
+        : `${names} are currently not available for ordering. They may become available again later`;
+    throw new OrderValidationError(
+      `${subject} — please remove ${unavailable.length === 1 ? "it" : "them"} from your order before paying. Sorry for the inconvenience.`
+    );
+  }
+
   let totalCents = 0;
   const processedItems: OrderItemDoc[] = input.items.map((item) => {
-    const product = productById.get(item.productId);
-    if (
-      !product ||
-      product.productStatus !== "LIVE" ||
-      standStatusById.get(product.standId) === "PAUSED"
-    ) {
-      throw new OrderValidationError(
-        `Product ${item.productId} is not available for ordering.`
-      );
-    }
+    const product = productById.get(item.productId)!;
     totalCents += product.priceIncludingTax;
     return {
       _id: uuidv4(),

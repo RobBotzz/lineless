@@ -4,6 +4,7 @@ import {
   createEvent,
   listEvents,
   getEventForAttendee,
+  getEventForOperatorLink,
   getEventForOrganizer,
   updateEvent,
   startEvent,
@@ -25,7 +26,7 @@ import { createEventSchema, updateEventSchema } from "./types";
 import { checkoutTabsForOrganizerEvent } from "../tabs/service";
 import {
   authOrganizer,
-  authOrganizerOrAttendee,
+  authOrganizerOrAttendeeOrEventLink,
 } from "../../middleware/auth/guards";
 import { uploadSingleImage } from "../../shared/imageUpload";
 
@@ -58,15 +59,27 @@ function handleError(err: unknown, res: Response): unknown {
 // Accepts a single multipart "image" field; maps multer errors via handleError.
 const uploadEventLogo = uploadSingleImage("image", handleError);
 
-// GET /events/:eventId — readable by organizer and attendee (session)
+// GET /events/:eventId — readable by organizer, attendee (session), and
+// operator (event-scoped access key, e.g. the cashier).
 eventsRouter.get(
   "/:eventId",
-  authOrganizerOrAttendee,
+  authOrganizerOrAttendeeOrEventLink,
   async (req: Request, res: Response) => {
     try {
-      const event = req.organizer
-        ? await getEventForOrganizer(eventId(req), req.organizer.accountId)
-        : await getEventForAttendee(eventId(req), req.attendee!.eventId);
+      let event;
+      if (req.organizer) {
+        event = await getEventForOrganizer(
+          eventId(req),
+          req.organizer.accountId
+        );
+      } else if (req.attendee) {
+        event = await getEventForAttendee(eventId(req), req.attendee.eventId);
+      } else {
+        event = await getEventForOperatorLink(
+          eventId(req),
+          req.operatorLink!.eventId
+        );
+      }
       res.status(200).json(event);
     } catch (err) {
       handleError(err, res);

@@ -16,10 +16,12 @@ import {
 } from "./modules/products/routes";
 import {
   orderRatingsRouter,
+  orderSelfRatingsRouter,
   productRatingsRouter,
 } from "./modules/ratings/routes";
 import { operatorRouter } from "./modules/operator/routes";
 import { eventControlCenterRouter } from "./modules/eventControlCenter/routes";
+import payoutsRouter from "./modules/payouts/routes";
 import { pickupBoardRouter } from "./modules/pickupBoard/routes";
 import { openapiSpec } from "./docs/openapi";
 
@@ -59,9 +61,11 @@ app.use("/api/stands", standsRouter);
 app.use("/api/products/:productId/ratings", productRatingsRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/tabs", tabsRouter);
+app.use("/api/orders/:orderId/ratings", orderSelfRatingsRouter);
 app.use("/api/orders/:orderId/products/:productId/ratings", orderRatingsRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/cash-payments", cashPaymentsRouter);
+app.use("/api/payouts", payoutsRouter);
 
 // View-based
 app.use("/api/operator", operatorRouter);
