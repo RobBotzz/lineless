@@ -55,11 +55,12 @@ export function StandFilter({ stands, selected, onSelect }: StandFilterProps) {
               type="button"
               onClick={() => onSelect(chip.id)}
               className={[
-                'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+                'max-w-64 shrink-0 truncate rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
                 isActive
                   ? 'border-accent bg-accent text-[var(--color-button-text)]'
                   : 'border-border bg-surface text-text hover:bg-surface-muted',
               ].join(' ')}
+              title={chip.label}
             >
               {chip.label}
             </button>

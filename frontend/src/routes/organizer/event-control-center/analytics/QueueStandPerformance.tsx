@@ -103,7 +103,7 @@ function QueueStandPerformanceRow({
                 : 'bg-success shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-success)_12%,transparent)]',
             ].join(' ')}
           />
-          <h3 className="truncate font-semibold text-text">{entry.standName}</h3>
+          <h3 className="font-semibold text-text [overflow-wrap:anywhere]">{entry.standName}</h3>
         </div>
         <p className="mt-1 text-xs text-text-muted">
           {entry.alert ? 'Alert threshold reached' : 'No active queue alert'}

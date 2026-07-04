@@ -64,7 +64,10 @@ export function AlertDialog({
         <h2 id="alert-dialog-title" className="mt-5 text-xl font-semibold text-text">
           {title}
         </h2>
-        <p id="alert-dialog-message" className="mt-3 text-sm leading-6 text-text-muted">
+        <p
+          id="alert-dialog-message"
+          className="mt-3 text-sm leading-6 text-text-muted [overflow-wrap:anywhere]"
+        >
           {message}
         </p>
 

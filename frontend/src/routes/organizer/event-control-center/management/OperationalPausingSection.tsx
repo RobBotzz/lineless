@@ -105,13 +105,13 @@ function StandPausePanel({
     <>
       <section className="rounded-lg border border-border bg-background">
         <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="font-semibold text-text">{stand.standName}</h3>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-text [overflow-wrap:anywhere]">{stand.standName}</h3>
             <p className="mt-1 text-xs text-text-muted">
               Stand pause blocks new orders while existing orders stay visible.
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:items-end">
+          <div className="flex flex-col gap-2 sm:shrink-0 sm:items-end">
             <StandAvailabilityControl onPauseChange={onStandPauseChange} stand={stand} />
             {isStandPaused ? (
               <Button
@@ -310,7 +310,12 @@ function ProductPauseTile({
         ].join(' ')}
       >
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-text">{product.productName}</p>
+          <p
+            className="line-clamp-2 text-sm font-semibold text-text [overflow-wrap:anywhere]"
+            title={product.productName}
+          >
+            {product.productName}
+          </p>
           <p className="mt-1 text-xs text-text-muted">
             EUR {formatMoney(product.priceIncludingTax)} / {availabilityText}
           </p>

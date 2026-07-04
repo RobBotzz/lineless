@@ -254,7 +254,12 @@ function ProductTile({
         </div>
         <div className="flex items-center justify-between gap-2 p-2.5">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-text">{product.productName}</p>
+            <p
+              className="line-clamp-2 min-h-10 text-sm font-medium text-text [overflow-wrap:anywhere]"
+              title={product.productName}
+            >
+              {product.productName}
+            </p>
             <p className="text-sm font-semibold text-accent">
               {soldOut ? 'Sold out' : `€${formatMoney(product.priceIncludingTax)}`}
             </p>

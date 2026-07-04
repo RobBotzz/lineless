@@ -78,7 +78,9 @@ export function ProductCard({
       {/* Details — name + rating + optional description, then price/add row. */}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         {/* pr-6 keeps the name clear of the info button. */}
-        <h3 className="truncate pr-6 text-sm font-semibold text-text">{product.productName}</h3>
+        <h3 className="pr-6 text-sm font-semibold text-text [overflow-wrap:anywhere]">
+          {product.productName}
+        </h3>
         <Rating value={rating} />
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-3">

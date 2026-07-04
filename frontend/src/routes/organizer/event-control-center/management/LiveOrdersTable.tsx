@@ -288,7 +288,7 @@ function LiveOrderRow({
           <span className="block text-xs text-text-muted">{order.pickupCode}</span>
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-sm text-text">{standSummary}</span>
+          <span className="block text-sm text-text [overflow-wrap:anywhere]">{standSummary}</span>
           <span className="mt-1 block text-xs text-text-muted">
             {order.items.length} item{order.items.length === 1 ? '' : 's'} across{' '}
             {standNames.length} stand{standNames.length === 1 ? '' : 's'} /{' '}
@@ -384,7 +384,7 @@ function LiveOrderItemRow({
         type="checkbox"
       />
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-text">{item.productName}</p>
+        <p className="text-sm font-medium text-text [overflow-wrap:anywhere]">{item.productName}</p>
         {item.customerComment ? (
           <p className="mt-1 truncate text-xs text-text-muted">{item.customerComment}</p>
         ) : null}
