@@ -493,15 +493,18 @@ export default function EventConfiguration() {
                     ))}
                   </ul>
                   {canDelete && (
-                    <Button
-                      className="w-full border-danger/40 text-danger hover:bg-danger/5"
-                      disabled={busy}
-                      onClick={() => setPendingDeleteEvent(true)}
-                      size="lg"
-                      variant="outline"
-                    >
-                      Delete Event
-                    </Button>
+                    <>
+                      <hr className="border-border" />
+                      <Button
+                        className="w-full border-danger/40 text-danger hover:bg-danger/5"
+                        disabled={busy}
+                        onClick={() => setPendingDeleteEvent(true)}
+                        size="lg"
+                        variant="outline"
+                      >
+                        Delete Event
+                      </Button>
+                    </>
                   )}
                 </CardContent>
               </Card>
