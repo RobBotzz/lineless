@@ -38,16 +38,80 @@ function resizeComments(comments: string[] | undefined, quantity: number): strin
   return base;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+
+function parseStoredProduct(value: unknown): Product | null {
+  if (!isRecord(value)) return null;
+  const stockMode =
+    value.stockMode === undefined
+      ? 'UNLIMITED'
+      : value.stockMode === 'UNLIMITED' || value.stockMode === 'TRACKED'
+        ? value.stockMode
+        : null;
+  if (
+    !stockMode ||
+    typeof value._id !== 'string' ||
+    typeof value.standId !== 'string' ||
+    typeof value.productName !== 'string' ||
+    !isNonNegativeInteger(value.priceIncludingTax) ||
+    !isNonNegativeInteger(value.taxRate) ||
+    value.taxRate > 10_000 ||
+    !isNonNegativeInteger(value.productStock) ||
+    (value.productStatus !== 'LIVE' &&
+      value.productStatus !== 'PAUSED' &&
+      value.productStatus !== 'TERMINATED')
+  ) {
+    return null;
+  }
+
+  return {
+    _id: value._id,
+    standId: value.standId,
+    productName: value.productName,
+    productDescription:
+      typeof value.productDescription === 'string' ? value.productDescription : null,
+    priceIncludingTax: value.priceIncludingTax,
+    taxRate: value.taxRate,
+    productImageUrl: typeof value.productImageUrl === 'string' ? value.productImageUrl : null,
+    instantProduct: typeof value.instantProduct === 'boolean' ? value.instantProduct : false,
+    stockMode,
+    productStock: value.productStock,
+    productStatus: value.productStatus,
+    ...(typeof value.rating === 'number' || value.rating === null ? { rating: value.rating } : {}),
+    createdAt: typeof value.createdAt === 'string' ? value.createdAt : '',
+    updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : '',
+  };
+}
+
 function readStored(persistKey: string | undefined): CartItem[] {
   if (!persistKey) return [];
   try {
     const raw = localStorage.getItem(persistKey);
     if (!raw) return [];
-    // Normalise: older carts may predate `comments`, so backfill them here.
-    return (JSON.parse(raw) as CartItem[]).map((item) => ({
-      ...item,
-      comments: resizeComments(item.comments, item.quantity),
-    }));
+    const stored: unknown = JSON.parse(raw);
+    if (!Array.isArray(stored)) return [];
+    return stored.flatMap((value) => {
+      if (!isRecord(value) || !isPositiveInteger(value.quantity)) return [];
+      const product = parseStoredProduct(value.product);
+      if (!product) return [];
+      const quantity = value.quantity;
+      const comments =
+        Array.isArray(value.comments) &&
+        value.comments.every((comment) => typeof comment === 'string')
+          ? value.comments
+          : [];
+      return [{ product, quantity, comments: resizeComments(comments, quantity) }];
+    });
   } catch {
     return [];
   }
