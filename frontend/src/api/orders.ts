@@ -269,6 +269,7 @@ export async function createCardOrder(
   items: OrderItemView[],
   tabId: string,
   requestId: string,
+  signal?: AbortSignal,
 ): Promise<CardOrderResult> {
   const { status, data } = await apiFetchAllowing<
     { order?: Order; clientSecret?: string; orderId?: string } | InsufficientStockResponse
@@ -278,6 +279,7 @@ export async function createCardOrder(
       method: 'POST',
       auth: 'attendee',
       eventId,
+      signal,
       body: JSON.stringify({ eventId, tabId, requestId, items: flattenOrderItems(items) }),
     },
     [402, 409],

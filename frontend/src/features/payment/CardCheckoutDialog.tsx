@@ -4,6 +4,7 @@ import { Elements } from '@stripe/react-stripe-js';
 import { Button } from '@/components/ui/button';
 import {
   cancelPendingOrderAuthorization,
+  type CardOrderResult,
   createCardOrder,
   getAttendeeOrder,
   InsufficientStockError,
@@ -38,6 +39,7 @@ type PendingOrderResolution = 'none' | 'cancelled' | 'completed';
 // backend, so we poll briefly after each card confirmation.
 const POLL_INTERVAL_MS = 1500;
 const POLL_MAX_ATTEMPTS = 20; // ~30s, covers normal webhook latency
+const ORDER_REQUEST_TIMEOUT_MS = 20_000;
 
 // Distinguishes a user-initiated cancel from a real failure so the runner can
 // unwind silently instead of showing an error.
@@ -142,6 +144,21 @@ export function CardCheckoutDialog({
     return 'cancelled';
   }
 
+  async function createOrderWithTimeout(tabId: string): Promise<CardOrderResult> {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), ORDER_REQUEST_TIMEOUT_MS);
+    try {
+      return await createCardOrder(eventId, items, tabId, requestId.current, controller.signal);
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error('Placing the order timed out. Please retry.', { cause: error });
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
   // Returns the id of an OPEN tab, opening + authorizing a new one if the stored
   // tab is missing or no longer usable.
   async function ensureOpenTab(): Promise<string> {
@@ -186,7 +203,7 @@ export function CardCheckoutDialog({
 
       creatingOrder.current = true;
       setIsCreatingOrder(true);
-      const result = await createCardOrder(eventId, items, tabId, requestId.current);
+      const result = await createOrderWithTimeout(tabId);
       // For top-ups, publish the cleanup id before making cancellation
       // available again. This closes the response/close race that could leave
       // a reserved order and Stripe hold behind.
