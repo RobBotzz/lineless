@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
 
-import { AlertDialog } from '@/components/feedback';
+import { AlertDialog, StockConflictDialog, type StockConflictItem } from '@/components/feedback';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { createOrder, InsufficientStockError } from '@/api/orders';
@@ -42,6 +42,7 @@ export default function Cart() {
   // Non-null while the card flow runs: the items the dialog is paying for.
   const [cardItems, setCardItems] = useState<OrderItemView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stockConflict, setStockConflict] = useState<StockConflictItem[] | null>(null);
   const checkoutAttempt = useRef<{ fingerprint: string; requestId: string } | null>(null);
 
   // Prefill from the email the attendee already gave on this session; if it's
@@ -55,14 +56,17 @@ export default function Cart() {
   const backTo = eventId ? paths.attendee.event(eventId) : paths.home;
 
   function handleStockConflict(conflict: InsufficientStockError) {
-    const names = conflict.shortages.map((shortage) => {
+    const affectedItems = conflict.shortages.map((shortage) => {
       const item = items.find((candidate) => candidate.product._id === shortage.productId);
-      return `${item?.product.productName ?? 'Product'}: ${shortage.available} available`;
+      return {
+        ...shortage,
+        productName: item?.product.productName ?? 'Product',
+      };
     });
     applyStockShortages(conflict.shortages);
     checkoutAttempt.current = null;
     setCardItems(null);
-    setError(`Stock changed. ${names.join(', ')}.`);
+    setStockConflict(affectedItems);
     setIsCheckingOut(false);
   }
 
@@ -266,6 +270,7 @@ export default function Cart() {
         acknowledgeLabel="Close"
         onAcknowledge={() => setError(null)}
       />
+      <StockConflictDialog items={stockConflict} onAcknowledge={() => setStockConflict(null)} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
-import { AlertDialog } from '@/components/feedback';
+import { AlertDialog, StockConflictDialog, type StockConflictItem } from '@/components/feedback';
 import { CartIcon, ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ export default function CashierManualOrder() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stockConflict, setStockConflict] = useState<StockConflictItem[] | null>(null);
   const checkoutAttempt = useRef<{ fingerprint: string; requestId: string } | null>(null);
 
   // The cashier sells the whole event menu, so the catalog spans every stand.
@@ -80,9 +81,12 @@ export default function CashierManualOrder() {
       navigate(paths.operator.cashierPaymentOrder(eventId, order._id));
     } catch (err) {
       if (err instanceof InsufficientStockError) {
-        const details = err.shortages.map((shortage) => {
+        const affectedItems = err.shortages.map((shortage) => {
           const item = items.find((candidate) => candidate.product._id === shortage.productId);
-          return `${item?.product.productName ?? 'Product'}: ${shortage.available} available`;
+          return {
+            ...shortage,
+            productName: item?.product.productName ?? 'Product',
+          };
         });
         const availableById = new Map(
           err.shortages.map((shortage) => [shortage.productId, shortage.available]),
@@ -95,7 +99,7 @@ export default function CashierManualOrder() {
         );
         applyStockShortages(err.shortages);
         checkoutAttempt.current = null;
-        setError(`Stock changed. ${details.join(', ')}.`);
+        setStockConflict(affectedItems);
         setIsCheckingOut(false);
         return;
       }
@@ -187,6 +191,7 @@ export default function CashierManualOrder() {
         title="Error"
         acknowledgeLabel="Close"
       />
+      <StockConflictDialog items={stockConflict} onAcknowledge={() => setStockConflict(null)} />
     </div>
   );
 }
