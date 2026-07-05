@@ -14,6 +14,15 @@ import { formatOrderDateTime } from './orderFormat';
 import type { CashierContext } from './CashierLayout';
 import { useCashierOrder } from './useCashierOrder';
 
+// The cash-payment endpoint returns 409 both when the event is inactive and
+// when the order was already paid (double-confirm race). The backend sends no
+// discriminating code, so we key off its error message to tell them apart.
+function isAlreadyPaid(err: ApiError): boolean {
+  return (
+    err.message.toLowerCase().includes('already') && err.message.toLowerCase().includes('paid')
+  );
+}
+
 export default function CashierPaymentDetails() {
   const { orderId } = useParams() as { orderId: string };
   const { eventId, standId } = useOutletContext<CashierContext>();
@@ -36,6 +45,13 @@ export default function CashierPaymentDetails() {
       navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
+        // The endpoint returns 409 for two distinct cases. A double-confirm race
+        // resolves the order as already paid — that is a success, so continue to
+        // the confirmation screen. Any other 409 means the event is not active.
+        if (isAlreadyPaid(err)) {
+          navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
+          return;
+        }
         setEventInactive(true);
       } else {
         setPayError(err instanceof Error ? err.message : 'Could not confirm the payment.');
