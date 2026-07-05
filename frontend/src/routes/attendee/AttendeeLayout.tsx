@@ -1,5 +1,12 @@
 import type { ComponentType, SVGProps } from 'react';
-import { Link, Outlet, useLoaderData, useParams, useRouteError } from 'react-router';
+import {
+  Link,
+  Outlet,
+  useLoaderData,
+  useParams,
+  useRouteError,
+  useRouteLoaderData,
+} from 'react-router';
 
 import { ApiError } from '@/api/client';
 import { AttendeeNavbar } from '@/components/layout/navbars';
@@ -10,6 +17,7 @@ import { paths } from '@/paths';
 import { eventLogoSrc } from '@/types/event';
 import { BrandingProvider } from '@/features/branding/BrandingContext';
 import { BrandLogo } from '@/features/branding/BrandLogo';
+import type { Branding } from '@/features/branding/applyBranding';
 
 import { CartProvider, useCart } from './cart/cart-context';
 import { ATTENDEE_WIDTH } from './column';
@@ -81,23 +89,34 @@ const TONE_CLASSES: Record<Tone, { halo: string; badge: string; pill: string }> 
 interface StatusContent {
   icon: IconComponent;
   tone: Tone;
-  // Short chip above the title (e.g. "Not open yet").
   label: string;
   title: string;
   description: string;
-  // Reload as primary when the situation might resolve on retry; otherwise the
-  // only action is heading home.
   showRetry: boolean;
 }
 
-// Reads the backend's lifecycle hint (see EventNotActiveError -> 409 with
-// eventStatus) off the error body, if present.
 function readEventStatus(error: unknown): string | null {
   if (!(error instanceof ApiError) || typeof error.data !== 'object' || error.data === null) {
     return null;
   }
   const status = (error.data as { eventStatus?: unknown }).eventStatus;
   return typeof status === 'string' ? status : null;
+}
+
+function readBranding(error: unknown): Branding | null {
+  if (!(error instanceof ApiError) || typeof error.data !== 'object' || error.data === null) {
+    return null;
+  }
+  const branding = (error.data as { branding?: unknown }).branding;
+  if (typeof branding !== 'object' || branding === null) return null;
+  const b = branding as Record<string, unknown>;
+  if (typeof b.primaryColor !== 'string' || typeof b.secondaryColor !== 'string') return null;
+  return {
+    primaryColor: b.primaryColor,
+    secondaryColor: b.secondaryColor,
+    accentTextColor: typeof b.accentTextColor === 'string' ? b.accentTextColor : null,
+    logoUrl: typeof b.logoUrl === 'string' ? b.logoUrl : null,
+  };
 }
 
 // Maps the loader error to a user-facing explanation. The backend distinguishes
@@ -152,20 +171,33 @@ function resolveStatusContent(error: unknown): StatusContent {
   };
 }
 
-// Rendered when the layout loader fails. Stands alone (no event branding/cart,
-// because the event fetch itself failed) and explains *why* the shop is
-// unavailable: not started yet, already ended, unknown link, or a transient
-// error. Full-page, centered, responsive down to small phones. The lineless
-// wordmark sits centered above the card — no navbar, since there is nothing to
-// navigate to from here.
 export function AttendeeLayoutError() {
   const error = useRouteError();
+  // Branding comes from whichever source is available: the layout loader data
+  // survives when the error bubbled up from a child route; otherwise (the layout
+  // loader itself 409'd for a not-active event) the backend ships the branding on
+  // the error body. Either way, if we have it, the page is branded like the shop.
+  const layoutData = useRouteLoaderData('attendee-event') as AttendeeLayoutLoaderData | undefined;
+  const event = layoutData?.event ?? null;
+  const branding: Branding | null = event?.branding ?? readBranding(error);
+  const logoSrc = event ? eventLogoSrc(event) : (branding?.logoUrl ?? null);
+
+  const card = <AttendeeErrorCard error={error} logoSrc={logoSrc} />;
+
+  return branding ? <BrandingProvider branding={branding}>{card}</BrandingProvider> : card;
+}
+
+function AttendeeErrorCard({ error, logoSrc }: { error: unknown; logoSrc: string | null }) {
   const { icon: Icon, tone, label, title, description, showRetry } = resolveStatusContent(error);
   const toneClasses = TONE_CLASSES[tone];
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center bg-background px-4 py-10">
-      <Wordmark className="mb-6 text-3xl" />
+      {logoSrc ? (
+        <img src={logoSrc} alt="Event logo" className="mb-6 h-10 max-w-55 object-contain" />
+      ) : (
+        <Wordmark className="mb-6 text-3xl" />
+      )}
 
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 text-center shadow-sm sm:p-8">
         <span
