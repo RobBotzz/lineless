@@ -196,7 +196,12 @@ export function CardCheckoutDialog({
           try {
             setMessage('Confirming authorization…');
             await pollUntilOpen(existing.tabId);
-            return existing.tabId;
+            // pollUntilOpen only waits for OPEN; a tab that crossed its 36h
+            // freeze window while we were polling is OPEN but no longer accepts
+            // orders. Re-check so we open a replacement instead of returning a
+            // tab the backend will immediately reject.
+            const opened = await getTabStatus(existing.tabId, eventId);
+            if (opened.acceptingOrders) return existing.tabId;
           } catch {
             // Never opened (declined, or the card was never confirmed) — fall
             // through and open a fresh tab below.
