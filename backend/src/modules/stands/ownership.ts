@@ -1,6 +1,9 @@
 import { Stand } from "./model";
 import { StandNotFoundError } from "./errors";
-import { verifyEventOwnership } from "../events/ownership";
+import {
+  verifyEventOwnership,
+  verifyMutableEventOwnership,
+} from "../events/ownership";
 
 export async function verifyStandOwnership(
   standId: string,
@@ -9,4 +12,15 @@ export async function verifyStandOwnership(
   const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
   if (!stand) throw new StandNotFoundError();
   await verifyEventOwnership(stand.eventId, accountId);
+}
+
+// Ownership check for mutations: additionally rejects a product whose event is
+// COMPLETED (immutable). Reads keep using verifyStandOwnership.
+export async function verifyMutableStandOwnership(
+  standId: string,
+  accountId: string
+): Promise<void> {
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
+  if (!stand) throw new StandNotFoundError();
+  await verifyMutableEventOwnership(stand.eventId, accountId);
 }

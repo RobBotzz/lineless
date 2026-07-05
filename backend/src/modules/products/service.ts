@@ -19,7 +19,10 @@ import {
   toNodeBuffer,
   type UploadedImage,
 } from "../../shared/imageUpload";
-import { verifyStandOwnership } from "../stands/ownership";
+import {
+  verifyMutableStandOwnership,
+  verifyStandOwnership,
+} from "../stands/ownership";
 import { Stand } from "../stands/model";
 import {
   CashierStandProtectedError,
@@ -111,7 +114,7 @@ export async function createProduct(
   accountId: string,
   input: CreateProductInput
 ): Promise<ProductDoc> {
-  await verifyStandOwnership(standId, accountId);
+  await verifyMutableStandOwnership(standId, accountId);
   // The cashier stand carries no products of its own; it serves the event-wide
   // catalog. Reject product creation against it.
   const stand = await Stand.findOne({ _id: standId, deletedAt: null })
@@ -209,7 +212,7 @@ async function findControllableProduct(
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
   if (auth.type === "organizer") {
-    await verifyStandOwnership(product.standId, auth.accountId);
+    await verifyMutableStandOwnership(product.standId, auth.accountId);
   } else {
     await verifyStandAccessForOperator(product.standId, auth.standId);
   }
@@ -259,7 +262,7 @@ export async function updateProduct(
 ): Promise<ProductDoc> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyStandOwnership(product.standId, accountId);
+  await verifyMutableStandOwnership(product.standId, accountId);
   if (patch.productName !== undefined) product.productName = patch.productName;
   if (patch.productDescription !== undefined) {
     product.productDescription = patch.productDescription;
@@ -283,7 +286,7 @@ export async function updateProductStock(
     .select("standId")
     .lean();
   if (!existing) throw new ProductNotFoundError();
-  await verifyStandOwnership(existing.standId, accountId);
+  await verifyMutableStandOwnership(existing.standId, accountId);
 
   const product = await Product.findOneAndUpdate(
     {
@@ -328,7 +331,7 @@ export async function setProductImage(
 ): Promise<ProductDoc> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyStandOwnership(product.standId, accountId);
+  await verifyMutableStandOwnership(product.standId, accountId);
 
   const detectedType = sniffImageMimeType(file.buffer);
   if (
@@ -378,7 +381,7 @@ export async function deleteProductImage(
 ): Promise<ProductDoc> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyStandOwnership(product.standId, accountId);
+  await verifyMutableStandOwnership(product.standId, accountId);
 
   await ProductImage.deleteOne({ productId });
   product.productImageUrl = null;
@@ -392,7 +395,7 @@ export async function softDeleteProduct(
 ): Promise<void> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyStandOwnership(product.standId, accountId);
+  await verifyMutableStandOwnership(product.standId, accountId);
 
   // Soft-deleting the product and dropping its (heavy) image binary must be
   // atomic — otherwise a crash between the two writes leaves either an orphaned

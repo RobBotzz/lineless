@@ -25,6 +25,7 @@ import {
   assertSessionOwnsEvent,
   verifyActiveEvent,
   verifyEventOwnership,
+  verifyMutableEventOwnership,
   verifyOperableEvent,
 } from "../events/ownership";
 import { Event } from "../events/model";
@@ -115,7 +116,7 @@ export async function createStand(
   accountId: string,
   input: CreateStandInput
 ): Promise<SafeStand> {
-  await verifyEventOwnership(eventId, accountId);
+  await verifyMutableEventOwnership(eventId, accountId);
   const accessPasswordHash = input.accessPassword
     ? await hashPassword(input.accessPassword)
     : null;
@@ -243,7 +244,7 @@ export async function updateStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
   if (patch.standName !== undefined) stand.standName = patch.standName;
   if (patch.location) {
     stand.location.locationName = patch.location.locationName;
@@ -266,7 +267,7 @@ export async function pauseStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
 
   stand.standStatus = "PAUSED";
   await stand.save();
@@ -279,7 +280,7 @@ export async function resumeStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
 
   stand.standStatus = "LIVE";
   await stand.save();
@@ -405,7 +406,7 @@ export async function softDeleteStand(
 ): Promise<void> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
   // The cashier stand is system-managed and cannot be deleted by a user.
   if (stand.standType === "CASHIER") {
     throw new CashierStandProtectedError("The cashier stand cannot be deleted");

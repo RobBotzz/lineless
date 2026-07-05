@@ -26,7 +26,7 @@ import {
 } from "./errors";
 import { RefreshTokenInvalidError } from "../auth/errors";
 import { refreshTokenSchema } from "../auth/types";
-import { EventNotFoundError } from "../events/errors";
+import { EventNotFoundError, EventStateError } from "../events/errors";
 import {
   createStandSchema,
   operatorLoginSchema,
@@ -52,6 +52,8 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
+  if (err instanceof EventStateError)
+    return res.status(409).json({ error: err.message });
   if (err instanceof OperatorInvalidCredentialsError)
     return res.status(401).json({ error: err.message });
   if (err instanceof CashierStandDisabledError)

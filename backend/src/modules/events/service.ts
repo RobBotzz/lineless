@@ -132,15 +132,22 @@ async function findActiveEvent(eventId: string, accountId: string) {
   return event;
 }
 
+// A COMPLETED event is immutable — its settings, branding, logo, stands and
+// products can no longer be changed. Every organizer mutation on the event goes
+// through here so the rule lives in one place.
+function assertEventModifiable(status: EventDoc["status"]): void {
+  if (status === "COMPLETED") {
+    throw new EventStateError("A completed event cannot be modified");
+  }
+}
+
 export async function updateEvent(
   eventId: string,
   accountId: string,
   patch: UpdateEventInput
 ): Promise<EventDoc> {
   const event = await findActiveEvent(eventId, accountId);
-  if (event.status === "COMPLETED") {
-    throw new EventStateError("A completed event cannot be modified");
-  }
+  assertEventModifiable(event.status);
   if (patch.name !== undefined) event.name = patch.name;
   if (patch.plannedDate !== undefined) event.plannedDate = patch.plannedDate;
   if (patch.ratingsEnabled !== undefined) {
@@ -284,6 +291,7 @@ export async function setEventLogo(
   file: UploadedImage
 ): Promise<EventDoc> {
   const event = await findActiveEvent(eventId, accountId);
+  assertEventModifiable(event.status);
 
   const detectedType = sniffImageMimeType(file.buffer);
   if (
@@ -329,6 +337,7 @@ export async function deleteEventLogo(
   accountId: string
 ): Promise<EventDoc> {
   const event = await findActiveEvent(eventId, accountId);
+  assertEventModifiable(event.status);
   await EventLogo.deleteOne({ eventId });
   event.branding.logoUrl = null;
   await event.save();
