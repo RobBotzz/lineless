@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { formatMoney, productImageSrc } from '@/types/product';
+import { formatMoney, productImageSrc, tracksStock } from '@/types/product';
 import { QuantityStepper } from '@/components/shared/QuantityStepper';
 import { ChatIcon, ChevronDownIcon, DeleteIcon, ImageIcon } from '@/components/icons';
 
@@ -35,7 +35,7 @@ export function CartCard({
   const showImage = !!imageSrc && imageOk;
   const lineTotal = product.priceIncludingTax * quantity;
   // Respect stock when bumping quantity, mirroring the product card's sold-out guard.
-  const atStockLimit = quantity >= product.productStock;
+  const atStockLimit = tracksStock(product) && quantity >= product.productStock;
   const commentCount = comments.filter((c) => c.trim() !== '').length;
 
   // Progressive disclosure: show every field up to the last one that has text,
@@ -80,8 +80,12 @@ export function CartCard({
 
         {/* Name + optional stand + unit price */}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-6">
-          <h3 className="truncate text-sm font-semibold text-text">{product.productName}</h3>
-          {standName && <span className="truncate text-xs text-text-muted">{standName}</span>}
+          <h3 className="text-sm font-semibold text-text [overflow-wrap:anywhere]">
+            {product.productName}
+          </h3>
+          {standName && (
+            <span className="text-xs text-text-muted [overflow-wrap:anywhere]">{standName}</span>
+          )}
           <span className="text-sm font-semibold text-accent-contrast">
             €{formatMoney(product.priceIncludingTax)}
           </span>
@@ -126,7 +130,7 @@ export function CartCard({
           <div className="mt-3 space-y-3">
             {comments.slice(0, visibleComments).map((comment, index) => (
               <label key={index} className="block">
-                <span className="text-xs text-text-muted">
+                <span className="text-xs text-text-muted [overflow-wrap:anywhere]">
                   {product.productName} #{index + 1}
                 </span>
                 <input

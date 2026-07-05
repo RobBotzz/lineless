@@ -223,15 +223,19 @@ function ProductRatingCard({ rating }: { rating: ProductRating }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <h4 className="break-words text-sm font-semibold text-text">{rating.productName}</h4>
+              <h4 className="text-sm font-semibold text-text [overflow-wrap:anywhere]">
+                {rating.productName}
+              </h4>
               <span className="mt-1 inline-flex min-w-0 max-w-full rounded-full border border-border bg-background px-2 py-0.5 text-xs font-medium text-text-muted">
-                <span className="min-w-0 break-words whitespace-normal">{rating.standName}</span>
+                <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
+                  {rating.standName}
+                </span>
               </span>
             </div>
             <Rating value={rating.stars} className="shrink-0" />
           </div>
           {rating.comment ? (
-            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-text">
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-text [overflow-wrap:anywhere]">
               {rating.comment}
             </p>
           ) : (

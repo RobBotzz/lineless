@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-import { getAttendeeStands } from '@/api/stands';
+import { useQuery } from '@tanstack/react-query';
+
+import { getCashierStandForAttendee } from '@/api/stands';
 import { ChevronDownIcon, PinIcon } from '@/components/icons';
 import { StaticLocationMap } from '@/components/location/StaticLocationMap';
 import { hasCoordinates, toLatLng } from '@/types/location';
-import type { Stand } from '@/types/stand';
 
 interface CashierLocationAccordionProps {
   eventId: string;
@@ -12,19 +13,18 @@ interface CashierLocationAccordionProps {
 
 // Collapsible "where do I pay" section for the Payment Pending page. Renders
 // nothing until the cashier stand's location is known, and nothing at all if
-// no location has been set — there's nothing useful to show without one.
+// no location has been set (or the cashier is disabled, or the fetch fails) —
+// there's nothing useful to show without one.
 export function CashierLocationAccordion({ eventId }: CashierLocationAccordionProps) {
   const [open, setOpen] = useState(false);
-  const [cashierStand, setCashierStand] = useState<Stand | null>(null);
 
-  useEffect(() => {
-    getAttendeeStands(eventId)
-      .then((stands) =>
-        setCashierStand(stands.find((stand) => stand.standType === 'CASHIER') ?? null),
-      )
-      .catch(() => {});
-  }, [eventId]);
+  const cashierStandQuery = useQuery({
+    queryKey: ['attendee-cashier-stand', eventId],
+    queryFn: () => getCashierStandForAttendee(eventId),
+    retry: false,
+  });
 
+  const cashierStand = cashierStandQuery.data ?? null;
   const position =
     cashierStand && hasCoordinates(cashierStand.location) ? toLatLng(cashierStand.location) : null;
 
@@ -47,7 +47,7 @@ export function CashierLocationAccordion({ eventId }: CashierLocationAccordionPr
 
       {open ? (
         <div className="mt-4 space-y-3">
-          <p className="text-sm font-medium text-text">
+          <p className="text-sm font-medium text-text [overflow-wrap:anywhere]">
             {cashierStand.location.locationName ?? cashierStand.standName}
           </p>
           <StaticLocationMap lat={position[0]} lng={position[1]} />

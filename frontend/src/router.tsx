@@ -7,7 +7,6 @@ import Imprint from './routes/legal/Imprint';
 import PrivacyPolicy from './routes/legal/PrivacyPolicy';
 
 import OrganizerAuth from './routes/auth/OrganizerAuth';
-import { OrganizerRequireAuth } from './auth/organizer/OrganizerRequireAuth';
 import ForgotPassword from './routes/auth/ForgotPassword';
 import ResetPassword from './routes/auth/ResetPassword';
 import OrganizerLayout from './routes/organizer/OrganizerLayout';
@@ -37,7 +36,7 @@ import { productSelectionLoader } from './routes/attendee/product-selection/data
 import AttendeeCart from './routes/attendee/cart/Cart';
 import { cartLoader } from './routes/attendee/cart/data';
 import AttendeeOrderConfirmed from './routes/attendee/checkout/OrderConfirmed';
-import AttendeeCashPaymentPending from './routes/attendee/checkout/CashPaymentPending';
+import AttendeePendingPayment from './routes/attendee/order-history/PendingPayment';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 import AttendeeTrackOrder from './routes/attendee/order-history/TrackOrder';
 import AttendeeReviewOrder from './routes/attendee/order-history/ReviewOrder';
@@ -94,24 +93,19 @@ export const router = createBrowserRouter(
           errorElement={<SettingsError />}
         />
         <Route
+          path="events/:eventId"
+          element={<OrganizerEventConfiguration />}
+          loader={eventConfigurationLoader}
+          action={eventConfigurationAction}
+          errorElement={<EventConfigurationError />}
+        />
+        <Route
           path="events/:eventId/event-control-center/:section"
           element={<EventControlCenterRoute />}
           loader={eventControlCenterLoader}
           errorElement={<EventControlCenterError />}
         />
       </Route>
-
-      <Route
-        path="organizer/events/:eventId"
-        element={
-          <OrganizerRequireAuth>
-            <OrganizerEventConfiguration />
-          </OrganizerRequireAuth>
-        }
-        loader={eventConfigurationLoader}
-        action={eventConfigurationAction}
-        errorElement={<EventConfigurationError />}
-      />
 
       <Route
         path="event/:eventId"
@@ -127,9 +121,9 @@ export const router = createBrowserRouter(
         />
         <Route path="cart" element={<AttendeeCart />} loader={cartLoader} />
         <Route path="checkout/:orderId/confirmed" element={<AttendeeOrderConfirmed />} />
-        <Route path="checkout/:orderId/pending" element={<AttendeeCashPaymentPending />} />
         <Route path="orders" element={<AttendeeOrderHistory />} loader={ordersLoader} />
         <Route path="orders/:orderId" element={<AttendeeTrackOrder />} />
+        <Route path="orders/:orderId/pay" element={<AttendeePendingPayment />} />
         <Route path="orders/:orderId/review" element={<AttendeeReviewOrder />} />
       </Route>
 

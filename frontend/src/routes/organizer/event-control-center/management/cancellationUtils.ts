@@ -8,7 +8,7 @@ export type CancelItemsRequest = {
 export function getCancellableOrderItems(order: LiveOrder): LiveOrderItem[] {
   return order.items.filter((item) => !item.readyAt);
 }
-
+// Returns a list of cancellation requests for the specified products
 export function getCancelRequestsForProducts(
   orders: LiveOrder[],
   productIds: Set<string>,
