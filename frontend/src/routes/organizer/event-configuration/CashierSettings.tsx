@@ -24,12 +24,15 @@ export function CashierSettings({
   enableError,
   cashierStand,
   eventLocation,
+  disabled = false,
 }: {
   enabled: boolean;
   onToggleEnabled: (value: boolean) => void;
   enableError?: string | null;
   cashierStand: Stand | null;
   eventLocation: Location;
+  // Read-only mode (e.g. a completed, immutable event).
+  disabled?: boolean;
 }) {
   return (
     <Card className="scroll-mt-24">
@@ -41,6 +44,7 @@ export function CashierSettings({
         <CardAction>
           <Toggle
             checked={enabled}
+            disabled={disabled}
             id="cashier-enabled"
             label="Enable cashier"
             onChange={onToggleEnabled}
@@ -65,6 +69,7 @@ export function CashierSettings({
               key={cashierStand._id}
               cashierStand={cashierStand}
               eventLocation={eventLocation}
+              disabled={disabled}
             />
           ) : (
             <p className="mt-4 text-sm text-text-muted">Enabling the cashier…</p>
@@ -78,9 +83,11 @@ export function CashierSettings({
 function CashierConfigForm({
   cashierStand,
   eventLocation,
+  disabled = false,
 }: {
   cashierStand: Stand;
   eventLocation: Location;
+  disabled?: boolean;
 }) {
   const revalidator = useRevalidator();
   const [location, setLocation] = useState<Location>(() => cashierStand.location);
@@ -102,7 +109,7 @@ function CashierConfigForm({
     changePassword && (cashierStand.requiresPassword || accessPassword.trim().length > 0);
 
   async function handleSave() {
-    if (saving) return;
+    if (saving || disabled) return;
     setError(null);
     setSaving(true);
     try {
@@ -130,7 +137,8 @@ function CashierConfigForm({
         <div className="rounded-lg border border-border bg-surface">
           <button
             type="button"
-            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            disabled={disabled}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
             onClick={() => setLocationOpen((prev) => !prev)}
           >
             <span className="flex items-center gap-2">
@@ -174,6 +182,7 @@ function CashierConfigForm({
         </label>
         <Toggle
           checked={changePassword}
+          disabled={disabled}
           id="cashier-change-password"
           label="Set or Clear Cashier Password"
           onChange={setChangePassword}
@@ -205,7 +214,7 @@ function CashierConfigForm({
       )}
 
       <div className="flex justify-end border-t border-border pt-4">
-        <Button className="px-6" onClick={handleSave} disabled={saving} size="lg">
+        <Button className="px-6" onClick={handleSave} disabled={saving || disabled} size="lg">
           {saving ? 'Saving…' : 'Save cashier settings'}
         </Button>
       </div>

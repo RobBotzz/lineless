@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { Event, UpdateEventInput } from '../types/event';
+import type { Event, PublicEventInfo, UpdateEventInput } from '../types/event';
 
 export interface CreateEventInput {
   name: string;
@@ -15,6 +15,11 @@ export function getEvent(eventId: string): Promise<Event> {
 
 export function getAttendeeEvent(eventId: string): Promise<Event> {
   return apiFetch<Event>(`/events/${eventId}`, { auth: 'attendee', eventId });
+}
+
+// No auth — works for any event status. Used to show gate pages before a session exists.
+export function getEventPublicInfo(eventId: string): Promise<PublicEventInfo> {
+  return apiFetch<PublicEventInfo>(`/events/${eventId}/public-info`, { auth: 'public' });
 }
 
 export function createEvent(input: CreateEventInput): Promise<Event> {
@@ -63,6 +68,13 @@ export function startEvent(eventId: string): Promise<void> {
 
 export function stopEvent(eventId: string): Promise<void> {
   return apiFetch<void>(`/events/${eventId}/stop`, {
+    method: 'POST',
+    auth: 'organizer',
+  });
+}
+
+export function completeEvent(eventId: string): Promise<void> {
+  return apiFetch<void>(`/events/${eventId}/complete`, {
     method: 'POST',
     auth: 'organizer',
   });
