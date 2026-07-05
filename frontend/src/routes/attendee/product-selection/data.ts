@@ -32,16 +32,26 @@ export async function productSelectionLoader({
     throw err;
   }
 
-  const stands = await getAttendeeStands(eventId);
+  // For STOPPED/COMPLETED events an existing session is valid, but the stands
+  // and product endpoints require ACTIVE (or ACTIVE|STOPPED). Return empty data
+  // so the component's own status guard renders instead of the error boundary.
+  try {
+    const stands = await getAttendeeStands(eventId);
 
-  const productLists = await Promise.all(
-    stands.map((stand) => getAttendeeStandProducts(eventId, stand._id)),
-  );
+    const productLists = await Promise.all(
+      stands.map((stand) => getAttendeeStandProducts(eventId, stand._id)),
+    );
 
-  const productsByStand: Record<string, Product[]> = {};
-  stands.forEach((stand, i) => {
-    productsByStand[stand._id] = productLists[i].filter((p) => p.productStatus === 'LIVE');
-  });
+    const productsByStand: Record<string, Product[]> = {};
+    stands.forEach((stand, i) => {
+      productsByStand[stand._id] = productLists[i].filter((p) => p.productStatus === 'LIVE');
+    });
 
-  return { stands, productsByStand };
+    return { stands, productsByStand };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      return { stands: [], productsByStand: {} };
+    }
+    throw err;
+  }
 }
