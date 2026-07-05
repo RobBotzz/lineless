@@ -25,9 +25,11 @@ import {
   assertSessionOwnsEvent,
   verifyActiveEvent,
   verifyEventOwnership,
+  verifyMutableEventOwnership,
   verifyOperableEvent,
 } from "../events/ownership";
 import { Event } from "../events/model";
+import { EventNotFoundError } from "../events/errors";
 
 // The password hash never leaves the service. We replace it with a
 // `requiresPassword` boolean so every stand response carries the one fact a
@@ -114,7 +116,7 @@ export async function createStand(
   accountId: string,
   input: CreateStandInput
 ): Promise<SafeStand> {
-  await verifyEventOwnership(eventId, accountId);
+  await verifyMutableEventOwnership(eventId, accountId);
   const accessPasswordHash = input.accessPassword
     ? await hashPassword(input.accessPassword)
     : null;
@@ -143,7 +145,15 @@ export async function listStandsForAttendee(
   sessionEventId: string
 ): Promise<SafeStand[]> {
   assertSessionOwnsEvent(eventId, sessionEventId);
-  await verifyActiveEvent(eventId);
+  // COMPLETED is intentionally excluded: once an event is completed, no new
+  // orders can be placed, so the stand list is no longer useful to guests.
+  // The frontend gate for COMPLETED replaces the product page for this case.
+  const event = await Event.findOne({
+    _id: eventId,
+    status: { $in: ["ACTIVE", "STOPPED"] },
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
   const stands = await Stand.find(
     listableStandFilter(eventId, { hidePausedProductStands: true })
   )
@@ -245,7 +255,7 @@ export async function updateStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
   if (patch.standName !== undefined) stand.standName = patch.standName;
   if (patch.location) {
     stand.location.locationName = patch.location.locationName;
@@ -268,7 +278,7 @@ export async function pauseStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
 
   stand.standStatus = "PAUSED";
   await stand.save();
@@ -281,7 +291,7 @@ export async function resumeStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
 
   stand.standStatus = "LIVE";
   await stand.save();
@@ -407,7 +417,7 @@ export async function softDeleteStand(
 ): Promise<void> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
   // The cashier stand is system-managed and cannot be deleted by a user.
   if (stand.standType === "CASHIER") {
     throw new CashierStandProtectedError("The cashier stand cannot be deleted");

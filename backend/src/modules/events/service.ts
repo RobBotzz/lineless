@@ -9,6 +9,7 @@ import {
 import { assertSessionOwnsEvent } from "./ownership";
 import { ensureCashierStand } from "../stands/service";
 import { finalizeEventTabs } from "../tabs/service";
+import { cancelUnpaidCashOrdersForEvent } from "../orders/service";
 import { config } from "../../config/config";
 import {
   sniffImageMimeType,
@@ -18,6 +19,13 @@ import {
 import type { CreateEventInput, UpdateEventInput } from "./types";
 
 type AttendeeEvent = Omit<EventDoc, "operatorAccessKey">;
+
+// Fields safe to return without authentication. Excludes accountId, operatorAccessKey,
+// and internal config/billing fields so the endpoint is safe to call without any credential.
+export type PublicEventInfo = Pick<
+  EventDoc,
+  "_id" | "name" | "status" | "plannedDate" | "branding" | "updatedAt"
+>;
 
 function stripOperatorAccessKey(event: EventDoc): AttendeeEvent {
   const safe: Partial<EventDoc> = { ...event };
@@ -51,6 +59,23 @@ export async function listEvents(accountId: string): Promise<EventDoc[]> {
     .lean();
 }
 
+// Public — no auth. Returns only the fields needed for gate pages (coming soon,
+// closed, finished). accountId and operatorAccessKey are intentionally excluded.
+export async function getPublicEventInfo(
+  eventId: string
+): Promise<PublicEventInfo> {
+  const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
+  if (!event) throw new EventNotFoundError();
+  return {
+    _id: event._id,
+    name: event.name,
+    status: event.status,
+    plannedDate: event.plannedDate,
+    branding: event.branding,
+    updatedAt: event.updatedAt,
+  };
+}
+
 export async function getEventForOrganizer(
   eventId: string,
   accountId: string
@@ -70,9 +95,11 @@ export async function getEventForAttendee(
 ): Promise<AttendeeEvent> {
   assertSessionOwnsEvent(eventId, sessionEventId);
 
+  // STOPPED and COMPLETED events are readable so guests with existing sessions
+  // can still track their orders and receive fulfillments.
   const event = await Event.findOne({
     _id: eventId,
-    status: "ACTIVE",
+    status: { $in: ["ACTIVE", "STOPPED", "COMPLETED"] },
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
@@ -105,12 +132,22 @@ async function findActiveEvent(eventId: string, accountId: string) {
   return event;
 }
 
+// A COMPLETED event is immutable — its settings, branding, logo, stands and
+// products can no longer be changed. Every organizer mutation on the event goes
+// through here so the rule lives in one place.
+function assertEventModifiable(status: EventDoc["status"]): void {
+  if (status === "COMPLETED") {
+    throw new EventStateError("A completed event cannot be modified");
+  }
+}
+
 export async function updateEvent(
   eventId: string,
   accountId: string,
   patch: UpdateEventInput
 ): Promise<EventDoc> {
   const event = await findActiveEvent(eventId, accountId);
+  assertEventModifiable(event.status);
   if (patch.name !== undefined) event.name = patch.name;
   if (patch.plannedDate !== undefined) event.plannedDate = patch.plannedDate;
   if (patch.ratingsEnabled !== undefined) {
@@ -156,6 +193,9 @@ export async function startEvent(
   if (event.status === "STOPPED") {
     throw new EventStateError("A stopped event cannot be restarted");
   }
+  if (event.status === "COMPLETED") {
+    throw new EventStateError("A completed event cannot be restarted");
+  }
   event.status = "ACTIVE";
   event.startedAt = new Date();
   await event.save();
@@ -173,7 +213,47 @@ export async function stopEvent(
   event.status = "STOPPED";
   event.stoppedAt = new Date();
   await event.save();
-  await finalizeEventTabs(event._id);
+  return event;
+}
+
+export async function completeEvent(
+  eventId: string,
+  accountId: string
+): Promise<EventDoc> {
+  const event = await findActiveEvent(eventId, accountId);
+  if (event.status !== "STOPPED") {
+    throw new EventStateError("Only a stopped event can be completed");
+  }
+
+  // Not wrapped in a single Mongo transaction on purpose: finalizeEventTabs makes
+  // external Stripe capture/release calls (and runs its own per-tab transactions),
+  // which cannot participate in an outer session transaction. Instead each step is
+  // idempotent and the status flip below is the last write, so a failure here leaves
+  // the event STOPPED and retrying completeEvent safely re-runs the sweeps. Retry is
+  // the intended recovery path for a mid-completion failure.
+  //
+  // Cancel all items on unpaid cash orders so they are not charged.
+  await cancelUnpaidCashOrdersForEvent(event._id);
+  // Settle open tabs: charge guests for READY/FULFILLED items and release the rest.
+  const tabResult = await finalizeEventTabs(event._id);
+  if (tabResult.failed > 0 || tabResult.skipped > 0) {
+    const parts: string[] = [];
+    if (tabResult.failed > 0)
+      parts.push(
+        `${tabResult.failed} tab${tabResult.failed === 1 ? "" : "s"} could not be charged`
+      );
+    if (tabResult.skipped > 0)
+      parts.push(
+        `${tabResult.skipped} tab${tabResult.skipped === 1 ? "" : "s"} still had unsettled items`
+      );
+    throw new EventStateError(
+      `Settlement incomplete (${parts.join("; ")}). Retry completing the event to reattempt.`
+    );
+  }
+
+  event.status = "COMPLETED";
+  event.completedAt = new Date();
+  await event.save();
   return event;
 }
 
@@ -211,6 +291,7 @@ export async function setEventLogo(
   file: UploadedImage
 ): Promise<EventDoc> {
   const event = await findActiveEvent(eventId, accountId);
+  assertEventModifiable(event.status);
 
   const detectedType = sniffImageMimeType(file.buffer);
   if (
@@ -256,6 +337,7 @@ export async function deleteEventLogo(
   accountId: string
 ): Promise<EventDoc> {
   const event = await findActiveEvent(eventId, accountId);
+  assertEventModifiable(event.status);
   await EventLogo.deleteOne({ eventId });
   event.branding.logoUrl = null;
   await event.save();

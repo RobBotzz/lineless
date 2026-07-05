@@ -1,5 +1,5 @@
 import { Event } from "./model";
-import { EventNotFoundError } from "./errors";
+import { EventNotFoundError, EventStateError } from "./errors";
 
 // Guards that `eventId` exists and belongs to `accountId`. A non-existent OR
 // a not-owned event both surface as EventNotFoundError — we deliberately do not
@@ -17,6 +17,25 @@ export async function verifyEventOwnership(
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
+}
+
+// Like verifyEventOwnership, but additionally rejects a COMPLETED event. A
+// completed event is immutable: neither its own configuration nor its stands or
+// products may be changed anymore. Used by every organizer-facing mutation that
+// hangs off an event, so the immutability is enforced in one place.
+export async function verifyMutableEventOwnership(
+  eventId: string,
+  accountId: string
+): Promise<void> {
+  const event = await Event.findOne({
+    _id: eventId,
+    accountId,
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+  if (event.status === "COMPLETED") {
+    throw new EventStateError("A completed event cannot be modified");
+  }
 }
 
 export function assertSessionOwnsEvent(
@@ -46,6 +65,23 @@ export async function verifyOperableEvent(eventId: string): Promise<void> {
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
+}
+
+// Like verifyOperableEvent, but rejects a COMPLETED event. Operators may still
+// work a STOPPED event (wind-down/fulfilment), but a completed event is terminal
+// and immutable — so operator-driven mutations (e.g. product pause/resume) are
+// rejected here while operator reads keep using verifyOperableEvent.
+export async function verifyMutableOperableEvent(
+  eventId: string
+): Promise<void> {
+  const event = await Event.findOne({
+    _id: eventId,
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+  if (event.status === "COMPLETED") {
+    throw new EventStateError("A completed event cannot be modified");
+  }
 }
 
 // Validates the operator link key for any non-deleted event, regardless of

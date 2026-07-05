@@ -32,7 +32,7 @@ import {
   CashierStandProtectedError,
   StandNotFoundError,
 } from "../stands/errors";
-import { EventNotFoundError } from "../events/errors";
+import { EventNotFoundError, EventStateError } from "../events/errors";
 import {
   createProductSchema,
   updateProductSchema,
@@ -81,7 +81,7 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
-  if (err instanceof ProductStateError)
+  if (err instanceof EventStateError)
     return res.status(409).json({ error: err.message });
   if (err instanceof CashierStandProtectedError)
     return res.status(403).json({ error: err.message });

@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { model, Schema } from "mongoose";
 import { locationSchema, type Location } from "../../shared/location";
 
-export type EventStatus = "DRAFT" | "ACTIVE" | "STOPPED";
+export type EventStatus = "DRAFT" | "ACTIVE" | "STOPPED" | "COMPLETED";
 
 // Default authorization hold placed on a new tab and the increment by which a
 // tab's authorization is topped up when an order exceeds it (€10.00 in cents).
@@ -35,6 +35,7 @@ export interface EventDoc {
   location: Location;
   startedAt?: Date;
   stoppedAt?: Date;
+  completedAt?: Date;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -58,7 +59,7 @@ const eventSchema = new Schema<EventDoc>(
     plannedDate: { type: Date },
     status: {
       type: String,
-      enum: ["DRAFT", "ACTIVE", "STOPPED"],
+      enum: ["DRAFT", "ACTIVE", "STOPPED", "COMPLETED"],
       default: "DRAFT",
     },
     operatorAccessKey: {
@@ -78,6 +79,7 @@ const eventSchema = new Schema<EventDoc>(
     location: { type: locationSchema, default: () => ({}) },
     startedAt: { type: Date },
     stoppedAt: { type: Date },
+    completedAt: { type: Date },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
