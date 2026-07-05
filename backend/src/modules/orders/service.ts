@@ -672,12 +672,19 @@ export async function getOrderForAttendee(
   return enrichOrderForAttendee(order);
 }
 
-// An attendee's own paid orders — the source for the order-status / review entry
-// point. Product names are joined here (one batch query) to avoid frontend N+1.
+// An attendee's own orders — the source for the order-status / review entry
+// point. Includes all paid orders plus every cash order (tabId: null) whether
+// pending payment or cashier-cancelled (deletedAt), so the pending-payment and
+// cancelled states are visible in history. Transient gated card orders (unpaid
+// with a tabId) are excluded. Product names are joined here (one batch query)
+// to avoid a frontend N+1.
 export async function listOrdersForAttendee(
   sessionId: string
 ): Promise<AttendeeOrder[]> {
-  const orders = await Order.find({ sessionId, paidAt: { $ne: null } })
+  const orders = await Order.find({
+    sessionId,
+    $or: [{ paidAt: { $ne: null } }, { tabId: null }],
+  })
     .sort({ createdAt: -1 })
     .lean();
 
@@ -720,7 +727,9 @@ export async function getOrderForOrganizer(
 // Loads the operator's stand and asserts it is the active CASHIER stand — the
 // only operator allowed to read whole orders / unpaid order lists. PRODUCT-stand
 // operators act on individual items via advanceOrderItem, not whole orders.
-async function assertActiveCashierStand(operatorStandId: string) {
+// Exported so the cashier unpaid-orders stream route can resolve the stand's
+// eventId once, for scoping the order.changed subscription.
+export async function assertActiveCashierStand(operatorStandId: string) {
   const stand = await Stand.findOne({
     _id: operatorStandId,
     deletedAt: null,
@@ -744,14 +753,15 @@ export async function getOrderForCashier(
   return order;
 }
 
-// Unpaid cash orders for the cashier's event (tabId: null = no digital payment tab).
-// Excludes in-flight Stripe/digital orders which carry a tabId. Restricted to the dedicated CASHIER stand.
-export async function listUnpaidOrdersForCashier(
-  operatorStandId: string
+// Unpaid cash orders for an event (tabId: null = no digital payment tab).
+// Excludes in-flight Stripe/digital orders which carry a tabId. The caller is
+// responsible for having asserted access to the event (the cashier stream
+// resolves the stand once and passes its eventId in, avoiding a repeat lookup).
+export function listUnpaidCashOrdersForEvent(
+  eventId: string
 ): Promise<OrderDoc[]> {
-  const stand = await assertActiveCashierStand(operatorStandId);
   return Order.find({
-    eventId: stand.eventId,
+    eventId,
     paidAt: null,
     tabId: null,
     deletedAt: null,

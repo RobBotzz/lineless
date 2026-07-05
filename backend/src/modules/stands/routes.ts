@@ -7,6 +7,7 @@ import {
   listStandsForEventLink,
   getCashierStandForOrganizer,
   getCashierStandForEventLink,
+  getCashierStandForAttendee,
   getStandForAttendee,
   getStandForOrganizer,
   getStandForOperator,
@@ -35,7 +36,6 @@ import {
 import {
   authOrganizer,
   authOrganizerOrAttendeeOrEventLink,
-  authOrganizerOrEventLink,
   authOrganizerOrOperatorOrAttendee,
 } from "../../middleware/auth/guards";
 
@@ -113,11 +113,12 @@ eventStandsRouter.get(
 // GET /events/:eventId/stands/cashier-stand — the event's single cashier stand.
 // It is intentionally absent from the stand listing above, so this is the
 // dedicated entry point the operator onboarding (event link) uses to discover
-// the cashier stand it can log into. Organizer-readable too; never exposed to
-// attendees. Responds 403 (CashierStandDisabledError) when the cashier is off.
+// the cashier stand it can log into. Also organizer-readable, and
+// attendee-readable (e.g. to show the cashier's location on the pending-payment
+// page). Responds 403 (CashierStandDisabledError) when the cashier is off.
 eventStandsRouter.get(
   "/cashier-stand",
-  authOrganizerOrEventLink,
+  authOrganizerOrAttendeeOrEventLink,
   async (req: Request, res: Response) => {
     try {
       const stand = req.organizer
@@ -125,7 +126,9 @@ eventStandsRouter.get(
             eventId(req),
             req.organizer.accountId
           )
-        : await getCashierStandForEventLink(eventId(req));
+        : req.attendee
+          ? await getCashierStandForAttendee(eventId(req), req.attendee.eventId)
+          : await getCashierStandForEventLink(eventId(req));
       res.status(200).json(stand);
     } catch (err) {
       handleError(err, res);
