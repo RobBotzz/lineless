@@ -42,7 +42,7 @@ export interface EventPayoutBreakdown {
   capturedCardCents: number;
   /** Total Stripe processing fees on captured card revenue, integer cents. */
   stripeFeeCents: number;
-  /** Platform fee: 5 cents per charged order (card + cash), integer cents. */
+  /** Platform fee: 20 cents per charged order (card + cash), integer cents. */
   platformFeeCents: number;
   /** Card payout to the bank: capturedCard - stripeFee - platformFee. */
   netPayoutCents: number;

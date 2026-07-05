@@ -16,9 +16,9 @@ import type {
   ProductUnitsSold,
 } from "./types";
 
-// We take 5 cents per paid order (card or cash), on top of the passed-through
+// We take 20 cents per paid order (card or cash), on top of the passed-through
 // payment processing fees.
-const PLATFORM_FEE_PER_ORDER_CENTS = 5;
+const PLATFORM_FEE_PER_ORDER_CENTS = 20;
 
 // Tax is contained in the stored tax-inclusive price. Back it out per item and
 // keep everything in integer cents.
