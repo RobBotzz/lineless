@@ -12,9 +12,11 @@ import {
   getOrderForAttendee,
   getOrderForCashier,
   getOrderForOrganizer,
-  issueCashRefund,
   listOrdersForAttendee,
+  listRefundableCashOrders,
   listUnpaidCashOrdersForEvent,
+  refundCashOrderItems,
+  resolveCashierEventId,
   submitOrder,
 } from "./service";
 import { SseConnection } from "../../lib/sse";
@@ -23,6 +25,7 @@ import {
   CashierDisabledError,
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
+  CashRefundInvalidItemsError,
   EventNotActiveError,
   InsufficientStockError,
   OrderAlreadyPaidError,
@@ -39,7 +42,7 @@ import {
   cancelOrderItemsSchema,
   confirmCashPaymentSchema,
   createOrderSchema,
-  issueCashRefundSchema,
+  refundByItemsSchema,
 } from "./types";
 import {
   authAttendee,
@@ -98,6 +101,8 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof CashRefundExceedsTotalError)
     return res.status(422).json({ error: err.message });
+  if (err instanceof CashRefundInvalidItemsError)
+    return res.status(409).json({ error: err.message });
   console.error("Orders error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -136,6 +141,27 @@ ordersRouter.post(
     try {
       const order = await confirmCashPayment(
         orderId(req),
+        req.organizer
+          ? { organizerAccountId: req.organizer.accountId }
+          : { operatorStandId: req.operator!.standId }
+      );
+      return res.status(201).json(order);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  })
+);
+
+// POST /orders/:orderId/refund — cashier refunds specific cancelled items of a
+// cash-paid order. Item-level so an item can never be refunded twice.
+ordersRouter.post(
+  "/:orderId/refund",
+  authOrganizerOrOperator,
+  validateBody(refundByItemsSchema, async (req, res, data) => {
+    try {
+      const order = await refundCashOrderItems(
+        orderId(req),
+        data.itemIds,
         req.organizer
           ? { organizerAccountId: req.organizer.accountId }
           : { operatorStandId: req.operator!.standId }
@@ -196,6 +222,22 @@ ordersRouter.get(
       sse.onClose(() => unsubscribe());
     } catch (err) {
       handleError(err, res);
+    }
+  }
+);
+
+// GET /orders/cashier/refundable — cash-paid orders for the cashier's event that
+// still have at least one refundable (cancelled, not-yet-refunded) item.
+ordersRouter.get(
+  "/cashier/refundable",
+  authOperator,
+  async (req: Request, res: Response) => {
+    try {
+      const eventId = await resolveCashierEventId(req.operator!.standId);
+      const orders = await listRefundableCashOrders(eventId);
+      return res.status(200).json(orders);
+    } catch (err) {
+      return handleError(err, res);
     }
   }
 );
@@ -352,27 +394,4 @@ ordersRouter.delete(
       return handleError(err, res);
     }
   }
-);
-
-// Cash refunds are addressed by the embedded cashPayment id, so they live on a
-// separate router mounted at /api/cash-payments while sharing the orders logic.
-export const cashPaymentsRouter = Router();
-
-cashPaymentsRouter.post(
-  "/:cashPaymentId/refund",
-  authOrganizerOrOperator,
-  validateBody(issueCashRefundSchema, async (req, res, data) => {
-    try {
-      const refund = await issueCashRefund(
-        req.params["cashPaymentId"] as string,
-        data,
-        req.organizer
-          ? { organizerAccountId: req.organizer.accountId }
-          : { operatorStandId: req.operator!.standId }
-      );
-      return res.status(201).json(refund);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  })
 );

@@ -94,3 +94,12 @@ export class CashRefundExceedsTotalError extends Error {
     this.name = "CashRefundExceedsTotalError";
   }
 }
+
+export class CashRefundInvalidItemsError extends Error {
+  constructor(
+    message = "Items must be cancelled and not already refunded to be refunded"
+  ) {
+    super(message);
+    this.name = "CashRefundInvalidItemsError";
+  }
+}

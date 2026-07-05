@@ -1,0 +1,35 @@
+meta {
+  name: 21 refund cancelled item
+  type: http
+  seq: 21
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{refundOrderId}}/refund
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {
+    "itemIds": ["{{refundItemId}}"]
+  }
+}
+
+tests {
+  test("cancelled item is refunded and stamped", function () {
+    expect(res.status).to.equal(201);
+    const item = res.body.items.find(i => i._id === bru.getVar("refundItemId"));
+    expect(item.refundedAt).to.be.a("string").and.not.empty;
+    const refund = res.body.cashRefunds[res.body.cashRefunds.length - 1];
+    expect(refund.refundedItemIds).to.include(bru.getVar("refundItemId"));
+  });
+}
+
+settings {
+  encodeUrl: true
+}
