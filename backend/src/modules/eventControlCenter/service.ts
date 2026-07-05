@@ -158,7 +158,7 @@ async function loadEventControlCenterContext(
     Event.findOne({ _id: eventId, deletedAt: null })
       .select("createdAt startedAt")
       .lean(),
-    Stand.find({ eventId, deletedAt: null })
+    Stand.find({ eventId, deletedAt: null, standType: { $ne: "CASHIER" } })
       .select("_id standName standStatus")
       .lean<StandSnapshot[]>(),
   ]);
