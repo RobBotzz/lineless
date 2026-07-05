@@ -361,9 +361,12 @@ export default function EventConfiguration() {
       accentTextColor: form.accentTextColor,
     },
   });
-  const settingsSave = useEventAutoSave(settingsSnapshot, settingsValid);
-  // Color inputs only ever commit valid hex, so branding is always saveable.
-  const brandingSave = useEventAutoSave(brandingSnapshot, true);
+  const settingsSave = useEventAutoSave(
+    settingsSnapshot,
+    settingsValid && event.status !== 'COMPLETED',
+  );
+  // Color inputs only ever commit valid hex, so branding is always saveable — unless the event is completed.
+  const brandingSave = useEventAutoSave(brandingSnapshot, event.status !== 'COMPLETED');
 
   // Colors actually rendered after contrast clamping — shared with the attendee
   // runtime via resolveBranding, so the preview can't drift from what guests see.
