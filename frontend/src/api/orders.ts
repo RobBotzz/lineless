@@ -2,6 +2,7 @@ import { ApiError, apiFetch, apiFetchAllowing } from './client';
 import { getAttendeeStandProducts, getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
 import type { AttendeeOrder, Order, OrderItemView, StockShortage } from '../types/order';
+import type { Product } from '../types/product';
 import type { Stand } from '../types/stand';
 
 // Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED.
@@ -176,6 +177,40 @@ export async function buildOrderViewItems(
 
 // Builds enriched view items for an attendee. Accepts the already-fetched stands
 // list (from the caller's own query) to avoid a duplicate network request.
+// Pure grouping: one OrderItemView per productId, using the names the backend
+// already enriched onto each order item. An optional live-catalog lookup upgrades
+// the stand id and names when the product is still listed; without it (offline, or
+// a direct call) the enrichment names are used as-is, so this always produces a
+// usable summary. This handles paused stands too — excluded from the attendee
+// catalog but their orders must still display correctly.
+export function groupOrderItemsForView(
+  order: Order,
+  productById?: Map<string, Product>,
+  standNameById?: Map<string, string>,
+): OrderItemView[] {
+  const groups = new Map<string, OrderItemView>();
+  for (const item of order.items) {
+    if (item.cancelledAt) continue;
+    const existing = groups.get(item.productId);
+    if (existing) {
+      existing.quantity += 1;
+      existing.comments.push(item.customerComment ?? '');
+      continue;
+    }
+    const product = productById?.get(item.productId);
+    groups.set(item.productId, {
+      productId: item.productId,
+      productName: product?.productName ?? item.productName,
+      standId: product?.standId ?? `__paused__:${item.standName}:${item.productId}`,
+      standName: product ? (standNameById?.get(product.standId) ?? item.standName) : item.standName,
+      unitPrice: item.priceIncludingTaxAtPurchase,
+      quantity: 1,
+      comments: [item.customerComment ?? ''],
+    });
+  }
+  return [...groups.values()];
+}
+
 export async function buildAttendeeOrderViewItems(
   order: Order,
   eventId: string,
@@ -188,30 +223,7 @@ export async function buildAttendeeOrderViewItems(
   const productById = new Map(productLists.flat().map((p) => [p._id, p]));
   const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
 
-  const groups = new Map<string, OrderItemView>();
-  for (const item of order.items) {
-    if (item.cancelledAt) continue;
-    const existing = groups.get(item.productId);
-    if (existing) {
-      existing.quantity += 1;
-      existing.comments.push(item.customerComment ?? '');
-      continue;
-    }
-    const product = productById.get(item.productId);
-    // Fall back to names already stored on the order item by the backend enrichment.
-    // This handles paused stands, which are excluded from the attendee catalog but
-    // whose orders must still display correctly.
-    groups.set(item.productId, {
-      productId: item.productId,
-      productName: product?.productName ?? item.productName,
-      standId: product?.standId ?? `__paused__:${item.standName}:${item.productId}`,
-      standName: product ? (standNameById.get(product.standId) ?? item.standName) : item.standName,
-      unitPrice: item.priceIncludingTaxAtPurchase,
-      quantity: 1,
-      comments: [item.customerComment ?? ''],
-    });
-  }
-  return [...groups.values()];
+  return groupOrderItemsForView(order, productById, standNameById);
 }
 
 // Each cart line becomes N individual items (one per unit), carrying its comment.

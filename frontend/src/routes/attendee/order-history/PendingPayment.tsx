@@ -3,14 +3,18 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate, useParams } from 'react-router';
 
-import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
+import {
+  buildAttendeeOrderViewItems,
+  getAttendeeOrder,
+  groupOrderItemsForView,
+} from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
 import { BackButton } from '@/components/shared';
 import { CashierLocationAccordion } from '@/features/orders/CashierLocationAccordion';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
 import { useSSE } from '@/hooks/useSSE';
 import { paths } from '@/paths';
-import { computeTotal, type Order, type OrderItemView } from '@/types/order';
+import { computeTotal, isOrderCancelled, type Order, type OrderItemView } from '@/types/order';
 
 // Durable cash-payment page. Unlike the card OrderConfirmed screen it does not
 // rely on location.state — it fetches the order by id, so it survives refresh
@@ -33,7 +37,7 @@ export default function PendingPayment() {
   const orderQuery = useQuery({
     queryKey: orderKey,
     queryFn: () => getAttendeeOrder(orderId, eventId),
-    initialData: state?.order._id === orderId ? state.order : undefined,
+    initialData: state?.order?._id === orderId ? state.order : undefined,
     // Poll fallback: if the SSE stream silently stalls (e.g. proxy buffering),
     // the payment/cancellation flip is still picked up. Stops once terminal so
     // it costs nothing after the order is paid or cancelled.
@@ -80,7 +84,10 @@ export default function PendingPayment() {
   });
 
   const order = orderQuery.data ?? null;
-  const items = viewItemsQuery.data ?? state?.items ?? [];
+  // Prefer the fully-enriched view (live catalog names); fall back to the cart's
+  // items, then to a pure grouping from the order's own backend-enriched items so
+  // the summary is never empty even if the catalog fetch failed.
+  const items = viewItemsQuery.data ?? state?.items ?? (order ? groupOrderItemsForView(order) : []);
   const isPaid = order?.paidAt != null;
 
   // Once paid, mirror the card flow: go to the OrderConfirmed "payment completed"
@@ -91,7 +98,7 @@ export default function PendingPayment() {
   const itemsReady = viewItemsQuery.isSuccess || viewItemsQuery.isError || !!state?.items;
   useEffect(() => {
     if (!order || !isPaid || !itemsReady) return;
-    const handoffItems = viewItemsQuery.data ?? state?.items ?? [];
+    const handoffItems = viewItemsQuery.data ?? state?.items ?? groupOrderItemsForView(order);
     navigate(paths.attendee.checkoutConfirmed(eventId, order._id), {
       replace: true,
       state: { order, items: handoffItems },
@@ -126,9 +133,11 @@ export default function PendingPayment() {
     );
   }
 
-  // The cashier cancelled (soft-deleted) the unpaid order. It can no longer be
-  // paid, so we show a terminal cancelled state instead of the pay prompt.
-  if (order.deletedAt) {
+  // The order can no longer be paid: the cashier soft-deleted it, or every item
+  // was cancelled (e.g. the event was completed). Show a terminal cancelled state
+  // instead of the pay prompt — otherwise it would read "Payment Pending" with a
+  // €0.00 total for an order there is nothing left to pay for.
+  if (isOrderCancelled(order)) {
     return (
       <div className="space-y-4">
         <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
@@ -137,7 +146,7 @@ export default function PendingPayment() {
           items={items}
           total={computeTotal(order)}
           title="Order Cancelled"
-          subtitle="This order was cancelled at the cashier and can no longer be paid."
+          subtitle="This order was cancelled and can no longer be paid."
           variant="cancelled"
         />
       </div>

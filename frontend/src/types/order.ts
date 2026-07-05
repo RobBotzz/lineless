@@ -89,16 +89,23 @@ export function deriveOrderStatus(order: Order): 'in-preparation' | 'fulfilled' 
 
 export type OrderListStatus = 'pending-payment' | 'in-preparation' | 'fulfilled' | 'cancelled';
 
+// A terminally cancelled order: either the cashier soft-deleted an unpaid order
+// (deletedAt), or every item was cancelled — e.g. when the event is completed and
+// unpaid cash orders are voided item-by-item without a deletedAt. Both mean there
+// is nothing left to pay for, so no pay prompt should ever be shown.
+export function isOrderCancelled(order: Order): boolean {
+  if (order.deletedAt) return true;
+  return order.items.length > 0 && order.items.every((item) => item.cancelledAt);
+}
+
 // Payment-aware status for the order-history list, which now includes unpaid cash
 // orders. A cashier-cancelled cash order (deletedAt) or an all-items-cancelled
 // order is 'cancelled'; an unpaid order awaiting the cashier is 'pending-payment';
 // otherwise it follows the preparation-tracking status.
 export function deriveOrderListStatus(order: Order): OrderListStatus {
-  if (order.deletedAt) return 'cancelled';
-  // An all-items-cancelled order reads 'cancelled' even while unpaid, so we never
-  // show 'Pending Payment' (with a €0.00 pay prompt) for an order with nothing
-  // left to pay for. This must be checked before the unpaid guard below.
-  if (order.items.length > 0 && order.items.every((item) => item.cancelledAt)) return 'cancelled';
+  // The cancelled check must come before the unpaid guard below, so we never show
+  // 'Pending Payment' (with a €0.00 pay prompt) for an order with nothing to pay for.
+  if (isOrderCancelled(order)) return 'cancelled';
   if (!order.paidAt) return 'pending-payment';
   return deriveOrderStatus(order);
 }
