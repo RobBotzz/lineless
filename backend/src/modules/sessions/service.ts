@@ -26,7 +26,7 @@ export async function createAttendeeSession(
     throw new SessionEventNotFoundError();
   }
   if (event.status !== "ACTIVE") {
-    throw new EventNotActiveError(event.status);
+    throw new EventNotActiveError(event.status, event.branding);
   }
 
   const session = await AttendeeSession.create({

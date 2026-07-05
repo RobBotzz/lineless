@@ -16,9 +16,11 @@ function handleError(err: unknown, res: Response): Response {
     return res.status(404).json({ error: err.message });
   }
   if (err instanceof EventNotActiveError) {
-    return res
-      .status(409)
-      .json({ error: err.message, eventStatus: err.eventStatus });
+    return res.status(409).json({
+      error: err.message,
+      eventStatus: err.eventStatus,
+      branding: err.branding,
+    });
   }
   if (err instanceof AttendeeSessionInvalidError) {
     return res.status(401).json({ error: err.message });

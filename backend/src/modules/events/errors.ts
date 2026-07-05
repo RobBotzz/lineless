@@ -1,4 +1,4 @@
-import type { EventStatus } from "./model";
+import type { EventBranding, EventStatus } from "./model";
 
 export class EventNotFoundError extends Error {
   constructor() {
@@ -9,10 +9,12 @@ export class EventNotFoundError extends Error {
 
 export class EventNotActiveError extends Error {
   eventStatus: EventStatus;
-  constructor(eventStatus: EventStatus) {
+  branding: EventBranding;
+  constructor(eventStatus: EventStatus, branding: EventBranding) {
     super("Event is not active");
     this.name = "EventNotActiveError";
     this.eventStatus = eventStatus;
+    this.branding = branding;
   }
 }
 

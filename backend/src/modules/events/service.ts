@@ -76,7 +76,9 @@ export async function getEventForAttendee(
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
-  if (event.status !== "ACTIVE") throw new EventNotActiveError(event.status);
+  if (event.status !== "ACTIVE") {
+    throw new EventNotActiveError(event.status, event.branding);
+  }
   return stripOperatorAccessKey(event);
 }
 
