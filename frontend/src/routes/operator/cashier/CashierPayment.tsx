@@ -22,7 +22,7 @@ export default function CashierPayment() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  useSSE({
+  const { status: streamStatus } = useSSE({
     path: '/orders/cashier/stream',
     auth: 'operator',
     standId,
@@ -108,7 +108,11 @@ export default function CashierPayment() {
         {searchError ? <p className="mt-3 text-sm text-danger">{searchError}</p> : null}
 
         <div className="mt-4">
-          {filteredOrders === null ? (
+          {orders === null && streamStatus === 'error' ? (
+            <p className="py-8 text-center text-sm text-danger">
+              Could not load orders. Retrying… check your connection if this persists.
+            </p>
+          ) : filteredOrders === null ? (
             <p className="py-8 text-center text-sm text-text-muted">Loading orders…</p>
           ) : filteredOrders.length === 0 ? (
             <p className="py-8 text-center text-sm text-text-muted">

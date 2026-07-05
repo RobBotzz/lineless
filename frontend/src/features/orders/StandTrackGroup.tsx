@@ -129,7 +129,9 @@ export function StandTrackGroup({ stand, items }: StandTrackGroupProps) {
           {stand.standName}
         </span>
         <span className="shrink-0 text-xs text-text-muted">
-          {activeCount} {activeCount === 1 ? 'item' : 'items'}
+          {activeCount === 0 && items.length > 0
+            ? 'Cancelled'
+            : `${activeCount} ${activeCount === 1 ? 'item' : 'items'}`}
         </span>
       </div>
 

@@ -95,6 +95,10 @@ export type OrderListStatus = 'pending-payment' | 'in-preparation' | 'fulfilled'
 // otherwise it follows the preparation-tracking status.
 export function deriveOrderListStatus(order: Order): OrderListStatus {
   if (order.deletedAt) return 'cancelled';
+  // An all-items-cancelled order reads 'cancelled' even while unpaid, so we never
+  // show 'Pending Payment' (with a €0.00 pay prompt) for an order with nothing
+  // left to pay for. This must be checked before the unpaid guard below.
+  if (order.items.length > 0 && order.items.every((item) => item.cancelledAt)) return 'cancelled';
   if (!order.paidAt) return 'pending-payment';
   return deriveOrderStatus(order);
 }
