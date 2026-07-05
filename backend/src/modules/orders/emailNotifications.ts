@@ -29,12 +29,16 @@ function toAbsoluteImageUrl(url: string | null): string | null {
   return url.startsWith("http") ? url : `${config.appBaseUrl}${url}`;
 }
 
+function orderWebviewUrl(order: OrderDoc, suffix = ""): string {
+  return `${config.appBaseUrl}/event/${order.eventId}/orders/${order._id}${suffix}`;
+}
+
 // Loads the event, product and stand context for an order and aggregates its
 // per-unit items into quantity rows grouped by stand — the same "Products by
 // Stand" shape the attendee webview renders. Cancelled items are excluded.
 async function buildOrderEmailPayload(
   order: OrderDoc
-): Promise<OrderEmailPayload | null> {
+): Promise<Omit<OrderEmailPayload, "trackOrderUrl"> | null> {
   const items = order.items.filter((item) => !item.cancelledAt);
   if (items.length === 0) return null;
 
@@ -85,7 +89,6 @@ async function buildOrderEmailPayload(
       items: [...rows.values()],
     })),
     totalCents,
-    trackOrderUrl: `${config.appBaseUrl}/event/${order.eventId}/orders/${order._id}`,
   };
 }
 
@@ -98,6 +101,8 @@ export async function notifyOrderCreated(order: OrderDoc): Promise<void> {
     await sendOrderCreatedEmail({
       to: order.customerEmail,
       orderNumber: order.orderNumber,
+      // Unpaid cash order → link to the pending-payment page, not tracking.
+      trackOrderUrl: orderWebviewUrl(order, "/pay"),
       ...payload,
     });
   } catch (err) {
@@ -115,6 +120,7 @@ export async function notifyOrderPaid(order: OrderDoc): Promise<void> {
       to: order.customerEmail,
       orderNumber: order.orderNumber,
       pickupCode: order.pickupCode,
+      trackOrderUrl: orderWebviewUrl(order),
       ...payload,
     });
   } catch (err) {
