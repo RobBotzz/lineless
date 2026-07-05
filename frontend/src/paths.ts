@@ -25,10 +25,9 @@ export const paths = {
     cart: (eventId: string) => `/event/${eventId}/cart`,
     checkoutConfirmed: (eventId: string, orderId: string) =>
       `/event/${eventId}/checkout/${orderId}/confirmed`,
-    checkoutPending: (eventId: string, orderId: string) =>
-      `/event/${eventId}/checkout/${orderId}/pending`,
     orders: (eventId: string) => `/event/${eventId}/orders`,
     trackOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}`,
+    payOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}/pay`,
     reviewOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}/review`,
   },
   operator: {

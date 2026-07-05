@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
 import { AlertDialog } from '../../../components/feedback/AlertDialog';
 import { SearchIcon } from '../../../components/icons';
 import { BackButton, DeleteIconButton } from '../../../components/shared';
-import { deleteUnpaidOrder, getUnpaidOrders } from '../../../api/orders';
+import { deleteUnpaidOrder } from '../../../api/orders';
+import { useSSE } from '../../../hooks/useSSE';
 import type { Order } from '../../../types/order';
 import { computeTotal } from '../../../types/order';
 import { formatMoney } from '../../../types/product';
@@ -21,19 +22,14 @@ export default function CashierPayment() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    getUnpaidOrders(standId)
-      .then((result) => {
-        if (active) setOrders(result);
-      })
-      .catch(() => {
-        if (active) setOrders([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [standId]);
+  useSSE({
+    path: '/orders/cashier/stream',
+    auth: 'operator',
+    standId,
+    onMessage: ({ event, data }) => {
+      if (event === 'snapshot') setOrders(data as Order[]);
+    },
+  });
 
   const trimmed = query.trim().toLowerCase();
 
