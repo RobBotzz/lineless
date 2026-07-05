@@ -61,10 +61,11 @@ const STATUS_HINTS: Record<EventStatus, string[]> = {
   DRAFT: [
     'Add stands & products',
     'Configure event details',
-    'Start the event when ordering begins',
+    'Share the operator link — operators can join before the event starts',
+    'Start the event to open ordering for guests',
   ],
   ACTIVE: [
-    'Operators can now join via the operator link',
+    'Guests can now browse stands and place orders',
     'Monitor incoming orders in the control center',
     'Stop the event when ordering ends',
   ],
