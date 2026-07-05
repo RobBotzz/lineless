@@ -117,7 +117,7 @@ export default function Cart() {
       }
       const order = await createOrder(eventId, orderItems, checkoutAttempt.current.requestId);
       clear();
-      navigate(paths.attendee.checkoutPending(eventId, order._id), {
+      navigate(paths.attendee.payOrder(eventId, order._id), {
         state: { order, items: orderItems },
       });
     } catch (err) {
