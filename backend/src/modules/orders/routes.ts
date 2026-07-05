@@ -313,14 +313,17 @@ ordersRouter.get(
         }
         emit(order);
       });
+      // Register cleanup before the await: a disconnect during the snapshot
+      // query would otherwise leak the listener and heartbeat, since onClose
+      // attaches a res "close" handler that Node won't replay for an already
+      // fired close.
+      sse.onClose(() => unsubscribe());
 
       const initial = await listOrdersForAttendee(sessionId);
       sse.send("snapshot", initial);
       ready = true;
       buffered.forEach(emit);
       buffered.length = 0;
-
-      sse.onClose(() => unsubscribe());
     } catch (err) {
       handleError(err, res);
     }
