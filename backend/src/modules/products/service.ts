@@ -31,6 +31,7 @@ import {
 import {
   verifyActiveEvent,
   verifyEventOwnership,
+  verifyMutableOperableEvent,
   verifyOperableEvent,
 } from "../events/ownership";
 import { Event } from "../events/model";
@@ -82,17 +83,38 @@ async function getExistingProduct(productId: string): Promise<ProductDoc> {
   return product;
 }
 
+// Resolves the stand an operator token is scoped to and returns its event id.
+// A token for a different (or missing) stand is rejected as StandNotFoundError.
+async function resolveOperatorStandEventId(
+  standId: string,
+  operatorStandId: string
+): Promise<string> {
+  if (standId !== operatorStandId) {
+    throw new StandNotFoundError();
+  }
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
+  if (!stand) throw new StandNotFoundError();
+  return stand.eventId;
+}
+
+// Read access: an operator may view a stand's products in any lifecycle state,
+// including a completed event (wind-down/reconciliation).
 async function verifyStandAccessForOperator(
   standId: string,
   operatorStandId: string
 ): Promise<void> {
-  if (standId !== operatorStandId) {
-    throw new StandNotFoundError();
-  }
+  const eventId = await resolveOperatorStandEventId(standId, operatorStandId);
+  await verifyOperableEvent(eventId);
+}
 
-  const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
-  if (!stand) throw new StandNotFoundError();
-  await verifyOperableEvent(stand.eventId);
+// Mutation access: same as above but rejects a COMPLETED event, which is
+// terminal and immutable — operators can no longer pause/resume products on it.
+async function verifyStandMutationAccessForOperator(
+  standId: string,
+  operatorStandId: string
+): Promise<void> {
+  const eventId = await resolveOperatorStandEventId(standId, operatorStandId);
+  await verifyMutableOperableEvent(eventId);
 }
 
 async function verifyStandAccessForAttendee(
@@ -214,7 +236,7 @@ async function findControllableProduct(
   if (auth.type === "organizer") {
     await verifyMutableStandOwnership(product.standId, auth.accountId);
   } else {
-    await verifyStandAccessForOperator(product.standId, auth.standId);
+    await verifyStandMutationAccessForOperator(product.standId, auth.standId);
   }
   return product;
 }

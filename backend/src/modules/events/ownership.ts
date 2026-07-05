@@ -67,6 +67,23 @@ export async function verifyOperableEvent(eventId: string): Promise<void> {
   if (!event) throw new EventNotFoundError();
 }
 
+// Like verifyOperableEvent, but rejects a COMPLETED event. Operators may still
+// work a STOPPED event (wind-down/fulfilment), but a completed event is terminal
+// and immutable — so operator-driven mutations (e.g. product pause/resume) are
+// rejected here while operator reads keep using verifyOperableEvent.
+export async function verifyMutableOperableEvent(
+  eventId: string
+): Promise<void> {
+  const event = await Event.findOne({
+    _id: eventId,
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+  if (event.status === "COMPLETED") {
+    throw new EventStateError("A completed event cannot be modified");
+  }
+}
+
 // Validates the operator link key for any non-deleted event, regardless of
 // status. The status gate (DRAFT/ACTIVE allowed, STOPPED rejected) lives in the
 // service layer, where a proper error code can be returned — the auth guard
