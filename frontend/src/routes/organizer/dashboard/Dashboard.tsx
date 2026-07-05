@@ -18,7 +18,7 @@ import type { Event, EventStatus } from '@/types/event';
 import { hasCoordinates, type Location } from '@/types/location';
 import type { DashboardActionResult } from './data';
 
-type EventFilter = 'all' | 'draft' | 'active' | 'stopped';
+type EventFilter = 'all' | 'draft' | 'active' | 'stopped' | 'completed';
 
 function formatDate(date?: string) {
   if (!date) return 'No date set';
@@ -105,6 +105,7 @@ export default function Dashboard() {
     if (activeFilter === 'draft') return events.filter((event) => event.status === 'DRAFT');
     if (activeFilter === 'active') return events.filter((event) => event.status === 'ACTIVE');
     if (activeFilter === 'stopped') return events.filter((event) => event.status === 'STOPPED');
+    if (activeFilter === 'completed') return events.filter((event) => event.status === 'COMPLETED');
     return events;
   }, [activeFilter, events]);
 
@@ -177,6 +178,7 @@ function EventStatusTabs({
     { id: 'draft', label: 'Drafts' },
     { id: 'active', label: 'Active Events' },
     { id: 'stopped', label: 'Stopped Events' },
+    { id: 'completed', label: 'Completed Events' },
   ];
 
   return (
