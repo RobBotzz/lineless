@@ -419,6 +419,7 @@ export default function EventConfiguration() {
             <Button
               size="sm"
               variant="outline"
+              disabled={isCompleted}
               onClick={() => {
                 setEditingStand(stand);
                 setIsStandDialogOpen(true);
@@ -429,6 +430,7 @@ export default function EventConfiguration() {
             <Button
               size="sm"
               variant="outline"
+              disabled={isCompleted}
               className="text-danger hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
               onClick={() => handleDeleteStand(stand._id)}
             >
@@ -442,6 +444,7 @@ export default function EventConfiguration() {
           <ProductRow
             key={product._id}
             product={product}
+            disabled={isCompleted}
             onEdit={() => setProductDialog({ standId: stand._id, product })}
             onDelete={() => setPendingDeleteProduct(product)}
           />
@@ -457,7 +460,7 @@ export default function EventConfiguration() {
             <Button
               size="sm"
               variant="outline"
-              disabled={atProductLimit}
+              disabled={atProductLimit || isCompleted}
               onClick={() => setProductDialog({ standId: stand._id, product: null })}
             >
               + Add Product
@@ -638,6 +641,7 @@ export default function EventConfiguration() {
           <CardContent className="@container">
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
               <TextField
+                disabled={isCompleted}
                 id="event-name"
                 label="Event Name"
                 onChange={(e) => updateField('name', e.target.value)}
@@ -647,6 +651,7 @@ export default function EventConfiguration() {
               />
 
               <TextField
+                disabled={isCompleted}
                 error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
                 id="event-date"
                 label="Event Date"
@@ -657,6 +662,7 @@ export default function EventConfiguration() {
               />
 
               <EventLocationField
+                disabled={isCompleted}
                 onChange={(location) => updateField('location', location)}
                 value={form.location}
               />
@@ -704,6 +710,7 @@ export default function EventConfiguration() {
                     </span>
                   </span>
                 }
+                disabled={isCompleted}
                 type="number"
                 inputMode="numeric"
                 min="1"
@@ -759,6 +766,7 @@ export default function EventConfiguration() {
                 </label>
                 <Toggle
                   checked={form.ratingsEnabled}
+                  disabled={isCompleted}
                   id="ratings-enabled"
                   label="Customer Product Ratings"
                   onChange={(value) => updateField('ratingsEnabled', value)}
@@ -846,7 +854,7 @@ export default function EventConfiguration() {
                     onError={setLogoError}
                     acceptedTypes={ACCEPTED_IMAGE_TYPES}
                     maxBytes={MAX_IMAGE_BYTES}
-                    disabled={logoBusy}
+                    disabled={logoBusy || isCompleted}
                     sizeClassName="h-40 @2xl:h-auto @2xl:aspect-square"
                   />
                   {logoError && <p className="mt-1 text-xs text-danger">{logoError}</p>}
@@ -860,6 +868,7 @@ export default function EventConfiguration() {
                       palette; the organizer can still fine-tune afterwards. */}
                 <BrandPresetRow
                   current={form}
+                  disabled={isCompleted}
                   onApply={(preset) =>
                     setForm((prev) => ({
                       ...prev,
@@ -878,6 +887,7 @@ export default function EventConfiguration() {
                   <div className="grid grid-cols-1 items-stretch gap-4 @sm:grid-cols-2 @3xl:grid-cols-3">
                     {/* Role 1 — brand fill (buttons/highlights). */}
                     <BrandColorField
+                      disabled={isCompleted}
                       id="primary-color"
                       label="Brand"
                       onChange={(value) => updateField('primaryColor', value)}
@@ -886,6 +896,7 @@ export default function EventConfiguration() {
                     {/* Role 3 — accent used as standalone text (links, prices,
                           headings) on the neutral page. null = Auto (derive). */}
                     <BrandColorField
+                      disabled={isCompleted}
                       id="accent-text-color"
                       label="Brand Text"
                       onChange={(value) => updateField('accentTextColor', value)}
@@ -899,6 +910,7 @@ export default function EventConfiguration() {
                           backend. Spans the 2-up row so it never sits half-width. */}
                     <div className="@sm:col-span-2 @3xl:col-span-1">
                       <ButtonTextColorField
+                        disabled={isCompleted}
                         onChange={(value) => updateField('secondaryColor', value)}
                         value={form.secondaryColor}
                       />
@@ -981,6 +993,7 @@ export default function EventConfiguration() {
           enableError={cashierEnableError}
           cashierStand={cashierStand}
           eventLocation={form.location}
+          disabled={isCompleted}
         />
 
         {/* Stands & Products */}
@@ -997,6 +1010,7 @@ export default function EventConfiguration() {
             <CardAction>
               <Button
                 size="sm"
+                disabled={isCompleted}
                 onClick={() => {
                   setEditingStand(null);
                   setIsStandDialogOpen(true);
@@ -1176,12 +1190,14 @@ function BrandColorField({
   value,
   onChange,
   auto,
+  disabled = false,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   auto?: { active: boolean; onEnable: () => void };
+  disabled?: boolean;
 }) {
   const [showAutoInfo, setShowAutoInfo] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -1216,8 +1232,9 @@ function BrandColorField({
           <>
             <button
               aria-pressed={auto.active}
+              disabled={disabled}
               className={cn(
-                'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+                'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                 auto.active
                   ? 'border-accent/30 bg-accent-soft text-accent-contrast'
                   : 'border-border bg-surface text-text-muted hover:text-text',
@@ -1273,7 +1290,7 @@ function BrandColorField({
           className={cn(
             'flex w-full items-stretch overflow-hidden rounded-lg border bg-surface',
             showError ? 'border-danger' : 'border-border',
-            auto?.active && 'opacity-60',
+            (auto?.active || disabled) && 'opacity-60',
           )}
         >
           <span
@@ -1282,7 +1299,8 @@ function BrandColorField({
           >
             <input
               aria-label={`${label} swatch`}
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              disabled={disabled}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
               onChange={(e) => {
                 setDraft(e.target.value);
                 onChange(e.target.value);
@@ -1292,8 +1310,9 @@ function BrandColorField({
             />
           </span>
           <input
-            className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-text outline-none"
+            className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-text outline-none disabled:cursor-not-allowed"
             id={id}
+            disabled={disabled}
             maxLength={7}
             onChange={(e) => handleTextChange(e.target.value)}
             type="text"
@@ -1316,9 +1335,11 @@ const BUTTON_TEXT_OPTIONS = [
 function ButtonTextColorField({
   value,
   onChange,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex h-full flex-col">
@@ -1326,13 +1347,16 @@ function ButtonTextColorField({
         Button Text
       </span>
       <div className="flex flex-1 items-center">
-        <div className="flex w-full rounded-lg bg-surface-muted p-1">
+        <div
+          className={cn('flex w-full rounded-lg bg-surface-muted p-1', disabled && 'opacity-60')}
+        >
           {BUTTON_TEXT_OPTIONS.map((option) => (
             <button
               key={option.value}
               aria-pressed={value === option.value}
+              disabled={disabled}
               className={cn(
-                'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed',
                 value === option.value
                   ? 'bg-surface text-text shadow-sm'
                   : 'text-text-muted hover:text-text',
@@ -1355,9 +1379,11 @@ function ButtonTextColorField({
 function BrandPresetRow({
   current,
   onApply,
+  disabled = false,
 }: {
   current: Pick<EventForm, 'primaryColor' | 'secondaryColor' | 'accentTextColor'>;
   onApply: (preset: BrandPreset) => void;
+  disabled?: boolean;
 }) {
   const matches = (p: BrandPreset) =>
     p.primaryColor.toLowerCase() === current.primaryColor.toLowerCase() &&
@@ -1373,8 +1399,9 @@ function BrandPresetRow({
             <button
               key={preset.name}
               aria-pressed={active}
+              disabled={disabled}
               className={cn(
-                'inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                'inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                 active
                   ? 'border-accent/40 bg-accent-soft text-text'
                   : 'border-border bg-surface text-text-muted hover:text-text',
@@ -1400,9 +1427,11 @@ function BrandPresetRow({
 function EventLocationField({
   value,
   onChange,
+  disabled = false,
 }: {
   value: Location;
   onChange: (next: Location) => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -1415,9 +1444,10 @@ function EventLocationField({
   return (
     <div>
       <p className="mb-2 block text-sm font-medium text-text">Event Location</p>
-      <div className="rounded-lg border border-border bg-surface">
+      <div className={cn('rounded-lg border border-border bg-surface', disabled && 'opacity-60')}>
         <button
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left disabled:cursor-not-allowed"
+          disabled={disabled}
           onClick={() => setOpen((prev) => !prev)}
           type="button"
         >

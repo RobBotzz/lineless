@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from 'react-router';
 
 import { ApiError } from '@/api/client';
+import { getAttendeeEvent } from '@/api/events';
 import { getAttendeeStandProducts } from '@/api/products';
 import { getAttendeeStands } from '@/api/stands';
 import { ensureAttendeeSession } from '@/auth/attendee/attendeeSession';
@@ -32,26 +33,28 @@ export async function productSelectionLoader({
     throw err;
   }
 
-  // For STOPPED/COMPLETED events an existing session is valid, but the stands
-  // and product endpoints require ACTIVE (or ACTIVE|STOPPED). Return empty data
-  // so the component's own status guard renders instead of the error boundary.
-  try {
-    const stands = await getAttendeeStands(eventId);
-
-    const productLists = await Promise.all(
-      stands.map((stand) => getAttendeeStandProducts(eventId, stand._id)),
-    );
-
-    const productsByStand: Record<string, Product[]> = {};
-    stands.forEach((stand, i) => {
-      productsByStand[stand._id] = productLists[i].filter((p) => p.productStatus === 'LIVE');
-    });
-
-    return { stands, productsByStand };
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) {
-      return { stands: [], productsByStand: {} };
-    }
-    throw err;
+  // Only an ACTIVE event serves a menu. For STOPPED/COMPLETED the stand endpoint
+  // still answers but the product endpoints 404 (they require ACTIVE), so decide
+  // on the status explicitly rather than inferring it from a 404. Return empty so
+  // the component's own status guard renders instead of the error boundary.
+  const event = await getAttendeeEvent(eventId);
+  if (event.status !== 'ACTIVE') {
+    return { stands: [], productsByStand: {} };
   }
+
+  // The event is ACTIVE, so stand/product loads are expected to succeed. Any 404
+  // here is therefore an unexpected condition — a deleted-stand race or a missing
+  // product endpoint — and is left to surface via the error boundary rather than
+  // being silently presented as an empty "No products available" menu.
+  const stands = await getAttendeeStands(eventId);
+  const productLists = await Promise.all(
+    stands.map((stand) => getAttendeeStandProducts(eventId, stand._id)),
+  );
+
+  const productsByStand: Record<string, Product[]> = {};
+  stands.forEach((stand, i) => {
+    productsByStand[stand._id] = productLists[i].filter((p) => p.productStatus === 'LIVE');
+  });
+
+  return { stands, productsByStand };
 }
