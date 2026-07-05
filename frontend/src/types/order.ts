@@ -11,6 +11,7 @@ export interface OrderItem {
   readyAt: string | null;
   fulfilledAt: string | null;
   cancelledAt: string | null;
+  refundedAt: string | null; // set once a cancelled item has been refunded
   inventoryState: 'UNTRACKED' | 'RESERVED' | 'CONSUMED' | 'RELEASED';
 }
 
@@ -42,6 +43,18 @@ export interface StockShortage {
 export function computeTotal(order: Order): number {
   return order.items
     .filter((item) => !item.cancelledAt)
+    .reduce((sum, item) => sum + item.priceIncludingTaxAtPurchase, 0);
+}
+
+// An item is refundable when it was cancelled but not yet refunded.
+export function isRefundableItem(item: OrderItem): boolean {
+  return item.cancelledAt != null && item.refundedAt == null;
+}
+
+// Total in integer cents of all still-refundable (cancelled, not-refunded) items.
+export function computeRefundableTotal(order: Order): number {
+  return order.items
+    .filter(isRefundableItem)
     .reduce((sum, item) => sum + item.priceIncludingTaxAtPurchase, 0);
 }
 

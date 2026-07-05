@@ -43,5 +43,10 @@ export const paths = {
       `/operator/${eventId}/cashier/payment/${orderId}`,
     cashierPaymentConfirmed: (eventId: string, orderId: string) =>
       `/operator/${eventId}/cashier/payment/${orderId}/confirmed`,
+    cashierRefund: (eventId: string) => `/operator/${eventId}/cashier/refund`,
+    cashierRefundOrder: (eventId: string, orderId: string) =>
+      `/operator/${eventId}/cashier/refund/${orderId}`,
+    cashierRefundConfirmed: (eventId: string, orderId: string) =>
+      `/operator/${eventId}/cashier/refund/${orderId}/confirmed`,
   },
 } as const;

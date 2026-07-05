@@ -352,3 +352,62 @@ export function confirmCashPayment(orderId: string, standId: string): Promise<vo
 export function getAttendeeOrders(eventId: string): Promise<Order[]> {
   return apiFetch<Order[]>('/orders', { auth: 'attendee', eventId });
 }
+
+// --- Cash refund API -----------------------------------------------------------
+
+// GET /api/orders/cashier/refundable — cash-paid orders for the cashier's event
+// that still have at least one refundable (cancelled, not-refunded) item.
+export function getRefundableOrders(standId: string): Promise<Order[]> {
+  return apiFetch<Order[]>('/orders/cashier/refundable', { auth: 'operator', standId });
+}
+
+// POST /api/orders/:orderId/refund — refund the given cancelled items in one go.
+export function refundOrderItems(
+  orderId: string,
+  itemIds: string[],
+  standId: string,
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}/refund`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+    body: JSON.stringify({ itemIds }),
+  });
+}
+
+// One display row per individual order item — unlike buildOrderViewItems this keeps
+// cancelled/refunded items so the refund screen can show the whole order and offer
+// the refundable items for selection by their real item ids.
+export interface RefundItemRow {
+  _id: string;
+  productName: string;
+  standName: string;
+  unitPrice: number; // integer cents
+  cancelledAt: string | null;
+  refundedAt: string | null;
+}
+
+export async function buildRefundRows(
+  order: Order,
+  eventId: string,
+  standId: string,
+): Promise<RefundItemRow[]> {
+  const [products, stands] = await Promise.all([
+    getOperatorEventProducts(eventId, standId),
+    getOperatorStands(eventId),
+  ]);
+  const productById = new Map(products.map((p) => [p._id, p]));
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+
+  return order.items.map((item) => {
+    const product = productById.get(item.productId);
+    return {
+      _id: item._id,
+      productName: product?.productName ?? item.productName ?? item.productId,
+      standName: product ? (standNameById.get(product.standId) ?? '') : '',
+      unitPrice: item.priceIncludingTaxAtPurchase,
+      cancelledAt: item.cancelledAt,
+      refundedAt: item.refundedAt,
+    };
+  });
+}
