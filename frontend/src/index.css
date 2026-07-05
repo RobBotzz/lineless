@@ -32,7 +32,7 @@
   --color-accent-raised: color-mix(in srgb, var(--color-accent) 75%, #ffffff 25%);
 
   /* Shadows — derived from accent, update automatically when accent changes */
-  --shadow-navbar: 0 10px 30px color-mix(in srgb, var(--color-accent) 8%, transparent);
+  --shadow-navbar: 0 4px 20px color-mix(in srgb, var(--color-accent) 18%, transparent);
 
   /* Semantic */
   --color-success: #16a34a;

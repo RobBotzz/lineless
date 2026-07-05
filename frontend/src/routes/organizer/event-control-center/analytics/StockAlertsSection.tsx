@@ -47,9 +47,11 @@ function StockAlertCard({ alert }: { alert: ProductStockAlert }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-text">{alert.productName}</h3>
+          <h3 className="text-sm font-semibold text-text [overflow-wrap:anywhere]">
+            {alert.productName}
+          </h3>
           <span className="mt-2 inline-flex max-w-full rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-muted">
-            <span className="truncate">{alert.standName}</span>
+            <span className="[overflow-wrap:anywhere]">{alert.standName}</span>
           </span>
         </div>
         <span

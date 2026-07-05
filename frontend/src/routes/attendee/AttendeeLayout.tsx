@@ -35,13 +35,13 @@ export default function AttendeeLayout() {
     <CartProvider key={eventId ?? ''} eventId={eventId ?? ''}>
       <AttendeeRequireSession eventId={eventId ?? ''}>
         <BrandingProvider branding={event.branding}>
-          <div className="min-h-screen bg-background">
+          <div className="flex min-h-screen flex-col bg-background">
             <AttendeeNavbar
               left={<Logo eventId={eventId} logoSrc={eventLogoSrc(event)} />}
               right={<NavbarActions eventId={eventId} />}
               widthClassName={ATTENDEE_WIDTH}
             />
-            <main className={`mx-auto ${ATTENDEE_WIDTH} pb-6 pt-4`}>
+            <main className={`flex flex-1 flex-col mx-auto ${ATTENDEE_WIDTH} pt-4`}>
               <Outlet />
             </main>
           </div>

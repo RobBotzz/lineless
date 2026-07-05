@@ -1,18 +1,15 @@
 import { useEffect, useState } from 'react';
-import { EditIcon, ImageIcon, StarIcon } from '@/components/icons';
+import { EditIcon, ImageIcon } from '@/components/icons';
 import { DeleteIconButton } from '@/components/shared';
 import { formatMoney, priceExclTax, productImageSrc, type Product } from '@/types/product';
-import { ProductReviewsDialog } from './ProductReviewsDialog';
 
 interface ProductRowProps {
   product: Product;
-  eventId?: string;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowProps) {
-  const [reviewsOpen, setReviewsOpen] = useState(false);
+export function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
   // Fall back to the placeholder when there is no URL or the image fails to load.
   const [imageOk, setImageOk] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -22,7 +19,7 @@ export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowPro
   const exclTax = priceExclTax(product);
 
   return (
-    <div className="flex items-center gap-3 border-t border-border px-4 py-3">
+    <div className="flex flex-wrap items-center gap-3 border-t border-border px-4 py-3">
       {/* Thumbnail — clickable to enlarge when a valid image is present */}
       <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border bg-surface-muted">
         {showImage ? (
@@ -54,12 +51,13 @@ export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowPro
         />
       )}
 
-      {/* Name + type tag + description snippet. Capped width + mr-auto leaves
-          some whitespace before the price column. The name never truncates —
-          it wraps (and the tag wraps with it) when space runs short. */}
-      <div className="mr-auto min-w-0 max-w-[62%]">
+      {/* The name takes the available space. Prices and actions are fixed-size
+          flex items and move onto another line when the card becomes narrow. */}
+      <div className="min-w-0 flex-[1_1_10rem]">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-sm font-medium break-words text-text">{product.productName}</span>
+          <span className="min-w-0 text-sm font-medium text-text [overflow-wrap:anywhere]">
+            {product.productName}
+          </span>
           <ProductTypeBadge instant={product.instantProduct} />
         </div>
         {product.productDescription && (
@@ -68,7 +66,7 @@ export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowPro
       </div>
 
       {/* Prices — incl. tax emphasized, excl. tax muted underneath */}
-      <div className="shrink-0 text-right">
+      <div className="ml-auto shrink-0 text-right">
         <p className="text-base font-semibold text-text">
           €{formatMoney(product.priceIncludingTax)}
         </p>
@@ -77,16 +75,6 @@ export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowPro
 
       {/* Actions */}
       <div className="flex shrink-0 items-center gap-1">
-        {eventId && (
-          <button
-            aria-label={`Reviews for ${product.productName}`}
-            className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
-            onClick={() => setReviewsOpen(true)}
-            type="button"
-          >
-            <StarIcon className="h-4 w-4" />
-          </button>
-        )}
         <button
           aria-label={`Edit ${product.productName}`}
           className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
@@ -97,15 +85,6 @@ export function ProductRow({ product, eventId, onEdit, onDelete }: ProductRowPro
         </button>
         <DeleteIconButton label={`Delete ${product.productName}`} onClick={onDelete} />
       </div>
-
-      {reviewsOpen && eventId && (
-        <ProductReviewsDialog
-          productId={product._id}
-          productName={product.productName}
-          eventId={eventId}
-          onClose={() => setReviewsOpen(false)}
-        />
-      )}
     </div>
   );
 }

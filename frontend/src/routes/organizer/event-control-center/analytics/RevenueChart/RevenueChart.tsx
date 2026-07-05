@@ -319,7 +319,9 @@ function RevenueStandMix({ breakdown }: { breakdown: StandRevenueBreakdown[] }) 
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: entry.color }}
                 />
-                <span className="truncate">{entry.standName}</span>
+                <span className="line-clamp-2 [overflow-wrap:anywhere]" title={entry.standName}>
+                  {entry.standName}
+                </span>
               </span>
               <span className="shrink-0 text-xs font-semibold text-text-muted">
                 {Math.round(entry.share)}%
@@ -403,7 +405,7 @@ function formatRevenueTooltip(
     ? `
       <div class="mt-2 inline-flex max-w-full items-center gap-2 rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-text">
         <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:${hoveredSeries.color}"></span>
-        <span class="truncate">${escapeHtml(hoveredSeries.standName)}</span>
+        <span class="[overflow-wrap:anywhere]">${escapeHtml(hoveredSeries.standName)}</span>
       </div>
     `
     : '';
@@ -415,7 +417,7 @@ function formatRevenueTooltip(
               <div class="mt-1.5 flex justify-between gap-4">
                 <span class="flex min-w-0 items-center gap-2 text-text-muted">
                   <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:${entry.color}"></span>
-                  <span class="truncate">${escapeHtml(entry.standName)}</span>
+                  <span class="[overflow-wrap:anywhere]">${escapeHtml(entry.standName)}</span>
                 </span>
                 <span class="shrink-0 font-semibold tabular-nums text-text">EUR ${formatMoney(entry.revenueCents)}</span>
               </div>
@@ -430,7 +432,7 @@ function formatRevenueTooltip(
             (product) => `
               <div class="mt-2 flex items-start justify-between gap-4">
                 <div class="min-w-0">
-                  <p class="truncate text-text">${escapeHtml(product.productName)}</p>
+                  <p class="text-text [overflow-wrap:anywhere]">${escapeHtml(product.productName)}</p>
                   <p class="text-xs text-text-muted">Qty ${product.quantitySold}</p>
                 </div>
                 <span class="shrink-0 font-semibold tabular-nums text-text">EUR ${formatMoney(product.revenueCents)}</span>

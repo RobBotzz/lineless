@@ -12,10 +12,16 @@ import {
 } from '@/api/eventControlCenter';
 import { cancelOrder, cancelOrderItems } from '@/api/orders';
 import { useSSE, type SseStatus } from '@/hooks/useSSE';
-import { getStandProducts, pauseProduct, resumeProduct, updateProductStock } from '@/api/products';
+import {
+  getStandProducts,
+  pauseProduct,
+  ProductStockChangedError,
+  resumeProduct,
+  updateProductStock,
+} from '@/api/products';
 import { getEventStands, pauseStand, resumeStand } from '@/api/stands';
 import { isEventControlCenterData, isLiveOrderArray } from '@/types/eventControlCenter';
-import type { Product } from '@/types/product';
+import type { Product, StockMode } from '@/types/product';
 import type { Stand } from '@/types/stand';
 
 export function useEventControlCenterLiveData({
@@ -218,10 +224,19 @@ export function useEventControlCenterLiveData({
     }
   }
 
-  async function handleProductStockChange(standId: string, product: Product, productStock: number) {
+  async function handleProductStockChange(
+    standId: string,
+    product: Product,
+    productStock: number,
+    stockMode: StockMode,
+  ) {
     setMutationError(null);
     try {
-      const updatedProduct = await updateProductStock(product._id, productStock);
+      const updatedProduct = await updateProductStock(
+        product._id,
+        { productStock: product.productStock, stockMode: product.stockMode },
+        { productStock, stockMode },
+      );
       setProductsByStand((current) => ({
         ...current,
         [standId]: (current[standId] ?? []).map((candidate) =>
@@ -229,6 +244,22 @@ export function useEventControlCenterLiveData({
         ),
       }));
     } catch (error) {
+      if (error instanceof ProductStockChangedError) {
+        setProductsByStand((current) => ({
+          ...current,
+          [standId]: (current[standId] ?? []).map((candidate) =>
+            candidate._id === product._id
+              ? {
+                  ...candidate,
+                  productStock: error.currentProductStock,
+                  stockMode: error.currentStockMode,
+                }
+              : candidate,
+          ),
+        }));
+        setMutationError('Product stock changed during editing. The current value was loaded.');
+        throw error;
+      }
       await recoverOperationalSnapshot();
       setMutationError('Product stock could not be saved.');
       throw error;

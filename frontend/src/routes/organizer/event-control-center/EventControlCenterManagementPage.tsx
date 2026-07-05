@@ -1,5 +1,5 @@
 import type { LiveOrder } from '@/api/eventControlCenter';
-import type { Product } from '@/types/product';
+import type { Product, StockMode } from '@/types/product';
 import type { Stand } from '@/types/stand';
 import { LiveOrdersSection } from './management/LiveOrdersSection';
 import { OperationalPausingSection } from './management/OperationalPausingSection';
@@ -21,7 +21,12 @@ export function EventControlCenterManagementPage({
   onCancelOrder: (orderId: string) => Promise<void>;
   onCancelOrderItems: (orderId: string, itemIds: string[]) => Promise<void>;
   onProductPauseChange: (standId: string, product: Product, paused: boolean) => Promise<void>;
-  onProductStockChange: (standId: string, product: Product, productStock: number) => Promise<void>;
+  onProductStockChange: (
+    standId: string,
+    product: Product,
+    productStock: number,
+    stockMode: StockMode,
+  ) => Promise<void>;
   onStandPauseChange: (stand: Stand, paused: boolean) => Promise<void>;
   stands: Stand[];
   productsByStand: Record<string, Product[]>;

@@ -3,6 +3,9 @@
 // fine here since these modules don't reference the DOM Event.
 import type { Location } from './location';
 
+// COMPLETED is emitted by the event-completion flow. Kept here so events left in
+// that state (e.g. created on a branch that has the feature) render instead of
+// crashing the view when the running backend build predates it.
 export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED' | 'COMPLETED';
 
 export interface EventBranding {

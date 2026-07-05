@@ -35,7 +35,7 @@ export function ItemComments({
       {open ? (
         <ul className="mt-2 space-y-1">
           {notes.map((note) => (
-            <li key={note.unit} className="text-xs text-text-muted">
+            <li key={note.unit} className="text-xs text-text-muted [overflow-wrap:anywhere]">
               <span className="font-medium text-text">
                 {productName} #{note.unit}:
               </span>{' '}

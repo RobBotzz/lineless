@@ -9,7 +9,7 @@ type PasswordTextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'
 };
 
 const inputClasses =
-  'w-full rounded-lg border border-border bg-surface px-4 py-3 pr-11 text-sm text-text outline-none transition placeholder:text-text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted disabled:opacity-80';
+  'w-full rounded-lg border border-border bg-surface px-4 py-3 pr-11 text-base text-text outline-none transition placeholder:text-text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted disabled:opacity-80';
 
 export function PasswordTextField({
   className,

@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Elements } from '@stripe/react-stripe-js';
 
-import { Button } from '@/components/ui/button';
-import { cancelPendingOrderAuthorization, createCardOrder, getAttendeeOrder } from '@/api/orders';
+import { AlertDialog } from '@/components/feedback';
+import {
+  cancelPendingOrderAuthorization,
+  type CardOrderResult,
+  createCardOrder,
+  getAttendeeOrder,
+  InsufficientStockError,
+} from '@/api/orders';
 import { createTab, getTabStatus } from '@/api/tabs';
 import { clearAttendeeTab, getAttendeeTab, setAttendeeTab } from '@/auth/keychain';
 import type { Order, OrderItemView } from '@/types/order';
@@ -16,6 +22,7 @@ interface CardCheckoutDialogProps {
   items: OrderItemView[];
   onSuccess: (order: Order) => void;
   onClose: () => void;
+  onStockConflict: (error: InsufficientStockError) => void;
 }
 
 interface CardPrompt {
@@ -26,10 +33,13 @@ interface CardPrompt {
   amountCents: number | null;
 }
 
+type PendingOrderResolution = 'none' | 'cancelled' | 'completed';
+
 // The tab only flips to OPEN once Stripe's authorization webhook reaches the
 // backend, so we poll briefly after each card confirmation.
 const POLL_INTERVAL_MS = 1500;
 const POLL_MAX_ATTEMPTS = 20; // ~30s, covers normal webhook latency
+const ORDER_REQUEST_TIMEOUT_MS = 20_000;
 
 // Distinguishes a user-initiated cancel from a real failure so the runner can
 // unwind silently instead of showing an error.
@@ -48,12 +58,14 @@ export function CardCheckoutDialog({
   items,
   onSuccess,
   onClose,
+  onStockConflict,
 }: CardCheckoutDialogProps) {
   const [phase, setPhase] = useState<'working' | 'error'>('working');
   const [message, setMessage] = useState('Setting up your payment…');
   const [prompt, setPrompt] = useState<CardPrompt | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
   // Bridges the imperative card form into the linear async runner: the runner
   // sets a prompt and awaits this deferred; the form resolves it on success.
@@ -61,6 +73,8 @@ export function CardCheckoutDialog({
   const pendingOrderId = useRef<string | null>(null);
   const cancelled = useRef(false);
   const started = useRef(false);
+  const creatingOrder = useRef(false);
+  const requestId = useRef(crypto.randomUUID());
 
   useEffect(() => {
     if (started.current) return;
@@ -91,7 +105,9 @@ export function CardCheckoutDialog({
 
   async function pollUntilOpen(tabId: string): Promise<void> {
     for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt += 1) {
+      if (cancelled.current) throw new CancelledError();
       const tab = await getTabStatus(tabId, eventId);
+      if (cancelled.current) throw new CancelledError();
       if (tab.status === 'OPEN') return;
       if (tab.status === 'FAILED') throw new Error('Your card could not be authorized.');
       await delay(POLL_INTERVAL_MS);
@@ -105,6 +121,44 @@ export function CardCheckoutDialog({
 
     await cancelPendingOrderAuthorization(orderId, eventId);
     if (pendingOrderId.current === orderId) pendingOrderId.current = null;
+  }
+
+  // A failed request does not tell us whether the server processed it. Resolve
+  // that ambiguity before another checkout can create a new order/requestId.
+  async function reconcilePendingOrder(): Promise<PendingOrderResolution> {
+    const orderId = pendingOrderId.current;
+    if (!orderId) return 'none';
+
+    try {
+      const order = await getAttendeeOrder(orderId, eventId);
+      if (order.paidAt) {
+        pendingOrderId.current = null;
+        onSuccess(order);
+        return 'completed';
+      }
+    } catch {
+      // The status read is best-effort. Cancellation remains safe: the backend
+      // rejects paid orders and is idempotent for an already-cancelled order.
+    }
+
+    await cancelPendingAuthorization();
+    requestId.current = crypto.randomUUID();
+    return 'cancelled';
+  }
+
+  async function createOrderWithTimeout(tabId: string): Promise<CardOrderResult> {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), ORDER_REQUEST_TIMEOUT_MS);
+    try {
+      return await createCardOrder(eventId, items, tabId, requestId.current, controller.signal);
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error('Placing the order timed out. Please retry.', { cause: error });
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   }
 
   // Returns the id of an OPEN tab, opening + authorizing a new one if the stored
@@ -131,7 +185,9 @@ export function CardCheckoutDialog({
       clearAttendeeTab(eventId); // PAID / CHECKOUT_PENDING / FAILED / dead
     }
 
-    const { tabId, clientSecret } = await createTab(eventId);
+    const firstOrderCents = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+    const { tabId, clientSecret } = await createTab(eventId, firstOrderCents);
+    if (cancelled.current) throw new CancelledError();
     setAttendeeTab(eventId, tabId);
     setMessage('Authorizing your card…');
     await awaitCard(clientSecret, 'Authorize card');
@@ -143,10 +199,25 @@ export function CardCheckoutDialog({
 
   async function runCheckout(): Promise<void> {
     try {
+      const pendingResolution = await reconcilePendingOrder();
+      if (pendingResolution === 'completed') return;
+
       const tabId = await ensureOpenTab();
+      if (cancelled.current) throw new CancelledError();
       setMessage('Placing your order…');
 
-      const result = await createCardOrder(eventId, items, tabId);
+      creatingOrder.current = true;
+      setIsCreatingOrder(true);
+      const result = await createOrderWithTimeout(tabId);
+      // For top-ups, publish the cleanup id before making cancellation
+      // available again. This closes the response/close race that could leave
+      // a reserved order and Stripe hold behind.
+      if (result.status === 'authorizationRequired') {
+        pendingOrderId.current = result.orderId;
+      }
+      creatingOrder.current = false;
+      setIsCreatingOrder(false);
+
       if (result.status === 'created') {
         if (cancelled.current) return;
         onSuccess(result.order);
@@ -155,7 +226,6 @@ export function CardCheckoutDialog({
 
       // The order exceeded the current hold; the backend already created it
       // (gated) and needs a top-up authorization to release it.
-      pendingOrderId.current = result.orderId;
       setMessage('A little more authorization is needed…');
       await awaitCard(result.clientSecret, 'Authorize remaining amount');
       setPrompt(null);
@@ -166,10 +236,31 @@ export function CardCheckoutDialog({
       if (cancelled.current) return;
       onSuccess(order);
     } catch (err) {
+      creatingOrder.current = false;
+      setIsCreatingOrder(false);
       if (err instanceof CancelledError) return;
-      await cancelPendingAuthorization().catch(() => undefined);
+      const abandonedOrder = pendingOrderId.current !== null;
+      let cleanupFailed = false;
+      if (abandonedOrder) {
+        try {
+          const pendingResolution = await reconcilePendingOrder();
+          if (pendingResolution === 'completed') return;
+        } catch {
+          cleanupFailed = true;
+        }
+      }
       if (cancelled.current) return;
-      setError(err instanceof Error ? err.message : 'Payment failed. Please try again.');
+      if (err instanceof InsufficientStockError) {
+        onStockConflict(err);
+        return;
+      }
+      setError(
+        cleanupFailed
+          ? 'We could not confirm the previous order status. Retry to safely resume checkout.'
+          : err instanceof Error
+            ? err.message
+            : 'Payment failed. Please try again.',
+      );
       setPhase('error');
     }
   }
@@ -186,6 +277,7 @@ export function CardCheckoutDialog({
   }
 
   function handleCancel(): void {
+    if (creatingOrder.current) return;
     cancelled.current = true;
     cardDeferred.current?.reject(new CancelledError());
     cardDeferred.current = null;
@@ -199,6 +291,21 @@ export function CardCheckoutDialog({
     setPhase('working');
     setMessage('Setting up your payment…');
     void runCheckout();
+  }
+
+  // Failures use the shared alert so this matches the app's other popups.
+  if (phase === 'error') {
+    return (
+      <AlertDialog
+        message={error}
+        title="Payment couldn't be completed"
+        variant="danger"
+        cancelLabel="Cancel"
+        onCancel={handleCancel}
+        acknowledgeLabel="Try again"
+        onAcknowledge={handleRetry}
+      />
+    );
   }
 
   return (
@@ -219,27 +326,16 @@ export function CardCheckoutDialog({
           <button
             type="button"
             onClick={handleCancel}
+            disabled={isCreatingOrder}
             aria-label="Cancel payment"
-            className="text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40"
           >
             ✕
           </button>
         </div>
 
         <div className="overflow-y-auto px-6 py-5">
-          {phase === 'error' ? (
-            <div className="space-y-4">
-              <p className="text-sm text-danger">{error}</p>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={handleCancel}>
-                  Cancel
-                </Button>
-                <Button className="flex-1" onClick={handleRetry}>
-                  Try again
-                </Button>
-              </div>
-            </div>
-          ) : prompt ? (
+          {prompt ? (
             <div className="space-y-4">
               <p className="text-sm text-text-muted">
                 {prompt.amountCents != null
