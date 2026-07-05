@@ -14,9 +14,9 @@ import { formatOrderDateTime } from './orderFormat';
 import type { CashierContext } from './CashierLayout';
 import { useCashierOrder } from './useCashierOrder';
 
-// The cash-payment endpoint returns 409 both when the event is inactive and
-// when the order was already paid (double-confirm race). The backend sends no
-// discriminating code, so we key off its error message to tell them apart.
+// A double-confirm race resolves the order as already paid, which the cash-
+// payment endpoint reports as a 409 with no discriminating code — so we key off
+// its error message. (Inactive event / cashier disabled come back as 403.)
 function isAlreadyPaid(err: ApiError): boolean {
   return (
     err.message.toLowerCase().includes('already') && err.message.toLowerCase().includes('paid')
@@ -32,27 +32,28 @@ export default function CashierPaymentDetails() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
-  // Persistent block when the event is not active — 409 means the organizer
-  // must start (or has already stopped) the event.
-  const [eventInactive, setEventInactive] = useState(false);
+  // Cash payments blocked (403): event not active or cashier mode disabled. The
+  // flag clears on the next attempt, so once the organizer starts the event a
+  // retry succeeds without reloading the page.
+  const [paymentBlocked, setPaymentBlocked] = useState(false);
 
   async function confirmPayment() {
     if (!order) return;
     setConfirmOpen(false);
     setIsPaying(true);
+    setPaymentBlocked(false); // revalidate on every attempt, don't stay blocked
     try {
       await confirmCashPayment(order._id, standId);
       navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        // The endpoint returns 409 for two distinct cases. A double-confirm race
-        // resolves the order as already paid — that is a success, so continue to
-        // the confirmation screen. Any other 409 means the event is not active.
-        if (isAlreadyPaid(err)) {
-          navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
-          return;
-        }
-        setEventInactive(true);
+      // Double-confirm race: the order is already paid (409) — treat as success.
+      if (err instanceof ApiError && err.status === 409 && isAlreadyPaid(err)) {
+        navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
+        return;
+      }
+      // 403: cash payments are blocked (event not active or cashier disabled).
+      if (err instanceof ApiError && err.status === 403) {
+        setPaymentBlocked(true);
       } else {
         setPayError(err instanceof Error ? err.message : 'Could not confirm the payment.');
       }
@@ -91,12 +92,12 @@ export default function CashierPaymentDetails() {
           </section>
 
           <div className="sticky top-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
-            {eventInactive && (
+            {paymentBlocked && (
               <div className="mb-4 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-text">
                 <WarningTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                 <span>
-                  <span className="font-semibold">Event not active.</span> The organizer must start
-                  the event before cash payments can be confirmed.
+                  <span className="font-semibold">Cash payments unavailable.</span> The event must
+                  be active and cashier mode enabled to confirm cash payments — then try again.
                 </span>
               </div>
             )}
@@ -107,7 +108,7 @@ export default function CashierPaymentDetails() {
             <button
               type="button"
               onClick={() => setConfirmOpen(true)}
-              disabled={isPaying || eventInactive}
+              disabled={isPaying}
               className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-md bg-success px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50"
             >
               {isPaying ? 'Processing…' : 'Confirm Payment'}

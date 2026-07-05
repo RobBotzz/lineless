@@ -10,7 +10,7 @@ import { useCartState } from '@/features/cart/useCartState';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { useAddGuard } from '@/lib/useAddGuard';
 import { ApiError } from '@/api/client';
-import { createManualOrder, InsufficientStockError } from '@/api/orders';
+import { createManualOrder, InsufficientStockError, orderRequestConflict } from '@/api/orders';
 import { getOperatorStands } from '@/api/stands';
 import { getOperatorEventProducts } from '@/api/products';
 import type { OrderItemView } from '@/types/order';
@@ -40,9 +40,9 @@ export default function CashierManualOrder() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Persistent event-not-active block: 409 from the orders endpoint means the
-  // event hasn't started or has been stopped. Unlike a transient error, this
-  // won't resolve by retrying — the operator must wait for the organizer.
+  // Event-not-active hint: a code-less 409 means the event hasn't started or has
+  // been stopped. It clears on the next checkout attempt, so once the organizer
+  // starts the event a retry succeeds without reloading the page.
   const [eventInactive, setEventInactive] = useState(false);
   const [stockConflict, setStockConflict] = useState<StockConflictItem[] | null>(null);
   const checkoutAttempt = useRef<{ fingerprint: string; requestId: string } | null>(null);
@@ -63,6 +63,7 @@ export default function CashierManualOrder() {
   async function handleCheckout() {
     if (items.length === 0) return;
     setIsCheckingOut(true);
+    setEventInactive(false); // revalidate on every attempt, don't stay blocked
     try {
       const orderItems: OrderItemView[] = items.map((item) => ({
         productId: item.product._id,
@@ -117,7 +118,15 @@ export default function CashierManualOrder() {
         setIsCheckingOut(false);
         return;
       }
-      // A plain 409 (no stock shortage payload) means the event isn't active.
+      // The idempotency key was reused for an order that was cancelled/deleted.
+      // Drop it so a fresh attempt starts a new request, and tell the operator.
+      if (orderRequestConflict(err)) {
+        checkoutAttempt.current = null;
+        setError('This order was cancelled. Please start a new order.');
+        setIsCheckingOut(false);
+        return;
+      }
+      // A code-less 409 means the event isn't active.
       if (err instanceof ApiError && err.status === 409) {
         setEventInactive(true);
         setIsCheckingOut(false);
@@ -192,7 +201,7 @@ export default function CashierManualOrder() {
                   <WarningTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                   <span>
                     <span className="font-semibold">Event not active.</span> The organizer must
-                    start the event before orders can be placed.
+                    start the event before orders can be placed — then try again.
                   </span>
                 </div>
               )}
@@ -204,7 +213,7 @@ export default function CashierManualOrder() {
               </div>
               <Button
                 className="mt-3 w-full"
-                disabled={items.length === 0 || isCheckingOut || eventInactive}
+                disabled={items.length === 0 || isCheckingOut}
                 onClick={handleCheckout}
               >
                 {isCheckingOut ? 'Processing…' : 'Checkout'}
