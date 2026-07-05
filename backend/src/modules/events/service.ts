@@ -183,6 +183,9 @@ export async function startEvent(
   if (event.status === "STOPPED") {
     throw new EventStateError("A stopped event cannot be restarted");
   }
+  if (event.status === "COMPLETED") {
+    throw new EventStateError("A completed event cannot be restarted");
+  }
   event.status = "ACTIVE";
   event.startedAt = new Date();
   await event.save();
@@ -222,7 +225,12 @@ export async function completeEvent(
   // Cancel all items on unpaid cash orders so they are not charged.
   await cancelUnpaidCashOrdersForEvent(event._id);
   // Settle open tabs: charge guests for READY/FULFILLED items and release the rest.
-  await finalizeEventTabs(event._id);
+  const tabResult = await finalizeEventTabs(event._id);
+  if (tabResult.failed > 0) {
+    throw new EventStateError(
+      `${tabResult.failed} tab${tabResult.failed === 1 ? "" : "s"} could not be settled. Retry completing the event to reattempt.`
+    );
+  }
 
   event.status = "COMPLETED";
   event.completedAt = new Date();
