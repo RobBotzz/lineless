@@ -138,6 +138,9 @@ export async function updateEvent(
   patch: UpdateEventInput
 ): Promise<EventDoc> {
   const event = await findActiveEvent(eventId, accountId);
+  if (event.status === "COMPLETED") {
+    throw new EventStateError("A completed event cannot be modified");
+  }
   if (patch.name !== undefined) event.name = patch.name;
   if (patch.plannedDate !== undefined) event.plannedDate = patch.plannedDate;
   if (patch.ratingsEnabled !== undefined) {
@@ -226,9 +229,18 @@ export async function completeEvent(
   await cancelUnpaidCashOrdersForEvent(event._id);
   // Settle open tabs: charge guests for READY/FULFILLED items and release the rest.
   const tabResult = await finalizeEventTabs(event._id);
-  if (tabResult.failed > 0) {
+  if (tabResult.failed > 0 || tabResult.skipped > 0) {
+    const parts: string[] = [];
+    if (tabResult.failed > 0)
+      parts.push(
+        `${tabResult.failed} tab${tabResult.failed === 1 ? "" : "s"} could not be charged`
+      );
+    if (tabResult.skipped > 0)
+      parts.push(
+        `${tabResult.skipped} tab${tabResult.skipped === 1 ? "" : "s"} still had unsettled items`
+      );
     throw new EventStateError(
-      `${tabResult.failed} tab${tabResult.failed === 1 ? "" : "s"} could not be settled. Retry completing the event to reattempt.`
+      `Settlement incomplete (${parts.join("; ")}). Retry completing the event to reattempt.`
     );
   }
 
