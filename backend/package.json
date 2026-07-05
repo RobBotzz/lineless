@@ -12,6 +12,7 @@
     "email:preview": "ts-node src/lib/email/preview.ts",
     "db:up": "docker compose up -d --wait mongo",
     "db:down": "docker compose stop mongo",
+    "db:seed": "ts-node src/scripts/seed.ts",
     "prepare": "husky"
   },
   "lint-staged": {

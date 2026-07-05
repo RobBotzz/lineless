@@ -148,24 +148,22 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 
 ### Cashier (manual orders & cash payment)
 
-| Method | URL                                     | Description                                              |
-| ------ | --------------------------------------- | -------------------------------------------------------- |
-| POST   | `/orders`                               | Create manual order (cashier)                            |
-| POST   | `/orders/{orderId}/cash-payment`        | Confirm cash received — marks order paid, releases items |
-| POST   | `/cash-payments/{cashPaymentId}/refund` | Issue a (partial) cash refund against a paid order       |
+| Method | URL                              | Description                                              |
+| ------ | -------------------------------- | -------------------------------------------------------- |
+| POST   | `/orders`                        | Create manual order (cashier)                            |
+| POST   | `/orders/{orderId}/cash-payment` | Confirm cash received — marks order paid, releases items |
 
 ---
 
 ## Shared (used by multiple personas)
 
-| Method | URL                                     | Description                                                      | Used by                       |
-| ------ | --------------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
-| GET    | `/stands/{standId}`                     | Get single stand                                                 | Organizer, Operator, Customer |
-| GET    | `/events/{eventId}/stands`              | List stands of an event                                          | Organizer, Customer           |
-| GET    | `/stands/{standId}/products`            | List products of a stand (menu / catalog)                        | Organizer, Operator, Customer |
-| POST   | `/orders`                               | Create order (customer app and cashier both use this)            | Customer, Operator            |
-| POST   | `/orders/{orderId}/cash-payment`        | Cash payment (operator confirms, applies to customer orders too) | Operator                      |
-| POST   | `/cash-payments/{cashPaymentId}/refund` | Issue a partial or full cash refund                              | Operator                      |
+| Method | URL                              | Description                                                      | Used by                       |
+| ------ | -------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
+| GET    | `/stands/{standId}`              | Get single stand                                                 | Organizer, Operator, Customer |
+| GET    | `/events/{eventId}/stands`       | List stands of an event                                          | Organizer, Customer           |
+| GET    | `/stands/{standId}/products`     | List products of a stand (menu / catalog)                        | Organizer, Operator, Customer |
+| POST   | `/orders`                        | Create order (customer app and cashier both use this)            | Customer, Operator            |
+| POST   | `/orders/{orderId}/cash-payment` | Cash payment (operator confirms, applies to customer orders too) | Operator                      |
 
 > Note: `POST /orders` and `POST /orders/{orderId}/cash-payment` are listed under both
 > Customer/Operator sections for clarity but are the same endpoints.

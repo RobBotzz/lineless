@@ -21,12 +21,12 @@ export const confirmCashPaymentSchema = z.object({
   /** Intentionally empty — eventId is derived from the order's stored eventId. */
 });
 
-export const issueCashRefundSchema = z.object({
-  /** Refund amount in integer cents — must be > 0 and <= order total. */
-  amountCents: z.number().int().positive(),
+export const refundByItemsSchema = z.object({
+  /** Cancelled, not-yet-refunded item ids to refund. */
+  itemIds: z.array(z.uuid()).min(1),
 });
 
 export type OrderItemInput = z.infer<typeof orderItemInputSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type ConfirmCashPaymentInput = z.infer<typeof confirmCashPaymentSchema>;
-export type IssueCashRefundInput = z.infer<typeof issueCashRefundSchema>;
+export type RefundByItemsInput = z.infer<typeof refundByItemsSchema>;

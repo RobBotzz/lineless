@@ -45,7 +45,8 @@ tabsRouter.get("/:tabId", authAttendee, async (req: Request, res: Response) => {
   try {
     const tab = await getTabForAttendee(
       req.params["tabId"] as string,
-      req.attendee!.sessionId
+      req.attendee!.sessionId,
+      req.attendee!.eventId
     );
     return res.status(200).json(tab);
   } catch (err) {

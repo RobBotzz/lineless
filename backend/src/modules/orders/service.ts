@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
 import { config } from "../../config/config";
 import { Order, type OrderDoc, type OrderItemDoc } from "./model";
-import { Tab } from "../tabs/model";
+import { Tab, TAB_ORDER_FREEZE_AFTER_MS } from "../tabs/model";
 import { TabPayment } from "../payments/model";
 import { Product } from "../products/model";
 import { Stand } from "../stands/model";
@@ -20,6 +20,7 @@ import {
   CashierDisabledError,
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
+  CashRefundInvalidItemsError,
   EventNotActiveError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
@@ -29,7 +30,7 @@ import {
   OrderRequestDeletedError,
   OrderValidationError,
 } from "./errors";
-import type { CreateOrderInput, IssueCashRefundInput } from "./types";
+import type { CreateOrderInput } from "./types";
 import {
   groupRequestedProducts,
   releaseReservedStock,
@@ -144,6 +145,7 @@ async function prepareOrderItems(
       readyAt: null as Date | null,
       fulfilledAt: null as Date | null,
       cancelledAt: null as Date | null,
+      refundedAt: null as Date | null,
       inventoryState: "RESERVED",
     };
   });
@@ -255,9 +257,23 @@ export async function submitOrder(
         "Operators cannot place orders against a customer tab."
       );
     }
-    const tab = await Tab.findOne({ _id: tabId, eventId, sessionId }).lean();
+    // The attendee session is short-lived (24h) but a tab can outlive it on a
+    // multi-day event. Match the tab by event, not by the session that opened
+    // it, and re-bind it to the current session so a rolled-over guest keeps
+    // their tab instead of hitting "tab not found". Possession of the tabId is
+    // the ownership proof, consistent with the rest of the attendee model.
+    const tab = await Tab.findOne({ _id: tabId, eventId });
     if (!tab || tab.status !== "OPEN") {
       throw new OrderValidationError("Tab is not OPEN or does not exist.");
+    }
+    if (tab.sessionId !== sessionId) {
+      tab.sessionId = sessionId;
+      await tab.save();
+    }
+    if (Date.now() - tab.createdAt.getTime() >= TAB_ORDER_FREEZE_AFTER_MS) {
+      throw new OrderValidationError(
+        "This tab is closed for new orders and will be charged automatically."
+      );
     }
   }
 
@@ -495,19 +511,39 @@ export async function confirmCashPayment(
   return updated;
 }
 
-export async function issueCashRefund(
-  cashPaymentId: string,
-  input: IssueCashRefundInput,
+// An item is refundable only if it was cancelled and has not been refunded yet.
+function isRefundableItem(item: OrderItemDoc): boolean {
+  return item.cancelledAt != null && item.refundedAt == null;
+}
+
+// Item-level cash refund: refunds the given cancelled items in one atomic save,
+// stamping refundedAt so the same item can never be refunded twice.
+export async function refundCashOrderItems(
+  orderId: string,
+  itemIds: string[],
   actor: CashPaymentActor
 ) {
-  const order = await Order.findOne({ "cashPayment._id": cashPaymentId });
-  if (!order?.cashPayment) throw new CashPaymentNotFoundError();
-  if (order.tabId !== null) throw new CashPaymentNotFoundError();
+  const order = await Order.findOne({ _id: orderId, deletedAt: null });
+  if (!order) throw new OrderNotFoundError();
+  if (order.tabId !== null || !order.paidAt)
+    throw new CashPaymentNotFoundError();
 
   await verifyCashPaymentActor(order.eventId, actor, {
     requireActiveEvent: false,
   });
 
+  const requested = new Set(itemIds);
+  const items = order.items.filter((i) => requested.has(i._id));
+  if (items.length !== requested.size) throw new OrderItemNotFoundError();
+  if (!items.every(isRefundableItem)) throw new CashRefundInvalidItemsError();
+
+  const amountCents = items.reduce(
+    (sum, i) => sum + i.priceIncludingTaxAtPurchase,
+    0
+  );
+
+  // Defensive invariant — refundedAt already prevents double refunds, but this
+  // keeps the same guard the amount-based refund path enforces.
   const orderTotal = order.items.reduce(
     (sum, i) => sum + i.priceIncludingTaxAtPurchase,
     0
@@ -516,18 +552,38 @@ export async function issueCashRefund(
     (sum, r) => sum + r.amountCents,
     0
   );
-  if (alreadyRefunded + input.amountCents > orderTotal) {
+  if (alreadyRefunded + amountCents > orderTotal) {
     throw new CashRefundExceedsTotalError();
   }
 
+  const now = new Date();
+  for (const item of items) {
+    item.refundedAt = now;
+  }
   order.cashRefunds.push({
     _id: crypto.randomUUID(),
-    amountCents: input.amountCents,
-    createdAt: new Date(),
+    amountCents,
+    refundedItemIds: items.map((i) => i._id),
+    createdAt: now,
   });
   await order.save();
 
-  return order.cashRefunds[order.cashRefunds.length - 1];
+  return order;
+}
+
+// Cash-paid orders for the event that still have at least one refundable item.
+export async function listRefundableCashOrders(
+  eventId: string
+): Promise<OrderDoc[]> {
+  const orders = await Order.find({
+    eventId,
+    tabId: null,
+    paidAt: { $ne: null },
+    deletedAt: null,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  return orders.filter((o) => o.items.some(isRefundableItem));
 }
 
 /**
@@ -672,12 +728,19 @@ export async function getOrderForAttendee(
   return enrichOrderForAttendee(order);
 }
 
-// An attendee's own paid orders — the source for the order-status / review entry
-// point. Product names are joined here (one batch query) to avoid frontend N+1.
+// An attendee's own orders — the source for the order-status / review entry
+// point. Includes all paid orders plus every cash order (tabId: null) whether
+// pending payment or cashier-cancelled (deletedAt), so the pending-payment and
+// cancelled states are visible in history. Transient gated card orders (unpaid
+// with a tabId) are excluded. Product names are joined here (one batch query)
+// to avoid a frontend N+1.
 export async function listOrdersForAttendee(
   sessionId: string
 ): Promise<AttendeeOrder[]> {
-  const orders = await Order.find({ sessionId, paidAt: { $ne: null } })
+  const orders = await Order.find({
+    sessionId,
+    $or: [{ paidAt: { $ne: null } }, { tabId: null }],
+  })
     .sort({ createdAt: -1 })
     .lean();
 
@@ -720,38 +783,75 @@ export async function getOrderForOrganizer(
 // Loads the operator's stand and asserts it is the active CASHIER stand — the
 // only operator allowed to read whole orders / unpaid order lists. PRODUCT-stand
 // operators act on individual items via advanceOrderItem, not whole orders.
-async function assertActiveCashierStand(operatorStandId: string) {
+// Loads the operator's stand and asserts it is a legitimate CASHIER stand for a
+// cashier-enabled event. `requireActiveEvent` gates the actions that must only
+// happen while the event is live (new cash payments, manual orders); reads and
+// refunds pass `false` so they keep working once the event is STOPPED.
+async function assertCashierStand(
+  operatorStandId: string,
+  options: { requireActiveEvent: boolean }
+) {
   const stand = await Stand.findOne({
     _id: operatorStandId,
+    standType: "CASHIER",
     deletedAt: null,
   }).lean();
-  if (!stand || stand.standType !== "CASHIER") throw new OrderNotFoundError();
+  if (!stand) throw new OrderNotFoundError();
+
   const event = await Event.findById(stand.eventId).lean();
-  if (!event || event.status !== "ACTIVE" || !event.cashierEnabled)
+  // DRAFT: the event hasn't gone live — no legitimate cashier activity yet,
+  // refund or otherwise.
+  if (!event || !event.cashierEnabled || event.status === "DRAFT") {
     throw new CashierDisabledError();
+  }
+  if (options.requireActiveEvent && event.status !== "ACTIVE") {
+    throw new CashierDisabledError();
+  }
   return stand;
 }
 
-// Single order read for the cashier collecting a cash payment — returns the full
-// order (every stand's items) for an order in the cashier's event.
+// Exported so the cashier unpaid-orders stream route can resolve the stand's
+// eventId once, for scoping the order.changed subscription.
+export async function assertActiveCashierStand(operatorStandId: string) {
+  return assertCashierStand(operatorStandId, { requireActiveEvent: true });
+}
+
+// Resolves the event a cashier operator token is scoped to. Used by the
+// refundable-orders route, which must keep working after the event is STOPPED.
+export async function resolveCashierEventId(
+  operatorStandId: string
+): Promise<string> {
+  const stand = await assertCashierStand(operatorStandId, {
+    requireActiveEvent: false,
+  });
+  return stand.eventId;
+}
+
+// Single order read for the cashier — used both for collecting a cash payment
+// and for viewing/refunding an order, so it must keep working after the event
+// is STOPPED. Returns the full order (every stand's items) for an order in the
+// cashier's event.
 export async function getOrderForCashier(
   orderId: string,
   operatorStandId: string
 ): Promise<OrderDoc> {
-  const stand = await assertActiveCashierStand(operatorStandId);
+  const stand = await assertCashierStand(operatorStandId, {
+    requireActiveEvent: false,
+  });
   const order = await Order.findById(orderId).lean();
   if (!order || stand.eventId !== order.eventId) throw new OrderNotFoundError();
   return order;
 }
 
-// Unpaid cash orders for the cashier's event (tabId: null = no digital payment tab).
-// Excludes in-flight Stripe/digital orders which carry a tabId. Restricted to the dedicated CASHIER stand.
-export async function listUnpaidOrdersForCashier(
-  operatorStandId: string
+// Unpaid cash orders for an event (tabId: null = no digital payment tab).
+// Excludes in-flight Stripe/digital orders which carry a tabId. The caller is
+// responsible for having asserted access to the event (the cashier stream
+// resolves the stand once and passes its eventId in, avoiding a repeat lookup).
+export function listUnpaidCashOrdersForEvent(
+  eventId: string
 ): Promise<OrderDoc[]> {
-  const stand = await assertActiveCashierStand(operatorStandId);
   return Order.find({
-    eventId: stand.eventId,
+    eventId,
     paidAt: null,
     tabId: null,
     deletedAt: null,
@@ -862,6 +962,19 @@ export async function deleteUnpaidOrder(
   }
 }
 
+export async function cancelUnpaidCashOrdersForEvent(
+  eventId: string
+): Promise<void> {
+  const now = new Date();
+  // tabId: null targets cash-intent orders only. Tab-backed orders are settled
+  // separately by finalizeEventTabs, which captures charges for ready items.
+  await Order.updateMany(
+    { eventId, paidAt: null, tabId: null, deletedAt: null },
+    { $set: { "items.$[item].cancelledAt": now } },
+    { arrayFilters: [{ "item.cancelledAt": null }] }
+  );
+}
+
 export async function advanceOrderItem(
   orderId: string,
   itemId: string,
@@ -883,6 +996,13 @@ export async function advanceOrderItem(
         .lean();
       if (!product) throw new OrderItemNotFoundError();
 
+      // Operators may not advance items after completion: tabs are already settled
+      // and further state changes would produce billing inconsistencies.
+      const event = await Event.findById(order.eventId)
+        .session(dbSession)
+        .lean();
+      if (!event || event.status === "COMPLETED")
+        throw new EventNotActiveError();
       const state = getItemState(item);
       const now = new Date();
       switch (action) {

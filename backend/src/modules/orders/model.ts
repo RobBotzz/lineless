@@ -9,6 +9,8 @@ export interface OrderItemDoc {
   readyAt: Date | null;
   fulfilledAt: Date | null;
   cancelledAt: Date | null;
+  /** Set once a cancelled item has been refunded — guards against double refunds. */
+  refundedAt: Date | null;
   inventoryState: InventoryState;
   priceIncludingTaxAtPurchase: number;
   taxRateAtPurchase: number;
@@ -27,6 +29,8 @@ export interface CashRefundDoc {
   _id: string;
   /** Refund amount in integer cents — never a float. */
   amountCents: number;
+  /** Item ids this refund covered — audit trail for item-level cash refunds. */
+  refundedItemIds: string[];
   createdAt: Date;
 }
 
@@ -59,6 +63,7 @@ const OrderItemSchema = new Schema<OrderItemDoc>({
   readyAt: { type: Date, default: null },
   fulfilledAt: { type: Date, default: null },
   cancelledAt: { type: Date, default: null },
+  refundedAt: { type: Date, default: null },
   // Legacy items receive UNTRACKED so cancelling historical orders can never
   // create stock that was not reserved by the inventory flow.
   inventoryState: {
@@ -81,6 +86,7 @@ const CashRefundSchema = new Schema<CashRefundDoc>(
   {
     _id: { type: String, default: () => uuidv4() },
     amountCents: { type: Number, required: true },
+    refundedItemIds: { type: [String], default: [] },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );

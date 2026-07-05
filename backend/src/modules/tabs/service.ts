@@ -1,7 +1,11 @@
 import mongoose from "mongoose";
 import Stripe from "stripe";
 import { config } from "../../config/config";
-import { Tab } from "./model";
+import {
+  Tab,
+  TAB_AUTO_CHARGE_AFTER_MS,
+  TAB_ORDER_FREEZE_AFTER_MS,
+} from "./model";
 import { TabPayment } from "../payments/model";
 import { Order } from "../orders/model";
 import { Event, DEFAULT_BASELINE_HOLD_CENTS } from "../events/model";
@@ -138,9 +142,20 @@ export async function createTab(
 // once the Stripe webhook lands, so it waits on `status` before submitting the
 // order. `availableCents` lets the client tell whether the next order will fit
 // the existing hold or trigger a top-up.
-export async function getTabForAttendee(tabId: string, sessionId: string) {
-  const tab = await Tab.findOne({ _id: tabId, sessionId }).lean();
+export async function getTabForAttendee(
+  tabId: string,
+  sessionId: string,
+  eventId: string
+) {
+  // Match by event, not by the opening session: a tab can outlive the 24h
+  // attendee session on a long event. Re-bind it to the caller's current
+  // session so a rolled-over guest keeps their tab (mirrors submitOrder).
+  const tab = await Tab.findOne({ _id: tabId, eventId });
   if (!tab) throw new TabNotFoundError();
+  if (tab.sessionId !== sessionId) {
+    tab.sessionId = sessionId;
+    await tab.save();
+  }
 
   const authorizedCents = await getAuthorizedTabCents(tabId);
   const consumedCents = await getActiveTabTotalCents(tabId);
@@ -151,6 +166,11 @@ export async function getTabForAttendee(tabId: string, sessionId: string) {
     authorizedCents,
     consumedCents,
     availableCents: Math.max(authorizedCents - consumedCents, 0),
+    // False once the tab is past its order-freeze window (or no longer OPEN):
+    // the guest can still track/settle it but can no longer add orders.
+    acceptingOrders:
+      tab.status === "OPEN" &&
+      Date.now() - tab.createdAt.getTime() < TAB_ORDER_FREEZE_AFTER_MS,
   };
 }
 
@@ -493,22 +513,25 @@ async function releaseGatedTopUpsForEvent(eventId: string): Promise<void> {
 }
 
 export async function checkoutDueTabs(now = new Date()): Promise<void> {
-  const fallbackCutoff = new Date(now.getTime() - TAB_AUTHORIZATION_WINDOW_MS);
+  const staleCutoff = new Date(now.getTime() - TAB_AUTHORIZATION_WINDOW_MS);
 
   // Free up tabs blocked by never-confirmed top-ups first, so their genuinely
   // ready items can settle on the baseline hold in this same run.
-  await releaseStaleUnconfirmedTopUps(fallbackCutoff);
+  await releaseStaleUnconfirmedTopUps(staleCutoff);
 
-  const tabIds = await TabPayment.distinct("tabId", {
-    tabPaymentStatus: "AUTHORIZED",
-    $or: [
-      { expiresAt: { $lte: now } },
-      { expiresAt: null, updatedAt: { $lte: fallbackCutoff } },
-    ],
+  // Auto-charge tabs that have been open too long. Like an event stop, cancel
+  // whatever the guest never received (never charged) and capture the delivered
+  // items, releasing the remaining authorization. 48h < Stripe's ~7-day hold
+  // validity, so the authorization is always still capturable here.
+  const autoChargeCutoff = new Date(now.getTime() - TAB_AUTO_CHARGE_AFTER_MS);
+  const dueTabIds = await Tab.distinct("_id", {
+    status: { $in: ["OPEN", "CHECKOUT_PENDING", "PENDING_AUTHORIZATION"] },
+    createdAt: { $lte: autoChargeCutoff },
   });
 
-  for (const tabId of tabIds) {
+  for (const tabId of dueTabIds) {
     try {
+      await finalizeTabForEventEnd(tabId);
       await settleTab(tabId, {});
     } catch (err) {
       // Expected, benign states (tab not ready, already gone) are skipped

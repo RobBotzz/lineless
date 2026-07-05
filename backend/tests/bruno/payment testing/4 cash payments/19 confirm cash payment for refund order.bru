@@ -1,0 +1,30 @@
+meta {
+  name: 19 confirm cash payment for refund order
+  type: http
+  seq: 19
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{refundOrderId}}/cash-payment
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("cash payment confirmed", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.paidAt).to.be.a("string").and.not.empty;
+  });
+}
+
+settings {
+  encodeUrl: true
+}

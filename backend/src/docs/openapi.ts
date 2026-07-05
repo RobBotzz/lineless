@@ -8,7 +8,7 @@ import {
   productsRouter,
   eventProductsRouter,
 } from "../modules/products/routes";
-import { ordersRouter, cashPaymentsRouter } from "../modules/orders/routes";
+import { ordersRouter } from "../modules/orders/routes";
 import sessionsRouter from "../modules/sessions/routes";
 import tabsRouter from "../modules/tabs/routes";
 import { eventControlCenterRouter } from "../modules/eventControlCenter/routes";
@@ -83,11 +83,6 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
     tag: "Ratings",
   },
   { base: "/api/orders", router: ordersRouter, tag: "Orders" },
-  {
-    base: "/api/cash-payments",
-    router: cashPaymentsRouter,
-    tag: "Payments",
-  },
   { base: "/api/tabs", router: tabsRouter, tag: "Tabs" },
   { base: "/api/payouts", router: payoutsRouter, tag: "Payouts" },
   { base: "/api/operator", router: operatorRouter, tag: "Operator" },

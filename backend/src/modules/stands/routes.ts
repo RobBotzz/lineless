@@ -7,6 +7,7 @@ import {
   listStandsForEventLink,
   getCashierStandForOrganizer,
   getCashierStandForEventLink,
+  getCashierStandForAttendee,
   getStandForAttendee,
   getStandForOrganizer,
   getStandForOperator,
@@ -26,7 +27,7 @@ import {
 } from "./errors";
 import { RefreshTokenInvalidError } from "../auth/errors";
 import { refreshTokenSchema } from "../auth/types";
-import { EventNotFoundError } from "../events/errors";
+import { EventNotFoundError, EventStateError } from "../events/errors";
 import {
   createStandSchema,
   operatorLoginSchema,
@@ -35,7 +36,6 @@ import {
 import {
   authOrganizer,
   authOrganizerOrAttendeeOrEventLink,
-  authOrganizerOrEventLink,
   authOrganizerOrOperatorOrAttendee,
 } from "../../middleware/auth/guards";
 
@@ -52,6 +52,8 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
+  if (err instanceof EventStateError)
+    return res.status(409).json({ error: err.message });
   if (err instanceof OperatorInvalidCredentialsError)
     return res.status(401).json({ error: err.message });
   if (err instanceof CashierStandDisabledError)
@@ -111,11 +113,12 @@ eventStandsRouter.get(
 // GET /events/:eventId/stands/cashier-stand — the event's single cashier stand.
 // It is intentionally absent from the stand listing above, so this is the
 // dedicated entry point the operator onboarding (event link) uses to discover
-// the cashier stand it can log into. Organizer-readable too; never exposed to
-// attendees. Responds 403 (CashierStandDisabledError) when the cashier is off.
+// the cashier stand it can log into. Also organizer-readable, and
+// attendee-readable (e.g. to show the cashier's location on the pending-payment
+// page). Responds 403 (CashierStandDisabledError) when the cashier is off.
 eventStandsRouter.get(
   "/cashier-stand",
-  authOrganizerOrEventLink,
+  authOrganizerOrAttendeeOrEventLink,
   async (req: Request, res: Response) => {
     try {
       const stand = req.organizer
@@ -123,7 +126,9 @@ eventStandsRouter.get(
             eventId(req),
             req.organizer.accountId
           )
-        : await getCashierStandForEventLink(eventId(req));
+        : req.attendee
+          ? await getCashierStandForAttendee(eventId(req), req.attendee.eventId)
+          : await getCashierStandForEventLink(eventId(req));
       res.status(200).json(stand);
     } catch (err) {
       handleError(err, res);
