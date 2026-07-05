@@ -84,7 +84,7 @@ const STATUS_HINTS: Record<EventStatus, string[]> = {
     'No new orders are being accepted',
     'Complete the event to settle all payments',
   ],
-  COMPLETED: ['All tabs have been settled', 'Event is now archived'],
+  COMPLETED: ['All tabs have been settled', 'No further changes can be made'],
 };
 
 // Mirrors the backend upload limits (config.upload). The server is the source of
