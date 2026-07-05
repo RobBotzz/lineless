@@ -155,7 +155,9 @@ export async function listStandsForAttendee(
 // Loads the event's single cashier stand, but only when the cashier is enabled.
 // The cashier stand is hidden from every stand listing, so this is the dedicated
 // "reach it directly" path the listings refer to — used by the operator
-// onboarding (event link) to discover the stand it can log into.
+// onboarding (event link) to discover the stand it can log into, by the
+// organizer, and by attendees (e.g. to show the cashier's location on the
+// pending-payment page).
 async function findEnabledCashierStand(eventId: string): Promise<SafeStand> {
   if (!(await isCashierEnabled(eventId))) throw new CashierStandDisabledError();
   const stand = await Stand.findOne({
@@ -179,6 +181,15 @@ export async function getCashierStandForEventLink(
   eventId: string
 ): Promise<SafeStand> {
   await verifyOperableEvent(eventId);
+  return findEnabledCashierStand(eventId);
+}
+
+export async function getCashierStandForAttendee(
+  eventId: string,
+  sessionEventId: string
+): Promise<SafeStand> {
+  assertSessionOwnsEvent(eventId, sessionEventId);
+  await verifyActiveEvent(eventId);
   return findEnabledCashierStand(eventId);
 }
 

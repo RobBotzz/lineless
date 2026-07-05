@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
+  assertActiveCashierStand,
   cancelOrderForOrganizer,
   cancelOrderItemsForOrganizer,
   cancelPendingOrder,
@@ -13,7 +14,7 @@ import {
   getOrderForOrganizer,
   listOrdersForAttendee,
   listRefundableCashOrders,
-  listUnpaidOrdersForCashier,
+  listUnpaidCashOrdersForEvent,
   refundCashOrderItems,
   resolveCashierEventId,
   submitOrder,
@@ -26,10 +27,13 @@ import {
   CashRefundExceedsTotalError,
   CashRefundInvalidItemsError,
   EventNotActiveError,
+  InsufficientStockError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
+  OrderRequestCancelledError,
+  OrderRequestDeletedError,
   OrderValidationError,
   StandNotFoundError,
 } from "./errors";
@@ -58,6 +62,13 @@ function itemId(req: Request): string {
 }
 
 function handleError(err: unknown, res: Response): unknown {
+  if (err instanceof InsufficientStockError) {
+    return res.status(409).json({
+      code: "INSUFFICIENT_STOCK",
+      error: err.message,
+      shortages: err.shortages,
+    });
+  }
   if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
@@ -68,6 +79,16 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotActiveError)
     return res.status(409).json({ error: err.message });
+  if (err instanceof OrderRequestDeletedError)
+    return res.status(409).json({
+      code: "ORDER_REQUEST_DELETED",
+      error: err.message,
+    });
+  if (err instanceof OrderRequestCancelledError)
+    return res.status(409).json({
+      code: "ORDER_REQUEST_CANCELLED",
+      error: err.message,
+    });
   if (err instanceof OrderValidationError)
     return res.status(400).json({ error: err.message });
   if (err instanceof CashierDisabledError)
@@ -99,7 +120,7 @@ ordersRouter.post(
   validateBody(createOrderSchema, async (req, res, data) => {
     try {
       const sessionId = req.attendee?.sessionId ?? null;
-      const result = await submitOrder(sessionId, data);
+      const result = await submitOrder(sessionId, data, req.operator?.standId);
       if (result.status === 402) {
         return res
           .status(402)
@@ -154,7 +175,7 @@ ordersRouter.post(
 
 // POST /orders/:orderId/cancel-pending-authorization — attendee abandons an
 // order still awaiting authorization (cancels its gated items and releases any
-// backing hold).
+// backing hold). Repeating a completed cleanup is idempotent.
 ordersRouter.post(
   "/:orderId/cancel-pending-authorization",
   authAttendee,
@@ -171,17 +192,36 @@ ordersRouter.post(
   }
 );
 
-// GET /orders/cashier — unpaid orders for the cashier's event, derived from the
-// operator token. Registered before /:orderId so "cashier" is not read as an id.
+// GET /orders/cashier/stream — same unpaid-orders list, pushed live over SSE on
+// every relevant order.changed event (new cash order, cashier cancellation, or
+// payment confirmation removing an order from the list). Mirrors the shape of
+// /operator/board/stream.
 ordersRouter.get(
-  "/cashier",
+  "/cashier/stream",
   authOperator,
   async (req: Request, res: Response) => {
+    const standId = req.operator!.standId;
     try {
-      const orders = await listUnpaidOrdersForCashier(req.operator!.standId);
-      return res.status(200).json(orders);
+      // Resolve the stand before the SSE headers go out, so a bad/disabled
+      // stand still maps to a clean error instead of a half-open stream.
+      const stand = await assertActiveCashierStand(standId);
+      const initial = await listUnpaidCashOrdersForEvent(stand.eventId);
+
+      const sse = new SseConnection(res);
+      sse.send("snapshot", initial);
+
+      const unsubscribe = subscribe("order.changed", (order) => {
+        if (order.eventId !== stand.eventId || order.tabId !== null) return;
+        listUnpaidCashOrdersForEvent(stand.eventId)
+          .then((orders) => sse.send("snapshot", orders))
+          .catch(() => {
+            // stream errors are non-fatal; the client recovers on reconnect
+          });
+      });
+
+      sse.onClose(() => unsubscribe());
     } catch (err) {
-      return handleError(err, res);
+      handleError(err, res);
     }
   }
 );
@@ -225,7 +265,12 @@ ordersRouter.get(
       sse.send("snapshot", initial);
 
       const unsubscribe = subscribe("order.changed", (order) => {
-        if (order.sessionId !== sessionId || !order.paidAt) return;
+        if (order.sessionId !== sessionId) return;
+        // Cash orders (tabId null) stream regardless of paidAt, so the
+        // pending-payment page sees a cashier confirmation or cancellation
+        // live. Unpaid card orders (mid-Stripe-authorization) are still
+        // dropped — the attendee UI doesn't act on that noise.
+        if (!order.paidAt && order.tabId !== null) return;
         void enrichOrderForAttendee(order)
           .then((enriched) => sse.send("order", enriched))
           .catch(() => {
