@@ -9,9 +9,11 @@ import {
   getAttendeeOrder,
   InsufficientStockError,
 } from '@/api/orders';
+import { ApiError } from '@/api/client';
 import { createTab, getTabStatus } from '@/api/tabs';
 import { clearAttendeeTab, getAttendeeTab, setAttendeeTab } from '@/auth/keychain';
 import type { Order, OrderItemView } from '@/types/order';
+import type { TabView } from '@/types/tab';
 import { formatMoney } from '@/types/product';
 
 import { CardPaymentForm } from './CardPaymentForm';
@@ -166,23 +168,38 @@ export function CardCheckoutDialog({
   async function ensureOpenTab(): Promise<string> {
     const existing = getAttendeeTab(eventId);
     if (existing) {
-      const tab = await getTabStatus(existing.tabId, eventId);
-      if (tab.status === 'OPEN') return existing.tabId;
-      // A tab mid-authorization may just be waiting on the webhook (e.g. the
-      // card was confirmed but an earlier poll timed out). Re-poll before
-      // abandoning it, so a confirmed hold isn't orphaned and duplicated as a
-      // second card hold. Only discard once it proves unusable.
-      if (tab.status === 'PENDING_AUTHORIZATION') {
-        try {
-          setMessage('Confirming authorization…');
-          await pollUntilOpen(existing.tabId);
-          return existing.tabId;
-        } catch {
-          // Never opened (declined, or the card was never confirmed) — fall
-          // through and open a fresh tab below.
+      let tab: TabView | null = null;
+      try {
+        tab = await getTabStatus(existing.tabId, eventId);
+      } catch (err) {
+        // A 404 means the stored pointer is stale (a legacy tab, a tab from a
+        // different event, or one the backend removed). Drop it and open a
+        // fresh tab below. Any other error is real and must NOT be masked by
+        // silently replacing the tab — that could orphan a live hold.
+        if (err instanceof ApiError && err.status === 404) {
+          clearAttendeeTab(eventId);
+        } else {
+          throw err;
         }
       }
-      clearAttendeeTab(eventId); // PAID / CHECKOUT_PENDING / FAILED / dead
+      if (tab) {
+        if (tab.status === 'OPEN') return existing.tabId;
+        // A tab mid-authorization may just be waiting on the webhook (e.g. the
+        // card was confirmed but an earlier poll timed out). Re-poll before
+        // abandoning it, so a confirmed hold isn't orphaned and duplicated as a
+        // second card hold. Only discard once it proves unusable.
+        if (tab.status === 'PENDING_AUTHORIZATION') {
+          try {
+            setMessage('Confirming authorization…');
+            await pollUntilOpen(existing.tabId);
+            return existing.tabId;
+          } catch {
+            // Never opened (declined, or the card was never confirmed) — fall
+            // through and open a fresh tab below.
+          }
+        }
+        clearAttendeeTab(eventId); // PAID / CHECKOUT_PENDING / FAILED / dead
+      }
     }
 
     const firstOrderCents = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
