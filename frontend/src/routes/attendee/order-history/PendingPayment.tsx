@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate, useParams } from 'react-router';
 
+import { getAttendeeEvent } from '@/api/events';
 import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
 import { BackButton } from '@/components/shared';
@@ -41,6 +42,16 @@ export default function PendingPayment() {
     staleTime: 60_000,
   });
 
+  // Cash can only be collected while the event is ACTIVE; once it is STOPPED or
+  // COMPLETED the cashier can no longer take payment. Poll so the page flips from
+  // the pay prompt to a terminal state if the event ends while it is open.
+  const eventQuery = useQuery({
+    queryKey: ['attendee-event', eventId],
+    queryFn: () => getAttendeeEvent(eventId),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+
   const viewItemsQuery = useQuery({
     queryKey: ['attendee-order-view', orderId, eventId],
     queryFn: () => buildAttendeeOrderViewItems(orderQuery.data!, eventId, standsQuery.data!),
@@ -72,6 +83,10 @@ export default function PendingPayment() {
   const order = liveOrder ?? orderQuery.data ?? null;
   const items = viewItemsQuery.data ?? state?.items ?? [];
   const isPaid = order?.paidAt != null;
+  // STOPPED = paused (no new orders/payments, but the event isn't over yet);
+  // COMPLETED = ended. Both close the cash window, but the wording differs.
+  const eventStatus = eventQuery.data?.status;
+  const paymentClosed = eventStatus === 'STOPPED' || eventStatus === 'COMPLETED';
 
   // Once paid, mirror the card flow: go to the OrderConfirmed "payment completed"
   // screen, from where the user taps "Track Order". We pass the order + items we
@@ -88,7 +103,7 @@ export default function PendingPayment() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order, isPaid, eventId, navigate]);
 
-  if (orderQuery.isPending || standsQuery.isPending) {
+  if (orderQuery.isPending || standsQuery.isPending || eventQuery.isPending) {
     return (
       <div className="space-y-4">
         <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
@@ -132,6 +147,30 @@ export default function PendingPayment() {
   }
 
   if (isPaid) return null; // redirecting to the confirmed page
+
+  // The event ended while the order was still unpaid. The cashier can no longer
+  // collect cash (the backend blocks it once the event leaves ACTIVE), and the
+  // order is cancelled when the organizer finalizes the event — so show a
+  // terminal state instead of a pay prompt that can no longer be fulfilled.
+  if (paymentClosed) {
+    return (
+      <div className="space-y-4">
+        <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
+        <OrderConfirmation
+          order={order}
+          items={items}
+          total={computeTotal(order)}
+          title="Payment No Longer Possible"
+          subtitle={
+            eventStatus === 'COMPLETED'
+              ? 'The event has ended, so this order can no longer be paid at the cashier.'
+              : 'The event has stopped, so this order can no longer be paid at the cashier.'
+          }
+          variant="cancelled"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
