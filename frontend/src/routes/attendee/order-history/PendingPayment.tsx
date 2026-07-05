@@ -43,7 +43,7 @@ export default function PendingPayment() {
     // it costs nothing after the order is paid or cancelled.
     refetchInterval: (query) => {
       const o = query.state.data as Order | undefined;
-      return o && (o.paidAt || o.deletedAt) ? false : 4000;
+      return o && (o.paidAt || isOrderCancelled(o)) ? false : 4000;
     },
   });
 

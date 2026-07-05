@@ -87,7 +87,12 @@ export function deriveOrderStatus(order: Order): 'in-preparation' | 'fulfilled' 
   return allFulfilled ? 'fulfilled' : 'in-preparation';
 }
 
-export type OrderListStatus = 'pending-payment' | 'in-preparation' | 'fulfilled' | 'cancelled';
+export type OrderListStatus =
+  | 'pending-payment'
+  | 'in-preparation'
+  | 'fulfilled'
+  | 'cancelled'
+  | 'refunded';
 
 // A terminally cancelled order: either the cashier soft-deleted an unpaid order
 // (deletedAt), or every item was cancelled — e.g. when the event is completed and
@@ -98,13 +103,26 @@ export function isOrderCancelled(order: Order): boolean {
   return order.items.length > 0 && order.items.every((item) => item.cancelledAt);
 }
 
+// A paid order whose every item was cancelled — i.e. fully refunded (the cancelled
+// items are refundable at the cashier). Distinct from 'cancelled', which is an
+// unpaid order voided before any money changed hands, so the attendee sees the
+// same refund wording the cashier does.
+export function isOrderRefunded(order: Order): boolean {
+  return (
+    order.paidAt != null && order.items.length > 0 && order.items.every((item) => item.cancelledAt)
+  );
+}
+
 // Payment-aware status for the order-history list, which now includes unpaid cash
-// orders. A cashier-cancelled cash order (deletedAt) or an all-items-cancelled
-// order is 'cancelled'; an unpaid order awaiting the cashier is 'pending-payment';
-// otherwise it follows the preparation-tracking status.
+// orders. A paid, fully-cancelled order is 'refunded'; a cashier-cancelled cash
+// order (deletedAt) or an unpaid all-items-cancelled order is 'cancelled'; an unpaid
+// order awaiting the cashier is 'pending-payment'; otherwise it follows the
+// preparation-tracking status.
 export function deriveOrderListStatus(order: Order): OrderListStatus {
-  // The cancelled check must come before the unpaid guard below, so we never show
-  // 'Pending Payment' (with a €0.00 pay prompt) for an order with nothing to pay for.
+  // Refunded must be checked before cancelled (a refunded order is also fully
+  // cancelled) and before the unpaid guard, so a paid+cancelled order never reads
+  // 'Cancelled' or shows a €0.00 pay prompt for an order with nothing to pay for.
+  if (isOrderRefunded(order)) return 'refunded';
   if (isOrderCancelled(order)) return 'cancelled';
   if (!order.paidAt) return 'pending-payment';
   return deriveOrderStatus(order);
