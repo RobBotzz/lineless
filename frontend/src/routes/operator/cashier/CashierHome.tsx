@@ -1,6 +1,6 @@
 import { useParams } from 'react-router';
 
-import { CartIcon, CreditCardIcon, RefundIcon } from '../../../components/icons';
+import { CartIcon, CreditCardIcon, InfoIcon, RefundIcon } from '../../../components/icons';
 import { BackButton } from '../../../components/shared';
 import { paths } from '../../../paths';
 import { ChoiceCard } from './ChoiceCard';
@@ -14,7 +14,15 @@ export default function CashierHome() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <BackButton to={paths.operator.root(eventId)}>Operator Console</BackButton>
 
-      <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-6 flex items-start gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-text-muted">
+        <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
+        <p>
+          Manual orders and cash payments can only be placed while the event is active. If the
+          organizer has not started the event yet, these actions will be unavailable.
+        </p>
+      </div>
+
+      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <ChoiceCard
           to={paths.operator.cashierOrder(eventId)}
           icon={<CartIcon className="h-8 w-8" />}

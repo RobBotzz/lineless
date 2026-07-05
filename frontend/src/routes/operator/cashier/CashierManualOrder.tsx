@@ -2,20 +2,35 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
 import { AlertDialog, StockConflictDialog, type StockConflictItem } from '@/components/feedback';
-import { CartIcon, ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
+import { CartIcon, ImageIcon, InfoIcon, PlusIcon, WarningTriangleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { CartCard } from '@/features/cart/CartCard';
 import { useCartState } from '@/features/cart/useCartState';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { useAddGuard } from '@/lib/useAddGuard';
-import { createManualOrder, InsufficientStockError } from '@/api/orders';
+import { ApiError } from '@/api/client';
+import { getEventPublicInfo } from '@/api/events';
+import { createManualOrder, InsufficientStockError, orderRequestConflict } from '@/api/orders';
 import { getOperatorStands } from '@/api/stands';
 import { getOperatorEventProducts } from '@/api/products';
 import type { OrderItemView } from '@/types/order';
 import { formatMoney, productImageSrc, tracksStock, type Product } from '@/types/product';
 import { paths } from '@/paths';
 import type { CashierContext } from './CashierLayout';
+
+// The backend reports every non-ACTIVE event with the same code-less 409, so we
+// read the public event status to word the block correctly: STOPPED/COMPLETED
+// are terminal (no more orders), while a DRAFT event can still be started.
+async function classifyInactiveEvent(eventId: string): Promise<'not-started' | 'ended'> {
+  try {
+    const info = await getEventPublicInfo(eventId);
+    if (info.status === 'STOPPED' || info.status === 'COMPLETED') return 'ended';
+  } catch {
+    // Fall back to the retryable message if the status lookup fails.
+  }
+  return 'not-started';
+}
 
 // Cart is in-memory (no persistKey) so it starts fresh for each customer.
 export default function CashierManualOrder() {
@@ -39,6 +54,12 @@ export default function CashierManualOrder() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Event-not-active hint: a code-less 409 means the event is not ACTIVE. The
+  // wording depends on which non-active state it is — a DRAFT event can still be
+  // started ("try again"), but STOPPED/COMPLETED are terminal (no new orders).
+  // It clears on the next checkout attempt, so a DRAFT→ACTIVE start needs no
+  // page reload.
+  const [eventBlock, setEventBlock] = useState<'not-started' | 'ended' | null>(null);
   const [stockConflict, setStockConflict] = useState<StockConflictItem[] | null>(null);
   const checkoutAttempt = useRef<{ fingerprint: string; requestId: string } | null>(null);
 
@@ -58,6 +79,7 @@ export default function CashierManualOrder() {
   async function handleCheckout() {
     if (items.length === 0) return;
     setIsCheckingOut(true);
+    setEventBlock(null); // revalidate on every attempt, don't stay blocked
     try {
       const orderItems: OrderItemView[] = items.map((item) => ({
         productId: item.product._id,
@@ -109,6 +131,21 @@ export default function CashierManualOrder() {
         }
         checkoutAttempt.current = null;
         setStockConflict(affectedItems);
+        setIsCheckingOut(false);
+        return;
+      }
+      // The idempotency key was reused for an order that was cancelled/deleted.
+      // Drop it so a fresh attempt starts a new request, and tell the operator.
+      if (orderRequestConflict(err)) {
+        checkoutAttempt.current = null;
+        setError('This order was cancelled. Please start a new order.');
+        setIsCheckingOut(false);
+        return;
+      }
+      // A code-less 409 means the event isn't active. Read its actual status to
+      // tell a not-yet-started event (retryable) from a terminal one (ended).
+      if (err instanceof ApiError && err.status === 409) {
+        setEventBlock(await classifyInactiveEvent(eventId));
         setIsCheckingOut(false);
         return;
       }
@@ -176,6 +213,22 @@ export default function CashierManualOrder() {
             </div>
 
             <div className="border-t border-border pt-4">
+              {eventBlock && (
+                <div className="mb-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-text">
+                  <WarningTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                  {eventBlock === 'ended' ? (
+                    <span>
+                      <span className="font-semibold">Event has ended.</span> No new orders can be
+                      placed for this event.
+                    </span>
+                  ) : (
+                    <span>
+                      <span className="font-semibold">Event not active.</span> The organizer must
+                      start the event before orders can be placed — then try again.
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-text-muted">Total:</span>
                 <span className="text-base font-semibold text-accent">
