@@ -183,7 +183,11 @@ export function CardCheckoutDialog({
         }
       }
       if (tab) {
-        if (tab.status === 'OPEN') return existing.tabId;
+        // Reuse an OPEN tab only while it still accepts orders. Past its freeze
+        // window a tab stays OPEN so it can still settle, but the backend
+        // rejects new orders against it — so treat it as spent and open a
+        // replacement below instead of looping on a guaranteed rejection.
+        if (tab.status === 'OPEN' && tab.acceptingOrders) return existing.tabId;
         // A tab mid-authorization may just be waiting on the webhook (e.g. the
         // card was confirmed but an earlier poll timed out). Re-poll before
         // abandoning it, so a confirmed hold isn't orphaned and duplicated as a
@@ -198,7 +202,7 @@ export function CardCheckoutDialog({
             // through and open a fresh tab below.
           }
         }
-        clearAttendeeTab(eventId); // PAID / CHECKOUT_PENDING / FAILED / dead
+        clearAttendeeTab(eventId); // PAID / CHECKOUT_PENDING / FAILED / frozen / dead
       }
     }
 
