@@ -23,10 +23,13 @@ import {
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
   EventNotActiveError,
+  InsufficientStockError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
+  OrderRequestCancelledError,
+  OrderRequestDeletedError,
   OrderValidationError,
   StandNotFoundError,
 } from "./errors";
@@ -55,6 +58,13 @@ function itemId(req: Request): string {
 }
 
 function handleError(err: unknown, res: Response): unknown {
+  if (err instanceof InsufficientStockError) {
+    return res.status(409).json({
+      code: "INSUFFICIENT_STOCK",
+      error: err.message,
+      shortages: err.shortages,
+    });
+  }
   if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
@@ -65,6 +75,16 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotActiveError)
     return res.status(409).json({ error: err.message });
+  if (err instanceof OrderRequestDeletedError)
+    return res.status(409).json({
+      code: "ORDER_REQUEST_DELETED",
+      error: err.message,
+    });
+  if (err instanceof OrderRequestCancelledError)
+    return res.status(409).json({
+      code: "ORDER_REQUEST_CANCELLED",
+      error: err.message,
+    });
   if (err instanceof OrderValidationError)
     return res.status(400).json({ error: err.message });
   if (err instanceof CashierDisabledError)
@@ -94,7 +114,7 @@ ordersRouter.post(
   validateBody(createOrderSchema, async (req, res, data) => {
     try {
       const sessionId = req.attendee?.sessionId ?? null;
-      const result = await submitOrder(sessionId, data);
+      const result = await submitOrder(sessionId, data, req.operator?.standId);
       if (result.status === 402) {
         return res
           .status(402)
@@ -128,7 +148,7 @@ ordersRouter.post(
 
 // POST /orders/:orderId/cancel-pending-authorization — attendee abandons an
 // order still awaiting authorization (cancels its gated items and releases any
-// backing hold).
+// backing hold). Repeating a completed cleanup is idempotent.
 ordersRouter.post(
   "/:orderId/cancel-pending-authorization",
   authAttendee,

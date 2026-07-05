@@ -4,7 +4,7 @@ import {
   authAttendee,
   authOrganizerOrAttendee,
 } from "../../middleware/auth/guards";
-import { createReview, listReviews } from "./service";
+import { createReview, getMyOrderRatings, listReviews } from "./service";
 import { createRatingSchema } from "./types";
 import {
   AlreadyReviewedError,
@@ -33,6 +33,28 @@ function parseIntParam(value: unknown, fallback: number): number {
   const parsed = parseInt(String(value), 10);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
+
+// =============================================================================
+// Order-scoped self-ratings — mounted at /api/orders/:orderId/ratings
+// Returns the ratings this attendee has already submitted for the order.
+// =============================================================================
+export const orderSelfRatingsRouter = Router({ mergeParams: true });
+
+orderSelfRatingsRouter.get(
+  "/",
+  authAttendee,
+  async (req: Request, res: Response) => {
+    try {
+      const result = await getMyOrderRatings(
+        req.params["orderId"] as string,
+        req.attendee!.sessionId
+      );
+      return res.status(200).json(result);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  }
+);
 
 // =============================================================================
 // Order-scoped review submission — mounted at

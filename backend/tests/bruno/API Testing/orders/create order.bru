@@ -17,6 +17,7 @@ headers {
 body:json {
   {
     "eventId": "{{eventId}}",
+    "requestId": "{{$randomUUID}}",
     "items": [
       {
         "productId": "{{productId}}",
@@ -30,11 +31,12 @@ body:json {
 }
 
 script:post-response {
-  if (res.status === 201 && res.body._id) {
-    bru.setEnvVar("orderId", res.body._id);
-    bru.setEnvVar("pickupCode", res.body.pickupCode);
-    if (res.body.items && res.body.items.length > 0) {
-      bru.setEnvVar("itemId", res.body.items[0]._id);
+  if (res.status === 201 && res.body.order?._id) {
+    bru.setEnvVar("orderId", res.body.order._id);
+    bru.setEnvVar("orderRequestId", res.body.order.requestId);
+    bru.setEnvVar("pickupCode", res.body.order.pickupCode);
+    if (res.body.order.items && res.body.order.items.length > 0) {
+      bru.setEnvVar("itemId", res.body.order.items[0]._id);
     }
   }
 }
@@ -42,10 +44,11 @@ script:post-response {
 tests {
   test("create order returns 201", function () {
     expect(res.status).to.equal(201);
-    expect(res.body._id).to.be.a("string").and.not.empty;
-    expect(res.body.pickupCode).to.be.a("string").and.not.empty;
-    expect(res.body.orderNumber).to.be.a("string").and.not.empty;
-    expect(res.body.items).to.be.an("array").and.not.empty;
+    expect(res.body.order._id).to.be.a("string").and.not.empty;
+    expect(res.body.order.pickupCode).to.be.a("string").and.not.empty;
+    expect(res.body.order.orderNumber).to.be.a("string").and.not.empty;
+    expect(res.body.order.items).to.be.an("array").and.not.empty;
+    expect(res.body.order.items.every(item => item.inventoryState === "RESERVED")).to.equal(true);
   });
 }
 

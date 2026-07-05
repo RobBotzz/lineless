@@ -77,6 +77,20 @@ export async function createReview(
   }
 }
 
+type ExistingRating = Pick<RatingDoc, "productId" | "stars" | "comment">;
+
+export async function getMyOrderRatings(
+  orderId: string,
+  sessionId: string
+): Promise<{ ratings: ExistingRating[] }> {
+  // Validates ownership — throws OrderNotFoundError if the order isn't this session's.
+  await getOrderForAttendee(orderId, sessionId);
+  const ratings = await Rating.find({ orderId, sessionId })
+    .select("productId stars comment")
+    .lean();
+  return { ratings };
+}
+
 export async function listReviews(
   productId: string,
   eventId: string,
