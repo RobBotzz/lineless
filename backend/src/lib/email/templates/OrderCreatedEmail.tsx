@@ -20,6 +20,7 @@ import {
   footerBrand,
   footerText,
   header,
+  hint,
   paragraph,
 } from "./styles";
 import {
@@ -111,6 +112,12 @@ export const OrderCreatedEmail: EmailTemplate = ({
             <Text style={paragraph}>
               Once you have paid, this page will show your pickup code and the
               live status of your order.
+            </Text>
+
+            <Text style={hint}>
+              Please open this link on the same device and browser you ordered
+              from — your order is saved there, so the link won&apos;t open it
+              elsewhere.
             </Text>
           </Section>
 

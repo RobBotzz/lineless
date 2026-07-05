@@ -52,6 +52,14 @@ export const paragraph: CSSProperties = {
   margin: "0 0 14px",
 };
 
+// Muted secondary note (e.g. the "open in the same browser" hint).
+export const hint: CSSProperties = {
+  color: "#64748b",
+  fontSize: "13px",
+  lineHeight: "20px",
+  margin: "0",
+};
+
 export const buttonWrap: CSSProperties = {
   margin: "26px 0 18px",
   textAlign: "center",

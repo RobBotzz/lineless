@@ -20,6 +20,7 @@ import {
   footerBrand,
   footerText,
   header,
+  hint,
   paragraph,
 } from "./styles";
 import {
@@ -114,6 +115,12 @@ export const OrderConfirmedEmail: EmailTemplate = ({
             <Text style={paragraph}>
               Follow the live status of your order on this page — it shows you
               when each item is ready for pickup.
+            </Text>
+
+            <Text style={hint}>
+              Please open this link on the same device and browser you ordered
+              from — your order is saved there, so the link won&apos;t open it
+              elsewhere.
             </Text>
           </Section>
 
