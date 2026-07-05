@@ -1,9 +1,22 @@
 import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { deleteEvent, getEvent, startEvent, stopEvent, updateEvent } from '@/api/events';
+import {
+  completeEvent,
+  deleteEvent,
+  getEvent,
+  startEvent,
+  stopEvent,
+  updateEvent,
+} from '@/api/events';
 import { deleteProduct, getStandProducts } from '@/api/products';
-import { createStand, deleteStand, getEventStands, updateStand } from '@/api/stands';
+import {
+  createStand,
+  deleteStand,
+  getEventStands,
+  getOrganizerCashierStand,
+  updateStand,
+} from '@/api/stands';
 import type { Event, UpdateEventInput } from '@/types/event';
 import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
 import type { Product } from '@/types/product';
@@ -15,20 +28,29 @@ export type EventConfigurationLoaderData = {
   stands: Stand[];
   // Products keyed by their stand id.
   productsByStand: Record<string, Product[]>;
+  // The event's cashier stand, or null when the cashier is disabled / absent.
+  cashierStand: Stand | null;
 };
 
 export async function eventConfigurationLoader({
   params,
 }: LoaderFunctionArgs): Promise<EventConfigurationLoaderData> {
   const eventId = params.eventId as string;
-  const [event, stands] = await Promise.all([getEvent(eventId), getEventStands(eventId)]);
+  const [event, stands, cashierStand] = await Promise.all([
+    getEvent(eventId),
+    getEventStands(eventId),
+    getOrganizerCashierStand(eventId).catch((err) => {
+      if (err instanceof ApiError && (err.status === 403 || err.status === 404)) return null;
+      throw err;
+    }),
+  ]);
   // Fetch each stand's products in parallel, then index by stand id.
   const productLists = await Promise.all(stands.map((stand) => getStandProducts(stand._id)));
   const productsByStand: Record<string, Product[]> = {};
   stands.forEach((stand, i) => {
     productsByStand[stand._id] = productLists[i];
   });
-  return { event, stands, productsByStand };
+  return { event, stands, productsByStand, cashierStand };
 }
 
 // Lifecycle + settings mutations. useFetcher revalidates the loader on success,
@@ -39,7 +61,7 @@ export async function eventConfigurationAction({
 }: ActionFunctionArgs): Promise<EventActionResult | Response> {
   const eventId = params.eventId as string;
   const body = (await request.json()) as
-    | { intent: 'start' | 'stop' }
+    | { intent: 'start' | 'stop' | 'complete' }
     | { intent: 'save'; patch: UpdateEventInput }
     | { intent: 'createStand'; patch: CreateStandInput }
     | { intent: 'updateStand'; standId: string; patch: UpdateStandInput }
@@ -54,6 +76,9 @@ export async function eventConfigurationAction({
         break;
       case 'stop':
         await stopEvent(eventId);
+        break;
+      case 'complete':
+        await completeEvent(eventId);
         break;
       case 'save':
         await updateEvent(eventId, body.patch ?? {});

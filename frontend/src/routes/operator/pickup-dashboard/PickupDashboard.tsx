@@ -4,6 +4,7 @@ import { useParams } from 'react-router';
 import { PICKUP_BOARD_EVENT, pickupBoardStreamPath } from '@/api/pickupBoard';
 import { CheckCircleIcon, HourglassCircleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
+import { Button } from '@/components/ui/button';
 import { useSSE } from '@/hooks/useSSE';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
@@ -16,14 +17,19 @@ import {
 
 type StandFilter = 'all' | string;
 
-const AUTO_SCROLL_PIXEL_STEPS = [1, 2, 4, 8, 14] as const;
+const AUTO_SCROLL_SPEEDS = [
+  { label: 'Slow', pixelStep: 1 },
+  { label: 'Medium', pixelStep: 4 },
+  { label: 'Fast', pixelStep: 14 },
+] as const;
 
 export default function PickupDashboard() {
   const { eventId } = useParams();
   const [board, setBoard] = useState<PickupBoard | null>(null);
   const [selectedStand, setSelectedStand] = useState<StandFilter>('all');
   const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(false);
-  const [autoScrollSpeed, setAutoScrollSpeed] = useState(1);
+  const [isAutoScrollDialogOpen, setIsAutoScrollDialogOpen] = useState(false);
+  const [autoScrollSpeedIndex, setAutoScrollSpeedIndex] = useState(0);
   const [canAutoScroll, setCanAutoScroll] = useState(false);
 
   const handleMessage = useCallback(({ event, data }: { event: string; data: unknown }) => {
@@ -63,6 +69,7 @@ export default function PickupDashboard() {
 
     if (!hasScrollableOverflow) {
       setIsAutoScrollEnabled(false);
+      setIsAutoScrollDialogOpen(false);
     }
   }, [getScrollingElement]);
 
@@ -86,9 +93,10 @@ export default function PickupDashboard() {
       return undefined;
     }
 
+    const stopAutoScroll = () => setIsAutoScrollEnabled(false);
     const topPauseMs = 1200;
     const autoScrollStep =
-      AUTO_SCROLL_PIXEL_STEPS[autoScrollSpeed - 1] ?? AUTO_SCROLL_PIXEL_STEPS[0];
+      AUTO_SCROLL_SPEEDS[autoScrollSpeedIndex]?.pixelStep ?? AUTO_SCROLL_SPEEDS[0].pixelStep;
     let pauseUntil = 0;
 
     const scrollToTop = () => {
@@ -101,6 +109,9 @@ export default function PickupDashboard() {
     };
 
     scrollToTop();
+    const clickListenerFrame = window.requestAnimationFrame(() => {
+      window.addEventListener('click', stopAutoScroll);
+    });
 
     const scrollInterval = window.setInterval(() => {
       if (Date.now() < pauseUntil) {
@@ -126,9 +137,13 @@ export default function PickupDashboard() {
       );
     }, 35);
 
-    return () => window.clearInterval(scrollInterval);
+    return () => {
+      window.clearInterval(scrollInterval);
+      window.cancelAnimationFrame(clickListenerFrame);
+      window.removeEventListener('click', stopAutoScroll);
+    };
   }, [
-    autoScrollSpeed,
+    autoScrollSpeedIndex,
     canAutoScroll,
     getScrollingElement,
     isAutoScrollEnabled,
@@ -146,51 +161,22 @@ export default function PickupDashboard() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             {canAutoScroll && (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                {isAutoScrollEnabled && (
-                  <div className="flex h-10 items-center overflow-hidden rounded-md border border-border bg-surface shadow-sm">
-                    <button
-                      aria-label="Decrease auto scroll speed"
-                      className="h-10 w-10 text-lg font-semibold text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={autoScrollSpeed === 1}
-                      onClick={() => setAutoScrollSpeed((speed) => Math.max(1, speed - 1))}
-                      type="button"
-                    >
-                      -
-                    </button>
-                    <span className="flex h-10 min-w-10 items-center justify-center border-x border-border px-3 text-xs font-semibold text-text-muted">
-                      {autoScrollSpeed}x
-                    </span>
-                    <button
-                      aria-label="Increase auto scroll speed"
-                      className="h-10 w-10 text-lg font-semibold text-text transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={autoScrollSpeed === 5}
-                      onClick={() => setAutoScrollSpeed((speed) => Math.min(5, speed + 1))}
-                      type="button"
-                    >
-                      +
-                    </button>
-                  </div>
+                {!isAutoScrollEnabled && (
+                  <button
+                    className="h-10 rounded-md border border-border bg-surface px-4 text-sm font-semibold text-text shadow-sm transition-colors hover:bg-surface-muted"
+                    onClick={() => setIsAutoScrollDialogOpen(true)}
+                    type="button"
+                  >
+                    Start auto scroll
+                  </button>
                 )}
-
-                <button
-                  aria-pressed={isAutoScrollEnabled}
-                  className={`h-10 rounded-md border px-4 text-sm font-semibold shadow-sm transition-colors ${
-                    isAutoScrollEnabled
-                      ? 'border-accent bg-accent text-button-text'
-                      : 'border-border bg-surface text-text hover:bg-surface-muted'
-                  }`}
-                  onClick={() => setIsAutoScrollEnabled((current) => !current)}
-                  type="button"
-                >
-                  {isAutoScrollEnabled ? 'Stop auto scroll' : 'Start auto scroll'}
-                </button>
               </div>
             )}
 
-            <label>
+            <label className="max-w-full">
               <span className="sr-only">Filter by stand</span>
               <select
-                className="h-10 min-w-44 cursor-pointer rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text shadow-sm outline-none transition-colors hover:bg-surface-muted focus:border-accent"
+                className="h-10 w-full max-w-full min-w-44 cursor-pointer rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text shadow-sm outline-none transition-colors hover:bg-surface-muted focus:border-accent sm:w-auto"
                 onChange={(event) => setSelectedStand(event.target.value as StandFilter)}
                 value={activeStandFilter}
               >
@@ -204,6 +190,18 @@ export default function PickupDashboard() {
             </label>
           </div>
         </div>
+
+        {isAutoScrollDialogOpen && (
+          <AutoScrollDialog
+            onCancel={() => setIsAutoScrollDialogOpen(false)}
+            onStart={() => {
+              setIsAutoScrollDialogOpen(false);
+              setIsAutoScrollEnabled(true);
+            }}
+            onSpeedChange={setAutoScrollSpeedIndex}
+            speedIndex={autoScrollSpeedIndex}
+          />
+        )}
 
         {!board && status === 'error' && (
           <StatePanel
@@ -240,11 +238,91 @@ export default function PickupDashboard() {
   );
 }
 
+function AutoScrollDialog({
+  speedIndex,
+  onSpeedChange,
+  onStart,
+  onCancel,
+}: {
+  speedIndex: number;
+  onSpeedChange: (speedIndex: number) => void;
+  onStart: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onCancel();
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 px-4 py-8"
+      onClick={onCancel}
+      role="presentation"
+    >
+      <section
+        aria-describedby="auto-scroll-dialog-description"
+        aria-labelledby="auto-scroll-dialog-title"
+        aria-modal="true"
+        className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(31,41,55,0.2)]"
+        onClick={(event) => event.stopPropagation()}
+        role="alertdialog"
+      >
+        <div className="text-center">
+          <h2 id="auto-scroll-dialog-title" className="text-xl font-semibold text-text">
+            Start auto scroll
+          </h2>
+          <p id="auto-scroll-dialog-description" className="mt-3 text-sm leading-6 text-text-muted">
+            You can stop auto scroll at any time by clicking anywhere on the page.
+          </p>
+        </div>
+
+        <fieldset className="mt-6">
+          <legend className="text-sm font-semibold text-text">Speed</legend>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {AUTO_SCROLL_SPEEDS.map((speed, index) => (
+              <button
+                aria-pressed={speedIndex === index}
+                className={cn(
+                  'h-10 rounded-md border px-3 text-sm font-semibold transition-colors',
+                  speedIndex === index
+                    ? 'border-accent bg-accent text-button-text'
+                    : 'border-border bg-background text-text hover:bg-surface-muted',
+                )}
+                key={speed.label}
+                onClick={() => onSpeedChange(index)}
+                type="button"
+              >
+                {speed.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <div className="mt-6 flex gap-3">
+          <Button className="flex-1" onClick={onCancel} size="lg" variant="secondary">
+            Cancel
+          </Button>
+          <Button autoFocus className="flex-1" onClick={onStart} size="lg">
+            Start
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function StandSection({ stand }: { stand: PickupBoardStand }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 shadow-sm sm:p-5">
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        <h2 className="truncate text-2xl font-bold tracking-tight text-text">{stand.standName}</h2>
+      <div className="mb-5 flex flex-wrap items-start gap-2">
+        <h2 className="min-w-0 flex-1 text-2xl font-bold tracking-tight text-text [overflow-wrap:anywhere]">
+          {stand.standName}
+        </h2>
         {stand.standStatus === 'PAUSED' && (
           <span className="rounded-full bg-warning/20 px-2.5 py-1 text-xs font-semibold text-text">
             Paused
@@ -328,13 +406,15 @@ function PickupOrderCard({
     <li
       className={cn(
         'flex min-h-28 min-w-0 flex-col justify-between rounded-md border bg-background p-4 shadow-sm',
-        'h-28 w-52',
+        'w-52',
         intent === 'ready' ? 'border-success/40 ring-1 ring-success/10' : 'border-border',
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-text">{orderItem.productName}</p>
+          <p className="text-sm font-semibold text-text [overflow-wrap:anywhere]">
+            {orderItem.productName}
+          </p>
         </div>
       </div>
       <p className="mt-4 truncate font-sans text-3xl font-extrabold tabular-nums tracking-normal text-text">

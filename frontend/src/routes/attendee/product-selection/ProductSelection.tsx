@@ -1,18 +1,22 @@
-import { useMemo, useState } from 'react';
-import { Link, useLoaderData, useParams, useRouteError } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLoaderData, useParams, useRouteError, useRouteLoaderData } from 'react-router';
 
 import { paths } from '@/paths';
 
 import { useCart } from '../cart/cart-context';
+import type { AttendeeLayoutLoaderData } from '../data';
 import { CartIcon } from '@/components/icons';
+import { PRIMARY_BTN_CLASS } from '@/components/shared';
 import { ProductCard } from './ProductCard';
 import { ALL_STANDS, StandFilter } from './StandFilter';
 import type { productSelectionLoader } from './data';
+import { buttonVariants } from '@/components/ui/button';
 
 export default function ProductSelection() {
-  const { event, stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
+  const { stands, productsByStand } = useLoaderData<typeof productSelectionLoader>();
+  const { event } = useRouteLoaderData('attendee-event') as AttendeeLayoutLoaderData;
   const { eventId } = useParams();
-  const { addItem, setQuantity, totalCount, items } = useCart();
+  const { addItem, setQuantity, syncProducts, totalCount, items } = useCart();
 
   const [selectedStand, setSelectedStand] = useState<string>(ALL_STANDS);
 
@@ -28,15 +32,41 @@ export default function ProductSelection() {
     [items],
   );
 
+  const allProducts = useMemo(() => Object.values(productsByStand).flat(), [productsByStand]);
+
+  useEffect(() => {
+    syncProducts(allProducts);
+  }, [allProducts, syncProducts]);
+
   // Flatten across stands for "All", otherwise show the picked stand only.
   const visibleProducts = useMemo(() => {
-    if (selectedStand === ALL_STANDS) return Object.values(productsByStand).flat();
+    if (selectedStand === ALL_STANDS) return allProducts;
     return productsByStand[selectedStand] ?? [];
-  }, [selectedStand, productsByStand]);
+  }, [selectedStand, productsByStand, allProducts]);
+
+  // Second-layer guard for session holders whose event stopped while they were browsing.
+  // The layout gate handles the no-session case; this handles the in-session stopped/completed case.
+  if (event.status !== 'ACTIVE') {
+    const message =
+      event.status === 'COMPLETED'
+        ? 'This event has ended.'
+        : 'This event is not accepting new orders.';
+    return (
+      <div className="flex flex-col items-center gap-5 py-20 text-center">
+        <p className="text-text-muted">{message}</p>
+        <Link
+          to={eventId ? paths.attendee.orders(eventId) : '#'}
+          className={buttonVariants({ variant: 'outline' })}
+        >
+          View your orders
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="sticky top-0 z-10 bg-background/95 pb-2 pt-1 backdrop-blur">
+    <div className="flex flex-1 flex-col">
+      <div className="sticky top-16 z-40 pb-2 pt-1">
         <h1 className="sr-only">Products — {event.name}</h1>
         <StandFilter stands={stands} selected={selectedStand} onSelect={setSelectedStand} />
       </div>
@@ -60,23 +90,20 @@ export default function ProductSelection() {
         )}
       </div>
 
-      {/* Sticky cart bar — pinned to the viewport bottom while scrolling, but it
-          parks below the last product (above the footer) once you reach the end. */}
-      <div className="pointer-events-none sticky bottom-0 z-20 pb-4 pt-3">
-        <div className="pointer-events-auto">
-          <Link
-            to={eventId ? paths.attendee.cart(eventId) : '#'}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 font-semibold text-[var(--color-button-text)] shadow-[0_8px_24px_rgba(2,8,135,0.25)] transition-colors hover:bg-accent/90"
-          >
-            <CartIcon className="h-5 w-5" />
-            <span>View Cart</span>
-            {totalCount > 0 && (
-              <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--color-button-text)] px-1.5 text-xs font-bold text-accent">
-                {totalCount}
-              </span>
-            )}
-          </Link>
-        </div>
+      {/* Sticky to the viewport bottom; settles above the footer at page end */}
+      <div className="sticky bottom-0 z-30 mt-auto pb-2 pt-3">
+        <Link
+          to={eventId ? paths.attendee.cart(eventId) : '#'}
+          className={`${PRIMARY_BTN_CLASS} flex items-center justify-center gap-2 bg-accent px-4 font-semibold text-button-text shadow-[0_-6px_20px_color-mix(in_srgb,var(--color-accent)_12%,transparent)] transition-colors hover:bg-accent/90`}
+        >
+          <CartIcon className="h-5 w-5" />
+          <span>View Cart</span>
+          {totalCount > 0 && (
+            <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-button-text px-1.5 text-xs font-bold text-accent">
+              {totalCount}
+            </span>
+          )}
+        </Link>
       </div>
     </div>
   );

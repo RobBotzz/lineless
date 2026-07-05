@@ -75,7 +75,10 @@ export function getAccountInfo(): Promise<{ account: Account }> {
   return apiFetch<{ account: Account }>('/account/info', { auth: 'organizer' });
 }
 
-type OrganizerAccountPatch = Pick<UpdateAccountInput, 'firstName' | 'lastName'>;
+type OrganizerAccountPatch = Pick<
+  UpdateAccountInput,
+  'firstName' | 'lastName' | 'iban' | 'ibanHolderName'
+>;
 
 export interface OrganizerAccountUpdateResponse {
   message: string;

@@ -18,7 +18,15 @@ import {
   type OperatorBoard,
 } from '@/types/operatorBoard';
 import { BackButton } from '@/components/shared';
-import { ChatIcon, ChevronDownIcon, LockIcon, PauseIcon, PlayIcon } from '@/components/icons';
+import {
+  ChatIcon,
+  ChevronDownIcon,
+  LockIcon,
+  PauseIcon,
+  PlayIcon,
+  SearchIcon,
+  XIcon,
+} from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { operatorStandQueryOptions } from '../operatorQueries';
 
@@ -75,6 +83,9 @@ export default function OperatorDashboard() {
   const [board, setBoard] = useState<OperatorBoard | null>(null);
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
   const [filters, setFilters] = useState<ReadonlySet<string>>(() => new Set());
+  // Free-text search over all items by order number — quick lookup when a
+  // customer asks about a specific order across a long board.
+  const [search, setSearch] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   // The item awaiting pickup-code confirmation before it is handed over.
   const [confirmItem, setConfirmItem] = useState<BoardItem | null>(null);
@@ -238,8 +249,16 @@ export default function OperatorDashboard() {
     products.map((p, i) => [p.productId, PRODUCT_PALETTE[i % PRODUCT_PALETTE.length]]),
   );
   const colorOf = (productId: string) => productColors.get(productId) ?? PRODUCT_PALETTE[0];
+  // Product chips AND the text search both narrow the board. The search matches
+  // the order number (case-insensitive substring). Chip counts are based on the
+  // search-narrowed list (not the chip-filtered one), so they mirror the board
+  // during a search but selecting a chip never zeroes out the other chips.
+  const searchQuery = search.trim().toLowerCase();
+  const searchedItems = searchQuery
+    ? items.filter((item) => item.orderNumber.toLowerCase().includes(searchQuery))
+    : items;
   const visibleItems =
-    filters.size > 0 ? items.filter((item) => filters.has(item.productId)) : items;
+    filters.size > 0 ? searchedItems.filter((item) => filters.has(item.productId)) : searchedItems;
   // The products overview is filtered the same way (it no longer drives the filter).
   const visibleProducts =
     filters.size > 0 ? products.filter((product) => filters.has(product.productId)) : products;
@@ -305,13 +324,39 @@ export default function OperatorDashboard() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-5 flex items-center gap-3">
+        <header className="mb-5 flex flex-wrap items-center gap-3">
           <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
             Operator Console
           </BackButton>
-          <h1 className="text-2xl font-bold tracking-tight text-text">{standName ?? 'Stand'}</h1>
+          <h1 className="min-w-0 flex-1 text-2xl font-bold tracking-tight text-text [overflow-wrap:anywhere]">
+            {standName ?? 'Stand'}
+          </h1>
           <ConnectionBadge status={status} />
         </header>
+
+        {/* Quick lookup by order number across every column. */}
+        <div className="relative mb-4 sm:max-w-xs">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search order number"
+            aria-label="Search orders by number"
+            // Hide WebKit's native clear button — the XIcon below is the only ✕.
+            className="h-10 w-full rounded-md border border-border bg-surface pl-9 pr-9 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
 
         {products.length > 0 && (
           <div className="mb-5 flex flex-wrap gap-2">
@@ -320,7 +365,7 @@ export default function OperatorDashboard() {
                 key={product.productId}
                 product={product}
                 color={colorOf(product.productId)}
-                count={items.filter((item) => item.productId === product.productId).length}
+                count={searchedItems.filter((item) => item.productId === product.productId).length}
                 active={filters.has(product.productId)}
                 onToggle={() => toggleFilter(product.productId)}
               />
@@ -485,7 +530,7 @@ function BoardItemCard({
       />
 
       <div className="pointer-events-none relative z-10 p-3">
-        <span className="block break-words text-base font-bold leading-tight text-text">
+        <span className="block text-base font-bold leading-tight text-text [overflow-wrap:anywhere]">
           {item.productName}
         </span>
         <span className="mt-1.5 block text-xs font-medium text-text-muted">
@@ -635,10 +680,13 @@ function PauseProductDialog({
         >
           {resuming ? <PlayIcon className="h-6 w-6" /> : <PauseIcon className="h-6 w-6" />}
         </span>
-        <h2 id="pause-dialog-title" className="mt-4 text-xl font-semibold text-text">
+        <h2
+          id="pause-dialog-title"
+          className="mt-4 text-xl font-semibold text-text [overflow-wrap:anywhere]"
+        >
           {resuming ? 'Resume' : 'Pause'} {product.productName}?
         </h2>
-        <p className="mt-2 text-sm leading-6 text-text-muted">
+        <p className="mt-2 text-sm leading-6 text-text-muted [overflow-wrap:anywhere]">
           {resuming
             ? `${product.productName} will be available to order again.`
             : `Customers won’t be able to order ${product.productName} until you resume it. Items already in progress are not affected.`}
@@ -742,12 +790,12 @@ function ProductSummaryRow({
       )}
     >
       <div className="flex flex-col gap-1.5 p-3">
-        <div className="flex items-start gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           <span
             className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
             style={{ backgroundColor: color }}
           />
-          <span className="text-sm font-semibold leading-tight text-text">
+          <span className="min-w-0 text-sm font-semibold leading-tight text-text [overflow-wrap:anywhere]">
             {product.productName}
           </span>
         </div>
@@ -762,7 +810,9 @@ function ProductSummaryRow({
               {product.openToDo}
             </span>
             <span className="whitespace-nowrap">To Do</span>
-            <span className="whitespace-nowrap">· Stock {product.productStock}</span>
+            <span className="whitespace-nowrap">
+              · Stock {product.stockMode === 'TRACKED' ? product.productStock : 'Unlimited'}
+            </span>
           </div>
 
           {/* Terminated is terminal — no pause/resume action; show a status label
@@ -813,15 +863,23 @@ function ProductFilterChip({
       className={cn(
         // Comfortable size on tablet and up; only slightly more compact on small
         // mobile viewports (below the sm breakpoint).
-        'inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm',
+        'inline-flex min-h-9 max-w-full min-w-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:min-h-11 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm',
         active
           ? 'border-accent bg-accent-soft text-accent'
           : 'border-border bg-surface text-text hover:bg-surface-muted',
       )}
     >
-      <span className="h-2 w-2 rounded-full sm:h-2.5 sm:w-2.5" style={{ backgroundColor: color }} />
-      {product.productName}
-      <span className="text-text-muted">{count}</span>
+      <span
+        className="h-2 w-2 shrink-0 rounded-full sm:h-2.5 sm:w-2.5"
+        style={{ backgroundColor: color }}
+      />
+      <span
+        className="line-clamp-2 min-w-0 max-w-56 text-left [overflow-wrap:anywhere]"
+        title={product.productName}
+      >
+        {product.productName}
+      </span>
+      <span className="shrink-0 text-text-muted">{count}</span>
     </button>
   );
 }
@@ -837,7 +895,12 @@ function ConnectionBadge({ status }: { status: SseStatus }) {
   if (!current) return null;
 
   return (
-    <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold', current.text)}>
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold',
+        current.text,
+      )}
+    >
       <span
         className={cn('h-2 w-2 rounded-full', current.dot, status !== 'open' && 'animate-pulse')}
       />

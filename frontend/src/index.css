@@ -22,14 +22,17 @@
   /* Border */
   --color-border: #d8dbe6;
 
-  /* Brand — these three are overridden at runtime for per-event branding */
+  /* Brand — overridden at runtime for per-event branding (see features/branding) */
   --color-accent: #020887;
   --color-button-text: #ffffff;
+  /* Accent used as text/icons on light surfaces. Defaults to the accent; branding
+     darkens it only when the raw accent fails AA contrast against the background. */
+  --color-accent-contrast: var(--color-accent);
   --color-accent-soft: color-mix(in srgb, var(--color-accent) 12%, transparent);
   --color-accent-raised: color-mix(in srgb, var(--color-accent) 75%, #ffffff 25%);
 
   /* Shadows — derived from accent, update automatically when accent changes */
-  --shadow-navbar: 0 10px 30px color-mix(in srgb, var(--color-accent) 8%, transparent);
+  --shadow-navbar: 0 4px 20px color-mix(in srgb, var(--color-accent) 18%, transparent);
 
   /* Semantic */
   --color-success: #16a34a;
@@ -73,6 +76,7 @@
   --color-border: var(--color-border);
   --color-accent: var(--color-accent);
   --color-button-text: var(--color-button-text);
+  --color-accent-contrast: var(--color-accent-contrast);
   --color-accent-soft: var(--color-accent-soft);
   --color-accent-raised: var(--color-accent-raised);
   --color-success: var(--color-success);
@@ -196,10 +200,296 @@ body {
   animation: board-card-glow 5s ease-out;
 }
 
+/* Public landing page — editorial event-day art direction. */
+.landing-page {
+  --landing-ink: var(--color-accent);
+}
+
+.landing-display {
+  font-family: var(--font-sans);
+  font-weight: 950;
+  letter-spacing: -0.075em;
+  text-wrap: balance;
+}
+
+.landing-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-accent) 7%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black 15%, transparent 92%);
+}
+
+.landing-cta {
+  border-radius: 999px;
+  padding-inline: 1.4rem;
+  box-shadow: 0 14px 35px color-mix(in srgb, var(--color-accent) 24%, transparent);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.landing-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--color-accent) 32%, transparent);
+}
+
+.landing-float-slow {
+  animation: landing-float-slow 8s ease-in-out infinite;
+}
+
+.landing-float-fast {
+  animation: landing-float-fast 6s ease-in-out infinite;
+}
+
+.landing-tear {
+  position: relative;
+  z-index: 2;
+  height: 38px;
+  margin-block: -18px;
+  clip-path: polygon(
+    0 35%,
+    4% 51%,
+    9% 31%,
+    15% 60%,
+    22% 38%,
+    29% 55%,
+    36% 28%,
+    45% 59%,
+    53% 33%,
+    62% 63%,
+    70% 39%,
+    79% 58%,
+    87% 30%,
+    94% 53%,
+    100% 37%,
+    100% 100%,
+    0 100%
+  );
+}
+
+.landing-tear-dark {
+  background: var(--landing-ink);
+}
+
+.landing-tear-light {
+  background: var(--color-bg);
+}
+
+.landing-problem-card {
+  min-height: 20rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 1.25rem;
+  background: var(--color-accent-raised);
+  padding: 1.75rem;
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--color-accent) 38%, transparent);
+  transition:
+    transform 240ms ease,
+    border-color 240ms ease;
+}
+
+.landing-problem-card:hover {
+  border-color: rgb(142 148 255 / 60%);
+  transform: translateY(-6px) rotate(0deg);
+}
+
+.landing-payment-grid {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-accent) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-accent) 4%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 40px 40px;
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+
+.landing-payment-routes {
+  color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+}
+
+.landing-payment-path {
+  stroke-dasharray: 0.035 0.035;
+  animation: landing-payment-dashes 1.4s linear infinite;
+}
+
+.landing-payment-packet {
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-accent) 70%, transparent));
+}
+
+.landing-payment-router {
+  animation: landing-router-pulse 4s ease-in-out infinite;
+}
+
+.landing-payment-order {
+  animation: landing-order-received 4s 1.8s ease-in-out infinite;
+}
+
+.landing-journey-line {
+  filter: drop-shadow(0 0 18px rgb(255 255 255 / 18%));
+  opacity: 0.86;
+}
+
+.landing-journey-copy,
+.landing-journey-visual {
+  will-change: transform, opacity;
+}
+
+.landing-step-card {
+  min-height: 20rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 1.5rem;
+  background: color-mix(in srgb, var(--color-accent) 84%, var(--color-surface) 16%);
+  padding: 1.75rem;
+  box-shadow: 0 28px 65px rgb(0 0 0 / 22%);
+}
+
+.landing-icon-badge {
+  display: inline-flex;
+  width: 3rem;
+  height: 3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.landing-price-digit {
+  position: relative;
+  isolation: isolate;
+  display: inline-block;
+  width: 0.72em;
+  height: 1em;
+  overflow: clip;
+  letter-spacing: 0;
+  line-height: 1;
+  contain: paint;
+}
+
+.landing-price-reel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  transition: transform 1.35s cubic-bezier(0.2, 0.75, 0.25, 1);
+  will-change: transform;
+}
+
+.landing-price-reel > span {
+  display: block;
+  height: 1em;
+  flex: 0 0 1em;
+  text-align: center;
+}
+
+.landing-price-reel-five {
+  transition-delay: 90ms;
+}
+
+.landing-rolling-price.is-rolling .landing-price-reel-zero {
+  transform: translateY(-9em);
+}
+
+.landing-rolling-price.is-rolling .landing-price-reel-five {
+  transform: translateY(-4em);
+}
+
+@keyframes landing-float-slow {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(-1deg);
+  }
+}
+
+@keyframes landing-float-fast {
+  0%,
+  100% {
+    transform: translateY(0) rotate(3deg);
+  }
+
+  50% {
+    transform: translateY(-14px) rotate(1.5deg);
+  }
+}
+
+@keyframes landing-payment-dashes {
+  to {
+    stroke-dashoffset: -0.14;
+  }
+}
+
+@keyframes landing-router-pulse {
+  0%,
+  100% {
+    box-shadow: 0 14px 35px rgb(2 8 135 / 30%);
+  }
+
+  50% {
+    box-shadow:
+      0 14px 35px rgb(2 8 135 / 30%),
+      0 0 0 12px rgb(2 8 135 / 8%);
+  }
+}
+
+@keyframes landing-order-received {
+  0%,
+  40%,
+  100% {
+    transform: translateY(0);
+    border-color: var(--color-border);
+  }
+
+  50% {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .account-menu-popover,
   .account-menu-panel-item,
-  .board-card-moved {
+  .board-card-moved,
+  .landing-float-slow,
+  .landing-float-fast,
+  .landing-payment-path,
+  .landing-payment-router,
+  .landing-payment-order {
     animation: none;
+  }
+
+  .landing-payment-packet {
+    display: none;
+  }
+
+  .landing-journey-scroll-dot {
+    display: none;
+  }
+
+  .landing-price-reel {
+    transition: none;
+  }
+
+  .landing-cta,
+  .landing-journey-copy,
+  .landing-journey-visual,
+  .landing-problem-card {
+    transition: none;
   }
 }

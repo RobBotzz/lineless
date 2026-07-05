@@ -45,17 +45,33 @@ Key facts:
   pure style — we picked JSX for readability.
 - Router definition lives in its own `src/router.tsx`; `App.tsx` only renders
   `<RouterProvider router={router} />`.
+- The deciding axis is **access pattern, not credential**: `loader` for
+  route-entry, one-shot, URL-driven reads (read with `useLoaderData()`);
+  TanStack Query for in-component reads that are reactive, cached/refetched, or
+  companion to a live stream. (Note: organizer/attendee loaders _do_ read the
+  keychain — the organizer JWT, the attendee session — so "does it touch a
+  credential" is the wrong test. What matters is _when and how often_ the read
+  runs and _who_ owns the timing: the router at a route boundary, or React
+  inside a component.)
 - `loader` is attached directly to a `<Route>` for route-level one-shot fetches
-  that do not depend on client-only keychain credentials (organizer pages and
-  attendee public/product-selection reads). Read with `useLoaderData()`.
-- TanStack Query is used for component-level Operator fetches that depend on the
-  operator keychain credential (`operator-link` access key or per-stand operator
-  token). Keep operator query keys centralized instead of rebuilding
-  requestKey/status/cancelled state by hand in each screen.
+  (organizer pages, attendee entry pages like product-selection/cart).
+- TanStack Query is used for component-level fetches that benefit from
+  caching/refetch or must react to client state — chiefly Operator fetches that
+  depend on the operator keychain credential (`operator-link` access key or
+  per-stand operator token; the multi-stand keychain fits Query's reactive
+  `enabled` gating, which a one-shot loader cannot express). Keep operator query
+  keys centralized instead of rebuilding requestKey/status/cancelled state by
+  hand in each screen.
+- **Attendee reads split by page kind**: an entry page loads once via a `loader`
+  (product-selection, cart); a live/polling page fetches via TanStack Query
+  _alongside_ `useSSE` (order tracking, cash-payment-pending), because a loader
+  is one-shot and cannot refetch on an interval or coordinate with a stream. The
+  same endpoint (e.g. `getAttendeeStands`) legitimately appears in both worlds —
+  the page's access pattern decides, not the endpoint.
 - **SSE streams are NOT loaders.** Live data (`/orders/{id}/stream`,
   `/events/{id}/event-control-center/stream`, `/stands/{id}/orders/stream`) goes through a
   dedicated `useSSE` hook inside the component. Loaders = route one-shot
-  fetches, TanStack Query = cached operator client fetches, streams = live
+  fetches, TanStack Query = cached/reactive client fetches, streams = live
   updates. Keep this separation.
 
 ## Personas / Auth (mirrors the three backend auth types)
@@ -323,10 +339,12 @@ is already written — follow them so the codebase stays consistent.
 
 - Route tree centralized in `router.tsx`; `App.tsx` only mounts providers and
   `<RouterProvider>`.
-- `loader`/`action` for route-level one-shot reads/mutations that do not depend
-  on client-only keychain credentials (read via `useLoaderData()`).
-- TanStack Query for Operator component fetches that depend on keychain
-  credentials and benefit from caching/refetching. Put reusable operator
+- `loader`/`action` for route-entry, one-shot, URL-driven reads/mutations (read
+  via `useLoaderData()`). The test is the access pattern, not credentials —
+  loaders may read the keychain (organizer JWT, attendee session).
+- TanStack Query for in-component fetches that are reactive, cached/refetched, or
+  companion to a live stream — chiefly Operator fetches (multi-stand keychain +
+  `enabled` gating) and attendee live/polling pages. Put reusable operator
   `queryKey` definitions next to the operator routes.
 - `useSSE` hook for live streams. **Do not conflate** loaders, query-backed
   fetches, and streams.

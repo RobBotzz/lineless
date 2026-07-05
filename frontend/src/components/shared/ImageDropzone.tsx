@@ -15,6 +15,10 @@ type ImageDropzoneProps = {
   acceptedTypes: readonly string[];
   maxBytes: number;
   disabled?: boolean;
+  // Sizing for the drop target / preview box. Height-only by default (h-28); the
+  // box always spans the parent's width on its own, so pass a height (e.g. "h-40")
+  // or an aspect ratio ("aspect-square" for a square logo slot), not a width.
+  sizeClassName?: string;
 };
 
 // Controlled image picker: click-to-browse or drag & drop, with an inline preview
@@ -28,6 +32,7 @@ export function ImageDropzone({
   acceptedTypes,
   maxBytes,
   disabled = false,
+  sizeClassName = 'h-28',
 }: ImageDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -82,7 +87,12 @@ export function ImageDropzone({
       />
 
       {previewUrl ? (
-        <div className="relative h-40 overflow-hidden rounded-lg border border-border bg-surface-muted">
+        <div
+          className={cn(
+            'relative overflow-hidden rounded-lg border border-border bg-surface-muted',
+            sizeClassName,
+          )}
+        >
           <img
             src={previewUrl}
             alt="Product image preview"
@@ -112,7 +122,8 @@ export function ImageDropzone({
           onClick={openPicker}
           disabled={disabled}
           className={cn(
-            'flex h-40 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 text-center transition',
+            'flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 text-center transition',
+            sizeClassName,
             dragOver
               ? 'border-accent bg-accent-soft'
               : 'border-border bg-surface hover:bg-surface-muted',
