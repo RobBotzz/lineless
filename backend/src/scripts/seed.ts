@@ -474,6 +474,7 @@ function buildItem(
     readyAt,
     fulfilledAt,
     cancelledAt,
+    refundedAt: null,
     inventoryState,
     priceIncludingTaxAtPurchase: product.priceCents,
     taxRateAtPurchase: product.taxRateBp,
