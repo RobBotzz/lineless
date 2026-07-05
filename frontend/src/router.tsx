@@ -36,7 +36,7 @@ import { productSelectionLoader } from './routes/attendee/product-selection/data
 import AttendeeCart from './routes/attendee/cart/Cart';
 import { cartLoader } from './routes/attendee/cart/data';
 import AttendeeOrderConfirmed from './routes/attendee/checkout/OrderConfirmed';
-import AttendeeCashPaymentPending from './routes/attendee/checkout/CashPaymentPending';
+import AttendeePendingPayment from './routes/attendee/order-history/PendingPayment';
 import AttendeeOrderHistory from './routes/attendee/order-history/OrderHistory';
 import AttendeeTrackOrder from './routes/attendee/order-history/TrackOrder';
 import AttendeeReviewOrder from './routes/attendee/order-history/ReviewOrder';
@@ -53,6 +53,9 @@ import CashierManualOrder from './routes/operator/cashier/CashierManualOrder';
 import CashierPayment from './routes/operator/cashier/CashierPayment';
 import CashierPaymentDetails from './routes/operator/cashier/CashierPaymentDetails';
 import CashierPaymentConfirmed from './routes/operator/cashier/CashierPaymentConfirmed';
+import CashierRefund from './routes/operator/cashier/CashierRefund';
+import CashierRefundDetails from './routes/operator/cashier/CashierRefundDetails';
+import CashierRefundConfirmed from './routes/operator/cashier/CashierRefundConfirmed';
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -119,9 +122,9 @@ export const router = createBrowserRouter(
         />
         <Route path="cart" element={<AttendeeCart />} loader={cartLoader} />
         <Route path="checkout/:orderId/confirmed" element={<AttendeeOrderConfirmed />} />
-        <Route path="checkout/:orderId/pending" element={<AttendeeCashPaymentPending />} />
         <Route path="orders" element={<AttendeeOrderHistory />} loader={ordersLoader} />
         <Route path="orders/:orderId" element={<AttendeeTrackOrder />} />
+        <Route path="orders/:orderId/pay" element={<AttendeePendingPayment />} />
         <Route path="orders/:orderId/review" element={<AttendeeReviewOrder />} />
       </Route>
 
@@ -159,6 +162,17 @@ export const router = createBrowserRouter(
             path="payment/:orderId/confirmed"
             element={<CashierPaymentConfirmed />}
             handle={{ title: 'Payment Confirmed' }}
+          />
+          <Route path="refund" element={<CashierRefund />} handle={{ title: 'Refund' }} />
+          <Route
+            path="refund/:orderId"
+            element={<CashierRefundDetails />}
+            handle={{ title: 'Refund' }}
+          />
+          <Route
+            path="refund/:orderId/confirmed"
+            element={<CashierRefundConfirmed />}
+            handle={{ title: 'Refund Confirmed' }}
           />
         </Route>
         <Route

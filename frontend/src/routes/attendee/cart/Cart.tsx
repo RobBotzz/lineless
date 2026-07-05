@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
-import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
+import { Link, useLoaderData, useNavigate, useParams, useRouteLoaderData } from 'react-router';
 
 import { AlertDialog, StockConflictDialog, type StockConflictItem } from '@/components/feedback';
 import { BackButton, PrimaryButton } from '@/components/shared';
+import { buttonVariants } from '@/components/ui/button';
+import type { AttendeeLayoutLoaderData } from '../data';
 import { createOrder, InsufficientStockError } from '@/api/orders';
 import { setAttendeeSessionEmail } from '@/api/sessions';
 import { getAttendeeStands } from '@/api/stands';
@@ -25,6 +27,7 @@ export default function Cart() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const { cashierEnabled } = useLoaderData() as CartLoaderData;
+  const { event } = useRouteLoaderData('attendee-event') as AttendeeLayoutLoaderData;
   const {
     items,
     totalCount,
@@ -53,6 +56,30 @@ export default function Cart() {
   const [editingEmail, setEditingEmail] = useState(() => email === '');
 
   const backTo = eventId ? paths.attendee.event(eventId) : paths.home;
+
+  // Guard for session holders whose event stopped/completed while browsing. The
+  // layout gate only covers visitors without a session; the checkout itself would
+  // otherwise call createOrder and fail at the backend. Mirrors ProductSelection.
+  if (event.status !== 'ACTIVE') {
+    const message =
+      event.status === 'COMPLETED'
+        ? 'This event has ended.'
+        : 'This event is not accepting new orders.';
+    return (
+      <div className="space-y-4">
+        <BackButton to={backTo}>Back</BackButton>
+        <div className="flex flex-col items-center gap-5 py-20 text-center">
+          <p className="text-text-muted">{message}</p>
+          <Link
+            to={eventId ? paths.attendee.orders(eventId) : '#'}
+            className={buttonVariants({ variant: 'outline' })}
+          >
+            View your orders
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   function handleStockConflict(conflict: InsufficientStockError) {
     const affectedItems = conflict.shortages.map((shortage) => {
@@ -117,7 +144,7 @@ export default function Cart() {
       }
       const order = await createOrder(eventId, orderItems, checkoutAttempt.current.requestId);
       clear();
-      navigate(paths.attendee.checkoutPending(eventId, order._id), {
+      navigate(paths.attendee.payOrder(eventId, order._id), {
         state: { order, items: orderItems },
       });
     } catch (err) {
@@ -225,13 +252,17 @@ export default function Cart() {
                   </button>
                 </div>
               )}
-              <div className="mb-2">
-                <PaymentMethodToggle
-                  value={paymentMethod}
-                  onChange={setPaymentMethod}
-                  cashEnabled={cashierEnabled}
-                />
-              </div>
+              {/* With no cashier, Card is the only option — showing a
+                  single-choice toggle would be pointless, so hide it. */}
+              {cashierEnabled && (
+                <div className="mb-2">
+                  <PaymentMethodToggle
+                    value={paymentMethod}
+                    onChange={setPaymentMethod}
+                    cashEnabled={cashierEnabled}
+                  />
+                </div>
+              )}
               <PrimaryButton className="gap-2" disabled={isCheckingOut} onClick={handleCheckout}>
                 {isCheckingOut ? (
                   'Processing Payment…'

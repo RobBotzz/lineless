@@ -237,9 +237,11 @@ export function clearAttendeeSession(eventId: string): void {
   const credential = getCredential('attendee');
   if (!credential || !credential.sessions[eventId]) return;
   delete credential.sessions[eventId];
-  // The tab belongs to the session that opened it; drop it together so a new
-  // session never inherits a stale, unusable tab.
-  delete credential.tabs[eventId];
+  // Keep the tab pointer across a session rollover: on a multi-day event the
+  // 24h session lapses while the tab is still open, and the backend re-binds the
+  // tab to the freshly created session on next access. A genuinely finished tab
+  // (PAID/CHECKOUT_PENDING/FAILED) is dropped separately by the checkout flow,
+  // so a dead tab never lingers here.
   write(KEYS.attendee, credential);
   notifyAttendee();
 }

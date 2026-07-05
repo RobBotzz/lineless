@@ -109,6 +109,20 @@ function throwIfStockConflict(status: number, data: unknown): void {
   }
 }
 
+export type OrderRequestConflict = 'ORDER_REQUEST_DELETED' | 'ORDER_REQUEST_CANCELLED';
+
+// A reused idempotency key whose order was since cancelled or deleted comes back
+// as a 409 carrying one of these codes (distinct from a code-less inactive-event
+// 409). The caller must drop the key and start a fresh order request.
+export function orderRequestConflict(err: unknown): OrderRequestConflict | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const data = err.data;
+  if (!data || typeof data !== 'object') return null;
+  const code = (data as Record<string, unknown>).code;
+  if (code === 'ORDER_REQUEST_DELETED' || code === 'ORDER_REQUEST_CANCELLED') return code;
+  return null;
+}
+
 function unexpectedOrderResponse(status: number, data: unknown): ApiError {
   let message = `Unexpected order response (${status})`;
   if (data && typeof data === 'object') {
@@ -326,12 +340,6 @@ export function getAttendeeOrder(orderId: string, eventId: string): Promise<Atte
   return apiFetch<AttendeeOrder>(`/orders/${orderId}`, { auth: 'attendee', eventId });
 }
 
-// GET /api/orders/cashier — unpaid orders for the cashier's event.
-// The stand is derived from the operator token, so no standId needed in the URL.
-export function getUnpaidOrders(standId: string): Promise<Order[]> {
-  return apiFetch<Order[]>('/orders/cashier', { auth: 'operator', standId });
-}
-
 // DELETE /api/orders/cashier/:orderId — soft-delete an unpaid order.
 // The order stays in MongoDB for analytics; it is excluded from the cashier list.
 export function deleteUnpaidOrder(orderId: string, standId: string): Promise<void> {
@@ -357,4 +365,63 @@ export function confirmCashPayment(orderId: string, standId: string): Promise<vo
 // GET /api/orders — attendee's order history (paid orders only).
 export function getAttendeeOrders(eventId: string): Promise<Order[]> {
   return apiFetch<Order[]>('/orders', { auth: 'attendee', eventId });
+}
+
+// --- Cash refund API -----------------------------------------------------------
+
+// GET /api/orders/cashier/refundable — cash-paid orders for the cashier's event
+// that still have at least one refundable (cancelled, not-refunded) item.
+export function getRefundableOrders(standId: string): Promise<Order[]> {
+  return apiFetch<Order[]>('/orders/cashier/refundable', { auth: 'operator', standId });
+}
+
+// POST /api/orders/:orderId/refund — refund the given cancelled items in one go.
+export function refundOrderItems(
+  orderId: string,
+  itemIds: string[],
+  standId: string,
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}/refund`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+    body: JSON.stringify({ itemIds }),
+  });
+}
+
+// One display row per individual order item — unlike buildOrderViewItems this keeps
+// cancelled/refunded items so the refund screen can show the whole order and offer
+// the refundable items for selection by their real item ids.
+export interface RefundItemRow {
+  _id: string;
+  productName: string;
+  standName: string;
+  unitPrice: number; // integer cents
+  cancelledAt: string | null;
+  refundedAt: string | null;
+}
+
+export async function buildRefundRows(
+  order: Order,
+  eventId: string,
+  standId: string,
+): Promise<RefundItemRow[]> {
+  const [products, stands] = await Promise.all([
+    getOperatorEventProducts(eventId, standId),
+    getOperatorStands(eventId),
+  ]);
+  const productById = new Map(products.map((p) => [p._id, p]));
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+
+  return order.items.map((item) => {
+    const product = productById.get(item.productId);
+    return {
+      _id: item._id,
+      productName: product?.productName ?? item.productName ?? item.productId,
+      standName: product ? (standNameById.get(product.standId) ?? '') : '',
+      unitPrice: item.priceIncludingTaxAtPurchase,
+      cancelledAt: item.cancelledAt,
+      refundedAt: item.refundedAt,
+    };
+  });
 }

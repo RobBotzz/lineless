@@ -39,6 +39,17 @@ export interface Event {
   updatedAt: string;
 }
 
+// Minimal public projection returned by GET /events/:id/public-info (no auth).
+// Only includes fields needed for gate pages; excludes accountId and billing config.
+export interface PublicEventInfo {
+  _id: string;
+  name: string;
+  status: EventStatus;
+  plannedDate?: string;
+  branding: EventBranding;
+  updatedAt: string;
+}
+
 // The logo is served from a stable URL (/api/events/:id/logo) with a long cache
 // lifetime, so replacing it would otherwise keep showing the stale image.
 // Appending the event's updatedAt as a version busts the cache whenever the

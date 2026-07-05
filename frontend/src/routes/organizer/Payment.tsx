@@ -171,7 +171,7 @@ function eventStatement(row: EventRow): StatementLine[] {
     );
   }
   lines.push(
-    { label: 'Platform fee (5¢/order)', cents: event.platformFeeCents, kind: 'sub' },
+    { label: 'Platform fee (20¢/order)', cents: event.platformFeeCents, kind: 'sub' },
     { label: 'Net payout (to your bank)', cents: event.netPayoutCents, kind: 'total' },
   );
   return lines;
