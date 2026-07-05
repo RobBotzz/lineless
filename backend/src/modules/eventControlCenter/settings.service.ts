@@ -117,7 +117,12 @@ export async function replaceEventControlCenterSettings(
         })),
       },
     },
-    { new: true, runValidators: true, setDefaultsOnInsert: true, upsert: true }
+    {
+      returnDocument: "after",
+      runValidators: true,
+      setDefaultsOnInsert: true,
+      upsert: true,
+    }
   );
 
   return canonical;

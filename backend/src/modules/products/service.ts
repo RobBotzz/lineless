@@ -325,7 +325,7 @@ export async function updateProductStock(
         productStock: input.productStock,
       },
     },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   ).lean();
   if (product) return product;
 
