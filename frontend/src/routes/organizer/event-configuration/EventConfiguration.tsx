@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Link, useFetcher, useLoaderData, useRevalidator, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
@@ -19,11 +19,15 @@ import { Toggle } from '@/components/ui/toggle';
 import {
   ArrowRightIcon,
   CheckCircleIcon,
+  CheckIcon,
   ChevronDownIcon,
+  EditIcon,
   ImageIcon,
   InfoIcon,
   LinkIcon,
+  PauseIcon,
   PinIcon,
+  PlayIcon,
   ProductsIcon,
   SettingsIcon,
   StandIcon,
@@ -67,6 +71,51 @@ export function EventConfigurationError() {
   );
 }
 
+// The event lifecycle, in order. Drives the vertical stepper in the Status card:
+// its index vs. the event's current status decides which steps are done / current
+// / upcoming. `tint` colors the active node + chip; `chip` is the header pill.
+const LIFECYCLE_STEPS = [
+  {
+    key: 'DRAFT',
+    label: 'Draft',
+    icon: EditIcon,
+    node: 'border-accent bg-accent-soft text-accent',
+    label_: 'text-accent',
+    chip: 'border-accent/30 bg-accent-soft text-accent',
+  },
+  {
+    key: 'ACTIVE',
+    label: 'Active',
+    icon: PlayIcon,
+    node: 'border-success bg-success/10 text-success',
+    label_: 'text-success',
+    chip: 'border-success/30 bg-success/10 text-success',
+  },
+  {
+    key: 'STOPPED',
+    label: 'Stopped',
+    icon: PauseIcon,
+    node: 'border-warning bg-warning/10 text-warning',
+    label_: 'text-warning',
+    chip: 'border-warning/30 bg-warning/10 text-warning',
+  },
+  {
+    key: 'COMPLETED',
+    label: 'Completed',
+    icon: CheckCircleIcon,
+    node: 'border-success bg-success/10 text-success',
+    label_: 'text-success',
+    chip: 'border-success/30 bg-success/10 text-success',
+  },
+] as const satisfies ReadonlyArray<{
+  key: EventStatus;
+  label: string;
+  icon: (props: { className?: string }) => ReactElement;
+  node: string;
+  label_: string;
+  chip: string;
+}>;
+
 const STATUS_HINTS: Record<EventStatus, string[]> = {
   DRAFT: [
     'Add stands & products',
@@ -86,6 +135,108 @@ const STATUS_HINTS: Record<EventStatus, string[]> = {
   ],
   COMPLETED: ['All tabs have been settled', 'No further changes can be made'],
 };
+
+// Header pill echoing the current lifecycle state (tint matches the stepper node).
+function EventStatusChip({ status }: { status: EventStatus }) {
+  const step = LIFECYCLE_STEPS.find((s) => s.key === status) ?? LIFECYCLE_STEPS[0];
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold',
+        step.chip,
+      )}
+    >
+      {status === 'ACTIVE' && <LiveDot />}
+      {step.label}
+    </span>
+  );
+}
+
+// Pulsing dot — signals the event is live (used on the Active chip + stepper node).
+function LiveDot() {
+  return (
+    <span className="relative flex h-2 w-2">
+      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60" />
+      <span className="relative inline-flex h-2 w-2 rounded-full bg-current" />
+    </span>
+  );
+}
+
+// Vertical lifecycle stepper: DRAFT → ACTIVE → STOPPED → COMPLETED. Past steps are
+// checked off with a filled accent node + connector; the current step is tinted and
+// expands to show its hints; upcoming steps are muted. The connector below a step
+// stretches to the next node, so it spans the current step's taller hint block.
+function EventLifecycle({ status }: { status: EventStatus }) {
+  const currentIndex = LIFECYCLE_STEPS.findIndex((s) => s.key === status);
+  return (
+    <ol className="relative">
+      {LIFECYCLE_STEPS.map((step, i) => {
+        const Icon = step.icon;
+        const done = i < currentIndex;
+        const current = i === currentIndex;
+        const isLast = i === LIFECYCLE_STEPS.length - 1;
+        return (
+          <li key={step.key} className="relative flex gap-3">
+            {/* Connector to the next node — accent once this step is behind us. */}
+            {!isLast && (
+              <span
+                aria-hidden
+                className={cn(
+                  'absolute left-4 top-9 bottom-0 w-0.5 -translate-x-1/2 rounded-full',
+                  done ? 'bg-accent' : 'bg-border',
+                )}
+              />
+            )}
+            {/* Node */}
+            <span
+              className={cn(
+                'relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                done
+                  ? 'border-accent bg-accent text-white'
+                  : current
+                    ? step.node
+                    : 'border-border bg-surface text-text-muted',
+              )}
+            >
+              {done ? <CheckIcon className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+            </span>
+            {/* Label + (for the current step) inline hints */}
+            <div className={cn('min-w-0 flex-1', isLast ? 'pb-0' : 'pb-5')}>
+              <div className="flex h-8 items-center gap-2">
+                <span
+                  className={cn(
+                    'text-sm font-semibold',
+                    current ? step.label_ : done ? 'text-text' : 'text-text-muted',
+                  )}
+                >
+                  {step.label}
+                </span>
+                {current && status === 'ACTIVE' && (
+                  <span className="text-success">
+                    <LiveDot />
+                  </span>
+                )}
+              </div>
+              {current && (
+                <ul className="mt-1.5 space-y-1.5">
+                  {STATUS_HINTS[status].map((hint) => (
+                    <li key={hint} className="flex items-start gap-2 text-sm text-text-muted">
+                      <span
+                        aria-hidden
+                        className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-text-muted"
+                      />
+                      {hint}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 // Mirrors the backend upload limits (config.upload). The server is the source of
 // truth (it also checks the magic bytes); these just give instant feedback.
@@ -491,8 +642,15 @@ export default function EventConfiguration() {
                   <CheckCircleIcon className="h-5 w-5" />
                   Status
                 </CardTitle>
+                <CardAction>
+                  <EventStatusChip status={event.status} />
+                </CardAction>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
+                {/* Lifecycle stepper — shows progress through the event's states and
+                    renders the current state's hints inline, so they read as part of
+                    "where the event is", not as a caption for the button below. */}
+                <EventLifecycle status={event.status} />
                 {canStart && (
                   <Button
                     className="w-full bg-success text-white hover:bg-success/90"
@@ -525,22 +683,6 @@ export default function EventConfiguration() {
                     Complete Event
                   </Button>
                 )}
-                {isCompleted && (
-                  <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm font-medium text-text-muted">
-                    <CheckCircleIcon className="h-4 w-4 text-success" />
-                    Event completed
-                  </div>
-                )}
-                <ul className="space-y-1.5 pl-1">
-                  {STATUS_HINTS[event.status].map((hint) => (
-                    <li key={hint} className="flex items-center gap-2 text-sm text-text-muted">
-                      <span aria-hidden className="shrink-0">
-                        ·
-                      </span>
-                      {hint}
-                    </li>
-                  ))}
-                </ul>
                 {canDelete && (
                   <>
                     <hr className="border-border" />
