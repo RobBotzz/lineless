@@ -7,7 +7,6 @@ import Imprint from './routes/legal/Imprint';
 import PrivacyPolicy from './routes/legal/PrivacyPolicy';
 
 import OrganizerAuth from './routes/auth/OrganizerAuth';
-import { OrganizerRequireAuth } from './auth/organizer/OrganizerRequireAuth';
 import ForgotPassword from './routes/auth/ForgotPassword';
 import ResetPassword from './routes/auth/ResetPassword';
 import OrganizerLayout from './routes/organizer/OrganizerLayout';
@@ -91,24 +90,19 @@ export const router = createBrowserRouter(
           errorElement={<SettingsError />}
         />
         <Route
+          path="events/:eventId"
+          element={<OrganizerEventConfiguration />}
+          loader={eventConfigurationLoader}
+          action={eventConfigurationAction}
+          errorElement={<EventConfigurationError />}
+        />
+        <Route
           path="events/:eventId/event-control-center/:section"
           element={<EventControlCenterRoute />}
           loader={eventControlCenterLoader}
           errorElement={<EventControlCenterError />}
         />
       </Route>
-
-      <Route
-        path="organizer/events/:eventId"
-        element={
-          <OrganizerRequireAuth>
-            <OrganizerEventConfiguration />
-          </OrganizerRequireAuth>
-        }
-        loader={eventConfigurationLoader}
-        action={eventConfigurationAction}
-        errorElement={<EventConfigurationError />}
-      />
 
       <Route
         path="event/:eventId"

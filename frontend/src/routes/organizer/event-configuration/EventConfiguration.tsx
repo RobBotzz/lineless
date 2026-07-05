@@ -5,7 +5,6 @@ import { ApiError } from '@/api/client';
 import { deleteEventLogo, updateEvent, uploadEventLogo } from '@/api/events';
 import { AlertDialog } from '@/components/feedback';
 import { BackButton, ImageDropzone } from '@/components/shared';
-import { AccountMenu, LandingPageNavbar } from '@/components/layout/navbars';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Card,
@@ -29,7 +28,6 @@ import {
   SettingsIcon,
   StandIcon,
 } from '@/components/icons';
-import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
 import { resolveBranding } from '@/features/branding/applyBranding';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
@@ -168,7 +166,6 @@ export default function EventConfiguration() {
   const { event, stands, productsByStand, cashierStand } =
     useLoaderData() as EventConfigurationLoaderData;
   const fetcher = useFetcher<EventActionResult>();
-  const { logout } = useOrganizerAuth();
   const revalidator = useRevalidator();
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
@@ -440,240 +437,178 @@ export default function EventConfiguration() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <LandingPageNavbar
-        logoTo={paths.organizer.root}
-        right={<AccountMenu isAuthenticated={true} onSignOut={() => logout(paths.home)} />}
-        widthClassName="w-[calc(100%_-_3rem)] max-w-[calc(80rem-3rem)] lg:w-[calc(100%_-_4rem)] lg:max-w-[calc(80rem-4rem)]"
-      />
-
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
-        <BackButton to={paths.organizer.root} className="mb-6">
-          Events Dashboard
-        </BackButton>
-        <div className="space-y-6">
-          {/* Event status + links — side by side across the full width */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <section className="scroll-mt-24" id="status">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <CheckCircleIcon className="h-5 w-5" />
-                    Status
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
+    <>
+      <BackButton to={paths.organizer.root} className="mb-6">
+        Events Dashboard
+      </BackButton>
+      <div className="space-y-6">
+        {/* Event status + links — side by side across the full width */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section className="scroll-mt-24" id="status">
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <CheckCircleIcon className="h-5 w-5" />
+                  Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button
+                  className="w-full bg-success text-white hover:bg-success/90"
+                  disabled={!canStart || busy}
+                  onClick={() => submit({ intent: 'start' })}
+                  size="lg"
+                >
+                  Start Event
+                </Button>
+                <Button
+                  className="w-full"
+                  disabled={!canStop || busy}
+                  onClick={() => setPendingCompleteEvent(true)}
+                  size="lg"
+                  variant="secondary"
+                >
+                  Complete Event
+                </Button>
+                {canDelete ? (
                   <Button
-                    className="w-full bg-success text-white hover:bg-success/90"
-                    disabled={!canStart || busy}
-                    onClick={() => submit({ intent: 'start' })}
+                    className="w-full border-danger/40 text-danger hover:bg-danger/5"
+                    disabled={busy}
+                    onClick={() => setPendingDeleteEvent(true)}
                     size="lg"
+                    variant="outline"
                   >
-                    Start Event
+                    Delete Event
                   </Button>
-                  <Button
-                    className="w-full"
-                    disabled={!canStop || busy}
-                    onClick={() => setPendingCompleteEvent(true)}
-                    size="lg"
-                    variant="secondary"
-                  >
-                    Complete Event
-                  </Button>
-                  {canDelete ? (
-                    <Button
-                      className="w-full border-danger/40 text-danger hover:bg-danger/5"
-                      disabled={busy}
-                      onClick={() => setPendingDeleteEvent(true)}
-                      size="lg"
-                      variant="outline"
-                    >
-                      Delete Event
-                    </Button>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </section>
+                ) : null}
+              </CardContent>
+            </Card>
+          </section>
 
-            <section className="scroll-mt-24" id="links">
-              {/* Links — share targets for operators and attendees */}
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <LinkIcon />
-                    Links
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
-                  <div>
-                    <Button
-                      aria-expanded={showOperatorLink}
-                      className={['w-full', showOperatorLink ? 'rounded-b-none' : ''].join(' ')}
-                      onClick={() => setShowOperatorLink((open) => !open)}
-                      size="lg"
-                      variant="default"
-                    >
-                      <span>Operator Link</span>
-                      <ChevronDownIcon
-                        className={[
-                          'ml-auto transition-transform',
-                          showOperatorLink ? 'rotate-180' : '',
-                        ].join(' ')}
-                      />
-                    </Button>
-                    {showOperatorLink && (
-                      <OperatorLinkPanel
-                        eventId={event._id}
-                        operatorAccessKey={event.operatorAccessKey}
-                      />
-                    )}
-                  </div>
-                  {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
-                  <div>
-                    <Button
-                      aria-expanded={showCustomerLink}
-                      className={['w-full', showCustomerLink ? 'rounded-b-none' : ''].join(' ')}
-                      onClick={() => setShowCustomerLink((open) => !open)}
-                      size="lg"
-                      variant="default"
-                    >
-                      <span>Customer Link / QR-Code</span>
-                      <ChevronDownIcon
-                        className={[
-                          'ml-auto transition-transform',
-                          showCustomerLink ? 'rotate-180' : '',
-                        ].join(' ')}
-                      />
-                    </Button>
-                    {showCustomerLink && <CustomerLinkPanel eventId={event._id} />}
-                  </div>
-                  {/* Navigates away (unlike the expandable buttons above) — the
+          <section className="scroll-mt-24" id="links">
+            {/* Links — share targets for operators and attendees */}
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <LinkIcon />
+                  Links
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
+                <div>
+                  <Button
+                    aria-expanded={showOperatorLink}
+                    className={['w-full', showOperatorLink ? 'rounded-b-none' : ''].join(' ')}
+                    onClick={() => setShowOperatorLink((open) => !open)}
+                    size="lg"
+                    variant="default"
+                  >
+                    <span>Operator Link</span>
+                    <ChevronDownIcon
+                      className={[
+                        'ml-auto transition-transform',
+                        showOperatorLink ? 'rotate-180' : '',
+                      ].join(' ')}
+                    />
+                  </Button>
+                  {showOperatorLink && (
+                    <OperatorLinkPanel
+                      eventId={event._id}
+                      operatorAccessKey={event.operatorAccessKey}
+                    />
+                  )}
+                </div>
+                {/* Grouped so the panel hangs flush off the button, not spaced by the card. */}
+                <div>
+                  <Button
+                    aria-expanded={showCustomerLink}
+                    className={['w-full', showCustomerLink ? 'rounded-b-none' : ''].join(' ')}
+                    onClick={() => setShowCustomerLink((open) => !open)}
+                    size="lg"
+                    variant="default"
+                  >
+                    <span>Customer Link / QR-Code</span>
+                    <ChevronDownIcon
+                      className={[
+                        'ml-auto transition-transform',
+                        showCustomerLink ? 'rotate-180' : '',
+                      ].join(' ')}
+                    />
+                  </Button>
+                  {showCustomerLink && <CustomerLinkPanel eventId={event._id} />}
+                </div>
+                {/* Navigates away (unlike the expandable buttons above) — the
                       arrow signals a redirect rather than a dropdown. */}
-                  <Link
-                    className={[buttonVariants({ variant: 'default', size: 'lg' }), 'w-full'].join(
-                      ' ',
-                    )}
-                    to={paths.organizer.eventControlCenterAnalytics(event._id)}
-                  >
-                    <span>Event Control Center</span>
-                    <ArrowRightIcon className="ml-auto h-4 w-4" />
-                  </Link>
-                </CardContent>
-              </Card>
-            </section>
-          </div>
+                <Link
+                  className={[buttonVariants({ variant: 'default', size: 'lg' }), 'w-full'].join(
+                    ' ',
+                  )}
+                  to={paths.organizer.eventControlCenterAnalytics(event._id)}
+                >
+                  <span>Event Control Center</span>
+                  <ArrowRightIcon className="ml-auto h-4 w-4" />
+                </Link>
+              </CardContent>
+            </Card>
+          </section>
+        </div>
 
-          {/* Event settings — core editable fields */}
-          <Card className="scroll-mt-24" id="settings">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <SettingsIcon className="h-5 w-5" />
-                Settings
-              </CardTitle>
-            </CardHeader>
-            {/* @container so the fields react to the card's own width (it sits in
+        {/* Event settings — core editable fields */}
+        <Card className="scroll-mt-24" id="settings">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <SettingsIcon className="h-5 w-5" />
+              Settings
+            </CardTitle>
+          </CardHeader>
+          {/* @container so the fields react to the card's own width (it sits in
                   a variable-width column), pairing up when there's room. */}
-            <CardContent className="@container">
-              <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
-                <TextField
-                  id="event-name"
-                  label="Event Name"
-                  onChange={(e) => updateField('name', e.target.value)}
-                  placeholder="Event name"
-                  type="text"
-                  value={form.name}
-                />
+          <CardContent className="@container">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
+              <TextField
+                id="event-name"
+                label="Event Name"
+                onChange={(e) => updateField('name', e.target.value)}
+                placeholder="Event name"
+                type="text"
+                value={form.name}
+              />
 
-                <TextField
-                  error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
-                  id="event-date"
-                  label="Event Date"
-                  min={minimumPlannedDate}
-                  onChange={(e) => updateField('plannedDate', e.target.value)}
-                  type="date"
-                  value={form.plannedDate}
-                />
+              <TextField
+                error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
+                id="event-date"
+                label="Event Date"
+                min={minimumPlannedDate}
+                onChange={(e) => updateField('plannedDate', e.target.value)}
+                type="date"
+                value={form.plannedDate}
+              />
 
-                <EventLocationField
-                  onChange={(location) => updateField('location', location)}
-                  value={form.location}
-                />
+              <EventLocationField
+                onChange={(location) => updateField('location', location)}
+                value={form.location}
+              />
 
-                <TextField
-                  id="baseline-hold"
-                  label={
-                    <span className="inline-flex items-center gap-1.5">
-                      Card pre-authorization hold (€)
-                      <span className="relative inline-flex">
-                        <button
-                          type="button"
-                          aria-label="About the card pre-authorization hold"
-                          aria-expanded={showHoldInfo}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowHoldInfo((open) => !open);
-                          }}
-                          className="text-text-muted transition hover:text-text"
-                        >
-                          <InfoIcon />
-                        </button>
-                        {showHoldInfo && (
-                          <>
-                            <button
-                              type="button"
-                              aria-hidden="true"
-                              tabIndex={-1}
-                              className="fixed inset-0 z-40 cursor-default"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setShowHoldInfo(false);
-                              }}
-                            />
-                            <span
-                              role="tooltip"
-                              className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                            >
-                              {
-                                "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
-                              }
-                            </span>
-                          </>
-                        )}
-                      </span>
-                    </span>
-                  }
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  step="1"
-                  value={form.baselineHold}
-                  onChange={(e) => updateField('baselineHold', e.target.value)}
-                  error={
-                    baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
-                  }
-                />
-
-                <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
-                  <label
-                    className="inline-flex items-center gap-1.5 text-sm font-medium"
-                    htmlFor="ratings-enabled"
-                  >
-                    Customer Product Ratings
+              <TextField
+                id="baseline-hold"
+                label={
+                  <span className="inline-flex items-center gap-1.5">
+                    Card pre-authorization hold (€)
                     <span className="relative inline-flex">
                       <button
                         type="button"
-                        aria-label="About customer product ratings"
-                        aria-expanded={showRatingsInfo}
+                        aria-label="About the card pre-authorization hold"
+                        aria-expanded={showHoldInfo}
                         onClick={(e) => {
                           e.preventDefault();
-                          setShowRatingsInfo((open) => !open);
+                          setShowHoldInfo((open) => !open);
                         }}
                         className="text-text-muted transition hover:text-text"
                       >
                         <InfoIcon />
                       </button>
-                      {showRatingsInfo && (
+                      {showHoldInfo && (
                         <>
                           <button
                             type="button"
@@ -682,379 +617,426 @@ export default function EventConfiguration() {
                             className="fixed inset-0 z-40 cursor-default"
                             onClick={(e) => {
                               e.preventDefault();
-                              setShowRatingsInfo(false);
+                              setShowHoldInfo(false);
                             }}
                           />
                           <span
                             role="tooltip"
                             className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
                           >
-                            When enabled, guests can rate the products they ordered, and the average
-                            rating is shown on each product.
+                            {
+                              "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
+                            }
                           </span>
                         </>
                       )}
                     </span>
-                  </label>
-                  <Toggle
-                    checked={form.ratingsEnabled}
-                    id="ratings-enabled"
-                    label="Customer Product Ratings"
-                    onChange={(value) => updateField('ratingsEnabled', value)}
-                  />
-                </div>
-              </div>
-
-              {/* No save button — the form auto-saves; this just reflects status. */}
-              <div className="mt-6 flex justify-end text-sm" aria-live="polite">
-                {!settingsValid && settingsSave.dirty ? (
-                  <span className="text-danger">Fix the highlighted field to save.</span>
-                ) : settingsSave.saveError ? (
-                  <span className="text-danger">
-                    Couldn’t save changes — edit a field to retry.
                   </span>
-                ) : settingsSave.saving || settingsSave.dirty ? (
-                  <span className="text-text-muted">Saving…</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 text-success">
-                    <CheckCircleIcon className="h-4 w-4" />
-                    All changes saved
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                }
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                value={form.baselineHold}
+                onChange={(e) => updateField('baselineHold', e.target.value)}
+                error={
+                  baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
+                }
+              />
 
-          {/* Branding — logo, palette, and live preview; auto-saves on its own */}
-          <Card className="scroll-mt-24" id="branding">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ImageIcon className="h-5 w-5" />
-                Branding
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="@container">
-              <div className="flex flex-col gap-x-8 gap-y-6 @2xl:flex-row @2xl:items-stretch">
-                {/* Logo — fixed-width square tile on the left */}
-                <div className="@2xl:w-52 @2xl:shrink-0">
-                  <p className="mb-2 block text-sm font-medium">
-                    <span className="inline-flex items-center gap-1.5">
-                      Logo
-                      <span className="relative inline-flex">
+              <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
+                <label
+                  className="inline-flex items-center gap-1.5 text-sm font-medium"
+                  htmlFor="ratings-enabled"
+                >
+                  Customer Product Ratings
+                  <span className="relative inline-flex">
+                    <button
+                      type="button"
+                      aria-label="About customer product ratings"
+                      aria-expanded={showRatingsInfo}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowRatingsInfo((open) => !open);
+                      }}
+                      className="text-text-muted transition hover:text-text"
+                    >
+                      <InfoIcon />
+                    </button>
+                    {showRatingsInfo && (
+                      <>
                         <button
                           type="button"
-                          aria-label="About the event logo"
-                          aria-expanded={showLogoInfo}
+                          aria-hidden="true"
+                          tabIndex={-1}
+                          className="fixed inset-0 z-40 cursor-default"
                           onClick={(e) => {
                             e.preventDefault();
-                            setShowLogoInfo((open) => !open);
+                            setShowRatingsInfo(false);
                           }}
-                          className="text-text-muted transition hover:text-text"
+                        />
+                        <span
+                          role="tooltip"
+                          className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
                         >
-                          <InfoIcon />
-                        </button>
-                        {showLogoInfo && (
-                          <>
-                            <button
-                              type="button"
-                              aria-hidden="true"
-                              tabIndex={-1}
-                              className="fixed inset-0 z-40 cursor-default"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setShowLogoInfo(false);
-                              }}
-                            />
-                            <span
-                              role="tooltip"
-                              className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                            >
-                              Replaces the Lineless logo for attendees. Shown at the size of the
-                              current logo — smaller images sit left, larger ones scale down to fit.
-                            </span>
-                          </>
-                        )}
-                      </span>
+                          When enabled, guests can rate the products they ordered, and the average
+                          rating is shown on each product.
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </label>
+                <Toggle
+                  checked={form.ratingsEnabled}
+                  id="ratings-enabled"
+                  label="Customer Product Ratings"
+                  onChange={(value) => updateField('ratingsEnabled', value)}
+                />
+              </div>
+            </div>
+
+            {/* No save button — the form auto-saves; this just reflects status. */}
+            <div className="mt-6 flex justify-end text-sm" aria-live="polite">
+              {!settingsValid && settingsSave.dirty ? (
+                <span className="text-danger">Fix the highlighted field to save.</span>
+              ) : settingsSave.saveError ? (
+                <span className="text-danger">Couldn’t save changes — edit a field to retry.</span>
+              ) : settingsSave.saving || settingsSave.dirty ? (
+                <span className="text-text-muted">Saving…</span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-success">
+                  <CheckCircleIcon className="h-4 w-4" />
+                  All changes saved
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Branding — logo, palette, and live preview; auto-saves on its own */}
+        <Card className="scroll-mt-24" id="branding">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ImageIcon className="h-5 w-5" />
+              Branding
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="@container">
+            <div className="flex flex-col gap-x-8 gap-y-6 @2xl:flex-row @2xl:items-stretch">
+              {/* Logo — fixed-width square tile on the left */}
+              <div className="@2xl:w-52 @2xl:shrink-0">
+                <p className="mb-2 block text-sm font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    Logo
+                    <span className="relative inline-flex">
+                      <button
+                        type="button"
+                        aria-label="About the event logo"
+                        aria-expanded={showLogoInfo}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowLogoInfo((open) => !open);
+                        }}
+                        className="text-text-muted transition hover:text-text"
+                      >
+                        <InfoIcon />
+                      </button>
+                      {showLogoInfo && (
+                        <>
+                          <button
+                            type="button"
+                            aria-hidden="true"
+                            tabIndex={-1}
+                            className="fixed inset-0 z-40 cursor-default"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setShowLogoInfo(false);
+                            }}
+                          />
+                          <span
+                            role="tooltip"
+                            className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                          >
+                            Replaces the Lineless logo for attendees. Shown at the size of the
+                            current logo — smaller images sit left, larger ones scale down to fit.
+                          </span>
+                        </>
+                      )}
                     </span>
-                  </p>
-                  {/* Full-width banner while the layout is stacked (mobile);
+                  </span>
+                </p>
+                {/* Full-width banner while the layout is stacked (mobile);
                       square 13rem tile once the logo column kicks in. */}
-                  <div className="@2xl:max-w-52">
-                    <ImageDropzone
-                      previewUrl={logoPreviewUrl}
-                      onSelect={handleSelectLogo}
-                      onRemove={handleRemoveLogo}
-                      onError={setLogoError}
-                      acceptedTypes={ACCEPTED_IMAGE_TYPES}
-                      maxBytes={MAX_IMAGE_BYTES}
-                      disabled={logoBusy}
-                      sizeClassName="h-40 @2xl:h-auto @2xl:aspect-square"
-                    />
-                    {logoError && <p className="mt-1 text-xs text-danger">{logoError}</p>}
-                  </div>
-                </div>
-
-                {/* Palette + color roles sit directly on the card, top-aligned
-                    with the logo label. */}
-                <div className="flex flex-1 flex-col gap-5">
-                  {/* Presets — one click fills all three roles with a contrast-safe
-                      palette; the organizer can still fine-tune afterwards. */}
-                  <BrandPresetRow
-                    current={form}
-                    onApply={(preset) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        primaryColor: preset.primaryColor,
-                        secondaryColor: preset.secondaryColor,
-                        accentTextColor: preset.accentTextColor,
-                      }))
-                    }
+                <div className="@2xl:max-w-52">
+                  <ImageDropzone
+                    previewUrl={logoPreviewUrl}
+                    onSelect={handleSelectLogo}
+                    onRemove={handleRemoveLogo}
+                    onError={setLogoError}
+                    acceptedTypes={ACCEPTED_IMAGE_TYPES}
+                    maxBytes={MAX_IMAGE_BYTES}
+                    disabled={logoBusy}
+                    sizeClassName="h-40 @2xl:h-auto @2xl:aspect-square"
                   />
+                  {logoError && <p className="mt-1 text-xs text-danger">{logoError}</p>}
+                </div>
+              </div>
 
-                  {/* The three color controls: 3-up on a wide card, then Brand +
+              {/* Palette + color roles sit directly on the card, top-aligned
+                    with the logo label. */}
+              <div className="flex flex-1 flex-col gap-5">
+                {/* Presets — one click fills all three roles with a contrast-safe
+                      palette; the organizer can still fine-tune afterwards. */}
+                <BrandPresetRow
+                  current={form}
+                  onApply={(preset) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      primaryColor: preset.primaryColor,
+                      secondaryColor: preset.secondaryColor,
+                      accentTextColor: preset.accentTextColor,
+                    }))
+                  }
+                />
+
+                {/* The three color controls: 3-up on a wide card, then Brand +
                       Brand Text pair up and Button Text takes its own full row,
                       then everything stacks. Nested @container keys off the
                       branding half, not the whole card. */}
-                  <div className="@container">
-                    <div className="grid grid-cols-1 items-stretch gap-4 @sm:grid-cols-2 @3xl:grid-cols-3">
-                      {/* Role 1 — brand fill (buttons/highlights). */}
-                      <BrandColorField
-                        id="primary-color"
-                        label="Brand"
-                        onChange={(value) => updateField('primaryColor', value)}
-                        value={form.primaryColor}
-                      />
-                      {/* Role 3 — accent used as standalone text (links, prices,
+                <div className="@container">
+                  <div className="grid grid-cols-1 items-stretch gap-4 @sm:grid-cols-2 @3xl:grid-cols-3">
+                    {/* Role 1 — brand fill (buttons/highlights). */}
+                    <BrandColorField
+                      id="primary-color"
+                      label="Brand"
+                      onChange={(value) => updateField('primaryColor', value)}
+                      value={form.primaryColor}
+                    />
+                    {/* Role 3 — accent used as standalone text (links, prices,
                           headings) on the neutral page. null = Auto (derive). */}
-                      <BrandColorField
-                        id="accent-text-color"
-                        label="Brand Text"
-                        onChange={(value) => updateField('accentTextColor', value)}
-                        value={resolvedBranding.accentText}
-                        auto={{
-                          active: form.accentTextColor === null,
-                          onEnable: () => updateField('accentTextColor', null),
-                        }}
-                      />
-                      {/* Role 2 — text on the brand fill. secondaryColor in the
+                    <BrandColorField
+                      id="accent-text-color"
+                      label="Brand Text"
+                      onChange={(value) => updateField('accentTextColor', value)}
+                      value={resolvedBranding.accentText}
+                      auto={{
+                        active: form.accentTextColor === null,
+                        onEnable: () => updateField('accentTextColor', null),
+                      }}
+                    />
+                    {/* Role 2 — text on the brand fill. secondaryColor in the
                           backend. Spans the 2-up row so it never sits half-width. */}
-                      <div className="@sm:col-span-2 @3xl:col-span-1">
-                        <ButtonTextColorField
-                          onChange={(value) => updateField('secondaryColor', value)}
-                          value={form.secondaryColor}
-                        />
-                      </div>
+                    <div className="@sm:col-span-2 @3xl:col-span-1">
+                      <ButtonTextColorField
+                        onChange={(value) => updateField('secondaryColor', value)}
+                        value={form.secondaryColor}
+                      />
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Preview — full width below so brand colors read true across the row */}
-              <div className="mt-6 overflow-hidden rounded-lg border border-border bg-surface-muted">
-                <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                    Preview
-                  </span>
-                  <span className="text-xs text-text-muted">As attendees will see it</span>
-                </div>
-                {/* White canvas — matches the attendee page so brand colors read
+            {/* Preview — full width below so brand colors read true across the row */}
+            <div className="mt-6 overflow-hidden rounded-lg border border-border bg-surface-muted">
+              <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  Preview
+                </span>
+                <span className="text-xs text-text-muted">As attendees will see it</span>
+              </div>
+              {/* White canvas — matches the attendee page so brand colors read
                     true. Uses the resolved (clamped) colors, so what's shown here
                     is exactly what attendees get. */}
-                <div className="flex items-center gap-6 bg-surface p-4">
-                  <Button
-                    className="shrink-0"
-                    style={{
-                      backgroundColor: resolvedBranding.accent,
-                      color: resolvedBranding.buttonText,
-                    }}
-                  >
-                    Order Now
-                  </Button>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p
-                      className="text-sm font-semibold"
-                      style={{ color: resolvedBranding.accentText }}
-                    >
-                      {form.name || 'Lineless Event'}
-                    </p>
-                    <p className="text-sm text-text">
-                      Tonight only —{' '}
-                      <span
-                        className="font-medium underline underline-offset-2"
-                        style={{ color: resolvedBranding.accentText }}
-                      >
-                        view the menu
-                      </span>{' '}
-                      and order from{' '}
-                      <span
-                        className="font-semibold"
-                        style={{ color: resolvedBranding.accentText }}
-                      >
-                        €4.50
-                      </span>
-                      .
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* No save button — branding auto-saves; this reflects both the
-                  color auto-save and the separate logo upload/removal. */}
-              <div className="mt-6 flex justify-end text-sm" aria-live="polite">
-                {brandingSave.saveError ? (
-                  <span className="text-danger">
-                    Couldn’t save changes — edit a field to retry.
-                  </span>
-                ) : logoError ? (
-                  <span className="text-danger">Couldn’t save the logo — try again.</span>
-                ) : brandingSave.saving || brandingSave.dirty || logoBusy ? (
-                  <span className="text-text-muted">Saving…</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 text-success">
-                    <CheckCircleIcon className="h-4 w-4" />
-                    All changes saved
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Cashier — always shown; the enable toggle lives in its header and
-              expands the location + optional password config (manual save). */}
-          <CashierSettings
-            enabled={form.cashierEnabled}
-            onToggleEnabled={handleToggleCashier}
-            enableError={cashierEnableError}
-            cashierStand={cashierStand}
-            eventLocation={form.location}
-          />
-
-          {/* Stands & Products */}
-          <Card className="scroll-mt-24" id="stands-products">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <StandIcon className="h-5 w-5" />
-                Stands &amp; Products
-              </CardTitle>
-              <CardDescription>
-                Limit: {MAX_PRODUCTS_PER_STAND} products per stand. This ensures a clean Operator
-                Dashboard.
-              </CardDescription>
-              <CardAction>
+              <div className="flex items-center gap-6 bg-surface p-4">
                 <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingStand(null);
-                    setIsStandDialogOpen(true);
+                  className="shrink-0"
+                  style={{
+                    backgroundColor: resolvedBranding.accent,
+                    color: resolvedBranding.buttonText,
                   }}
                 >
-                  + Add Stand
+                  Order Now
                 </Button>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="@container">
-              {stands.length === 0 ? (
-                <div className="rounded-lg border-2 border-dashed border-border bg-background px-4 py-10 text-center">
-                  <p className="text-sm font-medium">No stands configured yet</p>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    Add stands to this event to allow operators to fulfill orders.
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p
+                    className="text-sm font-semibold"
+                    style={{ color: resolvedBranding.accentText }}
+                  >
+                    {form.name || 'Lineless Event'}
+                  </p>
+                  <p className="text-sm text-text">
+                    Tonight only —{' '}
+                    <span
+                      className="font-medium underline underline-offset-2"
+                      style={{ color: resolvedBranding.accentText }}
+                    >
+                      view the menu
+                    </span>{' '}
+                    and order from{' '}
+                    <span className="font-semibold" style={{ color: resolvedBranding.accentText }}>
+                      €4.50
+                    </span>
+                    .
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* No save button — branding auto-saves; this reflects both the
+                  color auto-save and the separate logo upload/removal. */}
+            <div className="mt-6 flex justify-end text-sm" aria-live="polite">
+              {brandingSave.saveError ? (
+                <span className="text-danger">Couldn’t save changes — edit a field to retry.</span>
+              ) : logoError ? (
+                <span className="text-danger">Couldn’t save the logo — try again.</span>
+              ) : brandingSave.saving || brandingSave.dirty || logoBusy ? (
+                <span className="text-text-muted">Saving…</span>
               ) : (
-                // Two height-balanced columns (see standColumns). They stack on a
-                // narrow card; empty columns are dropped so a lone stand spans full width.
-                <div className="flex flex-col gap-3 @3xl:flex-row @3xl:items-start">
-                  {standColumns
-                    .filter((column) => column.length > 0)
-                    .map((column, index) => (
-                      // min-w-0 lets the column shrink below its content's intrinsic
-                      // width so the product description can truncate instead of
-                      // forcing the whole card to overflow.
-                      <div key={index} className="flex min-w-0 flex-1 flex-col gap-3">
-                        {column.map(renderStand)}
-                      </div>
-                    ))}
-                </div>
+                <span className="inline-flex items-center gap-1.5 text-success">
+                  <CheckCircleIcon className="h-4 w-4" />
+                  All changes saved
+                </span>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <StandDialog
-          key={`${editingStand?._id ?? 'new'}-${String(isStandDialogOpen)}`}
-          stand={editingStand}
-          eventLocation={event.location ?? emptyLocation}
-          isOpen={isStandDialogOpen}
-          onClose={() => setIsStandDialogOpen(false)}
+        {/* Cashier — always shown; the enable toggle lives in its header and
+              expands the location + optional password config (manual save). */}
+        <CashierSettings
+          enabled={form.cashierEnabled}
+          onToggleEnabled={handleToggleCashier}
+          enableError={cashierEnableError}
+          cashierStand={cashierStand}
+          eventLocation={form.location}
         />
 
-        {productDialog && (
-          <ProductDialog
-            key={`${productDialog.product?._id ?? 'new'}-${productDialog.standId}`}
-            product={productDialog.product}
-            standId={productDialog.standId}
-            isOpen={true}
-            onClose={() => setProductDialog(null)}
-          />
-        )}
+        {/* Stands & Products */}
+        <Card className="scroll-mt-24" id="stands-products">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <StandIcon className="h-5 w-5" />
+              Stands &amp; Products
+            </CardTitle>
+            <CardDescription>
+              Limit: {MAX_PRODUCTS_PER_STAND} products per stand. This ensures a clean Operator
+              Dashboard.
+            </CardDescription>
+            <CardAction>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingStand(null);
+                  setIsStandDialogOpen(true);
+                }}
+              >
+                + Add Stand
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="@container">
+            {stands.length === 0 ? (
+              <div className="rounded-lg border-2 border-dashed border-border bg-background px-4 py-10 text-center">
+                <p className="text-sm font-medium">No stands configured yet</p>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Add stands to this event to allow operators to fulfill orders.
+                </p>
+              </div>
+            ) : (
+              // Two height-balanced columns (see standColumns). They stack on a
+              // narrow card; empty columns are dropped so a lone stand spans full width.
+              <div className="flex flex-col gap-3 @3xl:flex-row @3xl:items-start">
+                {standColumns
+                  .filter((column) => column.length > 0)
+                  .map((column, index) => (
+                    // min-w-0 lets the column shrink below its content's intrinsic
+                    // width so the product description can truncate instead of
+                    // forcing the whole card to overflow.
+                    <div key={index} className="flex min-w-0 flex-1 flex-col gap-3">
+                      {column.map(renderStand)}
+                    </div>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-        <AlertDialog
-          message={visibleError}
-          onAcknowledge={() => setDismissedError(actionError)}
-          title="Something went wrong"
-        />
+      <StandDialog
+        key={`${editingStand?._id ?? 'new'}-${String(isStandDialogOpen)}`}
+        stand={editingStand}
+        eventLocation={event.location ?? emptyLocation}
+        isOpen={isStandDialogOpen}
+        onClose={() => setIsStandDialogOpen(false)}
+      />
 
-        <AlertDialog
-          acknowledgeLabel="Delete"
-          cancelLabel="Cancel"
-          message={
-            pendingDeleteEvent
-              ? `“${event.name || 'Untitled Event'}” will be deleted and removed from organizer lists.`
-              : null
-          }
-          onAcknowledge={confirmDeleteEvent}
-          onCancel={() => setPendingDeleteEvent(false)}
-          title="Delete event?"
+      {productDialog && (
+        <ProductDialog
+          key={`${productDialog.product?._id ?? 'new'}-${productDialog.standId}`}
+          product={productDialog.product}
+          standId={productDialog.standId}
+          isOpen={true}
+          onClose={() => setProductDialog(null)}
         />
+      )}
 
-        <AlertDialog
-          acknowledgeLabel="Complete Event"
-          cancelLabel="Cancel"
-          message={
-            pendingCompleteEvent
-              ? 'Completing the event closes every open tab and charges each guest for the items they received. Items that are not yet ready or fulfilled will not be charged, and the remaining card holds are released. This cannot be undone.'
-              : null
-          }
-          onAcknowledge={confirmCompleteEvent}
-          onCancel={() => setPendingCompleteEvent(false)}
-          title="Complete event?"
-        />
+      <AlertDialog
+        message={visibleError}
+        onAcknowledge={() => setDismissedError(actionError)}
+        title="Something went wrong"
+      />
 
-        <AlertDialog
-          acknowledgeLabel="Delete"
-          cancelLabel="Cancel"
-          message={
-            pendingDeleteStandId ? 'This stand will be permanently removed from the event.' : null
-          }
-          onAcknowledge={confirmDeleteStand}
-          onCancel={() => setPendingDeleteStandId(null)}
-          title="Delete stand?"
-        />
+      <AlertDialog
+        acknowledgeLabel="Delete"
+        cancelLabel="Cancel"
+        message={
+          pendingDeleteEvent
+            ? `“${event.name || 'Untitled Event'}” will be deleted and removed from organizer lists.`
+            : null
+        }
+        onAcknowledge={confirmDeleteEvent}
+        onCancel={() => setPendingDeleteEvent(false)}
+        title="Delete event?"
+      />
 
-        <AlertDialog
-          acknowledgeLabel="Delete"
-          cancelLabel="Cancel"
-          message={
-            pendingDeleteProduct
-              ? `“${pendingDeleteProduct.productName}” will be permanently removed.`
-              : null
-          }
-          onAcknowledge={confirmDeleteProduct}
-          onCancel={() => setPendingDeleteProduct(null)}
-          title="Delete product?"
-        />
-      </main>
-    </div>
+      <AlertDialog
+        acknowledgeLabel="Complete Event"
+        cancelLabel="Cancel"
+        message={
+          pendingCompleteEvent
+            ? 'Completing the event closes every open tab and charges each guest for the items they received. Items that are not yet ready or fulfilled will not be charged, and the remaining card holds are released. This cannot be undone.'
+            : null
+        }
+        onAcknowledge={confirmCompleteEvent}
+        onCancel={() => setPendingCompleteEvent(false)}
+        title="Complete event?"
+      />
+
+      <AlertDialog
+        acknowledgeLabel="Delete"
+        cancelLabel="Cancel"
+        message={
+          pendingDeleteStandId ? 'This stand will be permanently removed from the event.' : null
+        }
+        onAcknowledge={confirmDeleteStand}
+        onCancel={() => setPendingDeleteStandId(null)}
+        title="Delete stand?"
+      />
+
+      <AlertDialog
+        acknowledgeLabel="Delete"
+        cancelLabel="Cancel"
+        message={
+          pendingDeleteProduct
+            ? `“${pendingDeleteProduct.productName}” will be permanently removed.`
+            : null
+        }
+        onAcknowledge={confirmDeleteProduct}
+        onCancel={() => setPendingDeleteProduct(null)}
+        title="Delete product?"
+      />
+    </>
   );
 }
 
