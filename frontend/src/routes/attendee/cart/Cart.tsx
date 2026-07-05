@@ -252,13 +252,17 @@ export default function Cart() {
                   </button>
                 </div>
               )}
-              <div className="mb-2">
-                <PaymentMethodToggle
-                  value={paymentMethod}
-                  onChange={setPaymentMethod}
-                  cashEnabled={cashierEnabled}
-                />
-              </div>
+              {/* With no cashier, Card is the only option — showing a
+                  single-choice toggle would be pointless, so hide it. */}
+              {cashierEnabled && (
+                <div className="mb-2">
+                  <PaymentMethodToggle
+                    value={paymentMethod}
+                    onChange={setPaymentMethod}
+                    cashEnabled={cashierEnabled}
+                  />
+                </div>
+              )}
               <PrimaryButton className="gap-2" disabled={isCheckingOut} onClick={handleCheckout}>
                 {isCheckingOut ? (
                   'Processing Payment…'
