@@ -78,6 +78,29 @@ key, plus a stand password where set):
 **Attendees** need no login — the frontend creates an anonymous session
 automatically.
 
+## Emails (Resend)
+
+Transactional emails (password reset, welcome, order-created & order-confirmed)
+are sent through **[Resend](https://resend.com)**, an email-delivery API. Flow:
+React Email templates in `src/lib/email/templates/*` are rendered to HTML in
+`mailer.tsx` and handed to the Resend client (`client.ts`), which delivers them
+via the Resend API using the key + sender in `config.resend`. Order emails are
+fire-and-forget — a delivery failure is only logged and never blocks the order.
+
+Two deliberate, pragmatic limitations for this project:
+
+- **Product images in emails only render on a deployed instance, not over
+  localhost.** Images are embedded as absolute URLs built from `appBaseUrl`; the
+  recipient's mail client fetches them from that public URL, and a `localhost`
+  address isn't reachable from their device — so images stay blank in local dev
+  and load only on a public (deployed) domain.
+- **Order-email links only work on the device that placed the order.** For
+  simplicity, attendees have no login — their identity is a session id stored in
+  that browser's `localStorage`, and the order is bound to it. So the "track /
+  pay" link in an order email only opens the order in the **same browser/device**
+  that ordered (the one holding the sessionId); opening it elsewhere or in
+  incognito won't load it.
+
 ## Local backend development (without Docker)
 
 ```bash
