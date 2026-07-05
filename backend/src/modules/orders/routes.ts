@@ -21,6 +21,7 @@ import {
 } from "./service";
 import { SseConnection } from "../../lib/sse";
 import { subscribe } from "../../lib/realtimeBus";
+import type { OrderDoc } from "./model";
 import {
   CashierDisabledError,
   CashPaymentNotFoundError,
@@ -205,20 +206,43 @@ ordersRouter.get(
       // Resolve the stand before the SSE headers go out, so a bad/disabled
       // stand still maps to a clean error instead of a half-open stream.
       const stand = await assertActiveCashierStand(standId);
-      const initial = await listUnpaidCashOrdersForEvent(stand.eventId);
-
       const sse = new SseConnection(res);
-      sse.send("snapshot", initial);
 
+      // Serialize the full-list queries: an event arriving mid-query only marks
+      // the connection dirty and re-runs once the in-flight query settles. This
+      // guarantees the last snapshot sent reflects the newest DB read, so a slow
+      // older query can never overwrite newer client state.
+      let running = false;
+      let dirty = false;
+      const pushSnapshot = async () => {
+        if (running) {
+          dirty = true;
+          return;
+        }
+        running = true;
+        try {
+          do {
+            dirty = false;
+            sse.send(
+              "snapshot",
+              await listUnpaidCashOrdersForEvent(stand.eventId)
+            );
+          } while (dirty);
+        } catch {
+          // stream errors are non-fatal; the client recovers on reconnect
+        } finally {
+          running = false;
+        }
+      };
+
+      // Register the listener before the first query so an event in the startup
+      // window is not missed — it just coalesces into the next snapshot.
       const unsubscribe = subscribe("order.changed", (order) => {
         if (order.eventId !== stand.eventId || order.tabId !== null) return;
-        listUnpaidCashOrdersForEvent(stand.eventId)
-          .then((orders) => sse.send("snapshot", orders))
-          .catch(() => {
-            // stream errors are non-fatal; the client recovers on reconnect
-          });
+        void pushSnapshot();
       });
 
+      void pushSnapshot();
       sse.onClose(() => unsubscribe());
     } catch (err) {
       handleError(err, res);
@@ -260,10 +284,22 @@ ordersRouter.get(
   async (req: Request, res: Response) => {
     const sessionId = req.attendee!.sessionId;
     try {
-      const initial = await listOrdersForAttendee(sessionId);
       const sse = new SseConnection(res);
-      sse.send("snapshot", initial);
 
+      const emit = (order: OrderDoc) => {
+        void enrichOrderForAttendee(order)
+          .then((enriched) => sse.send("order", enriched))
+          .catch(() => {
+            // enrichment errors are non-fatal; the client recovers on reconnect
+          });
+      };
+
+      // Register the listener before reading the snapshot so an event in the
+      // startup window is not lost. Deltas that arrive before the snapshot is
+      // sent are buffered and flushed afterwards, preserving snapshot-first
+      // ordering (the client also de-dupes by updatedAt, so a repeat is safe).
+      let ready = false;
+      const buffered: OrderDoc[] = [];
       const unsubscribe = subscribe("order.changed", (order) => {
         if (order.sessionId !== sessionId) return;
         // Cash orders (tabId null) stream regardless of paidAt, so the
@@ -271,12 +307,18 @@ ordersRouter.get(
         // live. Unpaid card orders (mid-Stripe-authorization) are still
         // dropped — the attendee UI doesn't act on that noise.
         if (!order.paidAt && order.tabId !== null) return;
-        void enrichOrderForAttendee(order)
-          .then((enriched) => sse.send("order", enriched))
-          .catch(() => {
-            // enrichment errors are non-fatal; the client recovers on reconnect
-          });
+        if (!ready) {
+          buffered.push(order);
+          return;
+        }
+        emit(order);
       });
+
+      const initial = await listOrdersForAttendee(sessionId);
+      sse.send("snapshot", initial);
+      ready = true;
+      buffered.forEach(emit);
+      buffered.length = 0;
 
       sse.onClose(() => unsubscribe());
     } catch (err) {
