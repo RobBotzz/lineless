@@ -178,12 +178,14 @@ function EventLifecycle({ status }: { status: EventStatus }) {
           return (
             <li key={step.key} className="relative flex flex-1 flex-col items-center">
               {/* Connector from the previous node — accent once progress reaches
-                  this step. Spans one segment (right edge at this node's center). */}
+                  this step. Centered on the segment boundary and inset by a node
+                  width (2.5rem) so it sits purely in the gap between circles, never
+                  running behind (and showing through) a translucent node fill. */}
               {i > 0 && (
                 <span
                   aria-hidden
                   className={cn(
-                    'absolute right-1/2 top-4 h-0.5 w-full -translate-y-1/2 rounded-full',
+                    'absolute left-0 top-4 h-0.5 w-[calc(100%-2.5rem)] -translate-x-1/2 -translate-y-1/2 rounded-full',
                     i <= currentIndex ? 'bg-accent' : 'bg-border',
                   )}
                 />
