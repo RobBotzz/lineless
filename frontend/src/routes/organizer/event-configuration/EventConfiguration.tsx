@@ -162,79 +162,74 @@ function LiveDot() {
   );
 }
 
-// Vertical lifecycle stepper: DRAFT → ACTIVE → STOPPED → COMPLETED. Past steps are
-// checked off with a filled accent node + connector; the current step is tinted and
-// expands to show its hints; upcoming steps are muted. The connector below a step
-// stretches to the next node, so it spans the current step's taller hint block.
+// Horizontal lifecycle stepper: DRAFT → ACTIVE → STOPPED → COMPLETED. Past steps
+// are checked off with a filled accent node + connector; the current step is tinted
+// (and pulses when live); upcoming steps are muted. The current step's hints render
+// in a box below the rail, since a horizontal row has no room for inline hints.
 function EventLifecycle({ status }: { status: EventStatus }) {
   const currentIndex = LIFECYCLE_STEPS.findIndex((s) => s.key === status);
   return (
-    <ol className="relative">
-      {LIFECYCLE_STEPS.map((step, i) => {
-        const Icon = step.icon;
-        const done = i < currentIndex;
-        const current = i === currentIndex;
-        const isLast = i === LIFECYCLE_STEPS.length - 1;
-        return (
-          <li key={step.key} className="relative flex gap-3">
-            {/* Connector to the next node — accent once this step is behind us. */}
-            {!isLast && (
-              <span
-                aria-hidden
-                className={cn(
-                  'absolute left-4 top-9 bottom-0 w-0.5 -translate-x-1/2 rounded-full',
-                  done ? 'bg-accent' : 'bg-border',
-                )}
-              />
-            )}
-            {/* Node */}
-            <span
-              className={cn(
-                'relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-                done
-                  ? 'border-accent bg-accent text-white'
-                  : current
-                    ? step.node
-                    : 'border-border bg-surface text-text-muted',
-              )}
-            >
-              {done ? <CheckIcon className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-            </span>
-            {/* Label + (for the current step) inline hints */}
-            <div className={cn('min-w-0 flex-1', isLast ? 'pb-0' : 'pb-5')}>
-              <div className="flex h-8 items-center gap-2">
+    <div className="space-y-4">
+      <ol className="flex">
+        {LIFECYCLE_STEPS.map((step, i) => {
+          const Icon = step.icon;
+          const done = i < currentIndex;
+          const current = i === currentIndex;
+          return (
+            <li key={step.key} className="relative flex flex-1 flex-col items-center">
+              {/* Connector from the previous node — accent once progress reaches
+                  this step. Spans one segment (right edge at this node's center). */}
+              {i > 0 && (
                 <span
+                  aria-hidden
                   className={cn(
-                    'text-sm font-semibold',
-                    current ? step.label_ : done ? 'text-text' : 'text-text-muted',
+                    'absolute right-1/2 top-4 h-0.5 w-full -translate-y-1/2 rounded-full',
+                    i <= currentIndex ? 'bg-accent' : 'bg-border',
                   )}
-                >
-                  {step.label}
-                </span>
-                {current && status === 'ACTIVE' && (
-                  <span className="text-success">
-                    <LiveDot />
-                  </span>
-                )}
-              </div>
-              {current && (
-                <ul className="mt-1.5 space-y-1.5">
-                  {STATUS_HINTS[status].map((hint) => (
-                    <li key={hint} className="flex items-start gap-2 text-sm text-text-muted">
-                      <span
-                        aria-hidden
-                        className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-text-muted"
-                      />
-                      {hint}
-                    </li>
-                  ))}
-                </ul>
+                />
               )}
-            </div>
+              {/* Node */}
+              <span
+                className={cn(
+                  'relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors',
+                  done
+                    ? 'border-accent bg-accent text-white'
+                    : current
+                      ? step.node
+                      : 'border-border bg-surface text-text-muted',
+                )}
+              >
+                {/* Pulsing ring while the event is live. */}
+                {current && status === 'ACTIVE' && (
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 animate-ping rounded-full bg-success opacity-40"
+                  />
+                )}
+                {done ? <CheckIcon className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+              </span>
+              <span
+                className={cn(
+                  'mt-1.5 text-center text-xs font-semibold',
+                  current ? step.label_ : done ? 'text-text' : 'text-text-muted',
+                )}
+              >
+                {step.label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      {/* Current step's hints, boxed below the rail. */}
+      <ul className="space-y-1.5 rounded-lg border border-border bg-surface-muted px-4 py-3">
+        {STATUS_HINTS[status].map((hint) => (
+          <li key={hint} className="flex items-start gap-2 text-sm text-text-muted">
+            <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-text-muted" />
+            {hint}
           </li>
-        );
-      })}
-    </ol>
+        ))}
+      </ul>
+    </div>
   );
 }
 
