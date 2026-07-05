@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
 import { config } from "../../config/config";
 import { Order, type OrderDoc, type OrderItemDoc } from "./model";
-import { Tab } from "../tabs/model";
+import { Tab, TAB_ORDER_FREEZE_AFTER_MS } from "../tabs/model";
 import { TabPayment } from "../payments/model";
 import { Product } from "../products/model";
 import { Stand } from "../stands/model";
@@ -257,9 +257,23 @@ export async function submitOrder(
         "Operators cannot place orders against a customer tab."
       );
     }
-    const tab = await Tab.findOne({ _id: tabId, eventId, sessionId }).lean();
+    // The attendee session is short-lived (24h) but a tab can outlive it on a
+    // multi-day event. Match the tab by event, not by the session that opened
+    // it, and re-bind it to the current session so a rolled-over guest keeps
+    // their tab instead of hitting "tab not found". Possession of the tabId is
+    // the ownership proof, consistent with the rest of the attendee model.
+    const tab = await Tab.findOne({ _id: tabId, eventId });
     if (!tab || tab.status !== "OPEN") {
       throw new OrderValidationError("Tab is not OPEN or does not exist.");
+    }
+    if (tab.sessionId !== sessionId) {
+      tab.sessionId = sessionId;
+      await tab.save();
+    }
+    if (Date.now() - tab.createdAt.getTime() >= TAB_ORDER_FREEZE_AFTER_MS) {
+      throw new OrderValidationError(
+        "This tab is closed for new orders and will be charged automatically."
+      );
     }
   }
 
