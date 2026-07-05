@@ -2,6 +2,7 @@ import { Event, generateOperatorAccessKey, type EventDoc } from "./model";
 import { EventLogo, type EventLogoDoc } from "./logo.model";
 import {
   EventLogoNotFoundError,
+  EventNotActiveError,
   EventNotFoundError,
   EventStateError,
   InvalidImageError,
@@ -72,10 +73,10 @@ export async function getEventForAttendee(
 
   const event = await Event.findOne({
     _id: eventId,
-    status: "ACTIVE",
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
+  if (event.status !== "ACTIVE") throw new EventNotActiveError(event.status);
   return stripOperatorAccessKey(event);
 }
 

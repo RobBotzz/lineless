@@ -7,12 +7,18 @@ import {
   AttendeeSessionInvalidError,
   SessionEventNotFoundError,
 } from "./errors";
+import { EventNotActiveError } from "../events/errors";
 
 const sessionsRouter = Router();
 
 function handleError(err: unknown, res: Response): Response {
   if (err instanceof SessionEventNotFoundError) {
     return res.status(404).json({ error: err.message });
+  }
+  if (err instanceof EventNotActiveError) {
+    return res
+      .status(409)
+      .json({ error: err.message, eventStatus: err.eventStatus });
   }
   if (err instanceof AttendeeSessionInvalidError) {
     return res.status(401).json({ error: err.message });

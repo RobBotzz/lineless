@@ -1,4 +1,5 @@
 import { Event } from "../events/model";
+import { EventNotActiveError } from "../events/errors";
 import { AttendeeSession } from "./model";
 import {
   AttendeeSessionInvalidError,
@@ -19,11 +20,13 @@ export async function createAttendeeSession(
 ): Promise<AttendeeSessionResult> {
   const event = await Event.findOne({
     _id: input.eventId,
-    status: "ACTIVE",
     deletedAt: null,
   }).lean();
   if (!event) {
     throw new SessionEventNotFoundError();
+  }
+  if (event.status !== "ACTIVE") {
+    throw new EventNotActiveError(event.status);
   }
 
   const session = await AttendeeSession.create({
@@ -66,15 +69,6 @@ export async function validateAttendeeSession(
   }).lean();
 
   if (!session) {
-    throw new AttendeeSessionInvalidError();
-  }
-
-  const event = await Event.findOne({
-    _id: session.eventId,
-    status: "ACTIVE",
-    deletedAt: null,
-  }).lean();
-  if (!event) {
     throw new AttendeeSessionInvalidError();
   }
 
