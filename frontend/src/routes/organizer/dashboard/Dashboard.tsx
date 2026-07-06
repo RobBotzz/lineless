@@ -14,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import type { Event, EventStatus } from '@/types/event';
+import { eventStatusStyle, type Event } from '@/types/event';
 import { hasCoordinates, type Location } from '@/types/location';
 import type { DashboardActionResult } from './data';
 
@@ -37,35 +37,6 @@ function formatLocation(location: Location | null | undefined) {
   if (location.locationName) return location.locationName;
   if (hasCoordinates(location)) return `${location.yCoordinate}, ${location.xCoordinate}`;
   return 'No location set';
-}
-
-type StatusDetail = { label: string; className: string };
-
-const statusDetails: Record<EventStatus, StatusDetail> = {
-  DRAFT: {
-    label: 'Draft',
-    className: 'border-accent/30 bg-accent-soft text-accent',
-  },
-  ACTIVE: {
-    label: 'Active',
-    className: 'border-success/30 bg-success/10 text-success',
-  },
-  STOPPED: {
-    label: 'Stopped',
-    className: 'border-border bg-surface-muted text-text-muted',
-  },
-  COMPLETED: {
-    label: 'Completed',
-    className: 'border-border bg-surface-muted text-text-muted',
-  },
-};
-
-// Fall back gracefully if the backend ever sends a status the frontend doesn't
-// know yet — a single unknown value must not take down the whole dashboard.
-function statusFor(status: EventStatus): StatusDetail {
-  return (
-    statusDetails[status] ?? { label: String(status), className: statusDetails.STOPPED.className }
-  );
 }
 
 // Rendered as the route's errorElement when the loader throws.
@@ -216,7 +187,7 @@ function EventCard({
   productCount: number;
   onRequestDelete: () => void;
 }) {
-  const status = statusFor(event.status);
+  const status = eventStatusStyle(event.status);
   const canDelete = event.status === 'DRAFT';
 
   return (
@@ -242,7 +213,7 @@ function EventCard({
             <span
               className={[
                 'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold',
-                status.className,
+                status.chip,
               ].join(' ')}
             >
               {status.label}

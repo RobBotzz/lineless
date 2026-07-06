@@ -35,7 +35,14 @@ import {
 import { resolveBranding } from '@/features/branding/applyBranding';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import { eventLogoSrc, type Event, type EventStatus, type UpdateEventInput } from '@/types/event';
+import {
+  eventLogoSrc,
+  EVENT_STATUS_STYLES,
+  eventStatusStyle,
+  type Event,
+  type EventStatus,
+  type UpdateEventInput,
+} from '@/types/event';
 import type { Stand } from '@/types/stand';
 import type { Product } from '@/types/product';
 import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
@@ -74,46 +81,17 @@ export function EventConfigurationError() {
 // The event lifecycle, in order. Drives the vertical stepper in the Status card:
 // its index vs. the event's current status decides which steps are done / current
 // / upcoming. `tint` colors the active node + chip; `chip` is the header pill.
+// Lifecycle-specific bits only (order + step icon); labels and colors come from
+// the shared EVENT_STATUS_STYLES so the stepper stays consistent with the chip
+// and the dashboard badge.
 const LIFECYCLE_STEPS = [
-  {
-    key: 'DRAFT',
-    label: 'Draft',
-    icon: EditIcon,
-    node: 'border-accent bg-accent-soft text-accent',
-    label_: 'text-accent',
-    chip: 'border-accent/30 bg-accent-soft text-accent',
-  },
-  {
-    key: 'ACTIVE',
-    label: 'Active',
-    icon: PlayIcon,
-    node: 'border-success bg-success/10 text-success',
-    label_: 'text-success',
-    chip: 'border-success/30 bg-success/10 text-success',
-  },
-  {
-    key: 'STOPPED',
-    label: 'Stopped',
-    icon: PauseIcon,
-    node: 'border-warning bg-warning/10 text-warning',
-    label_: 'text-warning',
-    chip: 'border-warning/30 bg-warning/10 text-warning',
-  },
-  {
-    key: 'COMPLETED',
-    label: 'Completed',
-    icon: CheckCircleIcon,
-    node: 'border-success bg-success/10 text-success',
-    label_: 'text-success',
-    chip: 'border-success/30 bg-success/10 text-success',
-  },
+  { key: 'DRAFT', icon: EditIcon },
+  { key: 'ACTIVE', icon: PlayIcon },
+  { key: 'STOPPED', icon: PauseIcon },
+  { key: 'COMPLETED', icon: CheckCircleIcon },
 ] as const satisfies ReadonlyArray<{
   key: EventStatus;
-  label: string;
   icon: (props: { className?: string }) => ReactElement;
-  node: string;
-  label_: string;
-  chip: string;
 }>;
 
 const STATUS_HINTS: Record<EventStatus, string[]> = {
@@ -138,16 +116,16 @@ const STATUS_HINTS: Record<EventStatus, string[]> = {
 
 // Header pill echoing the current lifecycle state (tint matches the stepper node).
 function EventStatusChip({ status }: { status: EventStatus }) {
-  const step = LIFECYCLE_STEPS.find((s) => s.key === status) ?? LIFECYCLE_STEPS[0];
+  const style = eventStatusStyle(status);
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold',
-        step.chip,
+        style.chip,
       )}
     >
       {status === 'ACTIVE' && <LiveDot />}
-      {step.label}
+      {style.label}
     </span>
   );
 }
@@ -173,6 +151,7 @@ function EventLifecycle({ status }: { status: EventStatus }) {
       <ol className="flex">
         {LIFECYCLE_STEPS.map((step, i) => {
           const Icon = step.icon;
+          const style = EVENT_STATUS_STYLES[step.key];
           const done = i < currentIndex;
           const current = i === currentIndex;
           return (
@@ -197,7 +176,7 @@ function EventLifecycle({ status }: { status: EventStatus }) {
                   done
                     ? 'border-accent bg-accent text-white'
                     : current
-                      ? step.node
+                      ? style.node
                       : 'border-border bg-surface text-text-muted',
                 )}
               >
@@ -213,10 +192,10 @@ function EventLifecycle({ status }: { status: EventStatus }) {
               <span
                 className={cn(
                   'mt-1.5 text-center text-xs font-semibold',
-                  current ? step.label_ : done ? 'text-text' : 'text-text-muted',
+                  current ? style.text : done ? 'text-text' : 'text-text-muted',
                 )}
               >
-                {step.label}
+                {style.label}
               </span>
             </li>
           );
