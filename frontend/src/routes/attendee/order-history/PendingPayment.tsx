@@ -114,6 +114,13 @@ export default function PendingPayment() {
     viewItemsQuery.isSuccess || viewItemsQuery.isError || standsQuery.isError || !!state?.items;
   useEffect(() => {
     if (!order || !isPaid || !itemsReady) return;
+    // A paid order that was then fully refunded has nothing to confirm — send it
+    // straight to tracking instead of the "in progress" success screen, which
+    // would be actively wrong for an order with nothing left to prepare.
+    if (isOrderCancelled(order)) {
+      navigate(paths.attendee.trackOrder(eventId, order._id), { replace: true });
+      return;
+    }
     const handoffItems = viewItemsQuery.data ?? state?.items ?? groupOrderItemsForView(order);
     navigate(paths.attendee.checkoutConfirmed(eventId, order._id), {
       replace: true,
@@ -149,10 +156,15 @@ export default function PendingPayment() {
     );
   }
 
+  if (isPaid) return null; // redirecting to the tracking or confirmed page
+
   // The order can no longer be paid: the cashier soft-deleted it, or every item
   // was cancelled (e.g. the event was completed). Show a terminal cancelled state
   // instead of the pay prompt — otherwise it would read "Payment Pending" with a
-  // €0.00 total for an order there is nothing left to pay for.
+  // €0.00 total for an order there is nothing left to pay for. Checked after
+  // isPaid so an already-paid, later fully-refunded order (also caught by
+  // isOrderCancelled) never shows "cancelled ... can no longer be paid" — it was
+  // paid, and the redirect above sends it to tracking instead.
   if (isOrderCancelled(order)) {
     return (
       <div className="space-y-4">
@@ -168,8 +180,6 @@ export default function PendingPayment() {
       </div>
     );
   }
-
-  if (isPaid) return null; // redirecting to the confirmed page
 
   // The event ended while the order was still unpaid. The cashier can no longer
   // collect cash (the backend blocks it once the event leaves ACTIVE), and the
