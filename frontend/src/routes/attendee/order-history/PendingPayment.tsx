@@ -110,7 +110,8 @@ export default function PendingPayment() {
   // items passed in location.state, so we wait until the item view is resolved
   // (query settled, or the cart handed us items) before handing off — otherwise
   // a direct visit that pays before the view loads would show an empty summary.
-  const itemsReady = viewItemsQuery.isSuccess || viewItemsQuery.isError || !!state?.items;
+  const itemsReady =
+    viewItemsQuery.isSuccess || viewItemsQuery.isError || standsQuery.isError || !!state?.items;
   useEffect(() => {
     if (!order || !isPaid || !itemsReady) return;
     const handoffItems = viewItemsQuery.data ?? state?.items ?? groupOrderItemsForView(order);

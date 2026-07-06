@@ -13,7 +13,7 @@ import { OrderReviewButton } from './OrderReviewButton';
 import { useSSE } from '@/hooks/useSSE';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import { computeTotal, type Order, type OrderItem } from '@/types/order';
+import { computeTotal, isRefundableItem, type Order, type OrderItem } from '@/types/order';
 import { formatMoney } from '@/types/product';
 import type { Stand } from '@/types/stand';
 
@@ -219,8 +219,8 @@ export default function TrackOrder() {
   // once cash is paid at pickup, a cancelled item can only be refunded in
   // person at the cashier, so we point attendees back there.
   const isCashOrder = order.tabId === null;
-  const hasCancelledItem = order.items.some((item) => item.cancelledAt);
-  const showCashRefundNotice = isCashOrder && hasCancelledItem;
+  const hasRefundableItem = order.items.some(isRefundableItem);
+  const showCashRefundNotice = isCashOrder && hasRefundableItem;
   const allItemsCancelled = order.items.length > 0 && order.items.every((item) => item.cancelledAt);
 
   return (

@@ -109,7 +109,9 @@ export function isOrderCancelled(order: Order): boolean {
 // same refund wording the cashier does.
 export function isOrderRefunded(order: Order): boolean {
   return (
-    order.paidAt != null && order.items.length > 0 && order.items.every((item) => item.cancelledAt)
+    order.paidAt != null &&
+    order.items.length > 0 &&
+    order.items.every((item) => item.cancelledAt != null && item.refundedAt != null)
   );
 }
 

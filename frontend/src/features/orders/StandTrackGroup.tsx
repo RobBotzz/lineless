@@ -24,24 +24,29 @@ const STATUS_LABEL: Record<ItemStatus, string> = {
   READY: 'Ready',
   FULFILLED: 'Collected',
   CANCELLED: 'Cancelled',
+  REFUNDED: 'Refunded',
 };
 
-// Display order within a stand: actionable (ready) first, cancelled last.
+// Display order within a stand: actionable (ready) first, cancelled/refunded last.
 const STATUS_ORDER: Record<ItemStatus, number> = {
   READY: 0,
   PREPARING: 1,
   PENDING: 2,
   FULFILLED: 3,
   CANCELLED: 4,
+  REFUNDED: 5,
 };
 
 // Each status maps to a badge style plus a leading dot color (currentColor).
+// REFUNDED shares FULFILLED's muted style — once refunded, nothing is still
+// owed, so it no longer reads as an outstanding/alarming state like CANCELLED.
 const STATUS_CLASS: Record<ItemStatus, string> = {
   PENDING: 'bg-surface-muted text-text-muted',
   PREPARING: 'bg-warning/10 text-warning',
   READY: 'bg-success/10 text-success',
   FULFILLED: 'bg-surface-muted text-text-muted',
   CANCELLED: 'bg-danger/10 text-danger',
+  REFUNDED: 'bg-surface-muted text-text-muted',
 };
 
 function StatusBadge({ status }: { status: ItemStatus }) {
@@ -78,7 +83,7 @@ function StandItemRow({ si, idx }: { si: StandItem; idx: number }) {
           <p
             className={cn(
               'min-w-0 text-sm font-medium text-text [overflow-wrap:anywhere]',
-              status === 'CANCELLED' && 'text-text-muted line-through',
+              (status === 'CANCELLED' || status === 'REFUNDED') && 'text-text-muted line-through',
             )}
           >
             {si.productName}
@@ -114,7 +119,10 @@ function StandItemRow({ si, idx }: { si: StandItem; idx: number }) {
 export function StandTrackGroup({ stand, items }: StandTrackGroupProps) {
   const [mapOpen, setMapOpen] = useState(false);
   const latLng = toLatLng(stand.location);
-  const activeCount = items.filter((si) => getItemStatus(si.orderItem) !== 'CANCELLED').length;
+  const activeCount = items.filter((si) => {
+    const status = getItemStatus(si.orderItem);
+    return status !== 'CANCELLED' && status !== 'REFUNDED';
+  }).length;
   const sortedItems = [...items].sort(
     (a, b) => STATUS_ORDER[getItemStatus(a.orderItem)] - STATUS_ORDER[getItemStatus(b.orderItem)],
   );
