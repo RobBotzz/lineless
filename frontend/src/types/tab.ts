@@ -17,4 +17,7 @@ export interface TabView {
   authorizedCents: number;
   consumedCents: number;
   availableCents: number;
+  // False once the tab is past its order-freeze window (or no longer OPEN): the
+  // guest can still track/settle it but can no longer place new orders.
+  acceptingOrders: boolean;
 }

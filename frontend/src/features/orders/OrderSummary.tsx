@@ -52,7 +52,7 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
       <div className="space-y-5">
         {groupByStand(items).map(([standName, standItems]) => (
           <div key={standName} className="border-l-2 border-accent pl-4">
-            <p className="text-sm font-semibold text-text">{standName}</p>
+            <p className="text-sm font-semibold text-text [overflow-wrap:anywhere]">{standName}</p>
             <ul className="mt-2 space-y-2">
               {standItems.map((item) => (
                 <li

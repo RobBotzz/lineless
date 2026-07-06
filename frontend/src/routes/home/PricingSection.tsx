@@ -25,7 +25,7 @@ function RollingPrice() {
 
   return (
     <span
-      aria-label="€0.05"
+      aria-label="€0.20"
       className={`landing-rolling-price inline-flex items-center text-6xl font-black leading-none sm:text-7xl ${isRolling ? 'is-rolling' : ''}`}
       ref={priceRef}
     >
@@ -33,15 +33,15 @@ function RollingPrice() {
         €0.
       </span>
       <span aria-hidden="true" className="landing-price-digit">
-        <span className="landing-price-reel landing-price-reel-zero">
-          {['9', '8', '7', '6', '5', '4', '3', '2', '1', '0'].map((digit) => (
+        <span className="landing-price-reel landing-price-reel-two">
+          {['9', '8', '7', '6', '5', '4', '3', '2'].map((digit) => (
             <span key={digit}>{digit}</span>
           ))}
         </span>
       </span>
       <span aria-hidden="true" className="landing-price-digit">
-        <span className="landing-price-reel landing-price-reel-five">
-          {['9', '8', '7', '6', '5'].map((digit) => (
+        <span className="landing-price-reel landing-price-reel-zero">
+          {['9', '8', '7', '6', '5', '4', '3', '2', '1', '0'].map((digit) => (
             <span key={digit}>{digit}</span>
           ))}
         </span>

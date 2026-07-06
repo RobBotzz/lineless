@@ -68,10 +68,17 @@ export function ProductDetailsDialog({
 
           <div className="mt-4 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 id="product-details-title" className="text-lg font-semibold text-text">
+              <h2
+                id="product-details-title"
+                className="text-lg font-semibold text-text [overflow-wrap:anywhere]"
+              >
                 {product.productName}
               </h2>
-              {standName && <p className="mt-0.5 text-sm text-text-muted">{standName}</p>}
+              {standName && (
+                <p className="mt-0.5 text-sm text-text-muted [overflow-wrap:anywhere]">
+                  {standName}
+                </p>
+              )}
             </div>
             {showRating && <Rating value={rating} className="shrink-0" />}
           </div>

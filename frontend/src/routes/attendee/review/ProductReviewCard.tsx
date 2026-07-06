@@ -24,17 +24,17 @@ export function ProductReviewCard({
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-text">{productName}</p>
-          {disabled && (
-            <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-green-600">
-              <CheckCircleIcon className="h-3.5 w-3.5" />
-              Already rated
-            </p>
-          )}
-        </div>
-        <span className="shrink-0 text-sm text-text-muted">{standName}</span>
+      <div className="min-w-0">
+        <p className="font-semibold text-text [overflow-wrap:anywhere]">{productName}</p>
+        <span className="mt-0.5 block text-sm text-text-muted [overflow-wrap:anywhere]">
+          {standName}
+        </span>
+        {disabled && (
+          <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-green-600">
+            <CheckCircleIcon className="h-3.5 w-3.5" />
+            Already rated
+          </p>
+        )}
       </div>
 
       <StarRating value={stars} onChange={onStarsChange} readOnly={disabled} />
@@ -42,7 +42,7 @@ export function ProductReviewCard({
       {disabled ? (
         // Already reviewed: render the comment read-only, sized to its actual text.
         trimmedComment ? (
-          <p className="whitespace-pre-wrap wrap-break-word rounded-lg border border-border bg-background px-3 py-2 text-sm text-text">
+          <p className="whitespace-pre-wrap rounded-lg border border-border bg-background px-3 py-2 text-sm text-text [overflow-wrap:anywhere]">
             {trimmedComment}
           </p>
         ) : null

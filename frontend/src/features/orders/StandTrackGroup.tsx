@@ -70,14 +70,14 @@ function StandItemRow({ si, idx }: { si: StandItem; idx: number }) {
 
   return (
     <li className="px-4 py-3.5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-baseline gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
           <span className="shrink-0 text-xs font-semibold tabular-nums text-text-muted">
             {idx + 1}
           </span>
           <p
             className={cn(
-              'text-sm font-medium text-text',
+              'min-w-0 text-sm font-medium text-text [overflow-wrap:anywhere]',
               status === 'CANCELLED' && 'text-text-muted line-through',
             )}
           >
@@ -101,7 +101,7 @@ function StandItemRow({ si, idx }: { si: StandItem; idx: number }) {
             />
           </button>
           {commentOpen && (
-            <p className="mt-1 rounded-lg bg-surface-muted px-3 py-2 text-xs text-text-muted">
+            <p className="mt-1 rounded-lg bg-surface-muted px-3 py-2 text-xs text-text-muted [overflow-wrap:anywhere]">
               {si.orderItem.customerComment}
             </p>
           )}
@@ -125,7 +125,9 @@ export function StandTrackGroup({ stand, items }: StandTrackGroupProps) {
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-contrast">
           <StandIcon className="h-4 w-4" />
         </span>
-        <span className="min-w-0 flex-1 truncate font-semibold text-text">{stand.standName}</span>
+        <span className="min-w-0 flex-1 font-semibold text-text [overflow-wrap:anywhere]">
+          {stand.standName}
+        </span>
         <span className="shrink-0 text-xs text-text-muted">
           {activeCount} {activeCount === 1 ? 'item' : 'items'}
         </span>

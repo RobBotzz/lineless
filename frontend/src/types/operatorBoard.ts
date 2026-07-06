@@ -1,7 +1,7 @@
 // Mirrors the backend operator board contract (src/modules/operator/board.ts).
 // Dates are ISO strings over the wire (Mongoose Dates serialize to JSON strings).
 
-import type { ProductStatus } from './product';
+import type { ProductStatus, StockMode } from './product';
 
 // An item's position in the preparation flow: To Do -> In Progress -> Ready.
 // FULFILLED and CANCELLED items leave the board, so they never reach the frontend.
@@ -34,6 +34,7 @@ export interface BoardProduct {
   taxRate: number;
   productImageUrl: string | null;
   instantProduct: boolean;
+  stockMode: StockMode;
   productStock: number;
   productStatus: ProductStatus;
   openToDo: number;

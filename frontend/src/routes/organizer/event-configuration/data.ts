@@ -1,7 +1,14 @@
 import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from 'react-router';
 
 import { ApiError } from '@/api/client';
-import { deleteEvent, getEvent, startEvent, stopEvent, updateEvent } from '@/api/events';
+import {
+  completeEvent,
+  deleteEvent,
+  getEvent,
+  startEvent,
+  stopEvent,
+  updateEvent,
+} from '@/api/events';
 import { deleteProduct, getStandProducts } from '@/api/products';
 import {
   createStand,
@@ -54,7 +61,7 @@ export async function eventConfigurationAction({
 }: ActionFunctionArgs): Promise<EventActionResult | Response> {
   const eventId = params.eventId as string;
   const body = (await request.json()) as
-    | { intent: 'start' | 'stop' }
+    | { intent: 'start' | 'stop' | 'complete' }
     | { intent: 'save'; patch: UpdateEventInput }
     | { intent: 'createStand'; patch: CreateStandInput }
     | { intent: 'updateStand'; standId: string; patch: UpdateStandInput }
@@ -69,6 +76,9 @@ export async function eventConfigurationAction({
         break;
       case 'stop':
         await stopEvent(eventId);
+        break;
+      case 'complete':
+        await completeEvent(eventId);
         break;
       case 'save':
         await updateEvent(eventId, body.patch ?? {});

@@ -6,11 +6,12 @@ import { useParams, useSearchParams } from 'react-router';
 import { getAttendeeEvent } from '@/api/events';
 import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
+import { XCircleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
+import { CashRefundNotice } from '@/features/orders/CashRefundNotice';
 import { StandTrackGroup, type StandItem } from '@/features/orders/StandTrackGroup';
 import { OrderReviewButton } from './OrderReviewButton';
 import { useSSE } from '@/hooks/useSSE';
-import { getItemStatus } from '@/lib/order-utils';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
 import { computeTotal, type Order, type OrderItem } from '@/types/order';
@@ -36,28 +37,34 @@ function buildStandGroups(
   rawItems: OrderItem[],
   viewLookup: Map<string, { productName: string; standId: string; standName: string }>,
   standsById: Map<string, Stand>,
+  standsByName: Map<string, Stand>,
 ): Array<{ stand: Stand; items: StandItem[] }> {
   const groups = new Map<string, { stand: Stand; items: StandItem[] }>();
 
   for (const item of rawItems) {
     const info = viewLookup.get(item.productId);
-    if (!info) continue;
-    const stand = standsById.get(info.standId);
+    // buildAttendeeOrderViewItems excludes cancelled items from viewLookup (it
+    // only tracks active-item quantities), so fall back to the productName/
+    // standName the backend already enriched directly onto the order item, and
+    // resolve the stand by name so cancelled items still merge into the same
+    // card as that stand's active items.
+    const fallbackStand = !info ? standsByName.get(item.standName) : undefined;
+    const productName = info?.productName ?? item.productName;
+    const standName = info?.standName ?? item.standName;
+
+    const stand = info ? standsById.get(info.standId) : fallbackStand;
     // info.standId is either a real stand UUID or a synthetic "__paused__:<name>"
     // key, so it is always unique per stand and safe to use as the group key.
-    const groupKey = info.standId || UNAVAILABLE_STAND._id;
-    const resolvedStand: Stand = stand ?? {
-      ...UNAVAILABLE_STAND,
-      standName: info.standName ?? 'Stand unavailable',
-    };
+    const groupKey = info ? info.standId || UNAVAILABLE_STAND._id : (stand?._id ?? standName);
+    const resolvedStand: Stand = stand ?? { ...UNAVAILABLE_STAND, standName };
 
     const existing = groups.get(groupKey);
     if (existing) {
-      existing.items.push({ orderItem: item, productName: info.productName });
+      existing.items.push({ orderItem: item, productName });
     } else {
       groups.set(groupKey, {
         stand: resolvedStand,
-        items: [{ orderItem: item, productName: info.productName }],
+        items: [{ orderItem: item, productName }],
       });
     }
   }
@@ -73,14 +80,6 @@ function StatusOverview({ items }: { items: OrderItem[] }) {
   const allReady = active.length > 0 && ready.length === active.length;
   const allCollected = active.length > 0 && active.every((i) => i.fulfilledAt !== null);
   const progress = active.length > 0 ? (ready.length / active.length) * 100 : 0;
-
-  if (active.length === 0) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-        <p className="font-semibold text-text">Order cancelled</p>
-      </div>
-    );
-  }
 
   const heading = allCollected
     ? 'Order collected'
@@ -202,6 +201,7 @@ export default function TrackOrder() {
 
   const order = liveOrder ?? orderQuery.data!;
   const stands = standsById(standsQuery.data ?? []);
+  const standsByStandName = standsByName(standsQuery.data ?? []);
 
   let standGroups: Array<{ stand: Stand; items: StandItem[] }> = [];
   if (viewItemsQuery.data) {
@@ -211,7 +211,7 @@ export default function TrackOrder() {
         { productName: v.productName, standId: v.standId, standName: v.standName },
       ]),
     );
-    standGroups = buildStandGroups(order.items, viewLookup, stands);
+    standGroups = buildStandGroups(order.items, viewLookup, stands, standsByStandName);
   }
 
   const createdAt = new Date(order.createdAt).toLocaleString(undefined, {
@@ -219,11 +219,27 @@ export default function TrackOrder() {
     timeStyle: 'short',
   });
 
+  // Cash orders have no tabId (only card payments run through a Stripe tab) —
+  // once cash is paid at pickup, a cancelled item can only be refunded in
+  // person at the cashier, so we point attendees back there.
+  const isCashOrder = order.tabId === null;
+  const hasCancelledItem = order.items.some((item) => item.cancelledAt);
+  const showCashRefundNotice = isCashOrder && hasCancelledItem;
+  const allItemsCancelled = order.items.length > 0 && order.items.every((item) => item.cancelledAt);
+
   return (
     <div className="space-y-4 pb-6">
       <BackButton to={backTo}>{backLabel}</BackButton>
 
       <p className="text-xs text-text-muted">Placed {createdAt}</p>
+
+      {allItemsCancelled && (
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-danger/40 bg-danger/10 p-8 text-center">
+          <XCircleIcon className="h-12 w-12 text-danger" />
+          <h2 className="text-xl font-semibold text-text">Order Cancelled</h2>
+          <p className="text-sm text-text-muted">All items in this order were cancelled.</p>
+        </div>
+      )}
 
       {/* Pickup ticket: order number + authentication code, shown at the stand */}
       <div className="overflow-hidden rounded-2xl bg-accent shadow-sm">
@@ -253,7 +269,9 @@ export default function TrackOrder() {
         </p>
       </div>
 
-      <StatusOverview items={order.items} />
+      {!allItemsCancelled && <StatusOverview items={order.items} />}
+
+      {showCashRefundNotice && <CashRefundNotice eventId={eventId} />}
 
       {/* Items grouped by stand */}
       {viewItemsQuery.isFetching && (
@@ -268,11 +286,9 @@ export default function TrackOrder() {
         </p>
       )}
 
-      {standGroups
-        .filter(({ items }) => items.some((si) => getItemStatus(si.orderItem) !== 'CANCELLED'))
-        .map(({ stand, items }) => (
-          <StandTrackGroup key={stand._id} stand={stand} items={items} />
-        ))}
+      {standGroups.map(({ stand, items }) => (
+        <StandTrackGroup key={stand._id} stand={stand} items={items} />
+      ))}
 
       <div className="rounded-lg bg-surface border border-border p-4">
         <p className="text-sm font-semibold text-text mb-2">Payment Summary</p>
@@ -307,4 +323,8 @@ export default function TrackOrder() {
 
 function standsById(stands: Stand[]): Map<string, Stand> {
   return new Map(stands.map((s) => [s._id, s]));
+}
+
+function standsByName(stands: Stand[]): Map<string, Stand> {
+  return new Map(stands.map((s) => [s.standName, s]));
 }

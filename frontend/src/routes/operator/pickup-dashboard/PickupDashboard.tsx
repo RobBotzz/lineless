@@ -173,10 +173,10 @@ export default function PickupDashboard() {
               </div>
             )}
 
-            <label>
+            <label className="max-w-full">
               <span className="sr-only">Filter by stand</span>
               <select
-                className="h-10 min-w-44 cursor-pointer rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text shadow-sm outline-none transition-colors hover:bg-surface-muted focus:border-accent"
+                className="h-10 w-full max-w-full min-w-44 cursor-pointer rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text shadow-sm outline-none transition-colors hover:bg-surface-muted focus:border-accent sm:w-auto"
                 onChange={(event) => setSelectedStand(event.target.value as StandFilter)}
                 value={activeStandFilter}
               >
@@ -319,8 +319,10 @@ function AutoScrollDialog({
 function StandSection({ stand }: { stand: PickupBoardStand }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 shadow-sm sm:p-5">
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        <h2 className="truncate text-2xl font-bold tracking-tight text-text">{stand.standName}</h2>
+      <div className="mb-5 flex flex-wrap items-start gap-2">
+        <h2 className="min-w-0 flex-1 text-2xl font-bold tracking-tight text-text [overflow-wrap:anywhere]">
+          {stand.standName}
+        </h2>
         {stand.standStatus === 'PAUSED' && (
           <span className="rounded-full bg-warning/20 px-2.5 py-1 text-xs font-semibold text-text">
             Paused
@@ -404,13 +406,15 @@ function PickupOrderCard({
     <li
       className={cn(
         'flex min-h-28 min-w-0 flex-col justify-between rounded-md border bg-background p-4 shadow-sm',
-        'h-28 w-52',
+        'w-52',
         intent === 'ready' ? 'border-success/40 ring-1 ring-success/10' : 'border-border',
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-text">{orderItem.productName}</p>
+          <p className="text-sm font-semibold text-text [overflow-wrap:anywhere]">
+            {orderItem.productName}
+          </p>
         </div>
       </div>
       <p className="mt-4 truncate font-sans text-3xl font-extrabold tabular-nums tracking-normal text-text">
