@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
-import { useParams, useSearchParams } from 'react-router';
+import { useParams, useRouteLoaderData, useSearchParams } from 'react-router';
 
 import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
@@ -16,6 +16,7 @@ import { paths } from '@/paths';
 import { computeTotal, type Order, type OrderItem } from '@/types/order';
 import { formatMoney } from '@/types/product';
 import type { Stand } from '@/types/stand';
+import type { AttendeeLayoutLoaderData } from '../data';
 
 // Shown when the stand for a paid item is no longer visible in the attendee
 // catalog (e.g. the organizer paused the stand after the order was placed).
@@ -131,6 +132,8 @@ export default function TrackOrder() {
   const backLabel = fromOrderHistory ? 'Order history' : 'Shop';
 
   const [liveOrder, setLiveOrder] = useState<Order | null>(null);
+
+  const { event } = useRouteLoaderData('attendee-event') as AttendeeLayoutLoaderData;
 
   const orderQuery = useQuery({
     queryKey: ['attendee-order', orderId, eventId],
@@ -294,20 +297,22 @@ export default function TrackOrder() {
 
       {/* Reviews require a fulfilled item (backend eligibility) — only surface the
           entry point once at least one item has been collected. */}
-      {(() => {
-        const rateableProductIds = [
-          ...new Set(
-            order.items.filter((i) => i.fulfilledAt && !i.cancelledAt).map((i) => i.productId),
-          ),
-        ];
-        return rateableProductIds.length > 0 ? (
-          <OrderReviewButton
-            orderId={orderId}
-            eventId={eventId}
-            rateableProductIds={rateableProductIds}
-          />
-        ) : null;
-      })()}
+      {'ratingsEnabled' in event &&
+        event.ratingsEnabled &&
+        (() => {
+          const rateableProductIds = [
+            ...new Set(
+              order.items.filter((i) => i.fulfilledAt && !i.cancelledAt).map((i) => i.productId),
+            ),
+          ];
+          return rateableProductIds.length > 0 ? (
+            <OrderReviewButton
+              orderId={orderId}
+              eventId={eventId}
+              rateableProductIds={rateableProductIds}
+            />
+          ) : null;
+        })()}
     </div>
   );
 }

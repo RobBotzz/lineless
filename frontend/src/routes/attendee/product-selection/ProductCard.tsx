@@ -13,6 +13,7 @@ interface ProductCardProps {
   product: Product;
   standName: string;
   cartQuantity: number;
+  ratingsEnabled: boolean;
   onAdd: (product: Product) => void;
   onSetQuantity: (productId: string, quantity: number, currentProduct?: Product) => void;
 }
@@ -21,6 +22,7 @@ export function ProductCard({
   product,
   standName,
   cartQuantity,
+  ratingsEnabled,
   onAdd,
   onSetQuantity,
 }: ProductCardProps) {
@@ -81,7 +83,7 @@ export function ProductCard({
         <h3 className="pr-6 text-sm font-semibold text-text [overflow-wrap:anywhere]">
           {product.productName}
         </h3>
-        <Rating value={rating} />
+        {ratingsEnabled && <Rating value={rating} />}
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-3">
           <span className="text-sm font-semibold text-text">
@@ -124,6 +126,7 @@ export function ProductCard({
           product={product}
           standName={standName}
           rating={rating}
+          showRating={ratingsEnabled}
           onClose={() => setDetailsOpen(false)}
         />
       )}

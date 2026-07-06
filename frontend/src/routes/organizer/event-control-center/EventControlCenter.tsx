@@ -72,6 +72,7 @@ export default function EventControlCenter() {
           analytics={liveData.analytics}
           eventStartAt={event.startedAt ?? event.createdAt}
           productsByStand={liveData.productsByStand}
+          ratingsEnabled={event.ratingsEnabled}
           stands={liveData.stands}
         />
       ) : activeSection === 'settings' ? (
