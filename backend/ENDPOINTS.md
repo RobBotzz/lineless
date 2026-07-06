@@ -25,14 +25,14 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Stands
 
-| Method | URL                                      | Description                                            |
-| ------ | ---------------------------------------- | ------------------------------------------------------ |
-| POST   | `/events/{eventId}/stands`               | Create stand                                           |
-| GET    | `/events/{eventId}/stands/cashier-stand` | Get the event's cashier stand (organizer / event link) |
-| PATCH  | `/stands/{standId}`                      | Update stand                                           |
-| POST   | `/stands/{standId}/pause`                | Pause stand                                            |
-| POST   | `/stands/{standId}/resume`               | Resume stand                                           |
-| DELETE | `/stands/{standId}`                      | Delete stand (soft delete via `deletedAt`)             |
+| Method | URL                                      | Description                                                       |
+| ------ | ---------------------------------------- | ----------------------------------------------------------------- |
+| POST   | `/events/{eventId}/stands`               | Create stand                                                      |
+| GET    | `/events/{eventId}/stands/cashier-stand` | Get the event's cashier stand (organizer / attendee / event link) |
+| PATCH  | `/stands/{standId}`                      | Update stand                                                      |
+| POST   | `/stands/{standId}/pause`                | Pause stand                                                       |
+| POST   | `/stands/{standId}/resume`               | Resume stand                                                      |
+| DELETE | `/stands/{standId}`                      | Delete stand (soft delete via `deletedAt`)                        |
 
 ### Products
 
@@ -85,15 +85,19 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Orders
 
-| Method | URL                                              | Description                                                           |
-| ------ | ------------------------------------------------ | --------------------------------------------------------------------- |
-| POST   | `/orders`                                        | Idempotently create order and reserve available stock                 |
-| GET    | `/orders`                                        | List attendee's own paid orders                                       |
-| GET    | `/orders/{orderId}`                              | Get order details (confirmation / tracking view)                      |
-| GET    | `/orders/stream`                                 | Attendee's live order feed over SSE — session-wide snapshot + updates |
-| POST   | `/orders/{orderId}/cancel`                       | Organizer cancels all open order items                                |
-| POST   | `/orders/{orderId}/cancel-pending-authorization` | Idempotently abandons a card order awaiting additional authorization  |
-| POST   | `/orders/{orderId}/items/cancel`                 | Organizer cancels selected order items                                |
+| Method | URL                                              | Description                                                                   |
+| ------ | ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| POST   | `/orders`                                        | Idempotently create order and reserve available stock                         |
+| GET    | `/orders`                                        | List attendee's own paid orders plus their cash orders (pending or cancelled) |
+| GET    | `/orders/{orderId}`                              | Get order details (confirmation / tracking view)                              |
+| GET    | `/orders/stream`                                 | Attendee's live order feed over SSE — session-wide snapshot + updates         |
+| GET    | `/orders/cashier/stream`                         | Cashier's live unpaid-orders board over SSE (operator / cashier stand)        |
+| GET    | `/orders/cashier/refundable`                     | Cash-paid orders for the cashier's event with a refundable item (operator)    |
+| POST   | `/orders/{orderId}/cash-payment`                 | Organizer/operator confirms cash received for an order                        |
+| POST   | `/orders/{orderId}/refund`                       | Organizer/operator refunds cancelled items of a cash-paid order               |
+| POST   | `/orders/{orderId}/cancel`                       | Organizer cancels all open order items                                        |
+| POST   | `/orders/{orderId}/cancel-pending-authorization` | Idempotently abandons a card order awaiting additional authorization          |
+| POST   | `/orders/{orderId}/items/cancel`                 | Organizer cancels selected order items                                        |
 
 `POST /orders` requires a client-generated UUID `requestId`. If stock is
 insufficient, the full request is rejected with `409 INSUFFICIENT_STOCK` and no
