@@ -1468,23 +1468,24 @@ function ButtonTextColorField({
         <div
           className={cn('flex w-full rounded-lg bg-surface-muted p-1', disabled && 'opacity-60')}
         >
-          {BUTTON_TEXT_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              aria-pressed={value === option.value}
-              disabled={disabled}
-              className={cn(
-                'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed',
-                value === option.value
-                  ? 'bg-surface text-text shadow-sm'
-                  : 'text-text-muted hover:text-text',
-              )}
-              onClick={() => onChange(option.value)}
-              type="button"
-            >
-              {option.label}
-            </button>
-          ))}
+          {BUTTON_TEXT_OPTIONS.map((option) => {
+            const selected = value.toLowerCase() === option.value;
+            return (
+              <button
+                key={option.value}
+                aria-pressed={selected}
+                disabled={disabled}
+                className={cn(
+                  'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed',
+                  selected ? 'bg-surface text-text shadow-sm' : 'text-text-muted hover:text-text',
+                )}
+                onClick={() => onChange(option.value)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            );
+          })}
         </div>
       </div>
       <p className="invisible mt-1.5 text-xs">.</p>
