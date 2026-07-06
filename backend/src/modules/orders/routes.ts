@@ -214,6 +214,7 @@ ordersRouter.get(
       // older query can never overwrite newer client state.
       let running = false;
       let dirty = false;
+      let sentSnapshot = false;
       const pushSnapshot = async () => {
         if (running) {
           dirty = true;
@@ -227,9 +228,16 @@ ordersRouter.get(
               "snapshot",
               await listUnpaidCashOrdersForEvent(stand.eventId)
             );
+            sentSnapshot = true;
           } while (dirty);
-        } catch {
-          // stream errors are non-fatal; the client recovers on reconnect
+        } catch (err) {
+          if (!sentSnapshot) {
+            // Never delivered a first snapshot — closing lets the client's SSE
+            // hook reconnect with backoff instead of sitting on "Loading…" forever.
+            console.error("Cashier stream initial snapshot failed:", err);
+            res.end();
+          }
+          // else: a later refresh failed; the client already has data, non-fatal.
         } finally {
           running = false;
         }
