@@ -334,10 +334,16 @@ ordersRouter.get(
       const buffered: OrderDoc[] = [];
 
       // Declared before `sse` exists — only ever invoked once `ready` flips
-      // true, by which point `sse` below has been assigned.
+      // true, by which point `sse` below has been assigned. requestClosed is
+      // re-checked here (not just before the initial snapshot) because
+      // enrichment is async: the connection can close while a lookup for a
+      // given update is still in flight, and sending after that would write
+      // to an already-ended response.
       function emit(order: OrderDoc) {
         void enrichOrderForAttendee(order)
-          .then((enriched) => sse.send("order", enriched))
+          .then((enriched) => {
+            if (!requestClosed) sse.send("order", enriched);
+          })
           .catch(() => {
             // enrichment errors are non-fatal; the client recovers on reconnect
           });
@@ -370,7 +376,10 @@ ordersRouter.get(
       buffered.forEach(emit);
       buffered.length = 0;
 
-      sse.onClose(() => unsubscribe?.());
+      sse.onClose(() => {
+        requestClosed = true;
+        unsubscribe?.();
+      });
       res.off("close", handleEarlyClose);
     } catch (err) {
       res.off("close", handleEarlyClose);

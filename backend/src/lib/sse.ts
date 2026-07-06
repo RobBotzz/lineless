@@ -18,8 +18,15 @@ export class SseConnection {
     this.heartbeat = setInterval(() => this.comment("keep-alive"), 25_000);
   }
 
-  // Send a named event carrying a JSON payload.
+  // Send a named event carrying a JSON payload. A no-op once the response has
+  // ended or the socket has been destroyed: callers routinely queue sends behind
+  // an async lookup, and by the time it resolves the client may already be gone.
+  // Writing to an ended response (writableEnded) — or one whose peer socket
+  // dropped before our close handler ran res.end() (destroyed, writableEnded
+  // still false) — throws asynchronously as an unhandled error and crashes the
+  // process, so this is the one place that guards against it for every caller.
   send(event: string, data: unknown): void {
+    if (this.res.writableEnded || this.res.destroyed) return;
     if (/[\r\n]/.test(event))
       throw new Error(
         `SSE event name must not contain newlines: ${JSON.stringify(event)}`
@@ -30,6 +37,7 @@ export class SseConnection {
 
   // A comment line (": ...") — ignored by the client, used as a heartbeat.
   comment(text: string): void {
+    if (this.res.writableEnded || this.res.destroyed) return;
     this.res.write(`: ${text}\n\n`);
   }
 
