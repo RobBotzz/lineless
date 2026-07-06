@@ -31,6 +31,10 @@ import {
 } from "../events/ownership";
 import { Event } from "../events/model";
 import { EventNotActiveError, EventNotFoundError } from "../events/errors";
+import {
+  assertEventStillDraft,
+  assertStandUpdateAllowed,
+} from "../events/mutationPolicy";
 
 // The password hash never leaves the service. We replace it with a
 // `requiresPassword` boolean so every stand response carries the one fact a
@@ -130,7 +134,8 @@ export async function createStand(
   accountId: string,
   input: CreateStandInput
 ): Promise<SafeStand> {
-  await verifyMutableEventOwnership(eventId, accountId);
+  const status = await verifyMutableEventOwnership(eventId, accountId);
+  assertEventStillDraft(status, "Stand creation");
   const accessPasswordHash = input.accessPassword
     ? await hashPassword(input.accessPassword)
     : null;
@@ -269,7 +274,8 @@ export async function updateStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyMutableEventOwnership(stand.eventId, accountId);
+  const status = await verifyMutableEventOwnership(stand.eventId, accountId);
+  assertStandUpdateAllowed(status, patch);
   if (patch.standName !== undefined) stand.standName = patch.standName;
   if (patch.location) {
     stand.location.locationName = patch.location.locationName;
@@ -440,7 +446,8 @@ export async function softDeleteStand(
 ): Promise<void> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyMutableEventOwnership(stand.eventId, accountId);
+  const status = await verifyMutableEventOwnership(stand.eventId, accountId);
+  assertEventStillDraft(status, "Stand deletion");
   // The cashier stand is system-managed and cannot be deleted by a user.
   if (stand.standType === "CASHIER") {
     throw new CashierStandProtectedError("The cashier stand cannot be deleted");

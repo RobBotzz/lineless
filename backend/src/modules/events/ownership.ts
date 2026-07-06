@@ -1,9 +1,7 @@
 import { Event } from "./model";
-import {
-  EventNotActiveError,
-  EventNotFoundError,
-  EventStateError,
-} from "./errors";
+import { EventNotActiveError, EventNotFoundError } from "./errors";
+import { assertEventMutable } from "./mutationPolicy";
+import type { EventStatus } from "./model";
 
 // Guards that `eventId` exists and belongs to `accountId`. A non-existent OR
 // a not-owned event both surface as EventNotFoundError — we deliberately do not
@@ -30,16 +28,15 @@ export async function verifyEventOwnership(
 export async function verifyMutableEventOwnership(
   eventId: string,
   accountId: string
-): Promise<void> {
+): Promise<EventStatus> {
   const event = await Event.findOne({
     _id: eventId,
     accountId,
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
-  if (event.status === "COMPLETED") {
-    throw new EventStateError("A completed event cannot be modified");
-  }
+  assertEventMutable(event.status);
+  return event.status;
 }
 
 export function assertSessionOwnsEvent(
@@ -94,9 +91,7 @@ export async function verifyMutableOperableEvent(
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
-  if (event.status === "COMPLETED") {
-    throw new EventStateError("A completed event cannot be modified");
-  }
+  assertEventMutable(event.status);
 }
 
 // Validates the operator link key for any non-deleted event, regardless of
