@@ -38,7 +38,6 @@ Once it is up:
 | Frontend           | http://localhost:3000      |
 | Backend API        | http://localhost:8000      |
 | API docs (Swagger) | http://localhost:8000/docs |
-| mongo-express      | http://localhost:8081      |
 
 Card payments work out of the box — the bundled `stripe-cli` service forwards
 Stripe webhooks to the backend automatically.
