@@ -1,8 +1,7 @@
 import { Navigate, Outlet, useParams } from 'react-router';
-import { skipToken, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { getOperatorEvent } from '@/api/events';
-import { loginOperator } from '@/api/stands';
 import { getOperatorStandToken } from '@/auth/keychain';
 import { paths } from '@/paths';
 import { operatorCashierStandQueryOptions, operatorQueryKeys } from '../operatorQueries';
@@ -29,17 +28,7 @@ export default function CashierLayout() {
     staleTime: 60_000,
   });
 
-  const sessionQuery = useQuery({
-    queryKey: [...operatorQueryKeys.all, 'cashier-session', cashierStand?._id ?? ''],
-    queryFn: cashierStand
-      ? async () => {
-          if (!getOperatorStandToken(cashierStand._id)) await loginOperator(cashierStand._id);
-          return cashierStand._id;
-        }
-      : skipToken,
-  });
-
-  if (cashierStandQuery.isPending || (cashierStand && sessionQuery.isPending)) {
+  if (cashierStandQuery.isPending) {
     return <Centered>Opening cashier stand…</Centered>;
   }
 
@@ -60,7 +49,7 @@ export default function CashierLayout() {
       context={
         {
           eventId,
-          standId: sessionQuery.data ?? cashierStand._id,
+          standId: cashierStand._id,
           ratingsEnabled: eventQuery.data?.ratingsEnabled ?? false,
         } satisfies CashierContext
       }

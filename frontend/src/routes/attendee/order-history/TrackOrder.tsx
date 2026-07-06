@@ -1,9 +1,8 @@
 import { useState } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
-import { useParams, useSearchParams } from 'react-router';
+import { useParams, useRouteLoaderData, useSearchParams } from 'react-router';
 
-import { getAttendeeEvent } from '@/api/events';
 import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
 import { XCircleIcon } from '@/components/icons';
@@ -17,6 +16,7 @@ import { paths } from '@/paths';
 import { computeTotal, type Order, type OrderItem } from '@/types/order';
 import { formatMoney } from '@/types/product';
 import type { Stand } from '@/types/stand';
+import type { AttendeeLayoutLoaderData } from '../data';
 
 // Shown when the stand for a paid item is no longer visible in the attendee
 // catalog (e.g. the organizer paused the stand after the order was placed).
@@ -133,6 +133,8 @@ export default function TrackOrder() {
 
   const [liveOrder, setLiveOrder] = useState<Order | null>(null);
 
+  const { event } = useRouteLoaderData('attendee-event') as AttendeeLayoutLoaderData;
+
   const orderQuery = useQuery({
     queryKey: ['attendee-order', orderId, eventId],
     queryFn: () => getAttendeeOrder(orderId, eventId),
@@ -160,13 +162,6 @@ export default function TrackOrder() {
   const standsQuery = useQuery({
     queryKey: ['attendee-stands', eventId],
     queryFn: () => getAttendeeStands(eventId),
-    staleTime: 60_000,
-  });
-
-  // Gates the review entry point — hidden when the organizer disabled ratings.
-  const eventQuery = useQuery({
-    queryKey: ['attendee-event', eventId],
-    queryFn: () => getAttendeeEvent(eventId),
     staleTime: 60_000,
   });
 
@@ -302,7 +297,8 @@ export default function TrackOrder() {
 
       {/* Reviews require a fulfilled item (backend eligibility) — only surface the
           entry point once at least one item has been collected. */}
-      {eventQuery.data?.ratingsEnabled &&
+      {'ratingsEnabled' in event &&
+        event.ratingsEnabled &&
         (() => {
           const rateableProductIds = [
             ...new Set(
