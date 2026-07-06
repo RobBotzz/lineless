@@ -1,5 +1,6 @@
 import { useOrganizerAuth } from '../auth/organizer/OrganizerAuthContext';
 import { AccountMenu, LandingPageNavbar } from '../components/layout/navbars';
+import { EventConfigurationSection } from './home/EventConfigurationSection';
 import { HeroSection } from './home/HeroSection';
 import { JourneySection } from './home/JourneySection';
 import { OperationsSection } from './home/OperationsSection';
@@ -24,6 +25,7 @@ export default function Home() {
       <main>
         <HeroSection status={status} />
         <ProblemSection />
+        <EventConfigurationSection />
         <PaymentSection />
         <JourneySection />
         <OperationsSection />
