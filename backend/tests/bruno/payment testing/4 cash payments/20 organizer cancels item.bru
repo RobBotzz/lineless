@@ -1,0 +1,34 @@
+meta {
+  name: 20 organizer cancels item
+  type: http
+  seq: 20
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders/{{refundOrderId}}/items/cancel
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+body:json {
+  {
+    "itemIds": ["{{refundItemId}}"]
+  }
+}
+
+tests {
+  test("item is cancelled and not yet refunded", function () {
+    expect(res.status).to.equal(200);
+    const item = res.body.items.find(i => i._id === bru.getVar("refundItemId"));
+    expect(item.cancelledAt).to.be.a("string").and.not.empty;
+    expect(item.refundedAt).to.equal(null);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

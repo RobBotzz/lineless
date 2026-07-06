@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidIban, normalizeIban } from "../../shared/iban";
 
 const emailSchema = z.email("Invalid email format");
 
@@ -11,12 +12,6 @@ const optionalStringField = z
   .string()
   .optional()
   .transform((v) => (v === "" ? undefined : v));
-
-const optionalNullableStringField = z
-  .string()
-  .nullable()
-  .optional()
-  .transform((v) => (v === "" ? null : v != null ? v.toUpperCase() : v));
 
 export const signupSchema = z.object({
   email: emailSchema,
@@ -56,16 +51,37 @@ export const updateAccountSchema = z
   .object({
     firstName: optionalStringField.pipe(z.string().max(100).optional()),
     lastName: optionalStringField.pipe(z.string().max(100).optional()),
-    iban: optionalNullableStringField.pipe(
-      z
-        .string()
-        .regex(/^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/, "Invalid IBAN format")
-        .nullable()
-        .optional()
-    ),
-    ibanHolderName: optionalNullableStringField.pipe(
-      z.string().nullable().optional()
-    ),
+    // Allow null/empty to clear the IBAN; otherwise enforce the MOD-97 checksum.
+    // A blank/whitespace value clears it (null) rather than being stored as an
+    // unusable transfer destination; a valid value is canonicalized (no spaces,
+    // uppercase). `undefined` is preserved so an omitted field is not a clear.
+    iban: z
+      .string()
+      .nullable()
+      .optional()
+      .refine(
+        (value) => value == null || value.trim() === "" || isValidIban(value),
+        {
+          message: "Invalid IBAN",
+        }
+      )
+      .transform((value) =>
+        value == null
+          ? value
+          : value.trim() === ""
+            ? null
+            : normalizeIban(value)
+      ),
+    // Trim and bound the holder name; a blank/whitespace value clears it (null)
+    // rather than being stored as an unusable transfer destination.
+    ibanHolderName: z
+      .string()
+      .max(140, "Account holder name is too long")
+      .nullable()
+      .optional()
+      .transform((value) =>
+        value == null ? value : value.trim() === "" ? null : value.trim()
+      ),
   })
   .strict();
 

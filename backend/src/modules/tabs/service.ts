@@ -1,7 +1,11 @@
 import mongoose from "mongoose";
 import Stripe from "stripe";
 import { config } from "../../config/config";
-import { Tab } from "./model";
+import {
+  Tab,
+  TAB_AUTO_CHARGE_AFTER_MS,
+  TAB_ORDER_FREEZE_AFTER_MS,
+} from "./model";
 import { TabPayment } from "../payments/model";
 import { Order } from "../orders/model";
 import { Event, DEFAULT_BASELINE_HOLD_CENTS } from "../events/model";
@@ -15,8 +19,36 @@ import {
   getReadyTabTotalCents,
   isTabReadyForCheckout,
 } from "../orders/tabAuthorization";
+import { releaseReservedStock } from "../orders/inventory";
 
 const stripe = new Stripe(config.stripe.secretKey);
+
+// Reads settlement info from a captured PaymentIntent whose
+// latest_charge.balance_transaction was expanded: the processing fee and the
+// `available_on` date when the funds clear Stripe's pending balance. Stripe only
+// reports these once the charge settles, so this is the single source of truth.
+type CapturedIntent = Awaited<ReturnType<typeof stripe.paymentIntents.capture>>;
+
+function extractCaptureSettlement(intent: CapturedIntent): {
+  feeCents: number;
+  balanceTxnId: string | null;
+  availableOn: Date | null;
+} {
+  const charge = intent.latest_charge;
+  if (!charge || typeof charge === "string") {
+    return { feeCents: 0, balanceTxnId: null, availableOn: null };
+  }
+  const balanceTxn = charge.balance_transaction;
+  if (!balanceTxn || typeof balanceTxn === "string") {
+    return { feeCents: 0, balanceTxnId: null, availableOn: null };
+  }
+  return {
+    feeCents: balanceTxn.fee,
+    balanceTxnId: balanceTxn.id,
+    // Stripe sends available_on as a unix timestamp in seconds.
+    availableOn: new Date(balanceTxn.available_on * 1000),
+  };
+}
 
 export interface TabCheckoutResult {
   tabId: string;
@@ -34,7 +66,11 @@ export interface BulkTabCheckoutResult {
   results: TabCheckoutResult[];
 }
 
-export async function createTab(sessionId: string, eventId: string) {
+export async function createTab(
+  sessionId: string,
+  eventId: string,
+  firstOrderCents = 0
+) {
   // The attendee session is bound to one event and is the sole authority on
   // which event a tab belongs to; never authorize a card for an event that is
   // not currently accepting orders.
@@ -48,9 +84,15 @@ export async function createTab(sessionId: string, eventId: string) {
   if (!event) throw new EventNotFoundError();
   const baselineHoldCents =
     event.baselineHoldCents ?? DEFAULT_BASELINE_HOLD_CENTS;
+  // Size the first hold to cover the first order in a single authorization,
+  // rounded up to a whole multiple of the baseline hold (mirrors the top-up
+  // rounding in orders). A missing/zero first order falls back to one baseline.
+  const holdCents =
+    Math.max(1, Math.ceil(firstOrderCents / baselineHoldCents)) *
+    baselineHoldCents;
 
   const pi = await stripe.paymentIntents.create({
-    amount: baselineHoldCents,
+    amount: holdCents,
     currency: "eur",
     capture_method: "manual",
     // Card only — Apple Pay / Google Pay ride on the card type, so they are
@@ -74,7 +116,7 @@ export async function createTab(sessionId: string, eventId: string) {
             tabId,
             stripePaymentIntentId: pi.id,
             tabPaymentStatus: "PENDING",
-            authorizedCentsAmount: baselineHoldCents,
+            authorizedCentsAmount: holdCents,
           },
         ],
         { session: dbSession }
@@ -100,9 +142,20 @@ export async function createTab(sessionId: string, eventId: string) {
 // once the Stripe webhook lands, so it waits on `status` before submitting the
 // order. `availableCents` lets the client tell whether the next order will fit
 // the existing hold or trigger a top-up.
-export async function getTabForAttendee(tabId: string, sessionId: string) {
-  const tab = await Tab.findOne({ _id: tabId, sessionId }).lean();
+export async function getTabForAttendee(
+  tabId: string,
+  sessionId: string,
+  eventId: string
+) {
+  // Match by event, not by the opening session: a tab can outlive the 24h
+  // attendee session on a long event. Re-bind it to the caller's current
+  // session so a rolled-over guest keeps their tab (mirrors submitOrder).
+  const tab = await Tab.findOne({ _id: tabId, eventId });
   if (!tab) throw new TabNotFoundError();
+  if (tab.sessionId !== sessionId) {
+    tab.sessionId = sessionId;
+    await tab.save();
+  }
 
   const authorizedCents = await getAuthorizedTabCents(tabId);
   const consumedCents = await getActiveTabTotalCents(tabId);
@@ -113,6 +166,11 @@ export async function getTabForAttendee(tabId: string, sessionId: string) {
     authorizedCents,
     consumedCents,
     availableCents: Math.max(authorizedCents - consumedCents, 0),
+    // False once the tab is past its order-freeze window (or no longer OPEN):
+    // the guest can still track/settle it but can no longer add orders.
+    acceptingOrders:
+      tab.status === "OPEN" &&
+      Date.now() - tab.createdAt.getTime() < TAB_ORDER_FREEZE_AFTER_MS,
   };
 }
 
@@ -182,14 +240,23 @@ async function settleTab(tabId: string, filters: { eventId?: string }) {
     for (const payment of paymentsToCapture) {
       const captureAmount = Math.min(remaining, payment.authorizedCentsAmount);
       if (captureAmount > 0) {
-        await stripe.paymentIntents.capture(payment.stripePaymentIntentId, {
-          amount_to_capture: captureAmount,
-        });
+        const intent = await stripe.paymentIntents.capture(
+          payment.stripePaymentIntentId,
+          {
+            amount_to_capture: captureAmount,
+            expand: ["latest_charge.balance_transaction"],
+          }
+        );
+        const { feeCents, balanceTxnId, availableOn } =
+          extractCaptureSettlement(intent);
         await TabPayment.updateOne(
           { _id: payment._id },
           {
             tabPaymentStatus: "CAPTURED",
             capturedCentsAmount: captureAmount,
+            processingFeeCents: feeCents,
+            stripeBalanceTxnId: balanceTxnId,
+            availableOn,
           }
         );
         totalCaptured += captureAmount;
@@ -276,6 +343,9 @@ export async function checkoutTabsForOrganizerEvent(
   accountId: string
 ): Promise<BulkTabCheckoutResult> {
   await verifyEventOwnership(eventId, accountId);
+  // Free tabs stuck in PENDING_AUTHORIZATION by unconfirmed top-ups first, so
+  // their delivered items become chargeable in this same run.
+  await releaseGatedTopUpsForEvent(eventId);
   return checkoutReadyTabsForEvent(eventId);
 }
 
@@ -285,33 +355,29 @@ export async function checkoutTabsForOrganizerEvent(
 // unchanged settlement path charges exactly those and releases the remaining
 // authorization.
 async function finalizeTabForEventEnd(tabId: string): Promise<void> {
-  // Release unconfirmed top-up holds on Stripe first (Stripe is not transactional).
-  const pendingHolds = await TabPayment.find({
-    tabId,
-    tabPaymentStatus: "PENDING",
-  });
-  for (const hold of pendingHolds) {
-    try {
-      await stripe.paymentIntents.cancel(hold.stripePaymentIntentId);
-    } catch {
-      // Already resolved on Stripe's side — nothing to release.
-    }
-  }
-
   const dbSession = await mongoose.startSession();
+  let pendingIntentIds: string[] = [];
   try {
     await dbSession.withTransaction(async () => {
+      const pendingHolds = await TabPayment.find({
+        tabId,
+        tabPaymentStatus: "PENDING",
+      }).session(dbSession);
+      // withTransaction may retry the callback, so replace instead of append.
+      pendingIntentIds = pendingHolds.map((hold) => hold.stripePaymentIntentId);
+
       const orders = await Order.find({ tabId }).session(dbSession);
       const now = new Date();
       for (const order of orders) {
-        let touched = false;
-        order.items.forEach((item) => {
-          if (!item.readyAt && !item.fulfilledAt && !item.cancelledAt) {
-            item.cancelledAt = now;
-            touched = true;
-          }
+        const cancelledItems = order.items.filter(
+          (item) => !item.readyAt && !item.fulfilledAt && !item.cancelledAt
+        );
+        if (cancelledItems.length === 0) continue;
+        await releaseReservedStock(cancelledItems, dbSession);
+        cancelledItems.forEach((item) => {
+          item.cancelledAt = now;
         });
-        if (touched) await order.save({ session: dbSession });
+        await order.save({ session: dbSession });
       }
 
       await TabPayment.updateMany(
@@ -329,6 +395,12 @@ async function finalizeTabForEventEnd(tabId: string): Promise<void> {
     });
   } finally {
     await dbSession.endSession();
+  }
+
+  // MongoDB decides whether cleanup or the authorization webhook wins. Stripe
+  // is cancelled afterwards because it cannot participate in that transaction.
+  for (const intentId of pendingIntentIds) {
+    await stripe.paymentIntents.cancel(intentId).catch(() => undefined);
   }
 }
 
@@ -352,78 +424,114 @@ export async function finalizeEventTabs(
   return checkoutReadyTabsForEvent(eventId);
 }
 
-// A top-up the guest never confirmed leaves its order's items gated and the tab
-// stuck in PENDING_AUTHORIZATION, which blocks settlement and would let the
-// baseline hold expire uncaptured (lost revenue). Release these stale PENDING
-// holds and cancel their gated orders before the sweep settles, mirroring
-// cancelPendingOrder.
+type HydratedTabPayment = Awaited<ReturnType<typeof TabPayment.find>>[number];
+
+// Releases one unconfirmed or failed top-up hold: cancels it on Stripe, cancels
+// its gated order's not-yet-started items, marks the hold RELEASED, and reopens
+// the tab to OPEN once no PENDING holds remain. Mirrors cancelPendingOrder.
+async function releaseUnconfirmedTopUp(
+  payment: HydratedTabPayment
+): Promise<void> {
+  try {
+    await stripe.paymentIntents.cancel(payment.stripePaymentIntentId);
+  } catch {
+    // Already resolved on Stripe's side — nothing to release.
+  }
+
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      const order = await Order.findById(payment.orderId).session(dbSession);
+      if (order) {
+        const now = new Date();
+        const cancelledItems = order.items.filter(
+          (item) => !item.startedAt && !item.cancelledAt
+        );
+        await releaseReservedStock(cancelledItems, dbSession);
+        cancelledItems.forEach((item) => {
+          item.cancelledAt = now;
+        });
+        await order.save({ session: dbSession });
+      }
+
+      await TabPayment.updateOne(
+        {
+          _id: payment._id,
+          tabPaymentStatus: { $in: ["PENDING", "FAILED"] },
+        },
+        { tabPaymentStatus: "RELEASED" },
+        { session: dbSession }
+      );
+
+      const pending = await TabPayment.countDocuments({
+        tabId: payment.tabId,
+        tabPaymentStatus: "PENDING",
+      }).session(dbSession);
+      if (pending === 0) {
+        await Tab.updateOne(
+          { _id: payment.tabId, status: "PENDING_AUTHORIZATION" },
+          { status: "OPEN" },
+          { session: dbSession }
+        );
+      }
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
+// A top-up the guest never completed leaves its order's items gated. PENDING
+// holds can also keep the tab blocked, while FAILED holds reopen it but retain
+// the same reserved stock. Release both stale states before the sweep settles.
 async function releaseStaleUnconfirmedTopUps(cutoff: Date): Promise<void> {
   const stale = await TabPayment.find({
-    tabPaymentStatus: "PENDING",
+    tabPaymentStatus: { $in: ["PENDING", "FAILED"] },
     orderId: { $ne: null },
     updatedAt: { $lte: cutoff },
   });
-
   for (const payment of stale) {
-    try {
-      await stripe.paymentIntents.cancel(payment.stripePaymentIntentId);
-    } catch {
-      // Already resolved on Stripe's side — nothing to release.
-    }
+    await releaseUnconfirmedTopUp(payment);
+  }
+}
 
-    const dbSession = await mongoose.startSession();
-    try {
-      await dbSession.withTransaction(async () => {
-        const order = await Order.findById(payment.orderId).session(dbSession);
-        if (order) {
-          const now = new Date();
-          order.items.forEach((item) => {
-            if (!item.startedAt && !item.cancelledAt) item.cancelledAt = now;
-          });
-          await order.save({ session: dbSession });
-        }
-
-        await TabPayment.updateOne(
-          { _id: payment._id, tabPaymentStatus: "PENDING" },
-          { tabPaymentStatus: "RELEASED" },
-          { session: dbSession }
-        );
-
-        const pending = await TabPayment.countDocuments({
-          tabId: payment.tabId,
-          tabPaymentStatus: "PENDING",
-        }).session(dbSession);
-        if (pending === 0) {
-          await Tab.updateOne(
-            { _id: payment.tabId, status: "PENDING_AUTHORIZATION" },
-            { status: "OPEN" },
-            { session: dbSession }
-          );
-        }
-      });
-    } finally {
-      await dbSession.endSession();
-    }
+// Same release, but for every unfinished top-up on an event's tabs regardless
+// of age. The organizer's manual "charge open tabs" only scans OPEN/
+// CHECKOUT_PENDING tabs, so a tab parked in PENDING_AUTHORIZATION by an
+// unconfirmed top-up — whose gated items never reach an operator — would
+// otherwise be uncharge-able. Freeing the hold reopens the tab so its delivered
+// items can settle in the same charge.
+async function releaseGatedTopUpsForEvent(eventId: string): Promise<void> {
+  const tabIds = await Tab.find({ eventId }).distinct("_id");
+  const gated = await TabPayment.find({
+    tabId: { $in: tabIds },
+    tabPaymentStatus: { $in: ["PENDING", "FAILED"] },
+    orderId: { $ne: null },
+  });
+  for (const payment of gated) {
+    await releaseUnconfirmedTopUp(payment);
   }
 }
 
 export async function checkoutDueTabs(now = new Date()): Promise<void> {
-  const fallbackCutoff = new Date(now.getTime() - TAB_AUTHORIZATION_WINDOW_MS);
+  const staleCutoff = new Date(now.getTime() - TAB_AUTHORIZATION_WINDOW_MS);
 
   // Free up tabs blocked by never-confirmed top-ups first, so their genuinely
   // ready items can settle on the baseline hold in this same run.
-  await releaseStaleUnconfirmedTopUps(fallbackCutoff);
+  await releaseStaleUnconfirmedTopUps(staleCutoff);
 
-  const tabIds = await TabPayment.distinct("tabId", {
-    tabPaymentStatus: "AUTHORIZED",
-    $or: [
-      { expiresAt: { $lte: now } },
-      { expiresAt: null, updatedAt: { $lte: fallbackCutoff } },
-    ],
+  // Auto-charge tabs that have been open too long. Like an event stop, cancel
+  // whatever the guest never received (never charged) and capture the delivered
+  // items, releasing the remaining authorization. 48h < Stripe's ~7-day hold
+  // validity, so the authorization is always still capturable here.
+  const autoChargeCutoff = new Date(now.getTime() - TAB_AUTO_CHARGE_AFTER_MS);
+  const dueTabIds = await Tab.distinct("_id", {
+    status: { $in: ["OPEN", "CHECKOUT_PENDING", "PENDING_AUTHORIZATION"] },
+    createdAt: { $lte: autoChargeCutoff },
   });
 
-  for (const tabId of tabIds) {
+  for (const tabId of dueTabIds) {
     try {
+      await finalizeTabForEventEnd(tabId);
       await settleTab(tabId, {});
     } catch (err) {
       // Expected, benign states (tab not ready, already gone) are skipped

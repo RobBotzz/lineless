@@ -247,7 +247,7 @@ export async function deleteAccount(accountId: string): Promise<void> {
         ibanHolderName: 1,
       },
     },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 
   if (!account) {

@@ -19,6 +19,7 @@ http:
     data: |-
       {
         "eventId": "{{eventId}}",
+        "requestId": "{{$randomUUID}}",
         "tabId": "{{tabId}}",
         "items": [
           { "productId": "{{productId}}", "customerComment": "Large round for the table" },

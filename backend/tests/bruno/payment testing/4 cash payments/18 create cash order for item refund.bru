@@ -1,0 +1,43 @@
+meta {
+  name: 18 create cash order for item refund
+  type: http
+  seq: 18
+}
+
+post {
+  url: http://{{host}}:{{port}}/api/orders
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{cashierToken}}
+}
+
+body:json {
+  {
+    "eventId": "{{eventId}}",
+    "items": [
+      { "productId": "{{productId}}" }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.order) {
+    bru.setVar("refundOrderId", res.body.order._id);
+    bru.setVar("refundItemId", res.body.order.items[0]._id);
+  }
+}
+
+tests {
+  test("cashier creates unpaid cash order", function () {
+    expect(res.status).to.equal(201);
+    expect(res.body.order.tabId).to.equal(null);
+    expect(res.body.order.paidAt).to.equal(null);
+  });
+}
+
+settings {
+  encodeUrl: true
+}

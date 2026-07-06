@@ -1,6 +1,6 @@
 import type { ClientSession } from "mongoose";
 import { TabPayment } from "../payments/model";
-import { Order } from "./model";
+import { Order, type OrderDoc } from "./model";
 
 const AUTHORIZED_PAYMENT_STATUSES = ["AUTHORIZED", "CAPTURED"] as const;
 
@@ -64,12 +64,13 @@ export async function markAuthorizedTabOrdersPaid(
   tabId: string,
   session: ClientSession,
   now = new Date()
-): Promise<void> {
+): Promise<OrderDoc[]> {
   const authorizedCents = await getAuthorizedTabCents(tabId, session);
   const orders = await Order.find({ tabId })
     .sort({ createdAt: 1 })
     .session(session);
 
+  const newlyPaid: OrderDoc[] = [];
   let consumedCents = 0;
   for (const order of orders) {
     const orderTotal = order.items
@@ -85,6 +86,8 @@ export async function markAuthorizedTabOrdersPaid(
     if (!order.paidAt) {
       order.paidAt = now;
       await order.save({ session });
+      newlyPaid.push(order);
     }
   }
+  return newlyPaid;
 }

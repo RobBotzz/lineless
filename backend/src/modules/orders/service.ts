@@ -1,10 +1,10 @@
-import mongoose from "mongoose";
+import mongoose, { type ClientSession } from "mongoose";
 import Stripe from "stripe";
 import crypto from "crypto";
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
 import { config } from "../../config/config";
 import { Order, type OrderDoc, type OrderItemDoc } from "./model";
-import { Tab } from "../tabs/model";
+import { Tab, TAB_ORDER_FREEZE_AFTER_MS } from "../tabs/model";
 import { TabPayment } from "../payments/model";
 import { Product } from "../products/model";
 import { Stand } from "../stands/model";
@@ -20,19 +20,34 @@ import {
   CashierDisabledError,
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
+  CashRefundInvalidItemsError,
   EventNotActiveError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
+  OrderRequestCancelledError,
+  OrderRequestDeletedError,
   OrderValidationError,
 } from "./errors";
-import type { CreateOrderInput, IssueCashRefundInput } from "./types";
+import type { CreateOrderInput } from "./types";
+import {
+  groupRequestedProducts,
+  releaseReservedStock,
+  reserveProductStock,
+} from "./inventory";
+import { notifyOrderCreated, notifyOrderPaid } from "./emailNotifications";
 
 const stripe = new Stripe(config.stripe.secretKey);
 
 function generatePickupCode(): string {
   return crypto.randomBytes(2).toString("hex").toUpperCase();
+}
+
+// Joins names for user-facing text: "A", "A and B", "A, B and C".
+function formatNameList(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 export type ItemState =
@@ -64,69 +79,62 @@ function assertItemCancellable(item: OrderItemDoc): void {
   }
 }
 
-export async function submitOrder(
-  /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
-  sessionId: string | null,
-  input: CreateOrderInput
+type SubmitOrderResult =
+  | { status: 201; order: OrderDoc }
+  | { status: 402; clientSecret: string; orderId: string };
+
+async function prepareOrderItems(
+  input: CreateOrderInput,
+  session?: ClientSession
 ) {
-  const { eventId, tabId, items } = input;
-  let customerEmail: string | null = null;
-
-  const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
-  if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
-
-  if (!tabId && !event.cashierEnabled) throw new CashierDisabledError();
-
-  if (sessionId !== null) {
-    const session = await AttendeeSession.findById(sessionId).lean();
-    if (!session || session.eventId !== eventId)
-      throw new OrderValidationError("Session does not belong to this event");
-    customerEmail = session.email ?? null;
-  }
-
-  if (tabId) {
-    // A tab is a customer's authorized payment vehicle. Only the attendee
-    // session that owns it may order against it; operators have no session and
-    // must not be able to charge an arbitrary customer's tab.
-    if (sessionId === null) {
-      throw new OrderValidationError(
-        "Operators cannot place orders against a customer tab."
-      );
-    }
-    const tab = await Tab.findOne({ _id: tabId, eventId, sessionId }).lean();
-    if (!tab || tab.status !== "OPEN") {
-      throw new OrderValidationError("Tab is not OPEN or does not exist.");
-    }
-  }
-
-  const eventStands = await Stand.find({ eventId, deletedAt: null })
-    .select("_id standStatus")
-    .lean();
-  const eventStandIds = eventStands.map((s) => s._id);
+  const standQuery = Stand.find({
+    eventId: input.eventId,
+    deletedAt: null,
+  }).select("_id standStatus");
+  if (session) standQuery.session(session);
+  const eventStands = await standQuery.lean();
   const standStatusById = new Map(
     eventStands.map((stand) => [stand._id, stand.standStatus ?? "LIVE"])
   );
-
-  const productIds = [...new Set(items.map((item) => item.productId))];
-  const products = await Product.find({
+  const productIds = [...new Set(input.items.map((item) => item.productId))];
+  const productQuery = Product.find({
     _id: { $in: productIds },
-    standId: { $in: eventStandIds },
+    standId: { $in: eventStands.map((stand) => stand._id) },
     deletedAt: null,
-  }).lean();
-  const productById = new Map(products.map((p) => [p._id, p]));
+  });
+  if (session) productQuery.session(session);
+  const products = await productQuery.lean();
+  const productById = new Map(
+    products.map((product) => [product._id, product])
+  );
+
+  // Collect every unavailable item so the attendee can be told exactly which
+  // products to remove, rather than failing one at a time.
+  const unavailable = input.items
+    .filter((item) => {
+      const product = productById.get(item.productId);
+      return (
+        !product ||
+        product.productStatus !== "LIVE" ||
+        standStatusById.get(product.standId) === "PAUSED"
+      );
+    })
+    .map((item) => productById.get(item.productId)?.productName ?? "a product");
+
+  if (unavailable.length > 0) {
+    const names = formatNameList(unavailable);
+    const subject =
+      unavailable.length === 1
+        ? `${names} is currently not available for ordering. It may become available again later`
+        : `${names} are currently not available for ordering. They may become available again later`;
+    throw new OrderValidationError(
+      `${subject} — please remove ${unavailable.length === 1 ? "it" : "them"} from your order before paying. Sorry for the inconvenience.`
+    );
+  }
 
   let totalCents = 0;
-  const processedItems = items.map((item) => {
-    const product = productById.get(item.productId);
-    if (
-      !product ||
-      product.productStatus !== "LIVE" ||
-      standStatusById.get(product.standId) === "PAUSED"
-    ) {
-      throw new OrderValidationError(
-        `Product ${item.productId} is not available for ordering.`
-      );
-    }
+  const processedItems: OrderItemDoc[] = input.items.map((item) => {
+    const product = productById.get(item.productId)!;
     totalCents += product.priceIncludingTax;
     return {
       _id: uuidv4(),
@@ -138,65 +146,238 @@ export async function submitOrder(
       readyAt: null as Date | null,
       fulfilledAt: null as Date | null,
       cancelledAt: null as Date | null,
+      refundedAt: null as Date | null,
+      inventoryState: "RESERVED",
     };
   });
+  return {
+    processedItems,
+    totalCents,
+    requestedProducts: groupRequestedProducts(
+      input.items.map((item) => item.productId)
+    ),
+  };
+}
 
+function requestMatchesOrder(
+  order: OrderDoc,
+  input: CreateOrderInput
+): boolean {
+  if (
+    order.eventId !== input.eventId ||
+    order.tabId !== (input.tabId ?? null)
+  ) {
+    return false;
+  }
+  return (
+    order.items.length === input.items.length &&
+    order.items.every(
+      (item, index) =>
+        item.productId === input.items[index]?.productId &&
+        (item.customerComment ?? undefined) ===
+          input.items[index]?.customerComment
+    )
+  );
+}
+
+async function existingSubmission(
+  sessionId: string | null,
+  input: CreateOrderInput
+): Promise<SubmitOrderResult | null> {
+  const order = await Order.findOne({ requestId: input.requestId });
+  if (!order) return null;
+  if (order.sessionId !== sessionId || !requestMatchesOrder(order, input)) {
+    throw new OrderValidationError(
+      "requestId has already been used for another order"
+    );
+  }
+  // A soft-deleted order remains the idempotency tombstone for this requestId.
+  // Replaying it must not report a deleted resource as a fresh successful order.
+  if (order.deletedAt) throw new OrderRequestDeletedError();
+  if (order.items.length > 0 && order.items.every((item) => item.cancelledAt)) {
+    throw new OrderRequestCancelledError();
+  }
+  if (order.tabId && !order.paidAt) {
+    const payment = await TabPayment.findOne({ orderId: order._id }).sort({
+      createdAt: -1,
+    });
+    if (payment && ["PENDING", "FAILED"].includes(payment.tabPaymentStatus)) {
+      const intent = await stripe.paymentIntents.retrieve(
+        payment.stripePaymentIntentId
+      );
+      if (intent.client_secret) {
+        return {
+          status: 402,
+          clientSecret: intent.client_secret,
+          orderId: order._id,
+        };
+      }
+    }
+    if (payment?.tabPaymentStatus === "RELEASED") {
+      throw new OrderRequestCancelledError();
+    }
+  }
+  return { status: 201, order };
+}
+
+export async function submitOrder(
+  /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
+  sessionId: string | null,
+  input: CreateOrderInput,
+  operatorStandId?: string
+): Promise<SubmitOrderResult> {
+  const existing = await existingSubmission(sessionId, input);
+  if (existing) return existing;
+
+  const { eventId, tabId } = input;
+  let customerEmail: string | null = null;
+  const event = await Event.findOne({ _id: eventId, deletedAt: null }).lean();
+  if (!event || event.status !== "ACTIVE") throw new EventNotActiveError();
+  if (!tabId && !event.cashierEnabled) throw new CashierDisabledError();
+
+  if (sessionId === null) {
+    const cashierStand = await Stand.findOne({
+      _id: operatorStandId,
+      eventId,
+      standType: "CASHIER",
+      deletedAt: null,
+    }).lean();
+    if (!cashierStand) throw new OrderValidationError("Invalid cashier stand");
+  }
+
+  if (sessionId !== null) {
+    const attendee = await AttendeeSession.findById(sessionId).lean();
+    if (!attendee || attendee.eventId !== eventId) {
+      throw new OrderValidationError("Session does not belong to this event");
+    }
+    customerEmail = attendee.email ?? null;
+  }
+  if (tabId) {
+    if (sessionId === null) {
+      throw new OrderValidationError(
+        "Operators cannot place orders against a customer tab."
+      );
+    }
+    // The attendee session is short-lived (24h) but a tab can outlive it on a
+    // multi-day event. Match the tab by event, not by the session that opened
+    // it, and re-bind it to the current session so a rolled-over guest keeps
+    // their tab instead of hitting "tab not found". Possession of the tabId is
+    // the ownership proof, consistent with the rest of the attendee model.
+    const tab = await Tab.findOne({ _id: tabId, eventId });
+    if (!tab || tab.status !== "OPEN") {
+      throw new OrderValidationError("Tab is not OPEN or does not exist.");
+    }
+    if (tab.sessionId !== sessionId) {
+      tab.sessionId = sessionId;
+      await tab.save();
+    }
+    if (Date.now() - tab.createdAt.getTime() >= TAB_ORDER_FREEZE_AFTER_MS) {
+      throw new OrderValidationError(
+        "This tab is closed for new orders and will be charged automatically."
+      );
+    }
+  }
+
+  const quote = await prepareOrderItems(input);
   const orderCount = await Order.countDocuments({ eventId });
   const letterIndex = Math.floor(orderCount / 1000) % 26;
   const letter = String.fromCharCode(65 + letterIndex);
   const numberPart = (orderCount % 1000).toString().padStart(3, "0");
   const orderNumber = `${letter}${numberPart}`;
   const pickupCode = generatePickupCode();
+  // A retried checkout must send identical Stripe parameters for the same
+  // idempotency key. Deriving the top-up metadata id from requestId prevents
+  // concurrent retries from racing with different random order ids.
+  const orderId = uuidv5(input.requestId, uuidv5.URL);
+
+  const createReservedOrder = async (
+    dbSession: ClientSession,
+    paidAt: Date | null
+  ): Promise<OrderDoc> => {
+    const prepared = await prepareOrderItems(input, dbSession);
+    if (prepared.totalCents !== quote.totalCents) {
+      throw new OrderValidationError(
+        "Product prices changed during checkout; please retry"
+      );
+    }
+    const trackedProductIds = await reserveProductStock(
+      prepared.requestedProducts,
+      dbSession
+    );
+    for (const item of prepared.processedItems) {
+      if (!trackedProductIds.has(item.productId)) {
+        item.inventoryState = "UNTRACKED";
+      }
+    }
+    const orders = await Order.create(
+      [
+        {
+          _id: orderId,
+          eventId,
+          tabId: tabId ?? null,
+          sessionId,
+          requestId: input.requestId,
+          orderNumber,
+          pickupCode,
+          customerEmail,
+          paidAt,
+          items: prepared.processedItems,
+        },
+      ],
+      { session: dbSession }
+    );
+    return orders[0]!;
+  };
 
   if (!tabId) {
     const dbSession = await mongoose.startSession();
-    let createdOrder;
-    await dbSession.withTransaction(async () => {
-      const orders = await Order.create(
-        [
-          {
-            eventId,
-            tabId: null,
-            sessionId,
-            orderNumber,
-            pickupCode,
-            customerEmail: customerEmail ?? null,
-            items: processedItems,
-          },
-        ],
-        { session: dbSession }
-      );
-      createdOrder = orders[0];
-    });
-    await dbSession.endSession();
-    return { status: 201 as const, order: createdOrder };
+    let createdOrder: OrderDoc | undefined;
+    try {
+      await dbSession.withTransaction(async () => {
+        createdOrder = await createReservedOrder(dbSession, null);
+      });
+    } catch (error) {
+      const duplicate = await existingSubmission(sessionId, input);
+      if (duplicate) return duplicate;
+      throw error;
+    } finally {
+      await dbSession.endSession();
+    }
+
+    // Cash orders start out unpaid — nudge the attendee (never the cashier;
+    // operator orders have no session/email) to go pay. Fire-and-forget after
+    // commit: a failed mail must never fail a successfully created order.
+    if (createdOrder) void notifyOrderCreated(createdOrder);
+
+    return { status: 201, order: createdOrder! };
   }
 
   const authorizedCents = await getAuthorizedTabCents(tabId);
   const consumedCents = await getActiveTabTotalCents(tabId);
 
-  if (consumedCents + totalCents > authorizedCents) {
+  if (consumedCents + quote.totalCents > authorizedCents) {
     // Top up the authorization in whole baseline increments rather than by the
     // exact shortfall, so small follow-up orders reuse the headroom instead of
     // each triggering another authorization round-trip. The unused remainder is
     // released (never captured) at checkout.
-    const shortfall = consumedCents + totalCents - authorizedCents;
+    const shortfall = consumedCents + quote.totalCents - authorizedCents;
     const baseline = event.baselineHoldCents ?? DEFAULT_BASELINE_HOLD_CENTS;
     const overage = Math.ceil(shortfall / baseline) * baseline;
 
     // Pre-generate the order id so the hold can reference the order it funds;
     // the failure/cancel paths rely on that link.
-    const newOrderId = uuidv4();
-
-    const pi = await stripe.paymentIntents.create({
-      amount: overage,
-      currency: "eur",
-      capture_method: "manual",
-      // Card only — keeps the top-up consistent with the baseline hold (card +
-      // Apple Pay / Google Pay wallets, no Link/others).
-      payment_method_types: ["card"],
-      metadata: { tabId, orderId: newOrderId },
-    });
+    const pi = await stripe.paymentIntents.create(
+      {
+        amount: overage,
+        currency: "eur",
+        capture_method: "manual",
+        // Card only — keeps the top-up consistent with the baseline hold (card +
+        // Apple Pay / Google Pay wallets, no Link/others).
+        payment_method_types: ["card"],
+        metadata: { tabId, orderId, requestId: input.requestId },
+      },
+      { idempotencyKey: `order:${input.requestId}` }
+    );
 
     const dbSession = await mongoose.startSession();
     try {
@@ -205,7 +386,7 @@ export async function submitOrder(
           [
             {
               tabId,
-              orderId: newOrderId,
+              orderId,
               stripePaymentIntentId: pi.id,
               tabPaymentStatus: "PENDING",
               authorizedCentsAmount: overage,
@@ -218,26 +399,14 @@ export async function submitOrder(
           { status: "PENDING_AUTHORIZATION" },
           { session: dbSession }
         );
-        await Order.create(
-          [
-            {
-              _id: newOrderId,
-              eventId,
-              tabId,
-              sessionId,
-              orderNumber,
-              pickupCode,
-              customerEmail: customerEmail ?? null,
-              items: processedItems,
-            },
-          ],
-          { session: dbSession }
-        );
+        await createReservedOrder(dbSession, null);
       });
     } catch (err) {
-      // The transaction rolled back, so cancel the top-up PaymentIntent created
-      // above — otherwise it is orphaned (no TabPayment row references it).
-      await stripe.paymentIntents.cancel(pi.id).catch(() => undefined);
+      const duplicate = await existingSubmission(sessionId, input);
+      if (duplicate) return duplicate;
+      // Keep the unconfirmed intent reusable. Stripe replays the original result
+      // for this requestId's idempotency key, so cancelling it here would make a
+      // safe retry create a TabPayment that points at an already-cancelled intent.
       throw err;
     } finally {
       await dbSession.endSession();
@@ -246,7 +415,7 @@ export async function submitOrder(
     return {
       status: 402 as const,
       clientSecret: pi.client_secret as string,
-      orderId: newOrderId,
+      orderId,
     };
   }
 
@@ -256,29 +425,31 @@ export async function submitOrder(
   const now = new Date();
 
   const dbSession = await mongoose.startSession();
-  let createdOrder;
-  await dbSession.withTransaction(async () => {
-    const orders = await Order.create(
-      [
-        {
-          eventId,
-          tabId,
-          sessionId,
-          orderNumber,
-          pickupCode,
-          customerEmail: customerEmail ?? null,
-          paidAt: now,
-          items: processedItems,
-        },
-      ],
-      { session: dbSession }
-    );
-    createdOrder = orders[0];
-    await markAuthorizedTabOrdersPaid(tabId, dbSession, now);
-  });
-  await dbSession.endSession();
+  let createdOrder: OrderDoc | undefined;
+  let newlyPaidOrders: OrderDoc[] = [];
+  try {
+    await dbSession.withTransaction(async () => {
+      createdOrder = await createReservedOrder(dbSession, now);
+      newlyPaidOrders = await markAuthorizedTabOrdersPaid(
+        tabId,
+        dbSession,
+        now
+      );
+    });
+  } catch (error) {
+    const duplicate = await existingSubmission(sessionId, input);
+    if (duplicate) return duplicate;
+    throw error;
+  } finally {
+    await dbSession.endSession();
+  }
 
-  return { status: 201 as const, order: createdOrder };
+  // The card order is paid on the spot — confirm it (and any previously gated
+  // orders the hold now covers) after the transaction has committed.
+  if (createdOrder) void notifyOrderPaid(createdOrder);
+  for (const paidOrder of newlyPaidOrders) void notifyOrderPaid(paidOrder);
+
+  return { status: 201, order: createdOrder! };
 }
 
 async function verifyCashPaymentActor(
@@ -320,7 +491,7 @@ export async function confirmCashPayment(
   orderId: string,
   actor: CashPaymentActor
 ) {
-  const order = await Order.findById(orderId);
+  const order = await Order.findById(orderId).lean();
   if (!order) throw new OrderNotFoundError();
   if (order.paidAt) throw new OrderAlreadyPaidError();
   if (order.tabId !== null) {
@@ -331,29 +502,68 @@ export async function confirmCashPayment(
     requireActiveEvent: true,
   });
 
-  const now = new Date();
-  order.cashPayment = { _id: crypto.randomUUID(), createdAt: now };
-  order.paidAt = now;
-  // Items stay PENDING until an operator starts them — paying does not move an
-  // item into PREPARING.
-  await order.save();
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      const fresh = await Order.findOne({
+        _id: orderId,
+        paidAt: null,
+        deletedAt: null,
+      }).session(dbSession);
+      if (!fresh) {
+        const current = await Order.findById(orderId).session(dbSession).lean();
+        if (current?.paidAt) throw new OrderAlreadyPaidError();
+        throw new OrderNotFoundError();
+      }
+      const now = new Date();
+      fresh.cashPayment = { _id: crypto.randomUUID(), createdAt: now };
+      fresh.paidAt = now;
+      await fresh.save({ session: dbSession });
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+  const updated = await Order.findById(orderId).lean();
+  if (!updated) throw new OrderNotFoundError();
 
-  return order;
+  // Confirm the now-paid order to the attendee (fire-and-forget, post-commit).
+  void notifyOrderPaid(updated);
+  return updated;
 }
 
-export async function issueCashRefund(
-  cashPaymentId: string,
-  input: IssueCashRefundInput,
+// An item is refundable only if it was cancelled and has not been refunded yet.
+function isRefundableItem(item: OrderItemDoc): boolean {
+  return item.cancelledAt != null && item.refundedAt == null;
+}
+
+// Item-level cash refund: refunds the given cancelled items in one atomic save,
+// stamping refundedAt so the same item can never be refunded twice.
+export async function refundCashOrderItems(
+  orderId: string,
+  itemIds: string[],
   actor: CashPaymentActor
 ) {
-  const order = await Order.findOne({ "cashPayment._id": cashPaymentId });
-  if (!order?.cashPayment) throw new CashPaymentNotFoundError();
-  if (order.tabId !== null) throw new CashPaymentNotFoundError();
+  const order = await Order.findOne({ _id: orderId, deletedAt: null });
+  if (!order) throw new OrderNotFoundError();
+  if (order.tabId !== null || !order.paidAt)
+    throw new CashPaymentNotFoundError();
 
   await verifyCashPaymentActor(order.eventId, actor, {
     requireActiveEvent: false,
   });
 
+  const requested = new Set(itemIds);
+  const items = order.items.filter((i) => requested.has(i._id));
+  if (items.length !== requested.size) throw new OrderItemNotFoundError();
+  if (!items.every(isRefundableItem)) throw new CashRefundInvalidItemsError();
+
+  const amountCents = items.reduce(
+    (sum, i) => sum + i.priceIncludingTaxAtPurchase,
+    0
+  );
+
+  // Defensive invariant — refundedAt already prevents double refunds, but this
+  // keeps the same guard the amount-based refund path enforces.
   const orderTotal = order.items.reduce(
     (sum, i) => sum + i.priceIncludingTaxAtPurchase,
     0
@@ -362,24 +572,45 @@ export async function issueCashRefund(
     (sum, r) => sum + r.amountCents,
     0
   );
-  if (alreadyRefunded + input.amountCents > orderTotal) {
+  if (alreadyRefunded + amountCents > orderTotal) {
     throw new CashRefundExceedsTotalError();
   }
 
+  const now = new Date();
+  for (const item of items) {
+    item.refundedAt = now;
+  }
   order.cashRefunds.push({
     _id: crypto.randomUUID(),
-    amountCents: input.amountCents,
-    createdAt: new Date(),
+    amountCents,
+    refundedItemIds: items.map((i) => i._id),
+    createdAt: now,
   });
   await order.save();
 
-  return order.cashRefunds[order.cashRefunds.length - 1];
+  return order;
+}
+
+// Cash-paid orders for the event that still have at least one refundable item.
+export async function listRefundableCashOrders(
+  eventId: string
+): Promise<OrderDoc[]> {
+  const orders = await Order.find({
+    eventId,
+    tabId: null,
+    paidAt: { $ne: null },
+    deletedAt: null,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  return orders.filter((o) => o.items.some(isRefundableItem));
 }
 
 /**
  * Attendee abandons an order still awaiting authorization. Cancels its gated
  * items, releases any backing Stripe hold, and lets the tab become orderable
- * again. Only orders with un-started (gated) items can be cancelled this way.
+ * again. Repeating cleanup for an already fully-cancelled order is safe so a
+ * client can recover when the first response was lost.
  */
 export async function cancelPendingOrder(
   orderId: string,
@@ -390,35 +621,49 @@ export async function cancelPendingOrder(
   if (order.paidAt) throw new OrderAlreadyPaidError();
 
   const hasGatedItems = order.items.some((i) => !i.startedAt && !i.cancelledAt);
-  if (!hasGatedItems) {
+  const isFullyCancelled = order.items.every((i) => i.cancelledAt);
+  if (!hasGatedItems && !isFullyCancelled) {
     throw new OrderItemStateError("Order has no pending items to cancel");
   }
 
-  // Release the Stripe holds outside the transaction (Stripe is not
-  // transactional). Best-effort: a hold already resolved by Stripe just errors.
-  const holds = await TabPayment.find({
-    orderId,
-    tabPaymentStatus: { $in: ["PENDING", "FAILED"] },
-  });
-  for (const hold of holds) {
-    if (hold.tabPaymentStatus === "PENDING") {
-      try {
-        await stripe.paymentIntents.cancel(hold.stripePaymentIntentId);
-      } catch {
-        // Already canceled/expired on Stripe's side — nothing to release.
-      }
-    }
-  }
-
   const dbSession = await mongoose.startSession();
+  let pendingIntentIds: string[] = [];
   try {
     await dbSession.withTransaction(async () => {
-      const fresh = await Order.findById(orderId).session(dbSession);
-      if (!fresh) throw new OrderNotFoundError();
+      const fresh = await Order.findOne({
+        _id: orderId,
+        sessionId,
+        paidAt: null,
+      }).session(dbSession);
+      if (!fresh) {
+        const current = await Order.findOne({ _id: orderId, sessionId })
+          .select("paidAt")
+          .session(dbSession);
+        if (current?.paidAt) throw new OrderAlreadyPaidError();
+        throw new OrderNotFoundError();
+      }
 
       const now = new Date();
-      fresh.items.forEach((item) => {
-        if (!item.startedAt && !item.cancelledAt) item.cancelledAt = now;
+      const cancelledItems = fresh.items.filter(
+        (item) => !item.startedAt && !item.cancelledAt
+      );
+      const isAlreadyCancelled = fresh.items.every((item) => item.cancelledAt);
+      if (cancelledItems.length === 0 && !isAlreadyCancelled) {
+        throw new OrderItemStateError("Order has no pending items to cancel");
+      }
+
+      const holds = await TabPayment.find({
+        orderId,
+        tabPaymentStatus: { $in: ["PENDING", "FAILED"] },
+      }).session(dbSession);
+      // withTransaction may retry the callback, so replace instead of append.
+      pendingIntentIds = holds
+        .filter((hold) => hold.tabPaymentStatus === "PENDING")
+        .map((hold) => hold.stripePaymentIntentId);
+
+      await releaseReservedStock(cancelledItems, dbSession);
+      cancelledItems.forEach((item) => {
+        item.cancelledAt = now;
       });
       await fresh.save({ session: dbSession });
 
@@ -444,6 +689,13 @@ export async function cancelPendingOrder(
     });
   } finally {
     await dbSession.endSession();
+  }
+
+  // Stripe is external to MongoDB. Cancel only after the transaction has
+  // claimed the payment as RELEASED; a concurrent webhook then observes the
+  // terminal state and cannot authorize/restock the same order.
+  for (const intentId of pendingIntentIds) {
+    await stripe.paymentIntents.cancel(intentId).catch(() => undefined);
   }
 
   const updated = await Order.findById(orderId).lean();
@@ -496,12 +748,19 @@ export async function getOrderForAttendee(
   return enrichOrderForAttendee(order);
 }
 
-// An attendee's own paid orders — the source for the order-status / review entry
-// point. Product names are joined here (one batch query) to avoid frontend N+1.
+// An attendee's own orders — the source for the order-status / review entry
+// point. Includes all paid orders plus every cash order (tabId: null) whether
+// pending payment or cashier-cancelled (deletedAt), so the pending-payment and
+// cancelled states are visible in history. Transient gated card orders (unpaid
+// with a tabId) are excluded. Product names are joined here (one batch query)
+// to avoid a frontend N+1.
 export async function listOrdersForAttendee(
   sessionId: string
 ): Promise<AttendeeOrder[]> {
-  const orders = await Order.find({ sessionId, paidAt: { $ne: null } })
+  const orders = await Order.find({
+    sessionId,
+    $or: [{ paidAt: { $ne: null } }, { tabId: null }],
+  })
     .sort({ createdAt: -1 })
     .lean();
 
@@ -544,38 +803,75 @@ export async function getOrderForOrganizer(
 // Loads the operator's stand and asserts it is the active CASHIER stand — the
 // only operator allowed to read whole orders / unpaid order lists. PRODUCT-stand
 // operators act on individual items via advanceOrderItem, not whole orders.
-async function assertActiveCashierStand(operatorStandId: string) {
+// Loads the operator's stand and asserts it is a legitimate CASHIER stand for a
+// cashier-enabled event. `requireActiveEvent` gates the actions that must only
+// happen while the event is live (new cash payments, manual orders); reads and
+// refunds pass `false` so they keep working once the event is STOPPED.
+async function assertCashierStand(
+  operatorStandId: string,
+  options: { requireActiveEvent: boolean }
+) {
   const stand = await Stand.findOne({
     _id: operatorStandId,
+    standType: "CASHIER",
     deletedAt: null,
   }).lean();
-  if (!stand || stand.standType !== "CASHIER") throw new OrderNotFoundError();
+  if (!stand) throw new OrderNotFoundError();
+
   const event = await Event.findById(stand.eventId).lean();
-  if (!event || event.status !== "ACTIVE" || !event.cashierEnabled)
+  // DRAFT: the event hasn't gone live — no legitimate cashier activity yet,
+  // refund or otherwise.
+  if (!event || !event.cashierEnabled || event.status === "DRAFT") {
     throw new CashierDisabledError();
+  }
+  if (options.requireActiveEvent && event.status !== "ACTIVE") {
+    throw new CashierDisabledError();
+  }
   return stand;
 }
 
-// Single order read for the cashier collecting a cash payment — returns the full
-// order (every stand's items) for an order in the cashier's event.
+// Exported so the cashier unpaid-orders stream route can resolve the stand's
+// eventId once, for scoping the order.changed subscription.
+export async function assertActiveCashierStand(operatorStandId: string) {
+  return assertCashierStand(operatorStandId, { requireActiveEvent: true });
+}
+
+// Resolves the event a cashier operator token is scoped to. Used by the
+// refundable-orders route, which must keep working after the event is STOPPED.
+export async function resolveCashierEventId(
+  operatorStandId: string
+): Promise<string> {
+  const stand = await assertCashierStand(operatorStandId, {
+    requireActiveEvent: false,
+  });
+  return stand.eventId;
+}
+
+// Single order read for the cashier — used both for collecting a cash payment
+// and for viewing/refunding an order, so it must keep working after the event
+// is STOPPED. Returns the full order (every stand's items) for an order in the
+// cashier's event.
 export async function getOrderForCashier(
   orderId: string,
   operatorStandId: string
 ): Promise<OrderDoc> {
-  const stand = await assertActiveCashierStand(operatorStandId);
+  const stand = await assertCashierStand(operatorStandId, {
+    requireActiveEvent: false,
+  });
   const order = await Order.findById(orderId).lean();
   if (!order || stand.eventId !== order.eventId) throw new OrderNotFoundError();
   return order;
 }
 
-// Unpaid cash orders for the cashier's event (tabId: null = no digital payment tab).
-// Excludes in-flight Stripe/digital orders which carry a tabId. Restricted to the dedicated CASHIER stand.
-export async function listUnpaidOrdersForCashier(
-  operatorStandId: string
+// Unpaid cash orders for an event (tabId: null = no digital payment tab).
+// Excludes in-flight Stripe/digital orders which carry a tabId. The caller is
+// responsible for having asserted access to the event (the cashier stream
+// resolves the stand once and passes its eventId in, avoiding a repeat lookup).
+export function listUnpaidCashOrdersForEvent(
+  eventId: string
 ): Promise<OrderDoc[]> {
-  const stand = await assertActiveCashierStand(operatorStandId);
   return Order.find({
-    eventId: stand.eventId,
+    eventId,
     paidAt: null,
     tabId: null,
     deletedAt: null,
@@ -588,26 +884,31 @@ export async function cancelOrderForOrganizer(
   orderId: string,
   accountId: string
 ): Promise<OrderDoc> {
-  const order = await Order.findById(orderId);
+  const order = await Order.findById(orderId).lean();
   if (!order) throw new OrderNotFoundError();
   await verifyEventOwnership(order.eventId, accountId);
-
-  const now = new Date();
-  let changed = false;
-  for (const item of order.items) {
-    // Bulk organizer cancellation only cancels items that can still be stopped;
-    // explicit item cancellation below reports READY selections as conflicts.
-    if (item.readyAt || item.fulfilledAt || item.cancelledAt) continue;
-    item.cancelledAt = now;
-    changed = true;
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      const fresh = await Order.findById(orderId).session(dbSession);
+      if (!fresh) throw new OrderNotFoundError();
+      const items = fresh.items.filter(
+        (item) => !item.readyAt && !item.fulfilledAt && !item.cancelledAt
+      );
+      if (items.length === 0) {
+        throw new OrderItemStateError("Order has no cancellable items");
+      }
+      await releaseReservedStock(items, dbSession);
+      const now = new Date();
+      for (const item of items) item.cancelledAt = now;
+      await fresh.save({ session: dbSession });
+    });
+  } finally {
+    await dbSession.endSession();
   }
-
-  if (!changed) {
-    throw new OrderItemStateError("Order has no cancellable items");
-  }
-
-  await order.save();
-  return order;
+  const updated = await Order.findById(orderId).lean();
+  if (!updated) throw new OrderNotFoundError();
+  return updated;
 }
 
 export async function cancelOrderItemsForOrganizer(
@@ -615,28 +916,32 @@ export async function cancelOrderItemsForOrganizer(
   itemIds: string[],
   accountId: string
 ): Promise<OrderDoc> {
-  const order = await Order.findById(orderId);
+  const order = await Order.findById(orderId).lean();
   if (!order) throw new OrderNotFoundError();
   await verifyEventOwnership(order.eventId, accountId);
-
-  const itemsById = new Map(order.items.map((item) => [item._id, item]));
-  const items = itemIds.map((itemId) => {
-    const item = itemsById.get(itemId);
-    if (!item) throw new OrderItemNotFoundError();
-    return item;
-  });
-
-  for (const item of items) {
-    assertItemCancellable(item);
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      const fresh = await Order.findById(orderId).session(dbSession);
+      if (!fresh) throw new OrderNotFoundError();
+      const itemsById = new Map(fresh.items.map((item) => [item._id, item]));
+      const items = itemIds.map((targetItemId) => {
+        const item = itemsById.get(targetItemId);
+        if (!item) throw new OrderItemNotFoundError();
+        return item;
+      });
+      for (const item of items) assertItemCancellable(item);
+      await releaseReservedStock(items, dbSession);
+      const now = new Date();
+      for (const item of items) item.cancelledAt = now;
+      await fresh.save({ session: dbSession });
+    });
+  } finally {
+    await dbSession.endSession();
   }
-
-  const now = new Date();
-  for (const item of items) {
-    item.cancelledAt = now;
-  }
-
-  await order.save();
-  return order;
+  const updated = await Order.findById(orderId).lean();
+  if (!updated) throw new OrderNotFoundError();
+  return updated;
 }
 
 // Soft-delete an unpaid order. The document stays in MongoDB for analytics;
@@ -651,10 +956,43 @@ export async function deleteUnpaidOrder(
     eventId: stand.eventId,
     paidAt: null,
     deletedAt: null,
-  });
+  }).lean();
   if (!order) throw new OrderNotFoundError();
-  order.deletedAt = new Date();
-  await order.save();
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      const fresh = await Order.findOne({
+        _id: orderId,
+        eventId: stand.eventId,
+        paidAt: null,
+        deletedAt: null,
+      }).session(dbSession);
+      if (!fresh) throw new OrderNotFoundError();
+      const items = fresh.items.filter(
+        (item) => !item.startedAt && !item.cancelledAt
+      );
+      await releaseReservedStock(items, dbSession);
+      const now = new Date();
+      for (const item of items) item.cancelledAt = now;
+      fresh.deletedAt = now;
+      await fresh.save({ session: dbSession });
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
+export async function cancelUnpaidCashOrdersForEvent(
+  eventId: string
+): Promise<void> {
+  const now = new Date();
+  // tabId: null targets cash-intent orders only. Tab-backed orders are settled
+  // separately by finalizeEventTabs, which captures charges for ready items.
+  await Order.updateMany(
+    { eventId, paidAt: null, tabId: null, deletedAt: null },
+    { $set: { "items.$[item].cancelledAt": now } },
+    { arrayFilters: [{ "item.cancelledAt": null }] }
+  );
 }
 
 export async function advanceOrderItem(
@@ -663,49 +1001,69 @@ export async function advanceOrderItem(
   action: "start" | "ready" | "fulfill" | "cancel",
   operatorStandId: string
 ): Promise<OrderDoc> {
-  const order = await Order.findById(orderId);
-  if (!order) throw new OrderNotFoundError();
-  if (!order.paidAt) throw new OrderNotFoundError();
+  const dbSession = await mongoose.startSession();
+  try {
+    await dbSession.withTransaction(async () => {
+      const order = await Order.findById(orderId).session(dbSession);
+      if (!order || !order.paidAt) throw new OrderNotFoundError();
+      const item = order.items.find((candidate) => candidate._id === itemId);
+      if (!item) throw new OrderItemNotFoundError();
+      const product = await Product.findOne({
+        _id: item.productId,
+        standId: operatorStandId,
+      })
+        .session(dbSession)
+        .lean();
+      if (!product) throw new OrderItemNotFoundError();
 
-  const item = order.items.find((i) => i._id === itemId);
-  if (!item) throw new OrderItemNotFoundError();
-
-  const product = await Product.findOne({
-    _id: item.productId,
-    standId: operatorStandId,
-  }).lean();
-  if (!product) throw new OrderItemNotFoundError();
-
-  const state = getItemState(item);
-  const now = new Date();
-
-  switch (action) {
-    case "start":
-      if (state !== "PENDING")
-        throw new OrderItemStateError("Item must be PENDING to start");
-      item.startedAt = now;
-      // Instant products need no preparation: starting one marks it READY in
-      // the same step, skipping PREPARING.
-      if (product.instantProduct) item.readyAt = now;
-      break;
-    case "ready":
-      if (state !== "PREPARING")
-        throw new OrderItemStateError("Item must be PREPARING to mark ready");
-      item.readyAt = now;
-      break;
-    case "fulfill":
-      if (state !== "READY")
-        throw new OrderItemStateError("Item must be READY to fulfill");
-      item.fulfilledAt = now;
-      break;
-    case "cancel":
-      assertItemCancellable(item);
-      item.cancelledAt = now;
-      break;
+      // Operators may not advance items after completion: tabs are already settled
+      // and further state changes would produce billing inconsistencies.
+      const event = await Event.findById(order.eventId)
+        .session(dbSession)
+        .lean();
+      if (!event || event.status === "COMPLETED")
+        throw new EventNotActiveError();
+      const state = getItemState(item);
+      const now = new Date();
+      switch (action) {
+        case "start":
+          if (state !== "PENDING") {
+            throw new OrderItemStateError("Item must be PENDING to start");
+          }
+          item.startedAt = now;
+          if (item.inventoryState === "RESERVED") {
+            item.inventoryState = "CONSUMED";
+          }
+          if (product.instantProduct) item.readyAt = now;
+          break;
+        case "ready":
+          if (state !== "PREPARING") {
+            throw new OrderItemStateError(
+              "Item must be PREPARING to mark ready"
+            );
+          }
+          item.readyAt = now;
+          break;
+        case "fulfill":
+          if (state !== "READY") {
+            throw new OrderItemStateError("Item must be READY to fulfill");
+          }
+          item.fulfilledAt = now;
+          break;
+        case "cancel":
+          assertItemCancellable(item);
+          await releaseReservedStock([item], dbSession);
+          item.cancelledAt = now;
+          break;
+      }
+      await order.save({ session: dbSession });
+    });
+  } finally {
+    await dbSession.endSession();
   }
-
-  await order.save();
-  return order;
+  const updated = await Order.findById(orderId).lean();
+  if (!updated) throw new OrderNotFoundError();
+  return updated;
 }
 
 // Called by the payments module after confirming payment (cash or Stripe).
@@ -727,6 +1085,9 @@ export async function releaseInstantItems(orderId: string): Promise<void> {
     if (product?.instantProduct && !item.startedAt) {
       item.startedAt = now;
       item.readyAt = now;
+      if (item.inventoryState === "RESERVED") {
+        item.inventoryState = "CONSUMED";
+      }
       changed = true;
     }
   }

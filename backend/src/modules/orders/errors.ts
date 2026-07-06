@@ -5,6 +5,33 @@ export class OrderValidationError extends Error {
   }
 }
 
+export class OrderRequestDeletedError extends Error {
+  constructor() {
+    super("requestId belongs to a deleted order");
+    this.name = "OrderRequestDeletedError";
+  }
+}
+
+export class OrderRequestCancelledError extends Error {
+  constructor() {
+    super("requestId belongs to a cancelled order");
+    this.name = "OrderRequestCancelledError";
+  }
+}
+
+export interface StockShortage {
+  productId: string;
+  requested: number;
+  available: number;
+}
+
+export class InsufficientStockError extends Error {
+  constructor(public readonly shortages: StockShortage[]) {
+    super("Some products no longer have enough stock");
+    this.name = "InsufficientStockError";
+  }
+}
+
 export class OrderNotFoundError extends Error {
   constructor() {
     super("Order not found");
@@ -65,5 +92,14 @@ export class CashRefundExceedsTotalError extends Error {
   constructor() {
     super("Refund amount exceeds the order total");
     this.name = "CashRefundExceedsTotalError";
+  }
+}
+
+export class CashRefundInvalidItemsError extends Error {
+  constructor(
+    message = "Items must be cancelled and not already refunded to be refunded"
+  ) {
+    super(message);
+    this.name = "CashRefundInvalidItemsError";
   }
 }

@@ -12,10 +12,27 @@ export class ProductStateError extends Error {
   }
 }
 
+export class ProductStockChangedError extends Error {
+  constructor(
+    public readonly currentProductStock: number,
+    public readonly currentStockMode: "UNLIMITED" | "TRACKED"
+  ) {
+    super("Product stock changed while it was being edited");
+    this.name = "ProductStockChangedError";
+  }
+}
+
 export class ProductImageNotFoundError extends Error {
   constructor() {
     super("Product image not found");
     this.name = "ProductImageNotFoundError";
+  }
+}
+
+export class ProductLimitExceededError extends Error {
+  constructor() {
+    super("A stand can have at most 10 products");
+    this.name = "ProductLimitExceededError";
   }
 }
 

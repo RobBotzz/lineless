@@ -10,6 +10,7 @@ import {
   listEventProductsForOperator,
   getProductForOrganizer,
   updateProduct,
+  updateProductStock,
   softDeleteProduct,
   pauseProduct,
   resumeProduct,
@@ -23,15 +24,21 @@ import {
   ImageTooLargeError,
   InvalidImageError,
   ProductImageNotFoundError,
+  ProductLimitExceededError,
   ProductNotFoundError,
   ProductStateError,
+  ProductStockChangedError,
 } from "./errors";
 import {
   CashierStandProtectedError,
   StandNotFoundError,
 } from "../stands/errors";
-import { EventNotFoundError } from "../events/errors";
-import { createProductSchema, updateProductSchema } from "./types";
+import { EventNotFoundError, EventStateError } from "../events/errors";
+import {
+  createProductSchema,
+  updateProductSchema,
+  updateProductStockSchema,
+} from "./types";
 import {
   authOrganizer,
   authOrganizerOrOperator,
@@ -59,15 +66,25 @@ function controlAuth(req: Request): ProductControlAuth {
 }
 
 function handleError(err: unknown, res: Response): unknown {
+  if (err instanceof ProductStockChangedError) {
+    return res.status(409).json({
+      code: "STOCK_CHANGED",
+      error: err.message,
+      currentProductStock: err.currentProductStock,
+      currentStockMode: err.currentStockMode,
+    });
+  }
   if (err instanceof ProductNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof ProductStateError)
+    return res.status(409).json({ error: err.message });
+  if (err instanceof ProductLimitExceededError)
     return res.status(409).json({ error: err.message });
   if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
     return res.status(404).json({ error: err.message });
-  if (err instanceof ProductStateError)
+  if (err instanceof EventStateError)
     return res.status(409).json({ error: err.message });
   if (err instanceof CashierStandProtectedError)
     return res.status(403).json({ error: err.message });
@@ -224,6 +241,25 @@ productsRouter.patch(
   validateBody(updateProductSchema, async (req, res, data) => {
     try {
       const product = await updateProduct(
+        productId(req),
+        req.organizer!.accountId,
+        data
+      );
+      res.status(200).json(toProductResponse(product));
+    } catch (err) {
+      handleError(err, res);
+    }
+  })
+);
+
+// PATCH /products/:productId/stock — compare-and-set prevents an organizer's
+// stale absolute value from overwriting order reservations made in parallel.
+productsRouter.patch(
+  "/:productId/stock",
+  authOrganizer,
+  validateBody(updateProductStockSchema, async (req, res, data) => {
+    try {
+      const product = await updateProductStock(
         productId(req),
         req.organizer!.accountId,
         data

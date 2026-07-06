@@ -4,17 +4,26 @@ import { ProductImage, type ProductImageDoc } from "./image.model";
 import {
   InvalidImageError,
   ProductImageNotFoundError,
+  ProductLimitExceededError,
   ProductNotFoundError,
   ProductStateError,
+  ProductStockChangedError,
 } from "./errors";
-import type { CreateProductInput, UpdateProductInput } from "./types";
+import type {
+  CreateProductInput,
+  UpdateProductInput,
+  UpdateProductStockInput,
+} from "./types";
 import { config } from "../../config/config";
 import {
   sniffImageMimeType,
   toNodeBuffer,
   type UploadedImage,
 } from "../../shared/imageUpload";
-import { verifyStandOwnership } from "../stands/ownership";
+import {
+  verifyMutableStandOwnership,
+  verifyStandOwnership,
+} from "../stands/ownership";
 import { Stand } from "../stands/model";
 import {
   CashierStandProtectedError,
@@ -23,17 +32,29 @@ import {
 import {
   verifyActiveEvent,
   verifyEventOwnership,
+  verifyMutableOperableEvent,
   verifyOperableEvent,
 } from "../events/ownership";
 import { Event } from "../events/model";
+import {
+  effectiveStockMode,
+  effectiveUnlimitedStockModeFilter,
+} from "./stockMode";
 
 // The wire shape for a product: hides the raw rating aggregate and exposes the
 // computed average (null until the first review). The frontend Product type
 // declares `rating` and has no ratingSum/ratingCount.
 export function toProductResponse(p: ProductDoc) {
   const { ratingSum, ratingCount, ...rest } = p;
-  return { ...rest, rating: ratingCount > 0 ? ratingSum / ratingCount : null };
+  return {
+    ...rest,
+    stockMode: effectiveStockMode(p),
+    rating: ratingCount > 0 ? ratingSum / ratingCount : null,
+  };
 }
+
+// A stand's menu is meant to stay scannable on a phone screen.
+const MAX_PRODUCTS_PER_STAND = 10;
 
 async function productsForStand(standId: string): Promise<ProductDoc[]> {
   return Product.find({ standId, deletedAt: null })
@@ -66,17 +87,38 @@ async function getExistingProduct(productId: string): Promise<ProductDoc> {
   return product;
 }
 
+// Resolves the stand an operator token is scoped to and returns its event id.
+// A token for a different (or missing) stand is rejected as StandNotFoundError.
+async function resolveOperatorStandEventId(
+  standId: string,
+  operatorStandId: string
+): Promise<string> {
+  if (standId !== operatorStandId) {
+    throw new StandNotFoundError();
+  }
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
+  if (!stand) throw new StandNotFoundError();
+  return stand.eventId;
+}
+
+// Read access: an operator may view a stand's products in any lifecycle state,
+// including a completed event (wind-down/reconciliation).
 async function verifyStandAccessForOperator(
   standId: string,
   operatorStandId: string
 ): Promise<void> {
-  if (standId !== operatorStandId) {
-    throw new StandNotFoundError();
-  }
+  const eventId = await resolveOperatorStandEventId(standId, operatorStandId);
+  await verifyOperableEvent(eventId);
+}
 
-  const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
-  if (!stand) throw new StandNotFoundError();
-  await verifyOperableEvent(stand.eventId);
+// Mutation access: same as above but rejects a COMPLETED event, which is
+// terminal and immutable — operators can no longer pause/resume products on it.
+async function verifyStandMutationAccessForOperator(
+  standId: string,
+  operatorStandId: string
+): Promise<void> {
+  const eventId = await resolveOperatorStandEventId(standId, operatorStandId);
+  await verifyMutableOperableEvent(eventId);
 }
 
 async function verifyStandAccessForAttendee(
@@ -98,7 +140,7 @@ export async function createProduct(
   accountId: string,
   input: CreateProductInput
 ): Promise<ProductDoc> {
-  await verifyStandOwnership(standId, accountId);
+  await verifyMutableStandOwnership(standId, accountId);
   // The cashier stand carries no products of its own; it serves the event-wide
   // catalog. Reject product creation against it.
   const stand = await Stand.findOne({ _id: standId, deletedAt: null })
@@ -109,6 +151,13 @@ export async function createProduct(
       "Products cannot be created for the cashier stand"
     );
   }
+  const existingProductCount = await Product.countDocuments({
+    standId,
+    deletedAt: null,
+  });
+  if (existingProductCount >= MAX_PRODUCTS_PER_STAND) {
+    throw new ProductLimitExceededError();
+  }
   const product = await Product.create({
     standId,
     productName: input.productName,
@@ -116,6 +165,7 @@ export async function createProduct(
     priceIncludingTax: input.priceIncludingTax,
     taxRate: input.taxRate,
     instantProduct: input.instantProduct,
+    stockMode: input.stockMode,
     productStock: input.productStock,
   });
   return product.toObject();
@@ -195,9 +245,9 @@ async function findControllableProduct(
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
   if (auth.type === "organizer") {
-    await verifyStandOwnership(product.standId, auth.accountId);
+    await verifyMutableStandOwnership(product.standId, auth.accountId);
   } else {
-    await verifyStandAccessForOperator(product.standId, auth.standId);
+    await verifyStandMutationAccessForOperator(product.standId, auth.standId);
   }
   return product;
 }
@@ -245,7 +295,7 @@ export async function updateProduct(
 ): Promise<ProductDoc> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyStandOwnership(product.standId, accountId);
+  await verifyMutableStandOwnership(product.standId, accountId);
   if (patch.productName !== undefined) product.productName = patch.productName;
   if (patch.productDescription !== undefined) {
     product.productDescription = patch.productDescription;
@@ -256,10 +306,48 @@ export async function updateProduct(
   if (patch.instantProduct !== undefined) {
     product.instantProduct = patch.instantProduct;
   }
-  if (patch.productStock !== undefined)
-    product.productStock = patch.productStock;
   await product.save();
   return product.toObject();
+}
+
+export async function updateProductStock(
+  productId: string,
+  accountId: string,
+  input: UpdateProductStockInput
+): Promise<ProductDoc> {
+  const existing = await Product.findOne({ _id: productId, deletedAt: null })
+    .select("standId")
+    .lean();
+  if (!existing) throw new ProductNotFoundError();
+  await verifyMutableStandOwnership(existing.standId, accountId);
+
+  const product = await Product.findOneAndUpdate(
+    {
+      _id: productId,
+      deletedAt: null,
+      productStock: input.expectedProductStock,
+      ...(input.expectedStockMode === "TRACKED"
+        ? { stockMode: "TRACKED" }
+        : effectiveUnlimitedStockModeFilter()),
+    },
+    {
+      $set: {
+        stockMode: input.stockMode,
+        productStock: input.productStock,
+      },
+    },
+    { returnDocument: "after", runValidators: true }
+  ).lean();
+  if (product) return product;
+
+  const current = await Product.findOne({ _id: productId, deletedAt: null })
+    .select("stockMode productStock")
+    .lean();
+  if (!current) throw new ProductNotFoundError();
+  throw new ProductStockChangedError(
+    current.productStock,
+    effectiveStockMode(current)
+  );
 }
 
 // The URL stored on the product points back at our own serve endpoint, so the
@@ -276,7 +364,7 @@ export async function setProductImage(
 ): Promise<ProductDoc> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyStandOwnership(product.standId, accountId);
+  await verifyMutableStandOwnership(product.standId, accountId);
 
   const detectedType = sniffImageMimeType(file.buffer);
   if (
@@ -326,7 +414,7 @@ export async function deleteProductImage(
 ): Promise<ProductDoc> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyStandOwnership(product.standId, accountId);
+  await verifyMutableStandOwnership(product.standId, accountId);
 
   await ProductImage.deleteOne({ productId });
   product.productImageUrl = null;
@@ -340,7 +428,7 @@ export async function softDeleteProduct(
 ): Promise<void> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyStandOwnership(product.standId, accountId);
+  await verifyMutableStandOwnership(product.standId, accountId);
 
   // Soft-deleting the product and dropping its (heavy) image binary must be
   // atomic — otherwise a crash between the two writes leaves either an orphaned

@@ -40,7 +40,8 @@ Admin dashboard, event configuration, event control center, payout management.
 | ------ | --------------------------------- | ------------------------------------------------------- |
 | POST   | `/stands/{standId}/products`      | Create product                                          |
 | GET    | `/products/{productId}`           | Get single product                                      |
-| PATCH  | `/products/{productId}`           | Update product, including stock                         |
+| PATCH  | `/products/{productId}`           | Update product metadata                                 |
+| PATCH  | `/products/{productId}/stock`     | Compare-and-set product stock                           |
 | DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`)            |
 | POST   | `/products/{productId}/pause`     | Pause product                                           |
 | POST   | `/products/{productId}/resume`    | Resume product                                          |
@@ -63,11 +64,13 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Account / Payments
 
-| Method | URL                 | Description                                |
-| ------ | ------------------- | ------------------------------------------ |
-| GET    | `/account/payments` | Get payment overview / financial breakdown |
-| PATCH  | `/account`          | Update bank account details                |
-| POST   | `/account/payments` | Trigger payout                             |
+| Method | URL                               | Description                                                      |
+| ------ | --------------------------------- | ---------------------------------------------------------------- |
+| PATCH  | `/account/update`                 | Update bank account details (IBAN, holder name)                  |
+| GET    | `/payouts`                        | Payout overview: bank details, per-event summary, payout history |
+| GET    | `/payouts/{eventId}`              | Full payout breakdown for one event                              |
+| POST   | `/payouts/request`                | Record a payout request for the currently available revenue      |
+| POST   | `/events/{eventId}/tabs/checkout` | Charge all ready tabs for an event (bulk settle online payments) |
 
 ---
 
@@ -83,14 +86,25 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Orders
 
-| Method | URL                              | Description                                                           |
-| ------ | -------------------------------- | --------------------------------------------------------------------- |
-| POST   | `/orders`                        | Create order                                                          |
-| GET    | `/orders`                        | List attendee's own paid orders                                       |
-| GET    | `/orders/{orderId}`              | Get order details (confirmation / tracking view)                      |
-| GET    | `/orders/stream`                 | Attendee's live order feed over SSE — session-wide snapshot + updates |
-| POST   | `/orders/{orderId}/cancel`       | Cancel all open order items                                           |
-| POST   | `/orders/{orderId}/items/cancel` | Cancel selected order items                                           |
+| Method | URL                                              | Description                                                           |
+| ------ | ------------------------------------------------ | --------------------------------------------------------------------- |
+| POST   | `/orders`                                        | Idempotently create order and reserve available stock                 |
+| GET    | `/orders`                                        | List attendee's own paid orders                                       |
+| GET    | `/orders/{orderId}`                              | Get order details (confirmation / tracking view)                      |
+| GET    | `/orders/stream`                                 | Attendee's live order feed over SSE — session-wide snapshot + updates |
+| POST   | `/orders/{orderId}/cancel`                       | Organizer cancels all open order items                                |
+| POST   | `/orders/{orderId}/cancel-pending-authorization` | Idempotently abandons a card order awaiting additional authorization  |
+| POST   | `/orders/{orderId}/items/cancel`                 | Organizer cancels selected order items                                |
+
+`POST /orders` requires a client-generated UUID `requestId`. If stock is
+insufficient, the full request is rejected with `409 INSUFFICIENT_STOCK` and no
+partial reservation is kept. Replaying the `requestId` of a soft-deleted order
+returns `409 ORDER_REQUEST_DELETED`; replaying a fully cancelled or released
+order returns `409 ORDER_REQUEST_CANCELLED`. `PATCH /products/{productId}/stock` requires both
+`stockMode`, `productStock`, `expectedStockMode`, and `expectedProductStock`.
+`UNLIMITED` products are not reserved or included in low-stock alerts. Products
+without a stored `stockMode` are treated as `UNLIMITED` for backward
+compatibility. A stale expected mode or value returns `409 STOCK_CHANGED`.
 
 ### Payment
 
@@ -134,24 +148,22 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 
 ### Cashier (manual orders & cash payment)
 
-| Method | URL                                     | Description                                              |
-| ------ | --------------------------------------- | -------------------------------------------------------- |
-| POST   | `/orders`                               | Create manual order (cashier)                            |
-| POST   | `/orders/{orderId}/cash-payment`        | Confirm cash received — marks order paid, releases items |
-| POST   | `/cash-payments/{cashPaymentId}/refund` | Issue a (partial) cash refund against a paid order       |
+| Method | URL                              | Description                                              |
+| ------ | -------------------------------- | -------------------------------------------------------- |
+| POST   | `/orders`                        | Create manual order (cashier)                            |
+| POST   | `/orders/{orderId}/cash-payment` | Confirm cash received — marks order paid, releases items |
 
 ---
 
 ## Shared (used by multiple personas)
 
-| Method | URL                                     | Description                                                      | Used by                       |
-| ------ | --------------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
-| GET    | `/stands/{standId}`                     | Get single stand                                                 | Organizer, Operator, Customer |
-| GET    | `/events/{eventId}/stands`              | List stands of an event                                          | Organizer, Customer           |
-| GET    | `/stands/{standId}/products`            | List products of a stand (menu / catalog)                        | Organizer, Operator, Customer |
-| POST   | `/orders`                               | Create order (customer app and cashier both use this)            | Customer, Operator            |
-| POST   | `/orders/{orderId}/cash-payment`        | Cash payment (operator confirms, applies to customer orders too) | Operator                      |
-| POST   | `/cash-payments/{cashPaymentId}/refund` | Issue a partial or full cash refund                              | Operator                      |
+| Method | URL                              | Description                                                      | Used by                       |
+| ------ | -------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
+| GET    | `/stands/{standId}`              | Get single stand                                                 | Organizer, Operator, Customer |
+| GET    | `/events/{eventId}/stands`       | List stands of an event                                          | Organizer, Customer           |
+| GET    | `/stands/{standId}/products`     | List products of a stand (menu / catalog)                        | Organizer, Operator, Customer |
+| POST   | `/orders`                        | Create order (customer app and cashier both use this)            | Customer, Operator            |
+| POST   | `/orders/{orderId}/cash-payment` | Cash payment (operator confirms, applies to customer orders too) | Operator                      |
 
 > Note: `POST /orders` and `POST /orders/{orderId}/cash-payment` are listed under both
 > Customer/Operator sections for clarity but are the same endpoints.

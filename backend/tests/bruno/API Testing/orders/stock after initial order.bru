@@ -1,0 +1,33 @@
+meta {
+  name: stock after initial order
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://{{host}}:{{port}}/api/products/{{productId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{organizerToken}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setEnvVar("stockAfterInitialOrder", String(res.body.productStock));
+  }
+}
+
+tests {
+  test("stock is available after initial order", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.stockMode).to.equal("TRACKED");
+    expect(res.body.productStock).to.be.a("number");
+  });
+}
+
+settings {
+  encodeUrl: true
+}

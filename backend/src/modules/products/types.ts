@@ -10,6 +10,7 @@ const taxRate = z.number().int().min(0).max(10000);
 
 // Stock is a non-negative integer count of units.
 const stock = z.number().int().min(0).max(100_000);
+const stockMode = z.enum(["UNLIMITED", "TRACKED"]);
 
 export const createProductSchema = z.object({
   productName: z.string().min(1).max(100),
@@ -17,17 +18,27 @@ export const createProductSchema = z.object({
   priceIncludingTax: cents,
   taxRate: taxRate,
   instantProduct: z.boolean().default(false),
+  stockMode: stockMode.default("UNLIMITED"),
   productStock: stock.default(0),
 });
 
-export const updateProductSchema = z.object({
-  productName: z.string().min(1).max(100).optional(),
-  productDescription: z.string().min(1).max(1_000).nullable().optional(),
-  priceIncludingTax: cents.optional(),
-  taxRate: taxRate.optional(),
-  instantProduct: z.boolean().optional(),
-  productStock: stock.optional(),
+export const updateProductSchema = z
+  .object({
+    productName: z.string().min(1).max(100).optional(),
+    productDescription: z.string().min(1).max(1_000).nullable().optional(),
+    priceIncludingTax: cents.optional(),
+    taxRate: taxRate.optional(),
+    instantProduct: z.boolean().optional(),
+  })
+  .strict();
+
+export const updateProductStockSchema = z.object({
+  stockMode,
+  productStock: stock,
+  expectedStockMode: stockMode,
+  expectedProductStock: stock,
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+export type UpdateProductStockInput = z.infer<typeof updateProductStockSchema>;

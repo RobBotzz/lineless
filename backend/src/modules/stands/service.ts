@@ -25,9 +25,12 @@ import {
   assertSessionOwnsEvent,
   verifyActiveEvent,
   verifyEventOwnership,
+  verifyMutableEventOwnership,
   verifyOperableEvent,
+  verifyOperatorLinkEvent,
 } from "../events/ownership";
 import { Event } from "../events/model";
+import { EventNotActiveError, EventNotFoundError } from "../events/errors";
 
 // The password hash never leaves the service. We replace it with a
 // `requiresPassword` boolean so every stand response carries the one fact a
@@ -57,6 +60,19 @@ function strip(stand: StandDoc): SafeStand {
 async function isCashierEnabled(eventId: string): Promise<boolean> {
   const event = await Event.findById(eventId).lean();
   return event?.cashierEnabled ?? false;
+}
+
+// True when the stand's event is COMPLETED. A completed event is terminal, so
+// the operator auth guard uses this to end ALL operator access — once completed,
+// no operator-authenticated route works anymore. A missing stand/event returns
+// false; those are rejected by the normal auth/lookup paths, not here.
+export async function isStandEventCompleted(standId: string): Promise<boolean> {
+  const stand = await Stand.findOne({ _id: standId, deletedAt: null })
+    .select("eventId")
+    .lean();
+  if (!stand) return false;
+  const event = await Event.findById(stand.eventId).select("status").lean();
+  return event?.status === "COMPLETED";
 }
 
 // Stands that appear in the stand listings. The cashier stand is system-managed
@@ -114,7 +130,7 @@ export async function createStand(
   accountId: string,
   input: CreateStandInput
 ): Promise<SafeStand> {
-  await verifyEventOwnership(eventId, accountId);
+  await verifyMutableEventOwnership(eventId, accountId);
   const accessPasswordHash = input.accessPassword
     ? await hashPassword(input.accessPassword)
     : null;
@@ -143,7 +159,15 @@ export async function listStandsForAttendee(
   sessionEventId: string
 ): Promise<SafeStand[]> {
   assertSessionOwnsEvent(eventId, sessionEventId);
-  await verifyActiveEvent(eventId);
+  // COMPLETED is intentionally excluded: once an event is completed, no new
+  // orders can be placed, so the stand list is no longer useful to guests.
+  // The frontend gate for COMPLETED replaces the product page for this case.
+  const event = await Event.findOne({
+    _id: eventId,
+    status: { $in: ["ACTIVE", "STOPPED"] },
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
   const stands = await Stand.find(
     listableStandFilter(eventId, { hidePausedProductStands: true })
   )
@@ -155,7 +179,9 @@ export async function listStandsForAttendee(
 // Loads the event's single cashier stand, but only when the cashier is enabled.
 // The cashier stand is hidden from every stand listing, so this is the dedicated
 // "reach it directly" path the listings refer to — used by the operator
-// onboarding (event link) to discover the stand it can log into.
+// onboarding (event link) to discover the stand it can log into, by the
+// organizer, and by attendees (e.g. to show the cashier's location on the
+// pending-payment page).
 async function findEnabledCashierStand(eventId: string): Promise<SafeStand> {
   if (!(await isCashierEnabled(eventId))) throw new CashierStandDisabledError();
   const stand = await Stand.findOne({
@@ -178,7 +204,16 @@ export async function getCashierStandForOrganizer(
 export async function getCashierStandForEventLink(
   eventId: string
 ): Promise<SafeStand> {
-  await verifyOperableEvent(eventId);
+  await verifyOperatorLinkEvent(eventId);
+  return findEnabledCashierStand(eventId);
+}
+
+export async function getCashierStandForAttendee(
+  eventId: string,
+  sessionEventId: string
+): Promise<SafeStand> {
+  assertSessionOwnsEvent(eventId, sessionEventId);
+  await verifyActiveEvent(eventId);
   return findEnabledCashierStand(eventId);
 }
 
@@ -234,7 +269,7 @@ export async function updateStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
   if (patch.standName !== undefined) stand.standName = patch.standName;
   if (patch.location) {
     stand.location.locationName = patch.location.locationName;
@@ -257,7 +292,7 @@ export async function pauseStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
 
   stand.standStatus = "PAUSED";
   await stand.save();
@@ -270,7 +305,7 @@ export async function resumeStand(
 ): Promise<SafeStand> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
 
   stand.standStatus = "LIVE";
   await stand.save();
@@ -280,7 +315,7 @@ export async function resumeStand(
 export async function listStandsForEventLink(
   eventId: string
 ): Promise<SafeStand[]> {
-  await verifyOperableEvent(eventId);
+  await verifyOperatorLinkEvent(eventId);
   const stands = await Stand.find(listableStandFilter(eventId))
     .sort({ createdAt: 1 })
     .lean();
@@ -313,6 +348,10 @@ export async function loginOperator(
     throw new OperatorInvalidCredentialsError();
   }
 
+  if (event.status === "COMPLETED") {
+    throw new EventNotActiveError(event.status, event.branding);
+  }
+
   // A disabled cashier stand cannot be operated, even with valid credentials.
   if (stand.standType === "CASHIER" && !event.cashierEnabled) {
     throw new CashierStandDisabledError();
@@ -341,10 +380,11 @@ export async function loginOperator(
 }
 
 // Re-checks that a stand is still operable: it exists, its event still exists,
-// and it is not a disabled cashier. The event status is intentionally not
-// restricted — operators may work a stand in any lifecycle state, including a
-// stopped event. Used on refresh, where the refresh token itself is the proof
-// of identity (no password/access key re-entry).
+// and it is not a disabled cashier, and its event is not COMPLETED. Operators
+// may still refresh while a STOPPED event winds down, but a completed event is
+// terminal — refreshing is refused so an existing session cannot outlive it.
+// Used on refresh, where the refresh token itself is the proof of identity (no
+// password/access key re-entry).
 async function assertStandOperable(standId: string): Promise<void> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
   if (!stand) {
@@ -356,6 +396,10 @@ async function assertStandOperable(standId: string): Promise<void> {
     deletedAt: null,
   }).lean();
   if (!event) {
+    throw new RefreshTokenInvalidError();
+  }
+
+  if (event.status === "COMPLETED") {
     throw new RefreshTokenInvalidError();
   }
 
@@ -396,7 +440,7 @@ export async function softDeleteStand(
 ): Promise<void> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null });
   if (!stand) throw new StandNotFoundError();
-  await verifyEventOwnership(stand.eventId, accountId);
+  await verifyMutableEventOwnership(stand.eventId, accountId);
   // The cashier stand is system-managed and cannot be deleted by a user.
   if (stand.standType === "CASHIER") {
     throw new CashierStandProtectedError("The cashier stand cannot be deleted");
