@@ -1,5 +1,9 @@
 import { Event } from "./model";
-import { EventNotFoundError, EventStateError } from "./errors";
+import {
+  EventNotActiveError,
+  EventNotFoundError,
+  EventStateError,
+} from "./errors";
 
 // Guards that `eventId` exists and belongs to `accountId`. A non-existent OR
 // a not-owned event both surface as EventNotFoundError — we deliberately do not
@@ -65,6 +69,17 @@ export async function verifyOperableEvent(eventId: string): Promise<void> {
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
+}
+
+export async function verifyOperatorLinkEvent(eventId: string): Promise<void> {
+  const event = await Event.findOne({
+    _id: eventId,
+    deletedAt: null,
+  }).lean();
+  if (!event) throw new EventNotFoundError();
+  if (event.status === "COMPLETED") {
+    throw new EventNotActiveError(event.status, event.branding);
+  }
 }
 
 // Like verifyOperableEvent, but rejects a COMPLETED event. Operators may still

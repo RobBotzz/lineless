@@ -366,6 +366,7 @@ interface ItemSpec {
   state: ItemState;
   comment?: string;
   rating?: { stars: number; comment: string | null };
+  refunded?: boolean; // a cancelled item whose cash refund was already issued
 }
 
 interface OrderSpec {
@@ -375,7 +376,6 @@ interface OrderSpec {
   tab?: string; // tab slug for card orders
   createdMinsAgo: number;
   items: ItemSpec[];
-  refundCents?: number; // a cash refund already issued on this order
   unpaid?: boolean; // cash order still awaiting the cashier to confirm payment
 }
 
@@ -466,6 +466,13 @@ function buildItem(
     ratingAgg.set(product._id, agg);
   }
 
+  // A refunded item is a cancelled item whose cash refund was already issued;
+  // it carries refundedAt (the refund record lists it via refundedItemIds).
+  const refundedAt =
+    spec.refunded && cancelledAt
+      ? new Date(cancelledAt.getTime() + 12 * 60_000)
+      : null;
+
   return {
     _id: id(`item:${orderId}:${product._id}:${spec.state}`),
     productId: product._id,
@@ -474,7 +481,7 @@ function buildItem(
     readyAt,
     fulfilledAt,
     cancelledAt,
-    refundedAt: null,
+    refundedAt,
     inventoryState,
     priceIncludingTaxAtPurchase: product.priceCents,
     taxRateAtPurchase: product.taxRateBp,
@@ -504,12 +511,19 @@ function buildOrder(spec: OrderSpec): void {
   // unpaid (paidAt null, no cashPayment) — their stock is still reserved.
   const paidAt = spec.unpaid ? null : createdAt;
 
+  // Item-level cash refund: the refunded (cancelled) items carry refundedAt, and
+  // the refund record lists them via refundedItemIds with the summed amount.
+  const refundedItems = items.filter((_, idx) => spec.items[idx]?.refunded);
   const cashRefunds =
-    spec.refundCents && spec.refundCents > 0
+    refundedItems.length > 0
       ? [
           {
             _id: id(`refund:${spec.key}`),
-            amountCents: spec.refundCents,
+            amountCents: refundedItems.reduce(
+              (sum, item) => sum + item.priceIncludingTaxAtPurchase,
+              0
+            ),
+            refundedItemIds: refundedItems.map((item) => item._id),
             createdAt: new Date(createdAt.getTime() + 20 * 60_000),
           },
         ]
@@ -747,9 +761,8 @@ const ORDERS: OrderSpec[] = [
     createdMinsAgo: 110,
     items: [
       { product: "bratwurst", state: "fulfilled" },
-      { product: "augustiner-helles", state: "cancelled" },
+      { product: "augustiner-helles", state: "cancelled", refunded: true },
     ],
-    refundCents: 450, // the cancelled Augustiner Helles was refunded
   },
   {
     key: "c14",
@@ -757,10 +770,9 @@ const ORDERS: OrderSpec[] = [
     attendee: "gabriel",
     createdMinsAgo: 95,
     items: [
-      { product: "steak-sandwich", state: "cancelled" },
+      { product: "steak-sandwich", state: "cancelled", refunded: true },
       { product: "grilled-corn", state: "fulfilled" },
     ],
-    refundCents: 690, // the cancelled steak sandwich was refunded
   },
   // --- A few more everyday cash orders for volume ---
   {
@@ -900,9 +912,8 @@ const ORDERS: OrderSpec[] = [
     createdMinsAgo: 88,
     items: [
       { product: "bratwurst", state: "fulfilled" },
-      { product: "veggie-burger", state: "cancelled" },
+      { product: "veggie-burger", state: "cancelled", refunded: true },
     ],
-    refundCents: 590, // cancelled veggie burger refunded
   },
   {
     key: "c22",
@@ -910,10 +921,9 @@ const ORDERS: OrderSpec[] = [
     attendee: null,
     createdMinsAgo: 66,
     items: [
-      { product: "augustiner-helles", state: "cancelled" },
+      { product: "augustiner-helles", state: "cancelled", refunded: true },
       { product: "augustiner-helles", state: "fulfilled" },
     ],
-    refundCents: 450, // one cancelled Augustiner Helles refunded
   },
   // --- More refund-ready cash orders (cancelled, not yet refunded) ---
   {
@@ -1208,8 +1218,9 @@ async function main(): Promise<void> {
     (o) =>
       isCashOrder(o) &&
       o["paidAt"] != null &&
-      (o["cashRefunds"] as unknown[]).length === 0 &&
-      (o["items"] as OrderItemDoc[]).some((i) => i.cancelledAt != null)
+      (o["items"] as OrderItemDoc[]).some(
+        (i) => i.cancelledAt != null && i.refundedAt == null
+      )
   ).length;
   const refunded = orderDocs.filter(
     (o) => (o["cashRefunds"] as unknown[]).length > 0
