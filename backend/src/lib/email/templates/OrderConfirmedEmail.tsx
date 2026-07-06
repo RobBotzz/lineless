@@ -85,7 +85,7 @@ export const OrderConfirmedEmail: EmailTemplate = ({
     <Html lang="en">
       <Head />
       <Preview>
-        Order {orderNumber} is paid — your pickup code is {pickupCode}
+        Order {orderNumber} confirmed — your pickup code is {pickupCode}
       </Preview>
       <Body style={body}>
         <Container style={container}>
@@ -94,10 +94,10 @@ export const OrderConfirmedEmail: EmailTemplate = ({
           </Section>
 
           <Section style={confirmedCard}>
-            <Text style={confirmedTitle}>Payment Confirmed</Text>
+            <Text style={confirmedTitle}>Order Confirmed</Text>
             <Text style={confirmedSubtext}>
-              Your order at {eventName} is paid and will be prepared. Keep your
-              pickup code ready when you collect it.
+              Your order at {eventName} is confirmed and will be prepared. Keep
+              your pickup code ready when you collect it.
             </Text>
           </Section>
 

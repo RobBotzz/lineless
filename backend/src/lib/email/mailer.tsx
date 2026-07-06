@@ -120,9 +120,6 @@ export interface SendOrderConfirmedEmailParams {
   trackOrderUrl: string;
 }
 
-// "Order paid" confirmation with the now-available pickup code. Sent for card
-// orders right away and for cash orders once the cashier confirms payment.
-// Throws on a Resend error so callers can decide how to handle failures.
 export async function sendOrderConfirmedEmail({
   to,
   orderNumber,
