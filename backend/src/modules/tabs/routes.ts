@@ -21,9 +21,17 @@ const tabsRouter = Router();
 // event is derived from the session; no event is taken from the request body.
 tabsRouter.post("/", authAttendee, async (req: Request, res: Response) => {
   try {
+    const rawFirstOrder = Number(
+      (req.body as { firstOrderCents?: unknown })?.firstOrderCents
+    );
+    const firstOrderCents =
+      Number.isFinite(rawFirstOrder) && rawFirstOrder > 0
+        ? Math.floor(rawFirstOrder)
+        : 0;
     const result = await createTab(
       req.attendee!.sessionId,
-      req.attendee!.eventId
+      req.attendee!.eventId,
+      firstOrderCents
     );
     return res.status(201).json(result);
   } catch (err) {
@@ -37,7 +45,8 @@ tabsRouter.get("/:tabId", authAttendee, async (req: Request, res: Response) => {
   try {
     const tab = await getTabForAttendee(
       req.params["tabId"] as string,
-      req.attendee!.sessionId
+      req.attendee!.sessionId,
+      req.attendee!.eventId
     );
     return res.status(200).json(tab);
   } catch (err) {

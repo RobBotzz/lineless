@@ -11,14 +11,6 @@ import { Product } from "../products/model";
 import { ProductNotFoundError } from "../products/errors";
 import { Event } from "../events/model";
 
-type ReviewResponse = Pick<
-  RatingDoc,
-  "_id" | "stars" | "comment" | "createdAt"
->;
-
-const DEFAULT_LIMIT = 10;
-const MAX_LIMIT = 50;
-
 function isDuplicateKeyError(err: unknown): boolean {
   const code = (err as { code?: number; cause?: { code?: number } } | null)
     ?.code;
@@ -77,30 +69,16 @@ export async function createReview(
   }
 }
 
-export async function listReviews(
-  productId: string,
-  eventId: string,
-  limit = DEFAULT_LIMIT,
-  skip = 0
-): Promise<{ reviews: ReviewResponse[]; total: number }> {
-  const product = await Product.findById(productId).lean();
-  if (!product) throw new ProductNotFoundError();
+type ExistingRating = Pick<RatingDoc, "productId" | "stars" | "comment">;
 
-  const event = await Event.findById(eventId).lean();
-  if (!event?.ratingsEnabled) throw new RatingsDisabledError();
-
-  const cappedLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
-  const safeSkip = Math.max(skip, 0);
-
-  const [reviews, total] = await Promise.all([
-    Rating.find({ productId, eventId })
-      .sort({ createdAt: -1 })
-      .skip(safeSkip)
-      .limit(cappedLimit)
-      .select("stars comment createdAt")
-      .lean(),
-    Rating.countDocuments({ productId, eventId }),
-  ]);
-
-  return { reviews, total };
+export async function getMyOrderRatings(
+  orderId: string,
+  sessionId: string
+): Promise<{ ratings: ExistingRating[] }> {
+  // Validates ownership — throws OrderNotFoundError if the order isn't this session's.
+  await getOrderForAttendee(orderId, sessionId);
+  const ratings = await Rating.find({ orderId, sessionId })
+    .select("productId stars comment")
+    .lean();
+  return { ratings };
 }

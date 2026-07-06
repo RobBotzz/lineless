@@ -8,6 +8,12 @@ export type TabStatus =
   | "PAID"
   | "FAILED";
 
+// Tab lifetime policy, measured from when the tab is opened (createdAt). A tab
+// stops accepting new orders first, then is auto-charged a while later — both
+// well inside Stripe's ~7-day authorization validity.
+export const TAB_ORDER_FREEZE_AFTER_MS = 36 * 60 * 60 * 1000;
+export const TAB_AUTO_CHARGE_AFTER_MS = 48 * 60 * 60 * 1000;
+
 export interface TabDoc {
   _id: string;
   /** Attendee sessionId that owns this tab. */
@@ -37,5 +43,8 @@ const TabSchema = new Schema<TabDoc>(
   },
   { timestamps: true }
 );
+
+// The auto-charge sweep queries open tabs by age (status + createdAt).
+TabSchema.index({ status: 1, createdAt: 1 });
 
 export const Tab = model<TabDoc>("Tab", TabSchema);

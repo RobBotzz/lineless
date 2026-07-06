@@ -158,7 +158,7 @@ async function loadEventControlCenterContext(
     Event.findOne({ _id: eventId, deletedAt: null })
       .select("createdAt startedAt")
       .lean(),
-    Stand.find({ eventId, deletedAt: null })
+    Stand.find({ eventId, deletedAt: null, standType: { $ne: "CASHIER" } })
       .select("_id standName standStatus")
       .lean<StandSnapshot[]>(),
   ]);
@@ -269,6 +269,7 @@ async function loadProductStockAlertsForEvent(
 ): Promise<ProductStockAlert[]> {
   const products = await Product.find({
     standId: { $in: standIds },
+    stockMode: "TRACKED",
     productStock: { $lte: stockAlertThreshold },
     productStatus: { $in: ["LIVE", "PAUSED"] },
     deletedAt: null,

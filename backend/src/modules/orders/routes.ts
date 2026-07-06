@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { validateBody } from "../../middleware/validate";
 import {
   advanceOrderItem,
+  assertActiveCashierStand,
   cancelOrderForOrganizer,
   cancelOrderItemsForOrganizer,
   cancelPendingOrder,
@@ -11,9 +12,11 @@ import {
   getOrderForAttendee,
   getOrderForCashier,
   getOrderForOrganizer,
-  issueCashRefund,
   listOrdersForAttendee,
-  listUnpaidOrdersForCashier,
+  listRefundableCashOrders,
+  listUnpaidCashOrdersForEvent,
+  refundCashOrderItems,
+  resolveCashierEventId,
   submitOrder,
 } from "./service";
 import { SseConnection } from "../../lib/sse";
@@ -22,11 +25,15 @@ import {
   CashierDisabledError,
   CashPaymentNotFoundError,
   CashRefundExceedsTotalError,
+  CashRefundInvalidItemsError,
   EventNotActiveError,
+  InsufficientStockError,
   OrderAlreadyPaidError,
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
+  OrderRequestCancelledError,
+  OrderRequestDeletedError,
   OrderValidationError,
   StandNotFoundError,
 } from "./errors";
@@ -35,7 +42,7 @@ import {
   cancelOrderItemsSchema,
   confirmCashPaymentSchema,
   createOrderSchema,
-  issueCashRefundSchema,
+  refundByItemsSchema,
 } from "./types";
 import {
   authAttendee,
@@ -55,6 +62,13 @@ function itemId(req: Request): string {
 }
 
 function handleError(err: unknown, res: Response): unknown {
+  if (err instanceof InsufficientStockError) {
+    return res.status(409).json({
+      code: "INSUFFICIENT_STOCK",
+      error: err.message,
+      shortages: err.shortages,
+    });
+  }
   if (err instanceof StandNotFoundError)
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotFoundError)
@@ -65,6 +79,16 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof EventNotActiveError)
     return res.status(409).json({ error: err.message });
+  if (err instanceof OrderRequestDeletedError)
+    return res.status(409).json({
+      code: "ORDER_REQUEST_DELETED",
+      error: err.message,
+    });
+  if (err instanceof OrderRequestCancelledError)
+    return res.status(409).json({
+      code: "ORDER_REQUEST_CANCELLED",
+      error: err.message,
+    });
   if (err instanceof OrderValidationError)
     return res.status(400).json({ error: err.message });
   if (err instanceof CashierDisabledError)
@@ -77,6 +101,8 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(404).json({ error: err.message });
   if (err instanceof CashRefundExceedsTotalError)
     return res.status(422).json({ error: err.message });
+  if (err instanceof CashRefundInvalidItemsError)
+    return res.status(409).json({ error: err.message });
   console.error("Orders error:", err);
   return res.status(500).json({ error: "Internal server error" });
 }
@@ -94,7 +120,7 @@ ordersRouter.post(
   validateBody(createOrderSchema, async (req, res, data) => {
     try {
       const sessionId = req.attendee?.sessionId ?? null;
-      const result = await submitOrder(sessionId, data);
+      const result = await submitOrder(sessionId, data, req.operator?.standId);
       if (result.status === 402) {
         return res
           .status(402)
@@ -126,9 +152,30 @@ ordersRouter.post(
   })
 );
 
+// POST /orders/:orderId/refund — cashier refunds specific cancelled items of a
+// cash-paid order. Item-level so an item can never be refunded twice.
+ordersRouter.post(
+  "/:orderId/refund",
+  authOrganizerOrOperator,
+  validateBody(refundByItemsSchema, async (req, res, data) => {
+    try {
+      const order = await refundCashOrderItems(
+        orderId(req),
+        data.itemIds,
+        req.organizer
+          ? { organizerAccountId: req.organizer.accountId }
+          : { operatorStandId: req.operator!.standId }
+      );
+      return res.status(201).json(order);
+    } catch (err) {
+      return handleError(err, res);
+    }
+  })
+);
+
 // POST /orders/:orderId/cancel-pending-authorization — attendee abandons an
 // order still awaiting authorization (cancels its gated items and releases any
-// backing hold).
+// backing hold). Repeating a completed cleanup is idempotent.
 ordersRouter.post(
   "/:orderId/cancel-pending-authorization",
   authAttendee,
@@ -145,14 +192,49 @@ ordersRouter.post(
   }
 );
 
-// GET /orders/cashier — unpaid orders for the cashier's event, derived from the
-// operator token. Registered before /:orderId so "cashier" is not read as an id.
+// GET /orders/cashier/stream — same unpaid-orders list, pushed live over SSE on
+// every relevant order.changed event (new cash order, cashier cancellation, or
+// payment confirmation removing an order from the list). Mirrors the shape of
+// /operator/board/stream.
 ordersRouter.get(
-  "/cashier",
+  "/cashier/stream",
+  authOperator,
+  async (req: Request, res: Response) => {
+    const standId = req.operator!.standId;
+    try {
+      // Resolve the stand before the SSE headers go out, so a bad/disabled
+      // stand still maps to a clean error instead of a half-open stream.
+      const stand = await assertActiveCashierStand(standId);
+      const initial = await listUnpaidCashOrdersForEvent(stand.eventId);
+
+      const sse = new SseConnection(res);
+      sse.send("snapshot", initial);
+
+      const unsubscribe = subscribe("order.changed", (order) => {
+        if (order.eventId !== stand.eventId || order.tabId !== null) return;
+        listUnpaidCashOrdersForEvent(stand.eventId)
+          .then((orders) => sse.send("snapshot", orders))
+          .catch(() => {
+            // stream errors are non-fatal; the client recovers on reconnect
+          });
+      });
+
+      sse.onClose(() => unsubscribe());
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// GET /orders/cashier/refundable — cash-paid orders for the cashier's event that
+// still have at least one refundable (cancelled, not-yet-refunded) item.
+ordersRouter.get(
+  "/cashier/refundable",
   authOperator,
   async (req: Request, res: Response) => {
     try {
-      const orders = await listUnpaidOrdersForCashier(req.operator!.standId);
+      const eventId = await resolveCashierEventId(req.operator!.standId);
+      const orders = await listRefundableCashOrders(eventId);
       return res.status(200).json(orders);
     } catch (err) {
       return handleError(err, res);
@@ -183,7 +265,12 @@ ordersRouter.get(
       sse.send("snapshot", initial);
 
       const unsubscribe = subscribe("order.changed", (order) => {
-        if (order.sessionId !== sessionId || !order.paidAt) return;
+        if (order.sessionId !== sessionId) return;
+        // Cash orders (tabId null) stream regardless of paidAt, so the
+        // pending-payment page sees a cashier confirmation or cancellation
+        // live. Unpaid card orders (mid-Stripe-authorization) are still
+        // dropped — the attendee UI doesn't act on that noise.
+        if (!order.paidAt && order.tabId !== null) return;
         void enrichOrderForAttendee(order)
           .then((enriched) => sse.send("order", enriched))
           .catch(() => {
@@ -307,27 +394,4 @@ ordersRouter.delete(
       return handleError(err, res);
     }
   }
-);
-
-// Cash refunds are addressed by the embedded cashPayment id, so they live on a
-// separate router mounted at /api/cash-payments while sharing the orders logic.
-export const cashPaymentsRouter = Router();
-
-cashPaymentsRouter.post(
-  "/:cashPaymentId/refund",
-  authOrganizerOrOperator,
-  validateBody(issueCashRefundSchema, async (req, res, data) => {
-    try {
-      const refund = await issueCashRefund(
-        req.params["cashPaymentId"] as string,
-        data,
-        req.organizer
-          ? { organizerAccountId: req.organizer.accountId }
-          : { operatorStandId: req.operator!.standId }
-      );
-      return res.status(201).json(refund);
-    } catch (err) {
-      return handleError(err, res);
-    }
-  })
 );

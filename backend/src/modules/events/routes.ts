@@ -4,10 +4,13 @@ import {
   createEvent,
   listEvents,
   getEventForAttendee,
+  getEventForOperatorLink,
   getEventForOrganizer,
+  getPublicEventInfo,
   updateEvent,
   startEvent,
   stopEvent,
+  completeEvent,
   rotateOperatorAccessKey,
   softDeleteEvent,
   setEventLogo,
@@ -25,7 +28,7 @@ import { createEventSchema, updateEventSchema } from "./types";
 import { checkoutTabsForOrganizerEvent } from "../tabs/service";
 import {
   authOrganizer,
-  authOrganizerOrAttendee,
+  authOrganizerOrAttendeeOrEventLink,
 } from "../../middleware/auth/guards";
 import { uploadSingleImage } from "../../shared/imageUpload";
 
@@ -58,15 +61,41 @@ function handleError(err: unknown, res: Response): unknown {
 // Accepts a single multipart "image" field; maps multer errors via handleError.
 const uploadEventLogo = uploadSingleImage("image", handleError);
 
-// GET /events/:eventId — readable by organizer and attendee (session)
+// GET /events/:eventId/public-info — no auth; returns basic event info for gate
+// pages (coming soon, closed, finished) before the attendee has a session.
 eventsRouter.get(
-  "/:eventId",
-  authOrganizerOrAttendee,
+  "/:eventId/public-info",
   async (req: Request, res: Response) => {
     try {
-      const event = req.organizer
-        ? await getEventForOrganizer(eventId(req), req.organizer.accountId)
-        : await getEventForAttendee(eventId(req), req.attendee!.eventId);
+      const info = await getPublicEventInfo(eventId(req));
+      res.status(200).json(info);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+// GET /events/:eventId — readable by organizer, attendee (session), and
+// operator (event-scoped access key, e.g. the cashier).
+eventsRouter.get(
+  "/:eventId",
+  authOrganizerOrAttendeeOrEventLink,
+  async (req: Request, res: Response) => {
+    try {
+      let event;
+      if (req.organizer) {
+        event = await getEventForOrganizer(
+          eventId(req),
+          req.organizer.accountId
+        );
+      } else if (req.attendee) {
+        event = await getEventForAttendee(eventId(req), req.attendee.eventId);
+      } else {
+        event = await getEventForOperatorLink(
+          eventId(req),
+          req.operatorLink!.eventId
+        );
+      }
       res.status(200).json(event);
     } catch (err) {
       handleError(err, res);
@@ -132,6 +161,19 @@ eventsRouter.post(
   async (req: Request, res: Response) => {
     try {
       const event = await stopEvent(eventId(req), req.organizer!.accountId);
+      res.status(200).json(event);
+    } catch (err) {
+      handleError(err, res);
+    }
+  }
+);
+
+eventsRouter.post(
+  "/:eventId/complete",
+  authOrganizer,
+  async (req: Request, res: Response) => {
+    try {
+      const event = await completeEvent(eventId(req), req.organizer!.accountId);
       res.status(200).json(event);
     } catch (err) {
       handleError(err, res);

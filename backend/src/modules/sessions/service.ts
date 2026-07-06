@@ -69,9 +69,14 @@ export async function validateAttendeeSession(
     throw new AttendeeSessionInvalidError();
   }
 
+  // Session stays valid once the event has gone live — guests keep their session
+  // after an event is stopped so they can still view orders and receive fulfillments.
+  // A DRAFT event was never open to attendees, so its sessions must never validate;
+  // enforcing that here (not just at creation) keeps the invariant local to this
+  // check rather than relying on createAttendeeSession's ACTIVE gate alone.
   const event = await Event.findOne({
     _id: session.eventId,
-    status: "ACTIVE",
+    status: { $ne: "DRAFT" },
     deletedAt: null,
   }).lean();
   if (!event) {

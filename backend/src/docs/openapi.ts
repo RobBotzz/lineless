@@ -6,14 +6,21 @@ import { eventStandsRouter, standsRouter } from "../modules/stands/routes";
 import {
   standProductsRouter,
   productsRouter,
+  eventProductsRouter,
 } from "../modules/products/routes";
 import { ordersRouter } from "../modules/orders/routes";
 import sessionsRouter from "../modules/sessions/routes";
 import tabsRouter from "../modules/tabs/routes";
 import { eventControlCenterRouter } from "../modules/eventControlCenter/routes";
+import payoutsRouter from "../modules/payouts/routes";
+import { orderRatingsRouter } from "../modules/ratings/routes";
+import { operatorRouter } from "../modules/operator/routes";
+import stripeWebhookRouter from "../modules/payments/routes";
 import { pickupBoardRouter } from "../modules/pickupBoard/routes";
 import {
   authAttendee,
+  authOperator,
+  authOperatorOrAttendee,
   authOrganizer,
   authOrganizerOrAttendee,
   authOrganizerOrAttendeeOrEventLink,
@@ -56,9 +63,26 @@ const MOUNTS: { base: string; router: Router; tag: string }[] = [
     router: standProductsRouter,
     tag: "Products",
   },
+  {
+    base: "/api/events/:eventId/products",
+    router: eventProductsRouter,
+    tag: "Products",
+  },
   { base: "/api/products", router: productsRouter, tag: "Products" },
+  {
+    base: "/api/orders/:orderId/products/:productId/ratings",
+    router: orderRatingsRouter,
+    tag: "Ratings",
+  },
   { base: "/api/orders", router: ordersRouter, tag: "Orders" },
   { base: "/api/tabs", router: tabsRouter, tag: "Tabs" },
+  { base: "/api/payouts", router: payoutsRouter, tag: "Payouts" },
+  { base: "/api/operator", router: operatorRouter, tag: "Operator" },
+  {
+    base: "/webhooks/stripe",
+    router: stripeWebhookRouter,
+    tag: "Payments",
+  },
 ];
 
 // Maps an auth middleware to the OpenAPI security requirement it enforces.
@@ -66,6 +90,8 @@ type SecurityRequirement = Record<string, string[]>;
 const AUTH = new Map<unknown, SecurityRequirement[]>([
   [authOrganizer, [{ organizerAuth: [] }]],
   [authAttendee, [{ attendeeSessionAuth: [] }]],
+  [authOperator, [{ standAuth: [] }]],
+  [authOperatorOrAttendee, [{ standAuth: [] }, { attendeeSessionAuth: [] }]],
   [authOperatorLink, [{ operatorAccessKey: [] }]],
   [
     authOrganizerOrAttendeeOrEventLink,
@@ -80,6 +106,7 @@ const AUTH = new Map<unknown, SecurityRequirement[]>([
     [{ organizerAuth: [] }, { attendeeSessionAuth: [] }],
   ],
   [authOrganizerOrOperator, [{ organizerAuth: [] }, { standAuth: [] }]],
+  [authOperatorOrAttendee, [{ standAuth: [] }, { attendeeSessionAuth: [] }]],
   [
     authOrganizerOrOperatorOrAttendee,
     [{ organizerAuth: [] }, { standAuth: [] }, { attendeeSessionAuth: [] }],
@@ -290,6 +317,7 @@ export const openapiSpec = {
       "is generated automatically from the Express routes and Zod schemas.",
   },
   tags: [
+    { name: "Health", description: "Service health check" },
     { name: "Accounts", description: "Organizer authentication and profile" },
     { name: "Sessions", description: "Attendee session lifecycle" },
     { name: "Events", description: "Event lifecycle (organizer only)" },
@@ -306,9 +334,23 @@ export const openapiSpec = {
       description: "Stand management and operator authentication",
     },
     { name: "Products", description: "Products offered at a stand" },
+    { name: "Ratings", description: "Attendee product reviews" },
+    { name: "Orders", description: "Order placement and item state machine" },
     {
       name: "Tabs",
       description: "Attendee payment tabs (Stripe authorize-then-capture)",
+    },
+    {
+      name: "Payments",
+      description: "Cash payments/refunds and the Stripe webhook",
+    },
+    {
+      name: "Payouts",
+      description: "Organizer revenue, fees, and payout reporting",
+    },
+    {
+      name: "Operator",
+      description: "Operator stand dashboard (board + live SSE)",
     },
   ],
   components: {
@@ -339,5 +381,19 @@ export const openapiSpec = {
       },
     },
   },
-  paths: buildPaths(),
+  paths: {
+    // App-level route registered directly on the Express app (not via a router),
+    // so it is documented by hand rather than discovered by buildPaths().
+    "/health": {
+      get: {
+        tags: ["Health"],
+        summary: "GET /health",
+        security: [],
+        responses: {
+          "200": { description: "Service is up" },
+        },
+      },
+    },
+    ...buildPaths(),
+  },
 };
