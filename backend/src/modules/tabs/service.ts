@@ -305,6 +305,12 @@ async function settleTab(tabId: string, filters: { eventId?: string }) {
             availableOn,
           }
         );
+        if (capturedCents > captureAmount) {
+          console.warn(
+            `Tab ${tabId}: over-capture on payment ${String(payment._id)} — ` +
+              `expected ${captureAmount}¢, Stripe returned ${capturedCents}¢`
+          );
+        }
         totalCaptured += capturedCents;
         remaining -= capturedCents;
       } else {
