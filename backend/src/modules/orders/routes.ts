@@ -214,7 +214,6 @@ ordersRouter.get(
       // older query can never overwrite newer client state.
       let running = false;
       let dirty = false;
-      let sentSnapshot = false;
       const pushSnapshot = async () => {
         if (running) {
           dirty = true;
@@ -224,20 +223,24 @@ ordersRouter.get(
         try {
           do {
             dirty = false;
+            // Re-verify on every push, not just at connect time — the stand/event
+            // can go inactive (e.g. the organizer stops the event) with no
+            // order.changed event to notify us, so this is the only way a
+            // long-lived connection ever notices.
+            await assertActiveCashierStand(standId);
             sse.send(
               "snapshot",
               await listUnpaidCashOrdersForEvent(stand.eventId)
             );
-            sentSnapshot = true;
           } while (dirty);
         } catch (err) {
-          if (!sentSnapshot) {
-            // Never delivered a first snapshot — closing lets the client's SSE
-            // hook reconnect with backoff instead of sitting on "Loading…" forever.
-            console.error("Cashier stream initial snapshot failed:", err);
-            res.end();
-          }
-          // else: a later refresh failed; the client already has data, non-fatal.
+          // Any failure — a transient DB error or the stand/event no longer
+          // being active — means the client can no longer trust its current
+          // view. Closing lets its SSE hook reconnect with backoff: a fresh
+          // connection either gets a correct snapshot or the same clean 403 a
+          // connection attempt against an inactive stand would get.
+          console.error("Cashier stream snapshot refresh failed:", err);
+          res.end();
         } finally {
           running = false;
         }
@@ -250,8 +253,15 @@ ordersRouter.get(
         void pushSnapshot();
       });
 
+      // Catches the event/stand going inactive with no order.changed to notify
+      // us (e.g. the organizer stops the event without touching any cash orders).
+      const recheckTimer = setInterval(() => void pushSnapshot(), 20_000);
+
       void pushSnapshot();
-      sse.onClose(() => unsubscribe());
+      sse.onClose(() => {
+        clearInterval(recheckTimer);
+        unsubscribe();
+      });
     } catch (err) {
       handleError(err, res);
     }
