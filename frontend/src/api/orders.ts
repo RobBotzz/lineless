@@ -110,6 +110,20 @@ function throwIfStockConflict(status: number, data: unknown): void {
   }
 }
 
+export type OrderRequestConflict = 'ORDER_REQUEST_DELETED' | 'ORDER_REQUEST_CANCELLED';
+
+// A reused idempotency key whose order was since cancelled or deleted comes back
+// as a 409 carrying one of these codes (distinct from a code-less inactive-event
+// 409). The caller must drop the key and start a fresh order request.
+export function orderRequestConflict(err: unknown): OrderRequestConflict | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const data = err.data;
+  if (!data || typeof data !== 'object') return null;
+  const code = (data as Record<string, unknown>).code;
+  if (code === 'ORDER_REQUEST_DELETED' || code === 'ORDER_REQUEST_CANCELLED') return code;
+  return null;
+}
+
 function unexpectedOrderResponse(status: number, data: unknown): ApiError {
   let message = `Unexpected order response (${status})`;
   if (data && typeof data === 'object') {

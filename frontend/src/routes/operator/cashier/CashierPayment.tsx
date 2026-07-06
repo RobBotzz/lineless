@@ -4,6 +4,7 @@ import { useNavigate, useOutletContext } from 'react-router';
 import { AlertDialog } from '../../../components/feedback/AlertDialog';
 import { SearchIcon } from '../../../components/icons';
 import { BackButton, DeleteIconButton } from '../../../components/shared';
+import { ApiError } from '../../../api/client';
 import { deleteUnpaidOrder } from '../../../api/orders';
 import { useSSE } from '../../../hooks/useSSE';
 import type { Order } from '../../../types/order';
@@ -22,7 +23,7 @@ export default function CashierPayment() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const { status: streamStatus } = useSSE({
+  const { status: streamStatus, error: streamError } = useSSE({
     path: '/orders/cashier/stream',
     auth: 'operator',
     standId,
@@ -30,6 +31,11 @@ export default function CashierPayment() {
       if (event === 'snapshot') setOrders(data as Order[]);
     },
   });
+
+  // The stream requires an ACTIVE event, so it 403s once the event is stopped.
+  // Surface that instead of hanging on "Loading orders…" — cash can no longer be
+  // collected, so there is no live unpaid list to show.
+  const eventNotActive = streamError instanceof ApiError && streamError.status === 403;
 
   const trimmed = query.trim().toLowerCase();
 
@@ -108,7 +114,11 @@ export default function CashierPayment() {
         {searchError ? <p className="mt-3 text-sm text-danger">{searchError}</p> : null}
 
         <div className="mt-4">
-          {orders === null && streamStatus === 'error' ? (
+          {orders === null && eventNotActive ? (
+            <p className="py-8 text-center text-sm text-text-muted">
+              The event is not active. Unpaid cash orders can no longer be collected.
+            </p>
+          ) : orders === null && streamStatus === 'error' ? (
             <p className="py-8 text-center text-sm text-danger">
               Could not load orders. Retrying… check your connection if this persists.
             </p>
