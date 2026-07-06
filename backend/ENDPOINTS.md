@@ -94,8 +94,8 @@ Mobile guest web app: browse, order, pay, track, rate.
 | GET    | `/orders/stream`                                 | Attendee's live order feed over SSE — session-wide snapshot + updates         |
 | GET    | `/orders/cashier/stream`                         | Cashier's live unpaid-orders board over SSE (operator / cashier stand)        |
 | GET    | `/orders/cashier/refundable`                     | Cash-paid orders for the cashier's event with a refundable item (operator)    |
-| POST   | `/orders/{orderId}/cash-payment`                 | Operator/cashier confirms cash received for an order                          |
-| POST   | `/orders/{orderId}/refund`                       | Operator/cashier refunds cancelled items of a cash-paid order                 |
+| POST   | `/orders/{orderId}/cash-payment`                 | Organizer/operator confirms cash received for an order                        |
+| POST   | `/orders/{orderId}/refund`                       | Organizer/operator refunds cancelled items of a cash-paid order               |
 | POST   | `/orders/{orderId}/cancel`                       | Organizer cancels all open order items                                        |
 | POST   | `/orders/{orderId}/cancel-pending-authorization` | Idempotently abandons a card order awaiting additional authorization          |
 | POST   | `/orders/{orderId}/items/cancel`                 | Organizer cancels selected order items                                        |
