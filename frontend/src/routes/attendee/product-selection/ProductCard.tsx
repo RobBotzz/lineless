@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatMoney, productImageSrc, tracksStock, type Product } from '@/types/product';
 
-import { ImageIcon, InfoIcon, PlusIcon } from '@/components/icons';
+import { InfoIcon, PlusIcon } from '@/components/icons';
+import { ProductThumbnail } from '@/components/shared/ProductThumbnail';
 import { QuantityStepper } from '@/components/shared/QuantityStepper';
 import { useAddGuard } from '@/lib/useAddGuard';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
@@ -26,10 +27,8 @@ export function ProductCard({
   onAdd,
   onSetQuantity,
 }: ProductCardProps) {
-  const [imageOk, setImageOk] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const imageSrc = productImageSrc(product);
-  const showImage = !!imageSrc && imageOk;
   const stockTracked = tracksStock(product);
   const soldOut = stockTracked && product.productStock <= 0;
   const atStockLimit = stockTracked && (soldOut || cartQuantity >= product.productStock);
@@ -62,20 +61,11 @@ export function ProductCard({
       )}
 
       {/* Thumbnail */}
-      <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-muted">
-        {showImage ? (
-          <img
-            alt=""
-            className="h-full w-full object-cover"
-            onError={() => setImageOk(false)}
-            src={imageSrc!}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-text-muted">
-            <ImageIcon />
-          </div>
-        )}
-      </div>
+      <ProductThumbnail
+        alt={product.productName}
+        className="h-24 w-24 rounded-lg"
+        imageSrc={imageSrc}
+      />
 
       {/* Details — name + rating + optional description, then price/add row. */}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">

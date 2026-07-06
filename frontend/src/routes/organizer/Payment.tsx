@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
+import { InfoTooltip } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
@@ -12,7 +13,6 @@ import {
   CreditCardIcon,
   DownloadIcon,
   HistoryIcon,
-  InfoIcon,
 } from '@/components/icons';
 import { formatIban, isValidIban, maskIban, normalizeIban } from '@/lib/iban';
 import { formatMoney } from '@/types/product';
@@ -289,28 +289,6 @@ export default function Payment() {
   );
 }
 
-// Info icon that reveals its text on hover and keyboard focus. Uses a real
-// positioned tooltip (not the flaky native `title`), so it actually shows up.
-function InfoTooltip({ text }: { text: string }) {
-  return (
-    <span className="group relative inline-flex">
-      <button
-        type="button"
-        aria-label={text}
-        className="text-text-muted/70 hover:text-text-muted cursor-help rounded-full focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
-      >
-        <InfoIcon className="h-3.5 w-3.5" />
-      </button>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 w-56 -translate-x-1/2 rounded-lg border border-border bg-surface px-3 py-2 text-xs leading-snug font-normal text-text opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
-      >
-        {text}
-      </span>
-    </span>
-  );
-}
-
 // `info` is revealed through an InfoTooltip next to the label instead of a
 // subtitle, keeping the stat compact.
 function Stat({ label, value, info }: { label: string; value: string; info?: string }) {
@@ -318,7 +296,11 @@ function Stat({ label, value, info }: { label: string; value: string; info?: str
     <div className="rounded-xl bg-surface-muted px-5 py-4">
       <div className="flex items-center gap-1.5">
         <p className="text-sm text-text-muted">{label}</p>
-        {info ? <InfoTooltip text={info} /> : null}
+        {info ? (
+          <InfoTooltip label={info} side="top" size="sm">
+            {info}
+          </InfoTooltip>
+        ) : null}
       </div>
       <p className="mt-1 text-2xl font-bold text-text">{value}</p>
     </div>

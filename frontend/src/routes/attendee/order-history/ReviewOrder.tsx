@@ -138,7 +138,7 @@ export default function ReviewOrder() {
     return (
       <div className="space-y-4">
         <div className="rounded-xl border border-border bg-surface p-8 text-center shadow-sm">
-          <CheckCircleIcon className="mx-auto h-12 w-12 text-green-500" />
+          <CheckCircleIcon className="mx-auto h-12 w-12 text-success" />
           <h1 className="mt-3 text-lg font-semibold text-text">Thanks for your ratings!</h1>
           <p className="mt-1 text-sm text-text-muted">
             You rated {submittedCount} {submittedCount === 1 ? 'product' : 'products'}.

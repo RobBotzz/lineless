@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
 import { formatMoney, productImageSrc, tracksStock } from '@/types/product';
+import { ProductThumbnail } from '@/components/shared/ProductThumbnail';
 import { QuantityStepper } from '@/components/shared/QuantityStepper';
-import { ChatIcon, ChevronDownIcon, DeleteIcon, ImageIcon } from '@/components/icons';
+import { ChatIcon, ChevronDownIcon, DeleteIcon } from '@/components/icons';
 
 import type { CartItem } from './useCartState';
 
@@ -27,12 +28,10 @@ export function CartCard({
 }: CartCardProps) {
   const { product, quantity, comments } = item;
 
-  const [imageOk, setImageOk] = useState(true);
   // Open by default when a note already exists (e.g. after a refresh).
   const [commentsOpen, setCommentsOpen] = useState(() => comments.some((c) => c.trim() !== ''));
 
   const imageSrc = productImageSrc(product);
-  const showImage = !!imageSrc && imageOk;
   const lineTotal = product.priceIncludingTax * quantity;
   // Respect stock when bumping quantity, mirroring the product card's sold-out guard.
   const atStockLimit = tracksStock(product) && quantity >= product.productStock;
@@ -61,22 +60,11 @@ export function CartCard({
 
       <div className="flex gap-4">
         {/* Thumbnail */}
-        <div
-          className={`${thumbSize} shrink-0 overflow-hidden rounded-lg border border-border bg-surface-muted`}
-        >
-          {showImage ? (
-            <img
-              alt=""
-              className="h-full w-full object-cover"
-              onError={() => setImageOk(false)}
-              src={imageSrc!}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-text-muted">
-              <ImageIcon />
-            </div>
-          )}
-        </div>
+        <ProductThumbnail
+          alt={product.productName}
+          className={`${thumbSize} rounded-lg`}
+          imageSrc={imageSrc}
+        />
 
         {/* Name + optional stand + unit price */}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-6">
