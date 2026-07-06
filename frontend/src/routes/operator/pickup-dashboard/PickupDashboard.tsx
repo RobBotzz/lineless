@@ -61,6 +61,15 @@ export default function PickupDashboard() {
     [],
   );
 
+  const resetAutoScroll = useCallback(() => {
+    setIsAutoScrollEnabled(false);
+
+    const scrollingElement = getScrollingElement();
+    scrollingElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [getScrollingElement]);
+
   const updateCanAutoScroll = useCallback(() => {
     const scrollingElement = getScrollingElement();
     const hasScrollableOverflow = scrollingElement.scrollHeight > scrollingElement.clientHeight + 1;
@@ -93,7 +102,6 @@ export default function PickupDashboard() {
       return undefined;
     }
 
-    const stopAutoScroll = () => setIsAutoScrollEnabled(false);
     const topPauseMs = 1200;
     const autoScrollStep =
       AUTO_SCROLL_SPEEDS[autoScrollSpeedIndex]?.pixelStep ?? AUTO_SCROLL_SPEEDS[0].pixelStep;
@@ -110,7 +118,7 @@ export default function PickupDashboard() {
 
     scrollToTop();
     const clickListenerFrame = window.requestAnimationFrame(() => {
-      window.addEventListener('click', stopAutoScroll);
+      window.addEventListener('click', resetAutoScroll);
     });
 
     const scrollInterval = window.setInterval(() => {
@@ -140,28 +148,29 @@ export default function PickupDashboard() {
     return () => {
       window.clearInterval(scrollInterval);
       window.cancelAnimationFrame(clickListenerFrame);
-      window.removeEventListener('click', stopAutoScroll);
+      window.removeEventListener('click', resetAutoScroll);
     };
   }, [
     autoScrollSpeedIndex,
     canAutoScroll,
     getScrollingElement,
     isAutoScrollEnabled,
+    resetAutoScroll,
     updateCanAutoScroll,
   ]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
-            Operator Console
-          </BackButton>
+        {!isAutoScrollEnabled && (
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <BackButton to={eventId ? paths.operator.root(eventId) : paths.home}>
+              Operator Console
+            </BackButton>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-            {canAutoScroll && (
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                {!isAutoScrollEnabled && (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              {canAutoScroll && (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <button
                     className="h-10 rounded-md border border-border bg-surface px-4 text-sm font-semibold text-text shadow-sm transition-colors hover:bg-surface-muted"
                     onClick={() => setIsAutoScrollDialogOpen(true)}
@@ -169,27 +178,27 @@ export default function PickupDashboard() {
                   >
                     Start auto scroll
                   </button>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
-            <label className="max-w-full">
-              <span className="sr-only">Filter by stand</span>
-              <select
-                className="h-10 w-full max-w-full min-w-44 cursor-pointer rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text shadow-sm outline-none transition-colors hover:bg-surface-muted focus:border-accent sm:w-auto"
-                onChange={(event) => setSelectedStand(event.target.value as StandFilter)}
-                value={activeStandFilter}
-              >
-                <option value="all">All Stands</option>
-                {stands.map((stand) => (
-                  <option key={stand.standId} value={stand.standId}>
-                    {stand.standName}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label className="max-w-full">
+                <span className="sr-only">Filter by stand</span>
+                <select
+                  className="h-10 w-full max-w-full min-w-44 cursor-pointer rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text shadow-sm outline-none transition-colors hover:bg-surface-muted focus:border-accent sm:w-auto"
+                  onChange={(event) => setSelectedStand(event.target.value as StandFilter)}
+                  value={activeStandFilter}
+                >
+                  <option value="all">All Stands</option>
+                  {stands.map((stand) => (
+                    <option key={stand.standId} value={stand.standId}>
+                      {stand.standName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
-        </div>
+        )}
 
         {isAutoScrollDialogOpen && (
           <AutoScrollDialog
