@@ -147,11 +147,10 @@ function StockProductRow({
   }
   const parsedStock = parseStockDraft(draftStock);
   const draftStockMode = draftState.stockMode;
-  const isTerminated = product.productStatus === 'TERMINATED';
   const validStock = draftStockMode === 'UNLIMITED' || parsedStock !== null;
   const isDirty =
     validStock && (draftStockMode !== product.stockMode || parsedStock !== product.productStock);
-  const canSave = !isTerminated && validStock && isDirty && !isSaving;
+  const canSave = validStock && isDirty && !isSaving;
 
   function stepStock(delta: number) {
     const base = parsedStock ?? product.productStock;
@@ -186,12 +185,7 @@ function StockProductRow({
   }
 
   return (
-    <section
-      className={[
-        'grid gap-4 rounded-lg border border-border bg-background p-4 md:grid-cols-[minmax(10rem,1fr)_auto] md:items-center',
-        isTerminated ? 'opacity-70' : '',
-      ].join(' ')}
-    >
+    <section className="grid gap-4 rounded-lg border border-border bg-background p-4 md:grid-cols-[minmax(10rem,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="min-w-0 flex-[1_1_10rem] font-semibold text-text [overflow-wrap:anywhere]">
@@ -215,7 +209,7 @@ function StockProductRow({
           <input
             checked={draftStockMode === 'TRACKED'}
             className="h-4 w-4 accent-accent"
-            disabled={isTerminated || isSaving}
+            disabled={isSaving}
             onChange={(event) => {
               setDraftState((current) => ({
                 ...current,
@@ -230,7 +224,6 @@ function StockProductRow({
         <div className="flex items-center gap-2">
           <IconButton
             disabled={
-              isTerminated ||
               isSaving ||
               draftStockMode === 'UNLIMITED' ||
               (parsedStock ?? product.productStock) <= 0
@@ -243,7 +236,7 @@ function StockProductRow({
           <input
             aria-label={`${product.productName} stock`}
             className="h-10 w-24 rounded-lg border border-border bg-surface px-3 text-center text-sm font-semibold tabular-nums text-text outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted"
-            disabled={isTerminated || isSaving || draftStockMode === 'UNLIMITED'}
+            disabled={isSaving || draftStockMode === 'UNLIMITED'}
             min={0}
             onChange={(event) => {
               setDraftState((current) => ({
@@ -257,7 +250,7 @@ function StockProductRow({
             value={draftStock}
           />
           <IconButton
-            disabled={isTerminated || isSaving || draftStockMode === 'UNLIMITED'}
+            disabled={isSaving || draftStockMode === 'UNLIMITED'}
             label={`Increase ${product.productName} stock`}
             onClick={() => stepStock(1)}
           >
@@ -287,10 +280,8 @@ function ProductStatusBadge({ status }: { status: Product['productStatus'] }) {
   const className =
     status === 'LIVE'
       ? 'border-success/30 bg-success/10 text-success'
-      : status === 'PAUSED'
-        ? 'border-danger/30 bg-danger/10 text-danger'
-        : 'border-border bg-surface-muted text-text-muted';
-  const label = status === 'LIVE' ? 'Live' : status === 'PAUSED' ? 'Paused' : 'Terminated';
+      : 'border-danger/30 bg-danger/10 text-danger';
+  const label = status === 'LIVE' ? 'Live' : 'Paused';
 
   return (
     <span
