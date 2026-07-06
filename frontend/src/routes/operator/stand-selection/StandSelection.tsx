@@ -29,8 +29,21 @@ const LINK_EXPIRED_MESSAGE = 'Link expired. Please reopen the operator link.';
 const LOGIN_FAILED_MESSAGE = 'Login failed. Please try again.';
 const WRONG_PASSWORD_OR_LINK_MESSAGE = 'Wrong password or invalid link.';
 
-type LoadState = 'loading' | 'ready' | 'invalid' | 'error';
+type LoadState = 'loading' | 'ready' | 'invalid' | 'error' | 'completed';
 type CashierTileState = 'available' | 'loading' | 'unavailable';
+
+// The backend blocks operator link/login once the event is COMPLETED, returning
+// 403 with `eventStatus: 'COMPLETED'` — a terminal state (distinct from an
+// invalid/expired link) that we surface with a dedicated "event ended" panel.
+function isEventCompletedError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 403 &&
+    typeof error.data === 'object' &&
+    error.data !== null &&
+    (error.data as { eventStatus?: unknown }).eventStatus === 'COMPLETED'
+  );
+}
 
 export default function StandSelection() {
   const { eventId } = useParams();
@@ -67,6 +80,14 @@ export default function StandSelection() {
       );
     },
     onError: (error: unknown, { stand }) => {
+      // The event completed while the selection screen was open. Refetch the
+      // stand list so its 403 flips the page to the terminal "event ended"
+      // panel, instead of a misleading "login failed".
+      if (isEventCompletedError(error)) {
+        setSelectedStand(null);
+        void operatorStandsQuery.refetch();
+        return;
+      }
       if (error instanceof ApiError && error.status === 401) {
         if (stand.requiresPassword) {
           setSelectedStand(stand);
@@ -92,10 +113,14 @@ export default function StandSelection() {
     loadState = 'loading';
   } else if (operatorStandsQuery.isError) {
     const { error } = operatorStandsQuery;
-    loadState =
-      error instanceof ApiError && (error.status === 401 || error.status === 404)
-        ? 'invalid'
-        : 'error';
+    if (isEventCompletedError(error)) {
+      loadState = 'completed';
+    } else {
+      loadState =
+        error instanceof ApiError && (error.status === 401 || error.status === 404)
+          ? 'invalid'
+          : 'error';
+    }
   }
   const stands = operatorStandsQuery.data ?? [];
   // The cashier never appears in the stand list (backend excludes it); the
@@ -182,6 +207,13 @@ export default function StandSelection() {
           <StatePanel
             title="Stands could not be loaded"
             message="Check whether the backend is running and try the operator link again."
+          />
+        )}
+
+        {loadState === 'completed' && (
+          <StatePanel
+            title="This event has ended"
+            message="This event has been completed, so the operator link no longer works. Thanks for helping run it!"
           />
         )}
 
