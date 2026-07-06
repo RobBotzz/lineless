@@ -611,7 +611,7 @@ export default function EventConfiguration() {
       <div className="space-y-6">
         {/* Event status + links — side by side across the full width */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <section className="scroll-mt-24" id="status">
+          <section className="min-w-0 scroll-mt-24" id="status">
             <Card className="h-full">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -677,7 +677,7 @@ export default function EventConfiguration() {
             </Card>
           </section>
 
-          <section className="scroll-mt-24" id="links">
+          <section className="min-w-0 scroll-mt-24" id="links">
             {/* Links — share targets for operators and attendees */}
             <Card className="h-full">
               <CardHeader>
