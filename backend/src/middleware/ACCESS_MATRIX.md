@@ -50,7 +50,6 @@
 | Products | `DELETE /api/products/:productId`                             | no     | own event | no             | no            |
 | Products | `POST /api/products/:productId/pause`                         | no     | own event | own stand      | no            |
 | Products | `POST /api/products/:productId/resume`                        | no     | own event | own stand      | no            |
-| Products | `POST /api/products/:productId/terminate`                     | no     | own event | own stand      | no            |
 
 ## Credential types
 
