@@ -43,7 +43,7 @@ are the data model and the two assignment / customer-journey documents kept in
 
 ## Enums
 
-Enums from the model: `ProductStatus` (LIVE/PAUSED/TERMINATED),
+Enums from the model: `ProductStatus` (LIVE/PAUSED),
 `TabStatus` (PENDING_AUTHORIZATION/OPEN/CHECKOUT_PENDING/PAID/FAILED),
 `TabPaymentStatus` (PENDING/AUTHORIZED/CAPTURED/RELEASED/FAILED). Enforce via
 Mongoose enum.
