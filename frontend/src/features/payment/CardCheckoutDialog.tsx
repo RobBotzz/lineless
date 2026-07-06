@@ -89,9 +89,13 @@ export function CardCheckoutDialog({
   const requestId = useRef<string | null>(null);
 
   // Stable signature of the cart, used to tell whether a persisted checkout key
-  // still belongs to the current items.
+  // still belongs to the current items. Sorted so array rehydration order after
+  // a 3DS redirect does not produce a different fingerprint for the same cart.
   function cartFingerprint(): string {
-    return JSON.stringify(items);
+    return items
+      .map((i) => `${i.productId}:${i.quantity}:${i.comments.join('|')}`)
+      .sort()
+      .join(';');
   }
 
   function currentRequestId(): string {
