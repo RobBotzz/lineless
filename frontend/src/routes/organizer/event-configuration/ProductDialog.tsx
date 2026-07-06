@@ -32,6 +32,7 @@ interface ProductDialogProps {
   standId: string;
   isOpen: boolean;
   onClose: () => void;
+  setupLocked?: boolean;
 }
 
 // Accept both "12.50" and "12,50": normalize the comma, then require a plain
@@ -64,7 +65,13 @@ function parseStock(value: string): number | null {
   return n;
 }
 
-export function ProductDialog({ product, standId, isOpen, onClose }: ProductDialogProps) {
+export function ProductDialog({
+  product,
+  standId,
+  isOpen,
+  onClose,
+  setupLocked = false,
+}: ProductDialogProps) {
   const revalidator = useRevalidator();
 
   const [productName, setProductName] = useState(product?.productName ?? '');
@@ -135,20 +142,20 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (saving) return;
+    if (saving || (setupLocked && !product)) return;
 
     const name = productName.trim();
-    if (!name) {
+    if (!setupLocked && !name) {
       setError('Product name is required');
       return;
     }
     const priceIncludingTax = parseCents(price);
-    if (priceIncludingTax === null) {
+    if (!setupLocked && priceIncludingTax === null) {
       setError('Enter a valid price with at most two decimals (e.g. 12.50 or 12,50)');
       return;
     }
     const taxRateBp = parseTaxRate(taxRate);
-    if (taxRateBp === null) {
+    if (!setupLocked && taxRateBp === null) {
       setError('Enter a valid tax rate between 0 and 100 (e.g. 19 or 19,5)');
       return;
     }
@@ -179,12 +186,14 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
     try {
       if (existingProductId) {
         const patch: UpdateProductInput = {
-          productName: name,
           productDescription,
-          priceIncludingTax,
-          taxRate: taxRateBp,
-          instantProduct,
         };
+        if (!setupLocked) {
+          patch.productName = name;
+          patch.priceIncludingTax = priceIncludingTax!;
+          patch.taxRate = taxRateBp!;
+          patch.instantProduct = instantProduct;
+        }
         const expectedProductStock = savedProductStock;
         const expectedStockMode = savedStockMode;
         if (
@@ -215,8 +224,8 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
         const patch: CreateProductInput = {
           productName: name,
           productDescription,
-          priceIncludingTax,
-          taxRate: taxRateBp,
+          priceIncludingTax: priceIncludingTax!,
+          taxRate: taxRateBp!,
           instantProduct,
           stockMode,
           productStock,
@@ -281,6 +290,10 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
               {/* Left column — core product fields */}
               <div className="space-y-4">
                 <TextField
+                  disabled={setupLocked}
+                  helperText={
+                    setupLocked ? 'Product identity is locked after the event starts.' : undefined
+                  }
                   id="product-name"
                   label="Product Name *"
                   value={productName}
@@ -290,6 +303,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
 
                 <div className="grid grid-cols-2 gap-4">
                   <TextField
+                    disabled={setupLocked}
                     id="product-price"
                     label="Price incl. tax *"
                     value={price}
@@ -298,6 +312,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                     inputMode="decimal"
                   />
                   <TextField
+                    disabled={setupLocked}
                     id="product-tax"
                     label="Tax rate (%) *"
                     value={taxRate}
@@ -388,13 +403,15 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                         <label
                           key={option.title}
                           className={[
-                            'flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition',
+                            'flex items-center gap-3 rounded-lg border px-4 py-3 transition',
+                            setupLocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
                             selected
                               ? 'border-accent bg-accent-soft'
                               : 'border-border bg-surface hover:bg-surface-muted',
                           ].join(' ')}
                         >
                           <input
+                            disabled={setupLocked}
                             type="radio"
                             name="product-fulfillment"
                             className="h-4 w-4 shrink-0 accent-accent"
