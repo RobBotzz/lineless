@@ -23,7 +23,7 @@ export default function CashierPayment() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const { error: streamError } = useSSE({
+  const { status: streamStatus, error: streamError } = useSSE({
     path: '/orders/cashier/stream',
     auth: 'operator',
     standId,
@@ -37,12 +37,19 @@ export default function CashierPayment() {
   // collected, so there is no live unpaid list to show.
   const eventNotActive = streamError instanceof ApiError && streamError.status === 403;
 
+  // Derived, not synced via an effect: once the event goes inactive, treat the
+  // list as gone rather than keeping whatever was last loaded — otherwise a
+  // board that already had orders would keep showing that stale,
+  // no-longer-payable list (and let search still navigate to one of them)
+  // instead of the "event is not active" notice below.
+  const visibleOrders = eventNotActive ? null : orders;
+
   const trimmed = query.trim().toLowerCase();
 
   const filteredOrders = useMemo(() => {
-    if (!orders || !trimmed) return orders;
-    return orders.filter((o) => o.orderNumber.toLowerCase().includes(trimmed));
-  }, [orders, trimmed]);
+    if (!visibleOrders || !trimmed) return visibleOrders;
+    return visibleOrders.filter((o) => o.orderNumber.toLowerCase().includes(trimmed));
+  }, [visibleOrders, trimmed]);
 
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -114,12 +121,16 @@ export default function CashierPayment() {
         {searchError ? <p className="mt-3 text-sm text-danger">{searchError}</p> : null}
 
         <div className="mt-4">
-          {filteredOrders === null ? (
+          {eventNotActive ? (
             <p className="py-8 text-center text-sm text-text-muted">
-              {eventNotActive
-                ? 'The event is not active. Unpaid cash orders can no longer be collected.'
-                : 'Loading orders…'}
+              The event is not active. Unpaid cash orders can no longer be collected.
             </p>
+          ) : visibleOrders === null && streamStatus === 'error' ? (
+            <p className="py-8 text-center text-sm text-danger">
+              Could not load orders. Retrying… check your connection if this persists.
+            </p>
+          ) : filteredOrders === null ? (
+            <p className="py-8 text-center text-sm text-text-muted">Loading orders…</p>
           ) : filteredOrders.length === 0 ? (
             <p className="py-8 text-center text-sm text-text-muted">
               {trimmed

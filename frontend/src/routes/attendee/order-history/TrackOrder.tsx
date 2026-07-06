@@ -13,7 +13,7 @@ import { OrderReviewButton } from './OrderReviewButton';
 import { useSSE } from '@/hooks/useSSE';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import { computeTotal, type Order, type OrderItem } from '@/types/order';
+import { computeTotal, isRefundableItem, type Order, type OrderItem } from '@/types/order';
 import { formatMoney } from '@/types/product';
 import type { Stand } from '@/types/stand';
 import type { AttendeeLayoutLoaderData } from '../data';
@@ -38,8 +38,8 @@ function buildStandGroups(
   viewLookup: Map<string, { productName: string; standId: string; standName: string }>,
   standsById: Map<string, Stand>,
   standsByName: Map<string, Stand>,
-): Array<{ stand: Stand; items: StandItem[] }> {
-  const groups = new Map<string, { stand: Stand; items: StandItem[] }>();
+): Array<{ key: string; stand: Stand; items: StandItem[] }> {
+  const groups = new Map<string, { key: string; stand: Stand; items: StandItem[] }>();
 
   for (const item of rawItems) {
     const info = viewLookup.get(item.productId);
@@ -63,6 +63,10 @@ function buildStandGroups(
       existing.items.push({ orderItem: item, productName });
     } else {
       groups.set(groupKey, {
+        // groupKey (not stand._id) is the React key: unresolvable stands all
+        // share the '__unavailable__' sentinel _id, so keying on it would
+        // collide when an order has items from two unresolvable stands.
+        key: groupKey,
         stand: resolvedStand,
         items: [{ orderItem: item, productName }],
       });
@@ -198,7 +202,7 @@ export default function TrackOrder() {
   const stands = standsById(standsQuery.data ?? []);
   const standsByStandName = standsByName(standsQuery.data ?? []);
 
-  let standGroups: Array<{ stand: Stand; items: StandItem[] }> = [];
+  let standGroups: Array<{ key: string; stand: Stand; items: StandItem[] }> = [];
   if (viewItemsQuery.data) {
     const viewLookup = new Map(
       viewItemsQuery.data.map((v) => [
@@ -218,8 +222,8 @@ export default function TrackOrder() {
   // once cash is paid at pickup, a cancelled item can only be refunded in
   // person at the cashier, so we point attendees back there.
   const isCashOrder = order.tabId === null;
-  const hasCancelledItem = order.items.some((item) => item.cancelledAt);
-  const showCashRefundNotice = isCashOrder && hasCancelledItem;
+  const hasRefundableItem = order.items.some(isRefundableItem);
+  const showCashRefundNotice = isCashOrder && hasRefundableItem;
   const allItemsCancelled = order.items.length > 0 && order.items.every((item) => item.cancelledAt);
 
   return (
@@ -281,8 +285,8 @@ export default function TrackOrder() {
         </p>
       )}
 
-      {standGroups.map(({ stand, items }) => (
-        <StandTrackGroup key={stand._id} stand={stand} items={items} />
+      {standGroups.map(({ key, stand, items }) => (
+        <StandTrackGroup key={key} stand={stand} items={items} />
       ))}
 
       <div className="rounded-lg bg-surface border border-border p-4">

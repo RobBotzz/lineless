@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate, useParams } from 'react-router';
 
 import { getAttendeeEvent } from '@/api/events';
-import { buildAttendeeOrderViewItems, getAttendeeOrder } from '@/api/orders';
+import {
+  buildAttendeeOrderViewItems,
+  getAttendeeOrder,
+  groupOrderItemsForView,
+} from '@/api/orders';
 import { getAttendeeStands } from '@/api/stands';
 import { BackButton } from '@/components/shared';
 import { CashierLocationAccordion } from '@/features/orders/CashierLocationAccordion';
 import { OrderConfirmation } from '@/features/orders/OrderConfirmation';
 import { useSSE } from '@/hooks/useSSE';
 import { paths } from '@/paths';
-import { computeTotal, type Order, type OrderItemView } from '@/types/order';
+import { computeTotal, isOrderCancelled, type Order, type OrderItemView } from '@/types/order';
 
 // Durable cash-payment page. Unlike the card OrderConfirmed screen it does not
 // rely on location.state — it fetches the order by id, so it survives refresh
@@ -26,14 +30,22 @@ interface PendingPaymentState {
 export default function PendingPayment() {
   const { eventId, orderId } = useParams() as { eventId: string; orderId: string };
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { state } = useLocation() as { state: PendingPaymentState | null };
 
-  const [liveOrder, setLiveOrder] = useState<Order | null>(null);
+  const orderKey = ['attendee-order', orderId, eventId];
 
   const orderQuery = useQuery({
-    queryKey: ['attendee-order', orderId, eventId],
+    queryKey: orderKey,
     queryFn: () => getAttendeeOrder(orderId, eventId),
-    initialData: state?.order._id === orderId ? state.order : undefined,
+    initialData: state?.order?._id === orderId ? state.order : undefined,
+    // Poll fallback: if the SSE stream silently stalls (e.g. proxy buffering),
+    // the payment/cancellation flip is still picked up. Stops once terminal so
+    // it costs nothing after the order is paid or cancelled.
+    refetchInterval: (query) => {
+      const o = query.state.data as Order | undefined;
+      return o && (o.paidAt || isOrderCancelled(o)) ? false : 4000;
+    },
   });
 
   const standsQuery = useQuery({
@@ -60,28 +72,33 @@ export default function PendingPayment() {
   });
 
   // Live-detect the cashier confirming payment: when paidAt flips we hand off to
-  // the shared OrderConfirmed screen (same as the card flow).
+  // the shared OrderConfirmed screen (same as the card flow). SSE updates and the
+  // poll fallback both write into the same query cache, so the freshest wins.
   useSSE({
     path: '/orders/stream',
     auth: 'attendee',
     eventId,
     onMessage: ({ event, data }) => {
+      const apply = (updated: Order) => {
+        if (updated._id !== orderId) return;
+        queryClient.setQueryData<Order>(orderKey, (prev) =>
+          !prev || new Date(updated.updatedAt) >= new Date(prev.updatedAt) ? updated : prev,
+        );
+      };
       if (event === 'snapshot') {
         const found = (data as Order[]).find((o) => o._id === orderId);
-        if (found) setLiveOrder(found);
+        if (found) apply(found);
       } else if (event === 'order') {
-        const updated = data as Order;
-        if (updated._id === orderId) {
-          setLiveOrder((prev) =>
-            !prev || new Date(updated.updatedAt) >= new Date(prev.updatedAt) ? updated : prev,
-          );
-        }
+        apply(data as Order);
       }
     },
   });
 
-  const order = liveOrder ?? orderQuery.data ?? null;
-  const items = viewItemsQuery.data ?? state?.items ?? [];
+  const order = orderQuery.data ?? null;
+  // Prefer the fully-enriched view (live catalog names); fall back to the cart's
+  // items, then to a pure grouping from the order's own backend-enriched items so
+  // the summary is never empty even if the catalog fetch failed.
+  const items = viewItemsQuery.data ?? state?.items ?? (order ? groupOrderItemsForView(order) : []);
   const isPaid = order?.paidAt != null;
   // STOPPED = paused (no new orders/payments, but the event isn't over yet);
   // COMPLETED = ended. Both close the cash window, but the wording differs.
@@ -89,21 +106,32 @@ export default function PendingPayment() {
   const paymentClosed = eventStatus === 'STOPPED' || eventStatus === 'COMPLETED';
 
   // Once paid, mirror the card flow: go to the OrderConfirmed "payment completed"
-  // screen, from where the user taps "Track Order". We pass the order + items we
-  // already have so that page paints without needing its own fetch.
+  // screen, from where the user taps "Track Order". OrderConfirmed trusts the
+  // items passed in location.state, so we wait until the item view is resolved
+  // (query settled, or the cart handed us items) before handing off — otherwise
+  // a direct visit that pays before the view loads would show an empty summary.
+  const itemsReady =
+    viewItemsQuery.isSuccess || viewItemsQuery.isError || standsQuery.isError || !!state?.items;
   useEffect(() => {
-    if (order && isPaid) {
-      navigate(paths.attendee.checkoutConfirmed(eventId, order._id), {
-        replace: true,
-        state: { order, items },
-      });
+    if (!order || !isPaid || !itemsReady) return;
+    // A paid order that was then fully refunded has nothing to confirm — send it
+    // straight to tracking instead of the "in progress" success screen, which
+    // would be actively wrong for an order with nothing left to prepare.
+    if (isOrderCancelled(order)) {
+      navigate(paths.attendee.trackOrder(eventId, order._id), { replace: true });
+      return;
     }
-    // items is derived from the same queries as order; guarding on order/isPaid
-    // is enough and avoids re-firing on every view-item refetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order, isPaid, eventId, navigate]);
+    const handoffItems = viewItemsQuery.data ?? state?.items ?? groupOrderItemsForView(order);
+    navigate(paths.attendee.checkoutConfirmed(eventId, order._id), {
+      replace: true,
+      state: { order, items: handoffItems },
+    });
+  }, [order, isPaid, itemsReady, viewItemsQuery.data, state?.items, eventId, navigate]);
 
-  if (orderQuery.isPending || standsQuery.isPending || eventQuery.isPending) {
+  // Only block on the initial load when there is no order to show yet. When the
+  // cart handed us the order (initialData) it renders instantly — stands and the
+  // item view load in the background instead of gating the whole page.
+  if (!order && (orderQuery.isPending || standsQuery.isPending || eventQuery.isPending)) {
     return (
       <div className="space-y-4">
         <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
@@ -128,9 +156,16 @@ export default function PendingPayment() {
     );
   }
 
-  // The cashier cancelled (soft-deleted) the unpaid order. It can no longer be
-  // paid, so we show a terminal cancelled state instead of the pay prompt.
-  if (order.deletedAt) {
+  if (isPaid) return null; // redirecting to the tracking or confirmed page
+
+  // The order can no longer be paid: the cashier soft-deleted it, or every item
+  // was cancelled (e.g. the event was completed). Show a terminal cancelled state
+  // instead of the pay prompt — otherwise it would read "Payment Pending" with a
+  // €0.00 total for an order there is nothing left to pay for. Checked after
+  // isPaid so an already-paid, later fully-refunded order (also caught by
+  // isOrderCancelled) never shows "cancelled ... can no longer be paid" — it was
+  // paid, and the redirect above sends it to tracking instead.
+  if (isOrderCancelled(order)) {
     return (
       <div className="space-y-4">
         <BackButton to={paths.attendee.orders(eventId)}>Order history</BackButton>
@@ -139,14 +174,12 @@ export default function PendingPayment() {
           items={items}
           total={computeTotal(order)}
           title="Order Cancelled"
-          subtitle="This order was cancelled at the cashier and can no longer be paid."
+          subtitle="This order was cancelled and can no longer be paid."
           variant="cancelled"
         />
       </div>
     );
   }
-
-  if (isPaid) return null; // redirecting to the confirmed page
 
   // The event ended while the order was still unpaid. The cashier can no longer
   // collect cash (the backend blocks it once the event leaves ACTIVE), and the
