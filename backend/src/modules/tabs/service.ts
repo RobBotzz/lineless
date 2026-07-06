@@ -30,19 +30,35 @@ const stripe = new Stripe(config.stripe.secretKey);
 type CapturedIntent = Awaited<ReturnType<typeof stripe.paymentIntents.capture>>;
 
 function extractCaptureSettlement(intent: CapturedIntent): {
+  capturedCents: number;
   feeCents: number;
   balanceTxnId: string | null;
   availableOn: Date | null;
 } {
+  // Trust the amount Stripe actually collected, not the locally-computed one:
+  // on the reconcile path (see captureHold) the recovered intent may have been
+  // captured for a different amount than this attempt recomputed.
+  const capturedCents = intent.amount_received;
   const charge = intent.latest_charge;
   if (!charge || typeof charge === "string") {
-    return { feeCents: 0, balanceTxnId: null, availableOn: null };
+    return {
+      capturedCents,
+      feeCents: 0,
+      balanceTxnId: null,
+      availableOn: null,
+    };
   }
   const balanceTxn = charge.balance_transaction;
   if (!balanceTxn || typeof balanceTxn === "string") {
-    return { feeCents: 0, balanceTxnId: null, availableOn: null };
+    return {
+      capturedCents,
+      feeCents: 0,
+      balanceTxnId: null,
+      availableOn: null,
+    };
   }
   return {
+    capturedCents,
     feeCents: balanceTxn.fee,
     balanceTxnId: balanceTxn.id,
     // Stripe sends available_on as a unix timestamp in seconds.
@@ -274,20 +290,23 @@ async function settleTab(tabId: string, filters: { eventId?: string }) {
           payment.stripePaymentIntentId,
           captureAmount
         );
-        const { feeCents, balanceTxnId, availableOn } =
+        const { capturedCents, feeCents, balanceTxnId, availableOn } =
           extractCaptureSettlement(intent);
+        // Record what Stripe actually captured. On the reconcile path this can
+        // differ from captureAmount; driving the ledger and the remaining-owed
+        // spread off the real figure keeps both consistent with the charge.
         await TabPayment.updateOne(
           { _id: payment._id },
           {
             tabPaymentStatus: "CAPTURED",
-            capturedCentsAmount: captureAmount,
+            capturedCentsAmount: capturedCents,
             processingFeeCents: feeCents,
             stripeBalanceTxnId: balanceTxnId,
             availableOn,
           }
         );
-        totalCaptured += captureAmount;
-        remaining -= captureAmount;
+        totalCaptured += capturedCents;
+        remaining -= capturedCents;
       } else {
         // Nothing left to charge against this hold — release it.
         try {
