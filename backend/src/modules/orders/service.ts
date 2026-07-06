@@ -40,6 +40,17 @@ import { notifyOrderCreated, notifyOrderPaid } from "./emailNotifications";
 
 const stripe = new Stripe(config.stripe.secretKey);
 
+// Internal signal: a concurrent order consumed the tab's authorization headroom
+// between the non-transactional coverage read and the paid-path transaction.
+// Caught inside submitOrder to re-run the request (which then routes the order to
+// a top-up); never surfaced to the caller.
+class TabAuthorizationRaceError extends Error {
+  constructor() {
+    super("Tab authorization was consumed by a concurrent order");
+    this.name = "TabAuthorizationRaceError";
+  }
+}
+
 function generatePickupCode(): string {
   return crypto.randomBytes(2).toString("hex").toUpperCase();
 }
@@ -419,17 +430,44 @@ export async function submitOrder(
     };
   }
 
-  // The existing hold already covers this order, so it is paid immediately. Its
-  // items stay PENDING (startedAt null) — they enter the operator board as new
-  // work and only move to PREPARING when an operator starts them.
+  // The outer coverage read (authorizedCents/consumedCents) is NOT transactional,
+  // so a concurrent order on the same tab could already have consumed the same
+  // headroom. Create the order unpaid, then re-verify coverage INSIDE a
+  // transaction that also writes the tab: two racing order transactions then
+  // conflict on the tab document, and the loser is retried with a fresh snapshot
+  // that includes the committed sibling. Only stamp paidAt once the authorized
+  // holds still cover every non-cancelled item on the tab — otherwise the order
+  // is rolled back and re-run to route it to a top-up.
   const now = new Date();
 
   const dbSession = await mongoose.startSession();
   let createdOrder: OrderDoc | undefined;
   let newlyPaidOrders: OrderDoc[] = [];
+  let raceLost = false;
   try {
     await dbSession.withTransaction(async () => {
-      createdOrder = await createReservedOrder(dbSession, now);
+      // Serialize concurrent order creation on this tab. Touching the tab is
+      // enough: the second committer hits a write conflict and withTransaction
+      // retries its callback against the now-committed sibling order.
+      await Tab.updateOne(
+        { _id: tabId },
+        { $set: { updatedAt: new Date() } },
+        { session: dbSession }
+      );
+      const order = await createReservedOrder(dbSession, null);
+      const authorizedInTxn = await getAuthorizedTabCents(tabId, dbSession);
+      const consumedInTxn = await getActiveTabTotalCents(tabId, dbSession);
+      if (consumedInTxn > authorizedInTxn) {
+        raceLost = true;
+        throw new TabAuthorizationRaceError();
+      }
+      await Order.updateOne(
+        { _id: order._id },
+        { $set: { paidAt: now } },
+        { session: dbSession }
+      );
+      order.paidAt = now;
+      createdOrder = order;
       newlyPaidOrders = await markAuthorizedTabOrdersPaid(
         tabId,
         dbSession,
@@ -437,6 +475,10 @@ export async function submitOrder(
       );
     });
   } catch (error) {
+    // Lost the authorization race: the order was rolled back with the aborted
+    // transaction. Re-run against the committed sibling; the fresh coverage read
+    // now routes this order to a top-up authorization instead of paying it.
+    if (raceLost) return submitOrder(sessionId, input, operatorStandId);
     const duplicate = await existingSubmission(sessionId, input);
     if (duplicate) return duplicate;
     throw error;

@@ -50,6 +50,35 @@ function extractCaptureSettlement(intent: CapturedIntent): {
   };
 }
 
+// Captures a hold with a deterministic idempotency key, so a settlement retried
+// after a crash or dropped response replays the original capture instead of
+// erroring on an already-captured intent (which would strand the tab in
+// CHECKOUT_PENDING with the money already taken). If Stripe still rejects the
+// call, reconcile: a PaymentIntent that already reads as captured is returned as
+// success rather than failing the whole settlement — and never double-captured.
+async function captureHold(
+  paymentId: string,
+  intentId: string,
+  amountToCapture: number
+): Promise<CapturedIntent> {
+  try {
+    return await stripe.paymentIntents.capture(
+      intentId,
+      {
+        amount_to_capture: amountToCapture,
+        expand: ["latest_charge.balance_transaction"],
+      },
+      { idempotencyKey: `capture:${paymentId}` }
+    );
+  } catch (err) {
+    const intent = await stripe.paymentIntents.retrieve(intentId, {
+      expand: ["latest_charge.balance_transaction"],
+    });
+    if (intent.status === "succeeded") return intent;
+    throw err;
+  }
+}
+
 export interface TabCheckoutResult {
   tabId: string;
   status: "PAID" | "SKIPPED" | "FAILED";
@@ -240,12 +269,10 @@ async function settleTab(tabId: string, filters: { eventId?: string }) {
     for (const payment of paymentsToCapture) {
       const captureAmount = Math.min(remaining, payment.authorizedCentsAmount);
       if (captureAmount > 0) {
-        const intent = await stripe.paymentIntents.capture(
+        const intent = await captureHold(
+          payment._id,
           payment.stripePaymentIntentId,
-          {
-            amount_to_capture: captureAmount,
-            expand: ["latest_charge.balance_transaction"],
-          }
+          captureAmount
         );
         const { feeCents, balanceTxnId, availableOn } =
           extractCaptureSettlement(intent);
