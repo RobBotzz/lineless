@@ -211,11 +211,10 @@ export function useEventControlCenterLiveData({
       );
       setProductsByStand((current) => ({
         ...current,
-        [stand._id]: (current[stand._id] ?? []).map((product) =>
-          product.productStatus === 'TERMINATED'
-            ? product
-            : { ...product, productStatus: paused ? 'PAUSED' : 'LIVE' },
-        ),
+        [stand._id]: (current[stand._id] ?? []).map((product) => ({
+          ...product,
+          productStatus: paused ? 'PAUSED' : 'LIVE',
+        })),
       }));
     } catch (error) {
       await recoverOperationalSnapshot();

@@ -265,17 +265,11 @@ function ProductPauseTile({
   const [pendingCancel, setPendingCancel] = useState<CancelItemsRequest[] | null>(null);
   const isLive = product.productStatus === 'LIVE';
   const isPaused = product.productStatus === 'PAUSED';
-  const isTerminated = product.productStatus === 'TERMINATED';
   const cancelRequests = getCancelRequestsForProducts(liveOrders, new Set([product._id]));
   const cancellableItemCount = countCancelItems(cancelRequests);
-  const availabilityText = isTerminated
-    ? 'terminated product'
-    : isPaused
-      ? 'hidden from new orders'
-      : 'available for new orders';
+  const availabilityText = isPaused ? 'hidden from new orders' : 'available for new orders';
 
   async function handleAvailabilityChange(checked: boolean) {
-    if (isTerminated) return;
     setIsSaving(true);
     setError(null);
     try {
@@ -303,12 +297,7 @@ function ProductPauseTile({
 
   return (
     <>
-      <div
-        className={[
-          'flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-3',
-          isTerminated ? 'opacity-70' : '',
-        ].join(' ')}
-      >
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-3">
         <div className="min-w-0">
           <p
             className="line-clamp-2 text-sm font-semibold text-text [overflow-wrap:anywhere]"
@@ -334,7 +323,7 @@ function ProductPauseTile({
         </div>
         <Toggle
           checked={isLive}
-          disabled={isSaving || isTerminated}
+          disabled={isSaving}
           label={`${product.productName} available for orders`}
           onChange={(checked) => void handleAvailabilityChange(checked)}
         />

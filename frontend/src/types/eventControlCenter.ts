@@ -49,7 +49,7 @@ export type ProductStockAlert = {
   standName: string;
   productStock: number;
   stockAlertThreshold: number;
-  productStatus: Exclude<ProductStatus, 'TERMINATED'>;
+  productStatus: ProductStatus;
 };
 
 export type EventControlCenterData = {

@@ -25,7 +25,7 @@ export interface BoardItem {
 // Full per-product entry shown in the products overview lane. Mirrors every
 // product attribute the dashboard renders, plus live stock, status and the open
 // To-Do count. `productStatus` replaces the former `paused` flag (LIVE = orderable,
-// PAUSED = temporarily off, TERMINATED = permanently off).
+// PAUSED = temporarily off).
 export interface BoardProduct {
   productId: string;
   productName: string;

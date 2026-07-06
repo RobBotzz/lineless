@@ -780,7 +780,6 @@ function ProductSummaryRow({
   onRequestPause: () => void;
 }) {
   const paused = product.productStatus === 'PAUSED';
-  const terminated = product.productStatus === 'TERMINATED';
 
   return (
     <div
@@ -815,27 +814,15 @@ function ProductSummaryRow({
             </span>
           </div>
 
-          {/* Terminated is terminal — no pause/resume action; show a status label
-              in the control's place instead of a button. */}
-          {terminated ? (
-            <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-dashed border-border px-2.5 text-xs font-semibold text-text-muted">
-              Terminated
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={onRequestPause}
-              aria-label={paused ? `Resume ${product.productName}` : `Pause ${product.productName}`}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold text-text-muted transition hover:bg-surface-muted hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              {paused ? (
-                <PlayIcon className="h-3.5 w-3.5" />
-              ) : (
-                <PauseIcon className="h-3.5 w-3.5" />
-              )}
-              {paused ? 'Resume' : 'Pause'}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onRequestPause}
+            aria-label={paused ? `Resume ${product.productName}` : `Pause ${product.productName}`}
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-semibold text-text-muted transition hover:bg-surface-muted hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {paused ? <PlayIcon className="h-3.5 w-3.5" /> : <PauseIcon className="h-3.5 w-3.5" />}
+            {paused ? 'Resume' : 'Pause'}
+          </button>
         </div>
       </div>
     </div>
