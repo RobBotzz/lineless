@@ -4,6 +4,7 @@ import { authenticateOperatorToken } from "./operator";
 import { authenticateAttendeeRequest } from "./attendee";
 import { authenticateOperatorAccessKeyRequest } from "./operatorAccessKey";
 import { getBearerToken } from "./requestCredentials";
+import { isStandEventCompleted } from "../../modules/stands/service";
 
 type AuthAttempt = (req: Request) => boolean | Promise<boolean>;
 
@@ -19,12 +20,16 @@ function tryOrganizer(req: Request): boolean {
   }
 }
 
-function tryOperator(req: Request): boolean {
+async function tryOperator(req: Request): Promise<boolean> {
   const token = getBearerToken(req);
   if (!token) return false;
 
   try {
-    req.operator = authenticateOperatorToken(token);
+    const operator = authenticateOperatorToken(token);
+    // A completed event is terminal — reject the operator token so no
+    // operator-authenticated route works once the event has completed.
+    if (await isStandEventCompleted(operator.standId)) return false;
+    req.operator = operator;
     return true;
   } catch {
     return false;

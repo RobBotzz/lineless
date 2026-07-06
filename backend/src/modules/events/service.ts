@@ -95,8 +95,6 @@ export async function getEventForAttendee(
 ): Promise<AttendeeEvent> {
   assertSessionOwnsEvent(eventId, sessionEventId);
 
-  // STOPPED and COMPLETED events are readable so guests with existing sessions
-  // can still track their orders and receive fulfillments.
   const event = await Event.findOne({
     _id: eventId,
     status: { $in: ["ACTIVE", "STOPPED", "COMPLETED"] },
