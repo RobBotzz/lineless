@@ -32,9 +32,6 @@ const WRONG_PASSWORD_OR_LINK_MESSAGE = 'Wrong password or invalid link.';
 type LoadState = 'loading' | 'ready' | 'invalid' | 'error' | 'completed';
 type CashierTileState = 'available' | 'loading' | 'unavailable';
 
-// The backend blocks operator link/login once the event is COMPLETED, returning
-// 403 with `eventStatus: 'COMPLETED'` — a terminal state (distinct from an
-// invalid/expired link) that we surface with a dedicated "event ended" panel.
 function isEventCompletedError(error: unknown): boolean {
   return (
     error instanceof ApiError &&
@@ -80,9 +77,6 @@ export default function StandSelection() {
       );
     },
     onError: (error: unknown, { stand }) => {
-      // The event completed while the selection screen was open. Refetch the
-      // stand list so its 403 flips the page to the terminal "event ended"
-      // panel, instead of a misleading "login failed".
       if (isEventCompletedError(error)) {
         setSelectedStand(null);
         void operatorStandsQuery.refetch();
