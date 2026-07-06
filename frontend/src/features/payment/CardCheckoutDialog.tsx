@@ -88,9 +88,15 @@ export function CardCheckoutDialog({
   // same order on return instead of creating a duplicate with a fresh key.
   const requestId = useRef<string | null>(null);
 
+  // Stable signature of the cart, used to tell whether a persisted checkout key
+  // still belongs to the current items.
+  function cartFingerprint(): string {
+    return JSON.stringify(items);
+  }
+
   function currentRequestId(): string {
     if (requestId.current) return requestId.current;
-    const fingerprint = JSON.stringify(items);
+    const fingerprint = cartFingerprint();
     const stored = getAttendeeCheckout(eventId);
     requestId.current =
       stored && stored.fingerprint === fingerprint ? stored.requestId : crypto.randomUUID();
@@ -175,7 +181,7 @@ export function CardCheckoutDialog({
     // The previous order is being abandoned; rotate to a fresh key (and persist
     // it) so the retry creates a new order rather than replaying the cancelled one.
     requestId.current = crypto.randomUUID();
-    setAttendeeCheckout(eventId, JSON.stringify(items), requestId.current);
+    setAttendeeCheckout(eventId, cartFingerprint(), requestId.current);
     return 'cancelled';
   }
 
