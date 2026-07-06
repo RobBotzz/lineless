@@ -67,6 +67,15 @@ export class StandNotFoundError extends Error {
   }
 }
 
+export class OrderConflictRetryError extends Error {
+  constructor() {
+    super(
+      "Order could not be placed due to concurrent activity on the tab; please retry"
+    );
+    this.name = "OrderConflictRetryError";
+  }
+}
+
 export class EventNotActiveError extends Error {
   constructor() {
     super("Event is not active");

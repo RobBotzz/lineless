@@ -30,6 +30,7 @@ import {
   EventNotActiveError,
   InsufficientStockError,
   OrderAlreadyPaidError,
+  OrderConflictRetryError,
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
@@ -96,6 +97,11 @@ function handleError(err: unknown, res: Response): unknown {
     return res.status(403).json({ error: err.message });
   if (err instanceof OrderAlreadyPaidError)
     return res.status(409).json({ error: err.message });
+  if (err instanceof OrderConflictRetryError)
+    return res.status(409).json({
+      code: "ORDER_CONFLICT_RETRY",
+      error: err.message,
+    });
   if (err instanceof OrderItemStateError)
     return res.status(409).json({ error: err.message });
   if (err instanceof CashPaymentNotFoundError)
