@@ -192,7 +192,9 @@ export function EventControlCenterSettingsPage({
                     className="rounded-lg border border-border bg-background px-4 py-4"
                     key={stand._id}
                   >
-                    <h3 className="font-semibold text-text">{stand.standName}</h3>
+                    <h3 className="font-semibold text-text [overflow-wrap:anywhere]">
+                      {stand.standName}
+                    </h3>
                     <div className="mt-4 grid gap-5 md:grid-cols-2">
                       <TextField
                         helperText="This stand is flagged when its open queue reaches this number."

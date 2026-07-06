@@ -25,10 +25,9 @@ export const paths = {
     cart: (eventId: string) => `/event/${eventId}/cart`,
     checkoutConfirmed: (eventId: string, orderId: string) =>
       `/event/${eventId}/checkout/${orderId}/confirmed`,
-    checkoutPending: (eventId: string, orderId: string) =>
-      `/event/${eventId}/checkout/${orderId}/pending`,
     orders: (eventId: string) => `/event/${eventId}/orders`,
     trackOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}`,
+    payOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}/pay`,
     reviewOrder: (eventId: string, orderId: string) => `/event/${eventId}/orders/${orderId}/review`,
   },
   operator: {
@@ -44,5 +43,10 @@ export const paths = {
       `/operator/${eventId}/cashier/payment/${orderId}`,
     cashierPaymentConfirmed: (eventId: string, orderId: string) =>
       `/operator/${eventId}/cashier/payment/${orderId}/confirmed`,
+    cashierRefund: (eventId: string) => `/operator/${eventId}/cashier/refund`,
+    cashierRefundOrder: (eventId: string, orderId: string) =>
+      `/operator/${eventId}/cashier/refund/${orderId}`,
+    cashierRefundConfirmed: (eventId: string, orderId: string) =>
+      `/operator/${eventId}/cashier/refund/${orderId}/confirmed`,
   },
 } as const;

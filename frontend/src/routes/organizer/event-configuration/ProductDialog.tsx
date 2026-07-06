@@ -5,7 +5,9 @@ import { ApiError } from '@/api/client';
 import {
   createProduct,
   deleteProductImage,
+  ProductStockChangedError,
   updateProduct,
+  updateProductStock,
   uploadProductImage,
 } from '@/api/products';
 import { Button } from '@/components/ui/button';
@@ -16,6 +18,7 @@ import {
   productImageSrc,
   type CreateProductInput,
   type Product,
+  type StockMode,
   type UpdateProductInput,
 } from '@/types/product';
 
@@ -71,6 +74,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
   const [price, setPrice] = useState(product ? formatMoney(product.priceIncludingTax) : '');
   const [taxRate, setTaxRate] = useState(product ? String(product.taxRate / 100) : '19');
   const [instantProduct, setInstantProduct] = useState(product?.instantProduct ?? false);
+  const [stockMode, setStockMode] = useState<StockMode>(product?.stockMode ?? 'UNLIMITED');
   const [stock, setStock] = useState(product ? String(product.productStock) : '0');
   const [description, setDescription] = useState(product?.productDescription ?? '');
 
@@ -83,6 +87,12 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
   // succeeds so a failed image upload (and a subsequent retry) updates that
   // product instead of creating a duplicate.
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+  const [savedProductStock, setSavedProductStock] = useState<number | null>(
+    product?.productStock ?? null,
+  );
+  const [savedStockMode, setSavedStockMode] = useState<StockMode | null>(
+    product?.stockMode ?? null,
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -147,11 +157,16 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
       setError('Enter a valid tax rate between 0 and 100 (e.g. 19 or 19,5)');
       return;
     }
-    const productStock = parseStock(stock);
-    if (productStock === null) {
+    const parsedProductStock = parseStock(stock);
+    if (stockMode === 'TRACKED' && parsedProductStock === null) {
       setError('Enter a valid initial stock amount between 0 and 100,000');
       return;
     }
+    // UNLIMITED keeps the last persisted count dormant. Do not let a hidden,
+    // invalid draft silently overwrite it with zero; when tracking is enabled
+    // again the organizer can review that preserved count before saving.
+    const productStock =
+      stockMode === 'UNLIMITED' ? (savedProductStock ?? 0) : (parsedProductStock ?? 0);
 
     const productDescription = description.trim() || null;
     setError(null);
@@ -160,6 +175,11 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
     // Operate on the existing product, the one created on a previous (partly
     // failed) attempt, or create a fresh one.
     const existingProductId = product?._id ?? createdProductId;
+    const imageChangeRequested =
+      imageFile !== null || (removeExistingImage && !!product?.productImageUrl);
+    let stockWasSaved = false;
+    let productWasSaved = false;
+    let imageWasSaved = false;
 
     try {
       if (existingProductId) {
@@ -169,14 +189,32 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
           priceIncludingTax,
           taxRate: taxRateBp,
           instantProduct,
-          productStock,
         };
+        const expectedProductStock = savedProductStock;
+        const expectedStockMode = savedStockMode;
+        if (
+          expectedProductStock !== null &&
+          expectedStockMode !== null &&
+          (productStock !== expectedProductStock || stockMode !== expectedStockMode)
+        ) {
+          const updatedStock = await updateProductStock(
+            existingProductId,
+            { productStock: expectedProductStock, stockMode: expectedStockMode },
+            { productStock, stockMode },
+          );
+          setSavedProductStock(updatedStock.productStock);
+          setSavedStockMode(updatedStock.stockMode);
+          stockWasSaved = true;
+        }
         await updateProduct(existingProductId, patch);
+        productWasSaved = true;
         // Image is a separate endpoint: upload a new one, or drop the old one.
         if (imageFile) {
           await uploadProductImage(existingProductId, imageFile);
+          imageWasSaved = true;
         } else if (removeExistingImage && product?.productImageUrl) {
           await deleteProductImage(existingProductId);
+          imageWasSaved = true;
         }
       } else {
         const patch: CreateProductInput = {
@@ -185,21 +223,40 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
           priceIncludingTax,
           taxRate: taxRateBp,
           instantProduct,
+          stockMode,
           productStock,
         };
         // Create first to get the id, then attach the image if one was picked.
         // Remember the id so a later failure + retry never creates a duplicate.
         const created = await createProduct(standId, patch);
         setCreatedProductId(created._id);
+        setSavedProductStock(created.productStock);
+        setSavedStockMode(created.stockMode);
+        productWasSaved = true;
         if (imageFile) {
           await uploadProductImage(created._id, imageFile);
+          imageWasSaved = true;
         }
       }
 
       await revalidator.revalidate();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+      if (err instanceof ProductStockChangedError) {
+        setStock(String(err.currentProductStock));
+        setSavedProductStock(err.currentProductStock);
+        setStockMode(err.currentStockMode);
+        setSavedStockMode(err.currentStockMode);
+        setError('Stock changed during editing. The current value was loaded.');
+      } else if (stockWasSaved && !productWasSaved) {
+        setError('Stock was saved, but the remaining product changes could not be saved.');
+      } else if (productWasSaved && imageChangeRequested && !imageWasSaved) {
+        setError('Product details were saved, but the image change could not be saved.');
+      } else if (productWasSaved) {
+        setError('The product was saved, but the page could not refresh. Please reload the page.');
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+      }
       setSaving(false);
     }
   }
@@ -256,14 +313,63 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                   />
                 </div>
 
-                <TextField
-                  id="product-stock"
-                  label="Initial Stock *"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  placeholder="0"
-                  inputMode="numeric"
-                />
+                <fieldset>
+                  <legend className="mb-2 block text-sm font-medium text-text">Stock</legend>
+                  <div className="space-y-2">
+                    {[
+                      {
+                        value: 'UNLIMITED' as const,
+                        title: 'Unlimited',
+                        description: 'Orders are not limited by a stock count',
+                      },
+                      {
+                        value: 'TRACKED' as const,
+                        title: 'Track stock',
+                        description: 'Stop accepting orders when stock reaches zero',
+                      },
+                    ].map((option) => {
+                      const selected = stockMode === option.value;
+                      return (
+                        <label
+                          key={option.value}
+                          className={[
+                            'flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition',
+                            selected
+                              ? 'border-accent bg-accent-soft'
+                              : 'border-border bg-surface hover:bg-surface-muted',
+                          ].join(' ')}
+                        >
+                          <input
+                            type="radio"
+                            name="product-stock-mode"
+                            className="h-4 w-4 shrink-0 accent-accent"
+                            checked={selected}
+                            onChange={() => setStockMode(option.value)}
+                          />
+                          <span>
+                            <span className="block text-sm font-medium text-text">
+                              {option.title}
+                            </span>
+                            <span className="block text-xs text-text-muted">
+                              {option.description}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                {stockMode === 'TRACKED' ? (
+                  <TextField
+                    id="product-stock"
+                    label="Initial Stock *"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                    placeholder="0"
+                    inputMode="numeric"
+                  />
+                ) : null}
 
                 {/* Fulfillment type — instant (served immediately) vs manufactured. */}
                 <fieldset>

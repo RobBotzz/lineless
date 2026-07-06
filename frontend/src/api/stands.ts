@@ -14,8 +14,19 @@ export function getOperatorCashierStand(eventId: string): Promise<Stand> {
   return apiFetch<Stand>(`/events/${eventId}/stands/cashier-stand`, { auth: 'operator-link' });
 }
 
+export function getOrganizerCashierStand(eventId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/events/${eventId}/stands/cashier-stand`, { auth: 'organizer' });
+}
+
 export function getAttendeeStands(eventId: string): Promise<Stand[]> {
   return apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'attendee', eventId });
+}
+
+// The cashier stand is hidden from the attendee stand list (system-managed,
+// reached directly), so it needs its own lookup — used for showing its
+// location on the pending-payment page.
+export function getCashierStandForAttendee(eventId: string): Promise<Stand> {
+  return apiFetch<Stand>(`/events/${eventId}/stands/cashier-stand`, { auth: 'attendee', eventId });
 }
 
 export function getOperatorStand(standId: string): Promise<Stand> {

@@ -1,5 +1,6 @@
 // Mirrors the backend product module (src/modules/products/model.ts).
 export type ProductStatus = 'LIVE' | 'PAUSED' | 'TERMINATED';
+export type StockMode = 'UNLIMITED' | 'TRACKED';
 
 export interface Product {
   _id: string;
@@ -12,6 +13,7 @@ export interface Product {
   taxRate: number;
   productImageUrl: string | null;
   instantProduct: boolean;
+  stockMode: StockMode;
   productStock: number;
   productStatus: ProductStatus;
   rating?: number | null;
@@ -26,6 +28,7 @@ export interface CreateProductInput {
   priceIncludingTax: number;
   taxRate: number;
   instantProduct?: boolean;
+  stockMode?: StockMode;
   productStock?: number;
 }
 
@@ -36,7 +39,10 @@ export interface UpdateProductInput {
   priceIncludingTax?: number;
   taxRate?: number;
   instantProduct?: boolean;
-  productStock?: number;
+}
+
+export function tracksStock(product: Pick<Product, 'stockMode'>): boolean {
+  return product.stockMode === 'TRACKED';
 }
 
 // Price excluding tax, in integer cents — derived from the stored incl.-tax price.

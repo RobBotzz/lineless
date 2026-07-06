@@ -34,7 +34,7 @@ export function LiveOrdersSection({
     <Card>
       <CardHeader className="gap-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <CardTitle>
+          <CardTitle className="min-w-0 flex-1 [overflow-wrap:anywhere]">
             Live Orders {selectedLiveOrdersStand ? `- ${selectedLiveOrdersStand.standName}` : ''}
           </CardTitle>
           <div className="w-full space-y-3 lg:max-w-xl lg:justify-self-end">

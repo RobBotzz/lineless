@@ -29,8 +29,18 @@ const LINK_EXPIRED_MESSAGE = 'Link expired. Please reopen the operator link.';
 const LOGIN_FAILED_MESSAGE = 'Login failed. Please try again.';
 const WRONG_PASSWORD_OR_LINK_MESSAGE = 'Wrong password or invalid link.';
 
-type LoadState = 'loading' | 'ready' | 'invalid' | 'error';
+type LoadState = 'loading' | 'ready' | 'invalid' | 'error' | 'completed';
 type CashierTileState = 'available' | 'loading' | 'unavailable';
+
+function isEventCompletedError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 403 &&
+    typeof error.data === 'object' &&
+    error.data !== null &&
+    (error.data as { eventStatus?: unknown }).eventStatus === 'COMPLETED'
+  );
+}
 
 export default function StandSelection() {
   const { eventId } = useParams();
@@ -59,9 +69,19 @@ export default function StandSelection() {
     mutationFn: ({ accessPassword, stand }: { accessPassword?: string; stand: Stand }) =>
       loginOperator(stand._id, accessPassword),
     onSuccess: (_response, { stand }) => {
-      if (eventId) navigate(paths.operator.stand(eventId, stand._id));
+      if (!eventId) return;
+      navigate(
+        stand.standType === 'CASHIER'
+          ? paths.operator.cashier(eventId)
+          : paths.operator.stand(eventId, stand._id),
+      );
     },
     onError: (error: unknown, { stand }) => {
+      if (isEventCompletedError(error)) {
+        setSelectedStand(null);
+        void operatorStandsQuery.refetch();
+        return;
+      }
       if (error instanceof ApiError && error.status === 401) {
         if (stand.requiresPassword) {
           setSelectedStand(stand);
@@ -87,10 +107,14 @@ export default function StandSelection() {
     loadState = 'loading';
   } else if (operatorStandsQuery.isError) {
     const { error } = operatorStandsQuery;
-    loadState =
-      error instanceof ApiError && (error.status === 401 || error.status === 404)
-        ? 'invalid'
-        : 'error';
+    if (isEventCompletedError(error)) {
+      loadState = 'completed';
+    } else {
+      loadState =
+        error instanceof ApiError && (error.status === 401 || error.status === 404)
+          ? 'invalid'
+          : 'error';
+    }
   }
   const stands = operatorStandsQuery.data ?? [];
   // The cashier never appears in the stand list (backend excludes it); the
@@ -128,7 +152,11 @@ export default function StandSelection() {
   function handleStandClick(stand: Stand) {
     if (!canUseOperatorSession || loggingInStandId) return;
     if (loggedInStands[stand._id]) {
-      navigate(paths.operator.stand(eventId, stand._id));
+      navigate(
+        stand.standType === 'CASHIER'
+          ? paths.operator.cashier(eventId)
+          : paths.operator.stand(eventId, stand._id),
+      );
       return;
     }
     if (stand.requiresPassword) {
@@ -176,6 +204,13 @@ export default function StandSelection() {
           />
         )}
 
+        {loadState === 'completed' && (
+          <StatePanel
+            title="This event has ended"
+            message="This event has been completed, so the operator link no longer works. Thanks for helping run it!"
+          />
+        )}
+
         {loadState === 'loading' && <LoadingGrid />}
 
         {loadState === 'ready' && eventId && (
@@ -190,15 +225,22 @@ export default function StandSelection() {
             <section>
               <SectionLabel>Tools</SectionLabel>
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                <ActionTile
+                <SelectionTile
                   icon={<PickupIcon className="h-5 w-5" />}
                   meta="Orders ready for handoff"
                   onClick={() => navigateToSystemDashboard(paths.operator.pickupDashboard(eventId))}
                   title="Pick Up"
                 />
                 <CashierTile
+                  stand={cashierStandQuery.data ?? null}
                   state={cashierState}
-                  onOpen={() => navigateToSystemDashboard(paths.operator.cashier(eventId))}
+                  loggedIn={Boolean(
+                    cashierStandQuery.data && loggedInStands[cashierStandQuery.data._id],
+                  )}
+                  loading={Boolean(
+                    cashierStandQuery.data && loggingInStandId === cashierStandQuery.data._id,
+                  )}
+                  onClick={() => cashierStandQuery.data && handleStandClick(cashierStandQuery.data)}
                 />
               </div>
             </section>
@@ -243,37 +285,6 @@ export default function StandSelection() {
         stand={selectedStand}
       />
     </div>
-  );
-}
-
-// Compact horizontal card for the event-wide tools (Pick Up, Cashier). Kept short
-// so a single tool doesn't leave a tall empty gap like the vertical stand tiles do.
-function ActionTile({
-  icon,
-  meta,
-  onClick,
-  title,
-}: {
-  icon: ReactNode;
-  meta: string;
-  onClick: () => void;
-  title: string;
-}) {
-  return (
-    <button
-      className="group flex min-h-32 items-center gap-4 rounded-lg border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      onClick={onClick}
-      type="button"
-    >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent transition group-hover:bg-accent group-hover:text-button-text">
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-base font-semibold text-text">{title}</span>
-        <span className="mt-0.5 block truncate text-sm text-text-muted">{meta}</span>
-      </span>
-      <ArrowRightIcon className="h-5 w-5 shrink-0 text-text-muted transition group-hover:translate-x-0.5 group-hover:text-accent" />
-    </button>
   );
 }
 
@@ -326,17 +337,34 @@ function StandSelectionTile({
   );
 }
 
-// Mirrors ActionTile's horizontal layout so the Tools row stays consistent. When
-// available it's a normal action card; otherwise it's a greyed, dashed card —
-// "Checking availability…" while loading, and on hover an explanation when the
-// cashier is disabled (403/404).
-function CashierTile({ state, onOpen }: { state: CashierTileState; onOpen: () => void }) {
-  if (state === 'available') {
+// When available, the cashier is a stand like any other — same tile with a status
+// chip + "Open", and the same login/password flow. Otherwise it's a greyed, dashed
+// card: "Checking availability…" while loading, and on hover an explanation when
+// the cashier is disabled (403/404).
+function CashierTile({
+  stand,
+  state,
+  loggedIn,
+  loading,
+  onClick,
+}: {
+  stand: Stand | null;
+  state: CashierTileState;
+  loggedIn: boolean;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  if (state === 'available' && stand) {
+    const locationLabel = getStandLocationLabel(stand);
     return (
-      <ActionTile
+      <SelectionTile
         icon={<CashierIcon className="h-5 w-5" />}
-        meta="Manual orders and cash payments"
-        onClick={onOpen}
+        loggedIn={loggedIn}
+        locked={stand.requiresPassword}
+        loading={loading}
+        meta={locationLabel ?? 'Manual orders and cash payments'}
+        metaIcon={locationLabel ? <PinIcon className="h-4 w-4 shrink-0" /> : null}
+        onClick={onClick}
         title="Cashier"
       />
     );
@@ -395,7 +423,7 @@ function SelectionTile({
 }) {
   return (
     <button
-      className="group flex min-h-32 flex-col rounded-lg border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
+      className="group flex min-h-32 min-w-0 flex-col rounded-lg border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-70"
       disabled={loading}
       onClick={onClick}
       type="button"
@@ -418,7 +446,10 @@ function SelectionTile({
         ) : null}
       </span>
 
-      <span className="mt-3 block shrink-0 truncate text-base font-semibold leading-6 text-text">
+      <span
+        className="mt-3 line-clamp-2 min-w-0 shrink-0 text-base font-semibold leading-6 text-text [overflow-wrap:anywhere]"
+        title={title}
+      >
         {loading ? 'Signing in…' : title}
       </span>
 
@@ -516,7 +547,7 @@ function PasswordDialog({
           <h2 id="stand-password-title" className="mt-5 text-xl font-semibold text-text">
             Enter stand password
           </h2>
-          <p className="mt-2 text-sm leading-6 text-text-muted">
+          <p className="mt-2 text-sm leading-6 text-text-muted [overflow-wrap:anywhere]">
             {stand.standName} requires a password before the operator dashboard opens.
           </p>
 

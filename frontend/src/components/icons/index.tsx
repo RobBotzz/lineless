@@ -347,6 +347,27 @@ export function HourglassCircleIcon({ className = 'h-6 w-6' }: IconProps) {
   );
 }
 
+export function RefreshIcon({ className = 'h-5 w-5' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+    </svg>
+  );
+}
+
+// X nested in a circle outline — same "status icon" family as CheckCircleIcon
+// and HourglassCircleIcon, for a cancelled/failed state.
+export function XCircleIcon({ className = 'h-6 w-6' }: IconProps) {
+  return (
+    <svg className={className} {...strokeProps}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m9.5 9.5 5 5" />
+      <path d="m14.5 9.5-5 5" />
+    </svg>
+  );
+}
+
 export function InfoIcon({ className = 'h-4 w-4' }: IconProps) {
   return (
     <svg className={className} {...strokeProps}>

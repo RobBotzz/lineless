@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useFetcher, useLoaderData, useRouteError } from 'react-router';
+import { Link, useFetcher, useLoaderData, useRevalidator, useRouteError } from 'react-router';
 
 import { ApiError } from '@/api/client';
 import { useOrganizerAuth } from '@/auth/organizer/OrganizerAuthContext';
@@ -18,7 +18,7 @@ import type { Event, EventStatus } from '@/types/event';
 import { hasCoordinates, type Location } from '@/types/location';
 import type { DashboardActionResult } from './data';
 
-type EventFilter = 'all' | 'draft' | 'active' | 'stopped';
+type EventFilter = 'all' | 'draft' | 'active' | 'stopped' | 'completed';
 
 function formatDate(date?: string) {
   if (!date) return 'No date set';
@@ -39,7 +39,9 @@ function formatLocation(location: Location | null | undefined) {
   return 'No location set';
 }
 
-const statusDetails: Record<EventStatus, { label: string; className: string }> = {
+type StatusDetail = { label: string; className: string };
+
+const statusDetails: Record<EventStatus, StatusDetail> = {
   DRAFT: {
     label: 'Draft',
     className: 'border-accent/30 bg-accent-soft text-accent',
@@ -52,18 +54,39 @@ const statusDetails: Record<EventStatus, { label: string; className: string }> =
     label: 'Stopped',
     className: 'border-border bg-surface-muted text-text-muted',
   },
+  COMPLETED: {
+    label: 'Completed',
+    className: 'border-border bg-surface-muted text-text-muted',
+  },
 };
+
+// Fall back gracefully if the backend ever sends a status the frontend doesn't
+// know yet — a single unknown value must not take down the whole dashboard.
+function statusFor(status: EventStatus): StatusDetail {
+  return (
+    statusDetails[status] ?? { label: String(status), className: statusDetails.STOPPED.className }
+  );
+}
 
 // Rendered as the route's errorElement when the loader throws.
 export function DashboardError() {
   const error = useRouteError();
+  const { revalidate, state } = useRevalidator();
   const message =
     error instanceof ApiError
       ? error.message
       : 'Your events could not be loaded. Check whether the backend is running and try again.';
   return (
-    <div className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-5 text-sm text-text">
-      {message}
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-danger/30 bg-danger/5 px-4 py-5 text-sm text-text">
+      <span>{message}</span>
+      <button
+        type="button"
+        onClick={revalidate}
+        disabled={state === 'loading'}
+        className="shrink-0 rounded-lg border border-danger/30 px-3 py-1.5 text-xs font-medium hover:bg-danger/10 disabled:opacity-50"
+      >
+        {state === 'loading' ? 'Loading…' : 'Try again'}
+      </button>
     </div>
   );
 }
@@ -82,6 +105,7 @@ export default function Dashboard() {
     if (activeFilter === 'draft') return events.filter((event) => event.status === 'DRAFT');
     if (activeFilter === 'active') return events.filter((event) => event.status === 'ACTIVE');
     if (activeFilter === 'stopped') return events.filter((event) => event.status === 'STOPPED');
+    if (activeFilter === 'completed') return events.filter((event) => event.status === 'COMPLETED');
     return events;
   }, [activeFilter, events]);
 
@@ -154,6 +178,7 @@ function EventStatusTabs({
     { id: 'draft', label: 'Drafts' },
     { id: 'active', label: 'Active Events' },
     { id: 'stopped', label: 'Stopped Events' },
+    { id: 'completed', label: 'Completed Events' },
   ];
 
   return (
@@ -191,7 +216,7 @@ function EventCard({
   productCount: number;
   onRequestDelete: () => void;
 }) {
-  const status = statusDetails[event.status];
+  const status = statusFor(event.status);
   const canDelete = event.status === 'DRAFT';
 
   return (

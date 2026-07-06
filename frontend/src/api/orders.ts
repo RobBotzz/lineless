@@ -1,7 +1,7 @@
-import { apiFetch, apiFetchAllowing } from './client';
+import { ApiError, apiFetch, apiFetchAllowing } from './client';
 import { getAttendeeStandProducts, getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
-import type { AttendeeOrder, Order, OrderItemView } from '../types/order';
+import type { AttendeeOrder, Order, OrderItemView, StockShortage } from '../types/order';
 import type { Stand } from '../types/stand';
 
 // Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED.
@@ -61,6 +61,84 @@ export function cancelOrderItems(orderId: string, itemIds: string[]): Promise<un
     auth: 'organizer',
     body: JSON.stringify({ itemIds }),
   });
+}
+
+interface InsufficientStockResponse {
+  code: 'INSUFFICIENT_STOCK';
+  error: string;
+  shortages: StockShortage[];
+}
+
+export class InsufficientStockError extends ApiError {
+  readonly shortages: StockShortage[];
+
+  constructor(shortages: StockShortage[]) {
+    super(409, 'Some products no longer have enough stock', {
+      code: 'INSUFFICIENT_STOCK',
+      shortages,
+    });
+    this.name = 'InsufficientStockError';
+    this.shortages = shortages;
+  }
+}
+
+function isStockShortage(value: unknown): value is StockShortage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const shortage = value as Record<string, unknown>;
+  return (
+    typeof shortage.productId === 'string' &&
+    shortage.productId.length > 0 &&
+    typeof shortage.requested === 'number' &&
+    Number.isInteger(shortage.requested) &&
+    shortage.requested > 0 &&
+    typeof shortage.available === 'number' &&
+    Number.isInteger(shortage.available) &&
+    shortage.available >= 0
+  );
+}
+
+function throwIfStockConflict(status: number, data: unknown): void {
+  if (status !== 409 || !data || typeof data !== 'object') return;
+  const response = data as Partial<InsufficientStockResponse>;
+  if (
+    response.code === 'INSUFFICIENT_STOCK' &&
+    Array.isArray(response.shortages) &&
+    response.shortages.every(isStockShortage)
+  ) {
+    throw new InsufficientStockError(response.shortages);
+  }
+}
+
+export type OrderRequestConflict = 'ORDER_REQUEST_DELETED' | 'ORDER_REQUEST_CANCELLED';
+
+// A reused idempotency key whose order was since cancelled or deleted comes back
+// as a 409 carrying one of these codes (distinct from a code-less inactive-event
+// 409). The caller must drop the key and start a fresh order request.
+export function orderRequestConflict(err: unknown): OrderRequestConflict | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const data = err.data;
+  if (!data || typeof data !== 'object') return null;
+  const code = (data as Record<string, unknown>).code;
+  if (code === 'ORDER_REQUEST_DELETED' || code === 'ORDER_REQUEST_CANCELLED') return code;
+  return null;
+}
+
+function unexpectedOrderResponse(status: number, data: unknown): ApiError {
+  let message = `Unexpected order response (${status})`;
+  if (data && typeof data === 'object') {
+    const response = data as Record<string, unknown>;
+    if (typeof response.error === 'string') message = response.error;
+    else if (typeof response.message === 'string') message = response.message;
+  }
+  return new ApiError(status, message, data);
+}
+
+function createdOrderFromResponse(status: number, data: unknown): Order {
+  if (status === 201 && data && typeof data === 'object') {
+    const order = (data as Record<string, unknown>).order;
+    if (order && typeof order === 'object') return order as Order;
+  }
+  throw unexpectedOrderResponse(status, data);
 }
 
 // --- Cashier order API ---------------------------------------------------------
@@ -164,29 +242,48 @@ function flattenOrderItems(items: OrderItemView[]) {
 export async function createManualOrder(
   input: { eventId: string; items: OrderItemView[] },
   standId: string,
+  requestId: string,
 ): Promise<Order> {
   // POST /orders wraps the created order as { order }, so unwrap it here rather
   // than treating the body as the order itself.
-  const { order } = await apiFetch<{ order: Order }>('/orders', {
-    method: 'POST',
-    auth: 'operator',
-    standId,
-    body: JSON.stringify({ eventId: input.eventId, items: flattenOrderItems(input.items) }),
-  });
-  return order;
+  const { status, data } = await apiFetchAllowing<{ order?: Order } | InsufficientStockResponse>(
+    '/orders',
+    {
+      method: 'POST',
+      auth: 'operator',
+      standId,
+      body: JSON.stringify({
+        eventId: input.eventId,
+        requestId,
+        items: flattenOrderItems(input.items),
+      }),
+    },
+    [409],
+  );
+  throwIfStockConflict(status, data);
+  return createdOrderFromResponse(status, data);
 }
 
 // POST /api/orders — creates an order for the attendee's own cart (attendee session auth).
-export async function createOrder(eventId: string, items: OrderItemView[]): Promise<Order> {
+export async function createOrder(
+  eventId: string,
+  items: OrderItemView[],
+  requestId: string,
+): Promise<Order> {
   // POST /orders wraps the created order as { order } (same shape createCardOrder
   // reads), so unwrap it here rather than treating the body as the order itself.
-  const { order } = await apiFetch<{ order: Order }>('/orders', {
-    method: 'POST',
-    auth: 'attendee',
-    eventId,
-    body: JSON.stringify({ eventId, items: flattenOrderItems(items) }),
-  });
-  return order;
+  const { status, data } = await apiFetchAllowing<{ order?: Order } | InsufficientStockResponse>(
+    '/orders',
+    {
+      method: 'POST',
+      auth: 'attendee',
+      eventId,
+      body: JSON.stringify({ eventId, requestId, items: flattenOrderItems(items) }),
+    },
+    [409],
+  );
+  throwIfStockConflict(status, data);
+  return createdOrderFromResponse(status, data);
 }
 
 // Outcome of placing a card order against a tab. `created` means the order fit
@@ -204,42 +301,43 @@ export async function createCardOrder(
   eventId: string,
   items: OrderItemView[],
   tabId: string,
+  requestId: string,
+  signal?: AbortSignal,
 ): Promise<CardOrderResult> {
-  const { status, data } = await apiFetchAllowing<{
-    order?: Order;
-    clientSecret?: string;
-    orderId?: string;
-  }>(
+  const { status, data } = await apiFetchAllowing<
+    { order?: Order; clientSecret?: string; orderId?: string } | InsufficientStockResponse
+  >(
     '/orders',
     {
       method: 'POST',
       auth: 'attendee',
       eventId,
-      body: JSON.stringify({ eventId, tabId, items: flattenOrderItems(items) }),
+      signal,
+      body: JSON.stringify({ eventId, tabId, requestId, items: flattenOrderItems(items) }),
     },
-    [402],
+    [402, 409],
   );
 
+  throwIfStockConflict(status, data);
+
   if (status === 402) {
+    const payment = data as { clientSecret?: string; orderId?: string };
+    if (typeof payment.clientSecret !== 'string' || typeof payment.orderId !== 'string') {
+      throw unexpectedOrderResponse(status, data);
+    }
     return {
       status: 'authorizationRequired',
-      clientSecret: data.clientSecret as string,
-      orderId: data.orderId as string,
+      clientSecret: payment.clientSecret,
+      orderId: payment.orderId,
     };
   }
-  return { status: 'created', order: data.order as Order };
+  return { status: 'created', order: createdOrderFromResponse(status, data) };
 }
 
 // GET /api/orders/:orderId — the attendee's own order by id. Items include
 // productName + standName joined by the backend.
 export function getAttendeeOrder(orderId: string, eventId: string): Promise<AttendeeOrder> {
   return apiFetch<AttendeeOrder>(`/orders/${orderId}`, { auth: 'attendee', eventId });
-}
-
-// GET /api/orders/cashier — unpaid orders for the cashier's event.
-// The stand is derived from the operator token, so no standId needed in the URL.
-export function getUnpaidOrders(standId: string): Promise<Order[]> {
-  return apiFetch<Order[]>('/orders/cashier', { auth: 'operator', standId });
 }
 
 // DELETE /api/orders/cashier/:orderId — soft-delete an unpaid order.
@@ -257,10 +355,73 @@ export function confirmCashPayment(orderId: string, standId: string): Promise<vo
     method: 'POST',
     auth: 'operator',
     standId,
+    // Send an empty JSON body so Express parses req.body to {} — the endpoint's
+    // validateBody(z.object({})) rejects an undefined body (no body = no
+    // Content-Type = unparsed) with "Validation failed".
+    body: JSON.stringify({}),
   });
 }
 
 // GET /api/orders — attendee's order history (paid orders only).
 export function getAttendeeOrders(eventId: string): Promise<Order[]> {
   return apiFetch<Order[]>('/orders', { auth: 'attendee', eventId });
+}
+
+// --- Cash refund API -----------------------------------------------------------
+
+// GET /api/orders/cashier/refundable — cash-paid orders for the cashier's event
+// that still have at least one refundable (cancelled, not-refunded) item.
+export function getRefundableOrders(standId: string): Promise<Order[]> {
+  return apiFetch<Order[]>('/orders/cashier/refundable', { auth: 'operator', standId });
+}
+
+// POST /api/orders/:orderId/refund — refund the given cancelled items in one go.
+export function refundOrderItems(
+  orderId: string,
+  itemIds: string[],
+  standId: string,
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}/refund`, {
+    method: 'POST',
+    auth: 'operator',
+    standId,
+    body: JSON.stringify({ itemIds }),
+  });
+}
+
+// One display row per individual order item — unlike buildOrderViewItems this keeps
+// cancelled/refunded items so the refund screen can show the whole order and offer
+// the refundable items for selection by their real item ids.
+export interface RefundItemRow {
+  _id: string;
+  productName: string;
+  standName: string;
+  unitPrice: number; // integer cents
+  cancelledAt: string | null;
+  refundedAt: string | null;
+}
+
+export async function buildRefundRows(
+  order: Order,
+  eventId: string,
+  standId: string,
+): Promise<RefundItemRow[]> {
+  const [products, stands] = await Promise.all([
+    getOperatorEventProducts(eventId, standId),
+    getOperatorStands(eventId),
+  ]);
+  const productById = new Map(products.map((p) => [p._id, p]));
+  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+
+  return order.items.map((item) => {
+    const product = productById.get(item.productId);
+    return {
+      _id: item._id,
+      productName: product?.productName ?? item.productName ?? item.productId,
+      standName: product ? (standNameById.get(product.standId) ?? '') : '',
+      unitPrice: item.priceIncludingTaxAtPurchase,
+      cancelledAt: item.cancelledAt,
+      refundedAt: item.refundedAt,
+    };
+  });
 }

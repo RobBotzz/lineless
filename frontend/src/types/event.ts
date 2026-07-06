@@ -3,7 +3,10 @@
 // fine here since these modules don't reference the DOM Event.
 import type { Location } from './location';
 
-export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED';
+// COMPLETED is emitted by the event-completion flow. Kept here so events left in
+// that state (e.g. created on a branch that has the feature) render instead of
+// crashing the view when the running backend build predates it.
+export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED' | 'COMPLETED';
 
 export interface EventBranding {
   primaryColor: string;
@@ -33,6 +36,17 @@ export interface Event {
   stoppedAt?: string;
   deletedAt: string | null;
   createdAt: string;
+  updatedAt: string;
+}
+
+// Minimal public projection returned by GET /events/:id/public-info (no auth).
+// Only includes fields needed for gate pages; excludes accountId and billing config.
+export interface PublicEventInfo {
+  _id: string;
+  name: string;
+  status: EventStatus;
+  plannedDate?: string;
+  branding: EventBranding;
   updatedAt: string;
 }
 

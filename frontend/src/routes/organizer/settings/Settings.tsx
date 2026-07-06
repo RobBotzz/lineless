@@ -59,6 +59,10 @@ export default function Settings() {
   // Track dismissed errors the same way event-configuration does.
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
+  // Both cards share one fetcher, so track which submission is in flight to give
+  // each button its own busy state (otherwise both show "Saving...").
+  const [submittedIntent, setSubmittedIntent] = useState<SettingsActionBody['intent'] | null>(null);
+
   const actionError = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
   const successMessage =
@@ -68,6 +72,18 @@ export default function Settings() {
   const visibleSuccess =
     successMessage && successMessage !== dismissedSuccess ? successMessage : null;
   const busy = fetcher.state !== 'idle';
+  const accountBusy = busy && submittedIntent === 'save-account';
+  const passwordBusy = busy && submittedIntent === 'change-password';
+
+  // Clear the password fields once a change succeeds.
+  const [prevResult, setPrevResult] = useState(fetcher.data);
+  if (fetcher.data !== prevResult) {
+    setPrevResult(fetcher.data);
+    if (fetcher.data?.ok && fetcher.data.intent === 'change-password') {
+      setPasswordForm(emptyPasswordForm);
+      setNewPasswordError(null);
+    }
+  }
 
   function updateAccountField<K extends keyof AccountForm>(key: K, value: AccountForm[K]) {
     setAccountForm((prev) => ({ ...prev, [key]: value }));
@@ -79,6 +95,7 @@ export default function Settings() {
   }
 
   function submit(payload: SettingsActionBody) {
+    setSubmittedIntent(payload.intent);
     setDismissedError(null);
     setDismissedSuccess(null);
     void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
@@ -155,8 +172,8 @@ export default function Settings() {
             </div>
 
             <div className="mt-6 flex justify-end">
-              <Button className="px-6" disabled={busy} onClick={handleAccountSave} size="lg">
-                {busy ? 'Saving...' : 'Save Account'}
+              <Button className="px-6" disabled={accountBusy} onClick={handleAccountSave} size="lg">
+                {accountBusy ? 'Saving...' : 'Save Account'}
               </Button>
             </div>
           </CardContent>
@@ -200,8 +217,13 @@ export default function Settings() {
             </div>
 
             <div className="mt-6 flex justify-end">
-              <Button className="px-6" disabled={busy} onClick={handlePasswordSave} size="lg">
-                {busy ? 'Saving...' : 'Change Password'}
+              <Button
+                className="px-6"
+                disabled={passwordBusy}
+                onClick={handlePasswordSave}
+                size="lg"
+              >
+                {passwordBusy ? 'Saving...' : 'Change Password'}
               </Button>
             </div>
           </CardContent>

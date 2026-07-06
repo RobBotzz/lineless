@@ -36,7 +36,7 @@ export function StaticLocationMap({
         </MapContainer>
       </div>
       <a
-        className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+        className="inline-flex items-center gap-1 text-sm font-medium text-accent-contrast hover:underline"
         href={mapsUrl}
         rel="noreferrer"
         target="_blank"
