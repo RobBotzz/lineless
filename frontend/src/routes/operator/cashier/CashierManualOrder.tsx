@@ -17,6 +17,7 @@ import { getOperatorEventProducts } from '@/api/products';
 import type { OrderItemView } from '@/types/order';
 import { formatMoney, productImageSrc, tracksStock, type Product } from '@/types/product';
 import { paths } from '@/paths';
+import { CashierEventPausedNotice } from './CashierEventPausedNotice';
 import type { CashierContext } from './CashierLayout';
 
 // The backend reports every non-ACTIVE event with the same code-less 409, so we
@@ -34,7 +35,7 @@ async function classifyInactiveEvent(eventId: string): Promise<'not-started' | '
 
 // Cart is in-memory (no persistKey) so it starts fresh for each customer.
 export default function CashierManualOrder() {
-  const { eventId, standId, ratingsEnabled } = useOutletContext<CashierContext>();
+  const { eventId, standId, ratingsEnabled, eventStatus } = useOutletContext<CashierContext>();
   const navigate = useNavigate();
 
   const {
@@ -152,6 +153,12 @@ export default function CashierManualOrder() {
       setError(err instanceof Error ? err.message : 'Could not create the order.');
       setIsCheckingOut(false);
     }
+  }
+
+  // A stopped event takes no new orders (the backend rejects them). Block the
+  // whole surface up front instead of only surfacing it after a checkout attempt.
+  if (eventStatus === 'STOPPED') {
+    return <CashierEventPausedNotice eventId={eventId} action="Manual ordering" />;
   }
 
   return (
