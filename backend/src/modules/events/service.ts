@@ -2,7 +2,6 @@ import { Event, generateOperatorAccessKey, type EventDoc } from "./model";
 import { EventLogo, type EventLogoDoc } from "./logo.model";
 import {
   EventLogoNotFoundError,
-  EventNotActiveError,
   EventNotFoundError,
   EventStateError,
   InvalidImageError,
@@ -96,16 +95,12 @@ export async function getEventForAttendee(
 ): Promise<AttendeeEvent> {
   assertSessionOwnsEvent(eventId, sessionEventId);
 
-  // STOPPED and COMPLETED events are readable so guests with existing sessions
-  // can still track their orders and receive fulfillments.
   const event = await Event.findOne({
     _id: eventId,
+    status: { $in: ["ACTIVE", "STOPPED", "COMPLETED"] },
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
-  if (event.status !== "ACTIVE") {
-    throw new EventNotActiveError(event.status, event.branding);
-  }
   return stripOperatorAccessKey(event);
 }
 

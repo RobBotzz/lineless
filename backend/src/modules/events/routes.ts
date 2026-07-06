@@ -19,7 +19,6 @@ import {
 } from "./service";
 import {
   EventLogoNotFoundError,
-  EventNotActiveError,
   EventNotFoundError,
   EventStateError,
   ImageTooLargeError,
@@ -42,16 +41,6 @@ function eventId(req: Request): string {
 function handleError(err: unknown, res: Response): unknown {
   if (err instanceof EventNotFoundError) {
     return res.status(404).json({ error: err.message });
-  }
-  if (err instanceof EventNotActiveError) {
-    // 409: the event exists but is not shoppable. eventStatus lets the frontend
-    // explain whether it has not started yet or has already ended; branding lets
-    // it render that screen in the shop's own colors + logo.
-    return res.status(409).json({
-      error: err.message,
-      eventStatus: err.eventStatus,
-      branding: err.branding,
-    });
   }
   if (err instanceof EventStateError) {
     return res.status(409).json({ error: err.message });
