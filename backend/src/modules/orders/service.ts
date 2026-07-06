@@ -36,6 +36,7 @@ import {
   releaseReservedStock,
   reserveProductStock,
 } from "./inventory";
+import { notifyOrderCreated, notifyOrderPaid } from "./emailNotifications";
 
 const stripe = new Stripe(config.stripe.secretKey);
 
@@ -342,6 +343,12 @@ export async function submitOrder(
     } finally {
       await dbSession.endSession();
     }
+
+    // Cash orders start out unpaid — nudge the attendee (never the cashier;
+    // operator orders have no session/email) to go pay. Fire-and-forget after
+    // commit: a failed mail must never fail a successfully created order.
+    if (createdOrder) void notifyOrderCreated(createdOrder);
+
     return { status: 201, order: createdOrder! };
   }
 
@@ -419,10 +426,15 @@ export async function submitOrder(
 
   const dbSession = await mongoose.startSession();
   let createdOrder: OrderDoc | undefined;
+  let newlyPaidOrders: OrderDoc[] = [];
   try {
     await dbSession.withTransaction(async () => {
       createdOrder = await createReservedOrder(dbSession, now);
-      await markAuthorizedTabOrdersPaid(tabId, dbSession, now);
+      newlyPaidOrders = await markAuthorizedTabOrdersPaid(
+        tabId,
+        dbSession,
+        now
+      );
     });
   } catch (error) {
     const duplicate = await existingSubmission(sessionId, input);
@@ -431,6 +443,11 @@ export async function submitOrder(
   } finally {
     await dbSession.endSession();
   }
+
+  // The card order is paid on the spot — confirm it (and any previously gated
+  // orders the hold now covers) after the transaction has committed.
+  if (createdOrder) void notifyOrderPaid(createdOrder);
+  for (const paidOrder of newlyPaidOrders) void notifyOrderPaid(paidOrder);
 
   return { status: 201, order: createdOrder! };
 }
@@ -508,6 +525,9 @@ export async function confirmCashPayment(
   }
   const updated = await Order.findById(orderId).lean();
   if (!updated) throw new OrderNotFoundError();
+
+  // Confirm the now-paid order to the attendee (fire-and-forget, post-commit).
+  void notifyOrderPaid(updated);
   return updated;
 }
 
