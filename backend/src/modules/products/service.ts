@@ -242,15 +242,12 @@ async function findControllableProduct(
 }
 
 // LIVE -> PAUSED. An explicit, validated transition (no going through PATCH):
-// TERMINATED is terminal and an already-paused product is a no-op error.
+// an already-paused product is a no-op error.
 export async function pauseProduct(
   productId: string,
   auth: ProductControlAuth
 ): Promise<ProductDoc> {
   const product = await findControllableProduct(productId, auth);
-  if (product.productStatus === "TERMINATED") {
-    throw new ProductStateError("A terminated product cannot be paused");
-  }
   if (product.productStatus === "PAUSED") {
     throw new ProductStateError("Product is already paused");
   }
@@ -259,16 +256,13 @@ export async function pauseProduct(
   return product.toObject();
 }
 
-// PAUSED -> LIVE. Mirror of pauseProduct: TERMINATED is terminal and an
-// already-live product is a no-op error.
+// PAUSED -> LIVE. Mirror of pauseProduct: an already-live product is a no-op
+// error.
 export async function resumeProduct(
   productId: string,
   auth: ProductControlAuth
 ): Promise<ProductDoc> {
   const product = await findControllableProduct(productId, auth);
-  if (product.productStatus === "TERMINATED") {
-    throw new ProductStateError("A terminated product cannot be resumed");
-  }
   if (product.productStatus === "LIVE") {
     throw new ProductStateError("Product is already live");
   }

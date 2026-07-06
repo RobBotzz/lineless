@@ -218,19 +218,6 @@ productsRouter.post(
   }
 );
 
-// POST /products/:productId/terminate — placeholder for the -> TERMINATED
-// transition (terminal state).
-// TODO: implement terminateProduct in the service as an explicit, validated
-// state transition (mirror the events start/stop pattern with a
-// ProductStateError).
-productsRouter.post(
-  "/:productId/terminate",
-  authOrganizerOrOperator,
-  (_req: Request, res: Response) => {
-    res.status(501).json({ error: "Not implemented" });
-  }
-);
-
 // PATCH /products/:productId
 productsRouter.patch(
   "/:productId",

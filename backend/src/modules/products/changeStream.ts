@@ -26,7 +26,7 @@ function onlyRatingAggregateChanged(change: ProductChange): boolean {
 
 // Watch the products collection and publish every insert/update onto the realtime
 // bus. Mirrors watchOrderChanges: any path that persists a product change — a
-// future pause/resume/terminate, soft-delete, name/stock/price edits, or a newly
+// future pause/resume, soft-delete, name/stock/price edits, or a newly
 // created product — is captured here without explicit publish() calls at each
 // write site. Requires MongoDB running as a replica set.
 export function watchProductChanges(): void {

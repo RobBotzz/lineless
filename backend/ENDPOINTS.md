@@ -36,19 +36,18 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Products
 
-| Method | URL                               | Description                                             |
-| ------ | --------------------------------- | ------------------------------------------------------- |
-| POST   | `/stands/{standId}/products`      | Create product                                          |
-| GET    | `/products/{productId}`           | Get single product                                      |
-| PATCH  | `/products/{productId}`           | Update product metadata                                 |
-| PATCH  | `/products/{productId}/stock`     | Compare-and-set product stock                           |
-| DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`)            |
-| POST   | `/products/{productId}/pause`     | Pause product                                           |
-| POST   | `/products/{productId}/resume`    | Resume product                                          |
-| POST   | `/products/{productId}/terminate` | Terminate product                                       |
-| PUT    | `/products/{productId}/image`     | Upload/replace product image (multipart, field `image`) |
-| DELETE | `/products/{productId}/image`     | Remove the uploaded product image                       |
-| GET    | `/products/{productId}/image`     | Serve product image bytes (public, cached)              |
+| Method | URL                            | Description                                             |
+| ------ | ------------------------------ | ------------------------------------------------------- |
+| POST   | `/stands/{standId}/products`   | Create product                                          |
+| GET    | `/products/{productId}`        | Get single product                                      |
+| PATCH  | `/products/{productId}`        | Update product metadata                                 |
+| PATCH  | `/products/{productId}/stock`  | Compare-and-set product stock                           |
+| DELETE | `/products/{productId}`        | Delete product (soft delete via `deletedAt`)            |
+| POST   | `/products/{productId}/pause`  | Pause product                                           |
+| POST   | `/products/{productId}/resume` | Resume product                                          |
+| PUT    | `/products/{productId}/image`  | Upload/replace product image (multipart, field `image`) |
+| DELETE | `/products/{productId}/image`  | Remove the uploaded product image                       |
+| GET    | `/products/{productId}/image`  | Serve product image bytes (public, cached)              |
 
 ### Event Control Center
 
@@ -136,7 +135,6 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 | GET    | `/operator/board`                       | Current stand operator board snapshot                             |
 | GET    | `/operator/board/stream`                | Live stand operator board stream (SSE)                            |
 | POST   | `/products/{productId}/pause`           | Pause product                                                     |
-| POST   | `/products/{productId}/terminate`       | Terminate product                                                 |
 
 ### Order item status transitions (operator dashboard)
 
