@@ -23,6 +23,7 @@ import {
   CashRefundInvalidItemsError,
   EventNotActiveError,
   OrderAlreadyPaidError,
+  OrderConflictRetryError,
   OrderItemNotFoundError,
   OrderItemStateError,
   OrderNotFoundError,
@@ -39,6 +40,22 @@ import {
 import { notifyOrderCreated, notifyOrderPaid } from "./emailNotifications";
 
 const stripe = new Stripe(config.stripe.secretKey);
+
+// Internal signal: a concurrent order consumed the tab's authorization headroom
+// between the non-transactional coverage read and the paid-path transaction.
+// Caught by submitOrder's retry loop to re-run the request (which then routes the
+// order to a top-up); never surfaced to the caller unless retries are exhausted.
+class TabAuthorizationRaceError extends Error {
+  constructor() {
+    super("Tab authorization was consumed by a concurrent order");
+    this.name = "TabAuthorizationRaceError";
+  }
+}
+
+// A lost race almost always resolves on the first re-run against the committed
+// sibling, so a small bound is plenty; it exists only to keep a genuine burst of
+// concurrent submissions on one tab from retrying without end.
+const MAX_AUTHORIZATION_RACE_RETRIES = 3;
 
 function generatePickupCode(): string {
   return crypto.randomBytes(2).toString("hex").toUpperCase();
@@ -222,6 +239,31 @@ async function existingSubmission(
 
 export async function submitOrder(
   /** Attendee sessionId for guest orders; null for cashier (operator) orders. */
+  sessionId: string | null,
+  input: CreateOrderInput,
+  operatorStandId?: string
+): Promise<SubmitOrderResult> {
+  // Re-run against the committed sibling on a lost authorization race, bounded so
+  // a concurrent burst cannot retry indefinitely (was previously self-recursion).
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await attemptSubmitOrder(sessionId, input, operatorStandId);
+    } catch (error) {
+      if (
+        error instanceof TabAuthorizationRaceError &&
+        attempt < MAX_AUTHORIZATION_RACE_RETRIES
+      ) {
+        continue;
+      }
+      if (error instanceof TabAuthorizationRaceError) {
+        throw new OrderConflictRetryError();
+      }
+      throw error;
+    }
+  }
+}
+
+async function attemptSubmitOrder(
   sessionId: string | null,
   input: CreateOrderInput,
   operatorStandId?: string
@@ -419,17 +461,44 @@ export async function submitOrder(
     };
   }
 
-  // The existing hold already covers this order, so it is paid immediately. Its
-  // items stay PENDING (startedAt null) — they enter the operator board as new
-  // work and only move to PREPARING when an operator starts them.
+  // The outer coverage read (authorizedCents/consumedCents) is NOT transactional,
+  // so a concurrent order on the same tab could already have consumed the same
+  // headroom. Create the order unpaid, then re-verify coverage INSIDE a
+  // transaction that also writes the tab: two racing order transactions then
+  // conflict on the tab document, and the loser is retried with a fresh snapshot
+  // that includes the committed sibling. Only stamp paidAt once the authorized
+  // holds still cover every non-cancelled item on the tab — otherwise the order
+  // is rolled back and re-run to route it to a top-up.
   const now = new Date();
 
   const dbSession = await mongoose.startSession();
   let createdOrder: OrderDoc | undefined;
   let newlyPaidOrders: OrderDoc[] = [];
+  let raceLost = false;
   try {
     await dbSession.withTransaction(async () => {
-      createdOrder = await createReservedOrder(dbSession, now);
+      // Serialize concurrent order creation on this tab. Touching the tab is
+      // enough: the second committer hits a write conflict and withTransaction
+      // retries its callback against the now-committed sibling order.
+      await Tab.updateOne(
+        { _id: tabId },
+        { $set: { updatedAt: new Date() } },
+        { session: dbSession }
+      );
+      const order = await createReservedOrder(dbSession, null);
+      const authorizedInTxn = await getAuthorizedTabCents(tabId, dbSession);
+      const consumedInTxn = await getActiveTabTotalCents(tabId, dbSession);
+      if (consumedInTxn > authorizedInTxn) {
+        raceLost = true;
+        throw new TabAuthorizationRaceError();
+      }
+      await Order.updateOne(
+        { _id: order._id },
+        { $set: { paidAt: now } },
+        { session: dbSession }
+      );
+      order.paidAt = now;
+      createdOrder = order;
       newlyPaidOrders = await markAuthorizedTabOrdersPaid(
         tabId,
         dbSession,
@@ -437,6 +506,12 @@ export async function submitOrder(
       );
     });
   } catch (error) {
+    // Lost the authorization race: the order was rolled back with the aborted
+    // transaction. Signal submitOrder to re-run against the committed sibling;
+    // the fresh coverage read then routes this order to a top-up instead of
+    // paying it. Throw a fresh sentinel so the retry loop matches on it
+    // regardless of how withTransaction surfaced the abort.
+    if (raceLost) throw new TabAuthorizationRaceError();
     const duplicate = await existingSubmission(sessionId, input);
     if (duplicate) return duplicate;
     throw error;
