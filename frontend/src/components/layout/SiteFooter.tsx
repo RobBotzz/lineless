@@ -24,7 +24,7 @@ export function SiteFooter() {
           {/* Brand + legal provider identity (Impressum) */}
           <div className="sm:col-span-2">
             <Link to={paths.home} aria-label={`${COMPANY} home`} className="inline-flex">
-              <Wordmark className="text-2xl text-[#020887]" />
+              <Wordmark className="text-2xl text-brand-static" />
             </Link>
             <p className="mt-3 max-w-sm text-sm leading-6 text-text-muted">
               Pay-per-use digital queuing and ordering for small-scale event organizers.
