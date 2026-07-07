@@ -30,7 +30,7 @@ export function ProductReviewCard({
           {standName}
         </span>
         {disabled && (
-          <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-green-600">
+          <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-success">
             <CheckCircleIcon className="h-3.5 w-3.5" />
             Already rated
           </p>

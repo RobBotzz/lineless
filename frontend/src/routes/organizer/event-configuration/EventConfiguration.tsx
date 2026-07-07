@@ -4,7 +4,7 @@ import { Link, useFetcher, useLoaderData, useRevalidator, useRouteError } from '
 import { ApiError } from '@/api/client';
 import { deleteEventLogo, updateEvent, uploadEventLogo } from '@/api/events';
 import { AlertDialog } from '@/components/feedback';
-import { BackButton, ImageDropzone } from '@/components/shared';
+import { BackButton, ImageDropzone, InfoTooltip } from '@/components/shared';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Card,
@@ -317,9 +317,6 @@ export default function EventConfiguration() {
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
   const [showCustomerLink, setShowCustomerLink] = useState(false);
-  const [showHoldInfo, setShowHoldInfo] = useState(false);
-  const [showRatingsInfo, setShowRatingsInfo] = useState(false);
-  const [showLogoInfo, setShowLogoInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
@@ -822,42 +819,11 @@ export default function EventConfiguration() {
                 label={
                   <span className="inline-flex items-center gap-1.5">
                     Card pre-authorization hold (€)
-                    <span className="relative inline-flex">
-                      <button
-                        type="button"
-                        aria-label="About the card pre-authorization hold"
-                        aria-expanded={showHoldInfo}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setShowHoldInfo((open) => !open);
-                        }}
-                        className="text-text-muted transition hover:text-text"
-                      >
-                        <InfoIcon />
-                      </button>
-                      {showHoldInfo && (
-                        <>
-                          <button
-                            type="button"
-                            aria-hidden="true"
-                            tabIndex={-1}
-                            className="fixed inset-0 z-40 cursor-default"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setShowHoldInfo(false);
-                            }}
-                          />
-                          <span
-                            role="tooltip"
-                            className="absolute left-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)] sm:left-1/2 sm:-translate-x-1/2"
-                          >
-                            {
-                              "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
-                            }
-                          </span>
-                        </>
-                      )}
-                    </span>
+                    <InfoTooltip label="About the card pre-authorization hold">
+                      {
+                        "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
+                      }
+                    </InfoTooltip>
                   </span>
                 }
                 disabled={!isDraft}
@@ -879,41 +845,10 @@ export default function EventConfiguration() {
                   htmlFor="ratings-enabled"
                 >
                   Customer Product Ratings
-                  <span className="relative inline-flex">
-                    <button
-                      type="button"
-                      aria-label="About customer product ratings"
-                      aria-expanded={showRatingsInfo}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setShowRatingsInfo((open) => !open);
-                      }}
-                      className="text-text-muted transition hover:text-text"
-                    >
-                      <InfoIcon />
-                    </button>
-                    {showRatingsInfo && (
-                      <>
-                        <button
-                          type="button"
-                          aria-hidden="true"
-                          tabIndex={-1}
-                          className="fixed inset-0 z-40 cursor-default"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowRatingsInfo(false);
-                          }}
-                        />
-                        <span
-                          role="tooltip"
-                          className="absolute left-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)] sm:left-1/2 sm:-translate-x-1/2"
-                        >
-                          When enabled, guests can rate the products they ordered, and the average
-                          rating is shown on each product.
-                        </span>
-                      </>
-                    )}
-                  </span>
+                  <InfoTooltip label="About customer product ratings">
+                    When enabled, guests can rate the products they ordered, and the average rating
+                    is shown on each product.
+                  </InfoTooltip>
                 </label>
                 <Toggle
                   checked={form.ratingsEnabled}
@@ -958,41 +893,10 @@ export default function EventConfiguration() {
                 <p className="mb-2 block text-sm font-medium">
                   <span className="inline-flex items-center gap-1.5">
                     Logo
-                    <span className="relative inline-flex">
-                      <button
-                        type="button"
-                        aria-label="About the event logo"
-                        aria-expanded={showLogoInfo}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setShowLogoInfo((open) => !open);
-                        }}
-                        className="text-text-muted transition hover:text-text"
-                      >
-                        <InfoIcon />
-                      </button>
-                      {showLogoInfo && (
-                        <>
-                          <button
-                            type="button"
-                            aria-hidden="true"
-                            tabIndex={-1}
-                            className="fixed inset-0 z-40 cursor-default"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setShowLogoInfo(false);
-                            }}
-                          />
-                          <span
-                            role="tooltip"
-                            className="absolute left-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)] sm:left-1/2 sm:-translate-x-1/2"
-                          >
-                            Replaces the Lineless logo for attendees. Shown at the size of the
-                            current logo — smaller images sit left, larger ones scale down to fit.
-                          </span>
-                        </>
-                      )}
-                    </span>
+                    <InfoTooltip label="About the event logo">
+                      Replaces the Lineless logo for attendees. Shown at the size of the current
+                      logo — smaller images sit left, larger ones scale down to fit.
+                    </InfoTooltip>
                   </span>
                 </p>
                 {/* Full-width banner while the layout is stacked (mobile);
@@ -1353,7 +1257,6 @@ function BrandColorField({
   auto?: { active: boolean; onEnable: () => void };
   disabled?: boolean;
 }) {
-  const [showAutoInfo, setShowAutoInfo] = useState(false);
   const [draft, setDraft] = useState(value);
 
   // Sync draft when an external change (e.g. preset applied) lands.
@@ -1398,42 +1301,11 @@ function BrandColorField({
             >
               Auto
             </button>
-            <span className="relative inline-flex">
-              <button
-                type="button"
-                aria-label="About Auto brand text"
-                aria-expanded={showAutoInfo}
-                onClick={(e) => {
-                  e.preventDefault();
-                  setShowAutoInfo((open) => !open);
-                }}
-                className="text-text-muted transition hover:text-text"
-              >
-                <InfoIcon />
-              </button>
-              {showAutoInfo && (
-                <>
-                  <button
-                    type="button"
-                    aria-hidden="true"
-                    tabIndex={-1}
-                    className="fixed inset-0 z-40 cursor-default"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setShowAutoInfo(false);
-                    }}
-                  />
-                  <span
-                    role="tooltip"
-                    className="absolute left-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)] sm:left-1/2 sm:-translate-x-1/2"
-                  >
-                    Auto picks the text color for you from your Brand color, darkening it only if
-                    needed so it stays easy to read on the page. Click the swatch to choose your own
-                    color instead.
-                  </span>
-                </>
-              )}
-            </span>
+            <InfoTooltip label="About Auto brand text">
+              Auto picks the text color for you from your Brand color, darkening it only if needed
+              so it stays easy to read on the page. Click the swatch to choose your own color
+              instead.
+            </InfoTooltip>
           </>
         )}
       </div>
