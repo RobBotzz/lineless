@@ -118,9 +118,10 @@ export default function Cart() {
     setEmailError(null);
     setIsCheckingOut(true);
     try {
-      // Email is required only for card payments (digital receipt).
-      if (paymentMethod === 'CARD') {
-        const trimmedEmail = email.trim();
+      // Email is required for card payments (digital receipt) and optional for
+      // cash. For cash, only validate/save it when the attendee actually typed one.
+      const trimmedEmail = email.trim();
+      if (paymentMethod === 'CARD' || trimmedEmail !== '') {
         if (!EMAIL_PATTERN.test(trimmedEmail)) {
           setEmailError('Please enter a valid email address.');
           setIsCheckingOut(false);
@@ -216,48 +217,44 @@ export default function Cart() {
                   €{formatMoney(totalCents)}
                 </span>
               </div>
-              {paymentMethod === 'CARD' && (
-                <>
-                  {editingEmail ? (
-                    <div className="mb-2">
-                      <label htmlFor="checkout-email" className="sr-only">
-                        Email
-                      </label>
-                      <input
-                        id="checkout-email"
-                        type="email"
-                        inputMode="email"
-                        autoComplete="email"
-                        value={email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          if (emailError) setEmailError(null);
-                        }}
-                        placeholder="Email"
-                        aria-invalid={!!emailError}
-                        disabled={isCheckingOut}
-                        className={`h-11 w-full rounded-lg border bg-background px-3 text-sm text-text placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                          emailError ? 'border-danger' : 'border-border'
-                        }`}
-                      />
-                      {emailError && <p className="mt-1 px-1 text-xs text-danger">{emailError}</p>}
-                    </div>
-                  ) : (
-                    <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2">
-                      <span className="min-w-0 truncate text-sm text-text-muted">
-                        Receipt to <span className="font-medium text-text">{email}</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setEditingEmail(true)}
-                        disabled={isCheckingOut}
-                        className="shrink-0 text-xs font-semibold text-accent-contrast hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                      >
-                        Change
-                      </button>
-                    </div>
-                  )}
-                </>
+              {editingEmail ? (
+                <div className="mb-2">
+                  <label htmlFor="checkout-email" className="sr-only">
+                    Email
+                  </label>
+                  <input
+                    id="checkout-email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError(null);
+                    }}
+                    placeholder={paymentMethod === 'CARD' ? 'Email' : 'Email (optional)'}
+                    aria-invalid={!!emailError}
+                    disabled={isCheckingOut}
+                    className={`h-11 w-full rounded-lg border bg-background px-3 text-sm text-text placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                      emailError ? 'border-danger' : 'border-border'
+                    }`}
+                  />
+                  {emailError && <p className="mt-1 px-1 text-xs text-danger">{emailError}</p>}
+                </div>
+              ) : (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2">
+                  <span className="min-w-0 truncate text-sm text-text-muted">
+                    Receipt to <span className="font-medium text-text">{email}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingEmail(true)}
+                    disabled={isCheckingOut}
+                    className="shrink-0 text-xs font-semibold text-accent-contrast hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    Change
+                  </button>
+                </div>
               )}
               {/* With no cashier, Card is the only option — showing a
                   single-choice toggle would be pointless, so hide it. */}
