@@ -23,6 +23,23 @@ function eur(cents: number): string {
   return `€${formatMoney(cents)}`;
 }
 
+// formatIban re-spaces the whole string on every keystroke, so a caret placed
+// mid-string (not at the end) needs to be walked forward by the same number of
+// non-space characters in the reformatted value — otherwise the browser resets
+// it to the end whenever the DOM value is replaced with a differently-shaped
+// string, making every edit land as an append.
+function caretPositionAfterIbanFormat(formatted: string, nonSpaceCharsBeforeCaret: number): number {
+  if (nonSpaceCharsBeforeCaret <= 0) return 0;
+  let consumed = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    if (formatted[i] !== ' ') {
+      consumed++;
+      if (consumed === nonSpaceCharsBeforeCaret) return i + 1;
+    }
+  }
+  return formatted.length;
+}
+
 // Keep a settled fetcher banner visible briefly, then dismiss it so a stale
 // success/error message can't linger next to freshly revalidated figures. The
 // state is only written from the timer callback (never synchronously in the
@@ -745,9 +762,16 @@ function BankDetailsCard({
   const incomplete = !form.iban.trim() || !form.ibanHolderName.trim();
   // Show the IBAN checksum error only once the field has content.
   const ibanError = form.iban.trim() !== '' && !isValidIban(form.iban) ? 'Invalid IBAN' : null;
+  // Mirror the backend holder-name format check: must start with a letter and
+  // contain only letters, spaces, and the punctuation banks accept.
+  const holderNameError =
+    form.ibanHolderName.trim() !== '' &&
+    !/^[\p{L}\p{M}][\p{L}\p{M}\s'.,&/()-]*$/u.test(form.ibanHolderName.trim())
+      ? 'Invalid account holder name'
+      : null;
 
   function save() {
-    if (ibanError) return;
+    if (ibanError || holderNameError) return;
     const payload: PaymentActionBody = {
       intent: 'save-bank',
       iban: normalizeIban(form.iban),
@@ -774,12 +798,24 @@ function BankDetailsCard({
           value={form.ibanHolderName}
           onChange={(e) => setForm((p) => ({ ...p, ibanHolderName: e.target.value }))}
           placeholder="Emely"
+          maxLength={140}
+          error={holderNameError}
         />
         <TextField
           id="iban"
           label="IBAN"
           value={form.iban}
-          onChange={(e) => setForm((p) => ({ ...p, iban: formatIban(e.target.value) }))}
+          onChange={(e) => {
+            const input = e.target;
+            const caretBefore = input.selectionStart ?? input.value.length;
+            const nonSpaceCharsBeforeCaret = input.value
+              .slice(0, caretBefore)
+              .replace(/\s/g, '').length;
+            const formatted = formatIban(input.value);
+            const caretAfter = caretPositionAfterIbanFormat(formatted, nonSpaceCharsBeforeCaret);
+            setForm((p) => ({ ...p, iban: formatted }));
+            requestAnimationFrame(() => input.setSelectionRange(caretAfter, caretAfter));
+          }}
           placeholder="DE89 3704 0044 0532 0130 00"
           helperText="This IBAN is used for all organizer payouts."
           error={ibanError}
@@ -793,7 +829,11 @@ function BankDetailsCard({
         {showResult && error ? <p className="text-sm text-danger">{error}</p> : null}
         {showResult && saved ? <p className="text-sm text-success">Bank details saved.</p> : null}
 
-        <Button onClick={save} disabled={busy || Boolean(ibanError)} className="w-full">
+        <Button
+          onClick={save}
+          disabled={busy || Boolean(ibanError) || Boolean(holderNameError)}
+          className="w-full"
+        >
           {busy ? 'Saving…' : 'Save bank details'}
         </Button>
       </CardContent>

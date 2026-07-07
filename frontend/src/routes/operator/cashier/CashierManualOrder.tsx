@@ -43,7 +43,6 @@ export default function CashierManualOrder() {
     totalCents,
     addItem,
     setQuantity,
-    setComment,
     removeItem,
     applyStockShortages,
     syncProducts,
@@ -89,7 +88,7 @@ export default function CashierManualOrder() {
         standName: standNameFor(item.product),
         unitPrice: item.product.priceIncludingTax,
         quantity: item.quantity,
-        comments: item.comments.map((comment) => comment.trim()),
+        comments: [],
       }));
       const fingerprint = JSON.stringify(orderItems);
       if (checkoutAttempt.current?.fingerprint !== fingerprint) {
@@ -212,7 +211,6 @@ export default function CashierManualOrder() {
                       compact
                       standName={standNameFor(item.product)}
                       onSetQuantity={setQuantity}
-                      onSetComment={setComment}
                       onRemove={removeItem}
                     />
                   ))}

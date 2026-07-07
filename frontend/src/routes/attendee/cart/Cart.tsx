@@ -114,23 +114,26 @@ export default function Cart() {
   async function handleCheckout() {
     if (items.length === 0 || !eventId || isCheckingOut) return;
 
-    const trimmedEmail = email.trim();
-    if (!EMAIL_PATTERN.test(trimmedEmail)) {
-      setEmailError('Please enter a valid email address.');
-      return;
-    }
-
     setError(null);
     setEmailError(null);
     setIsCheckingOut(true);
     try {
-      // Link the email to the session first; the order picks it up server-side.
-      await setAttendeeSessionEmail(eventId, trimmedEmail);
-      // Remember it locally so we don't ask again on the next checkout.
-      rememberAttendeeEmail(eventId, trimmedEmail);
-      // The email is accepted and saved: switch to the summary view so cancelling
-      // the card dialog returns to "Receipt to X [Change]", not the raw input.
-      setEditingEmail(false);
+      // Email is required only for card payments (digital receipt).
+      if (paymentMethod === 'CARD') {
+        const trimmedEmail = email.trim();
+        if (!EMAIL_PATTERN.test(trimmedEmail)) {
+          setEmailError('Please enter a valid email address.');
+          setIsCheckingOut(false);
+          return;
+        }
+        // Link the email to the session first; the order picks it up server-side.
+        await setAttendeeSessionEmail(eventId, trimmedEmail);
+        // Remember it locally so we don't ask again on the next checkout.
+        rememberAttendeeEmail(eventId, trimmedEmail);
+        // The email is accepted and saved: switch to the summary view so cancelling
+        // the card dialog returns to "Receipt to X [Change]", not the raw input.
+        setEditingEmail(false);
+      }
       const orderItems = await buildOrderItems(eventId);
       if (paymentMethod === 'CARD') {
         // Hand off to the card dialog, which opens/uses the tab and places the
@@ -213,44 +216,48 @@ export default function Cart() {
                   €{formatMoney(totalCents)}
                 </span>
               </div>
-              {editingEmail ? (
-                <div className="mb-2">
-                  <label htmlFor="checkout-email" className="sr-only">
-                    Email
-                  </label>
-                  <input
-                    id="checkout-email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (emailError) setEmailError(null);
-                    }}
-                    placeholder="Email"
-                    aria-invalid={!!emailError}
-                    disabled={isCheckingOut}
-                    className={`h-11 w-full rounded-lg border bg-background px-3 text-sm text-text placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                      emailError ? 'border-danger' : 'border-border'
-                    }`}
-                  />
-                  {emailError && <p className="mt-1 px-1 text-xs text-danger">{emailError}</p>}
-                </div>
-              ) : (
-                <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2">
-                  <span className="min-w-0 truncate text-sm text-text-muted">
-                    Receipt to <span className="font-medium text-text">{email}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setEditingEmail(true)}
-                    disabled={isCheckingOut}
-                    className="shrink-0 text-xs font-semibold text-accent-contrast hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  >
-                    Change
-                  </button>
-                </div>
+              {paymentMethod === 'CARD' && (
+                <>
+                  {editingEmail ? (
+                    <div className="mb-2">
+                      <label htmlFor="checkout-email" className="sr-only">
+                        Email
+                      </label>
+                      <input
+                        id="checkout-email"
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (emailError) setEmailError(null);
+                        }}
+                        placeholder="Email"
+                        aria-invalid={!!emailError}
+                        disabled={isCheckingOut}
+                        className={`h-11 w-full rounded-lg border bg-background px-3 text-sm text-text placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                          emailError ? 'border-danger' : 'border-border'
+                        }`}
+                      />
+                      {emailError && <p className="mt-1 px-1 text-xs text-danger">{emailError}</p>}
+                    </div>
+                  ) : (
+                    <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2">
+                      <span className="min-w-0 truncate text-sm text-text-muted">
+                        Receipt to <span className="font-medium text-text">{email}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingEmail(true)}
+                        disabled={isCheckingOut}
+                        className="shrink-0 text-xs font-semibold text-accent-contrast hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
               {/* With no cashier, Card is the only option — showing a
                   single-choice toggle would be pointless, so hide it. */}

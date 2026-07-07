@@ -1,7 +1,7 @@
 import type { AuthTab } from './types';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const signupPasswordPattern = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7E]{8,}$/;
+const signupPasswordPattern = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7E]{8,128}$/;
 
 export function getEmailError(email: string): string {
   const trimmedEmail = email.trim();
@@ -12,8 +12,11 @@ export function getEmailError(email: string): string {
 
 export function getPasswordError(password: string, mode: AuthTab): string {
   if (!password) return 'Password is required.';
-  if (mode === 'signup' && !signupPasswordPattern.test(password)) {
-    return 'Use at least 8 characters with one letter and one number.';
+  if (mode === 'signup') {
+    if (password.length > 128) return 'Password must be at most 128 characters.';
+    if (!signupPasswordPattern.test(password)) {
+      return 'Use at least 8 characters with one letter and one number.';
+    }
   }
   return '';
 }

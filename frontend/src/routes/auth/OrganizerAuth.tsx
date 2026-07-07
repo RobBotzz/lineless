@@ -118,6 +118,7 @@ export default function OrganizerAuth() {
                 <AuthTextField
                   autoComplete="given-name"
                   label="First name"
+                  maxLength={100}
                   onChange={setFirstName}
                   placeholder="Emely"
                   value={firstName}
@@ -125,6 +126,7 @@ export default function OrganizerAuth() {
                 <AuthTextField
                   autoComplete="family-name"
                   label="Last name"
+                  maxLength={100}
                   onChange={setLastName}
                   placeholder="Meyer"
                   value={lastName}

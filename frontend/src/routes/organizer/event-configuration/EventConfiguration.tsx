@@ -241,10 +241,14 @@ function toDateInputValue(iso?: string) {
   return date.toISOString().slice(0, 10);
 }
 
-function localDateInputValue(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+// Today in the user's local timezone as YYYY-MM-DD, for the date field's `min`
+// and the past-date guard. Uses local components (not toISOString, which is UTC)
+// so the boundary matches the calendar day the organizer actually sees.
+function localDateInputValue(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -405,9 +409,12 @@ export default function EventConfiguration() {
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
 
   // Baseline hold is entered in whole euros (multiples of €1); backend requires
-  // at least 100 cents (€1.00).
+  // at least 100 cents (€1.00) and at most 1,000,000 cents (€10,000).
   const baselineHoldEuros = Number(form.baselineHold);
-  const baselineHoldValid = Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1;
+  const baselineHoldValid =
+    Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1 && baselineHoldEuros <= 10000;
+
+  const nameValid = form.name.trim().length > 0;
   const minimumPlannedDate = localDateInputValue();
   const persistedPlannedDate = toDateInputValue(event.plannedDate);
   // Keep legacy events with an already-persisted past date editable, but reject
@@ -416,7 +423,7 @@ export default function EventConfiguration() {
     !form.plannedDate ||
     form.plannedDate >= minimumPlannedDate ||
     form.plannedDate === persistedPlannedDate;
-  const settingsValid = baselineHoldValid && plannedDateValid;
+  const settingsValid = baselineHoldValid && nameValid && plannedDateValid;
   const canStart = event.status === 'DRAFT';
   const canStop = event.status === 'ACTIVE';
   const canComplete = event.status === 'STOPPED';
@@ -787,9 +794,11 @@ export default function EventConfiguration() {
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
               <TextField
                 disabled={!isDraft}
+                error={!nameValid ? 'Event name is required.' : undefined}
                 helperText={!isDraft ? 'Locked after the event starts.' : undefined}
                 id="event-name"
                 label="Event Name"
+                maxLength={100}
                 onChange={(e) => updateField('name', e.target.value)}
                 placeholder="Event name"
                 type="text"
@@ -835,7 +844,9 @@ export default function EventConfiguration() {
                 value={form.baselineHold}
                 onChange={(e) => updateField('baselineHold', e.target.value)}
                 error={
-                  baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
+                  baselineHoldValid
+                    ? undefined
+                    : 'Enter a whole number of euros between 1 and 10,000.'
                 }
               />
 

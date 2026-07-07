@@ -130,6 +130,7 @@ export function StandDialog({
               value={standName}
               onChange={(e) => setStandName(e.target.value)}
               placeholder="e.g. Main Bar"
+              maxLength={100}
               required
             />
 
