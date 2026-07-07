@@ -25,30 +25,29 @@ Admin dashboard, event configuration, event control center, payout management.
 
 ### Stands
 
-| Method | URL                                      | Description                                            |
-| ------ | ---------------------------------------- | ------------------------------------------------------ |
-| POST   | `/events/{eventId}/stands`               | Create stand                                           |
-| GET    | `/events/{eventId}/stands/cashier-stand` | Get the event's cashier stand (organizer / event link) |
-| PATCH  | `/stands/{standId}`                      | Update stand                                           |
-| POST   | `/stands/{standId}/pause`                | Pause stand                                            |
-| POST   | `/stands/{standId}/resume`               | Resume stand                                           |
-| DELETE | `/stands/{standId}`                      | Delete stand (soft delete via `deletedAt`)             |
+| Method | URL                                      | Description                                                       |
+| ------ | ---------------------------------------- | ----------------------------------------------------------------- |
+| POST   | `/events/{eventId}/stands`               | Create stand                                                      |
+| GET    | `/events/{eventId}/stands/cashier-stand` | Get the event's cashier stand (organizer / attendee / event link) |
+| PATCH  | `/stands/{standId}`                      | Update stand                                                      |
+| POST   | `/stands/{standId}/pause`                | Pause stand                                                       |
+| POST   | `/stands/{standId}/resume`               | Resume stand                                                      |
+| DELETE | `/stands/{standId}`                      | Delete stand (soft delete via `deletedAt`)                        |
 
 ### Products
 
-| Method | URL                               | Description                                             |
-| ------ | --------------------------------- | ------------------------------------------------------- |
-| POST   | `/stands/{standId}/products`      | Create product                                          |
-| GET    | `/products/{productId}`           | Get single product                                      |
-| PATCH  | `/products/{productId}`           | Update product metadata                                 |
-| PATCH  | `/products/{productId}/stock`     | Compare-and-set product stock                           |
-| DELETE | `/products/{productId}`           | Delete product (soft delete via `deletedAt`)            |
-| POST   | `/products/{productId}/pause`     | Pause product                                           |
-| POST   | `/products/{productId}/resume`    | Resume product                                          |
-| POST   | `/products/{productId}/terminate` | Terminate product                                       |
-| PUT    | `/products/{productId}/image`     | Upload/replace product image (multipart, field `image`) |
-| DELETE | `/products/{productId}/image`     | Remove the uploaded product image                       |
-| GET    | `/products/{productId}/image`     | Serve product image bytes (public, cached)              |
+| Method | URL                            | Description                                             |
+| ------ | ------------------------------ | ------------------------------------------------------- |
+| POST   | `/stands/{standId}/products`   | Create product                                          |
+| GET    | `/products/{productId}`        | Get single product                                      |
+| PATCH  | `/products/{productId}`        | Update product metadata                                 |
+| PATCH  | `/products/{productId}/stock`  | Compare-and-set product stock                           |
+| DELETE | `/products/{productId}`        | Delete product (soft delete via `deletedAt`)            |
+| POST   | `/products/{productId}/pause`  | Pause product                                           |
+| POST   | `/products/{productId}/resume` | Resume product                                          |
+| PUT    | `/products/{productId}/image`  | Upload/replace product image (multipart, field `image`) |
+| DELETE | `/products/{productId}/image`  | Remove the uploaded product image                       |
+| GET    | `/products/{productId}/image`  | Serve product image bytes (public, cached)              |
 
 ### Event Control Center
 
@@ -61,6 +60,22 @@ Admin dashboard, event configuration, event control center, payout management.
 | GET    | `/events/{eventId}/event-control-center/settings`      | Get effective alert thresholds                              |
 | PUT    | `/events/{eventId}/event-control-center/settings`      | Replace alert thresholds                                    |
 | DELETE | `/events/{eventId}/event-control-center/settings`      | Reset alert thresholds to defaults                          |
+
+### Event lifecycle mutation rules
+
+Once an event leaves `DRAFT`, setup changes are permanently restricted:
+
+- Event name, planned date, and card pre-authorization hold cannot change.
+- Stands and products cannot be created or deleted; their names cannot change.
+- Product price, tax rate, and fulfillment type cannot change.
+- Ratings, cashier availability, branding, locations, descriptions, images,
+  credentials, stock, pause/resume controls, and control-center thresholds remain
+  editable in `ACTIVE` and `STOPPED`.
+- `COMPLETED` events are immutable.
+
+Forbidden mutations return `409` with an action-specific error. A post-start
+`PATCH` must omit locked fields entirely, even when the submitted value matches
+the persisted value.
 
 ### Account / Payments
 
@@ -86,15 +101,19 @@ Mobile guest web app: browse, order, pay, track, rate.
 
 ### Orders
 
-| Method | URL                                              | Description                                                           |
-| ------ | ------------------------------------------------ | --------------------------------------------------------------------- |
-| POST   | `/orders`                                        | Idempotently create order and reserve available stock                 |
-| GET    | `/orders`                                        | List attendee's own paid orders                                       |
-| GET    | `/orders/{orderId}`                              | Get order details (confirmation / tracking view)                      |
-| GET    | `/orders/stream`                                 | Attendee's live order feed over SSE — session-wide snapshot + updates |
-| POST   | `/orders/{orderId}/cancel`                       | Organizer cancels all open order items                                |
-| POST   | `/orders/{orderId}/cancel-pending-authorization` | Idempotently abandons a card order awaiting additional authorization  |
-| POST   | `/orders/{orderId}/items/cancel`                 | Organizer cancels selected order items                                |
+| Method | URL                                              | Description                                                                   |
+| ------ | ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| POST   | `/orders`                                        | Idempotently create order and reserve available stock                         |
+| GET    | `/orders`                                        | List attendee's own paid orders plus their cash orders (pending or cancelled) |
+| GET    | `/orders/{orderId}`                              | Get order details (confirmation / tracking view)                              |
+| GET    | `/orders/stream`                                 | Attendee's live order feed over SSE — session-wide snapshot + updates         |
+| GET    | `/orders/cashier/stream`                         | Cashier's live unpaid-orders board over SSE (operator / cashier stand)        |
+| GET    | `/orders/cashier/refundable`                     | Cash-paid orders for the cashier's event with a refundable item (operator)    |
+| POST   | `/orders/{orderId}/cash-payment`                 | Organizer/operator confirms cash received for an order                        |
+| POST   | `/orders/{orderId}/refund`                       | Organizer/operator refunds cancelled items of a cash-paid order               |
+| POST   | `/orders/{orderId}/cancel`                       | Organizer cancels all open order items                                        |
+| POST   | `/orders/{orderId}/cancel-pending-authorization` | Idempotently abandons a card order awaiting additional authorization          |
+| POST   | `/orders/{orderId}/items/cancel`                 | Organizer cancels selected order items                                        |
 
 `POST /orders` requires a client-generated UUID `requestId`. If stock is
 insufficient, the full request is rejected with `409 INSUFFICIENT_STOCK` and no
@@ -136,7 +155,6 @@ Pickup dashboard, operator (kitchen) dashboard, cashier view.
 | GET    | `/operator/board`                       | Current stand operator board snapshot                             |
 | GET    | `/operator/board/stream`                | Live stand operator board stream (SSE)                            |
 | POST   | `/products/{productId}/pause`           | Pause product                                                     |
-| POST   | `/products/{productId}/terminate`       | Terminate product                                                 |
 
 ### Order item status transitions (operator dashboard)
 

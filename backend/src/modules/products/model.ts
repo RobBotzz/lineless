@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { model, Schema } from "mongoose";
 
-export type ProductStatus = "LIVE" | "PAUSED" | "TERMINATED";
+export type ProductStatus = "LIVE" | "PAUSED";
 export type StockMode = "UNLIMITED" | "TRACKED";
 
 export interface ProductDoc {
@@ -45,7 +45,7 @@ const productSchema = new Schema<ProductDoc>(
     productStock: { type: Number, default: 0, min: 0 },
     productStatus: {
       type: String,
-      enum: ["LIVE", "PAUSED", "TERMINATED"],
+      enum: ["LIVE", "PAUSED"],
       default: "LIVE",
     },
     ratingSum: { type: Number, default: 0 },

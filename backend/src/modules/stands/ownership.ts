@@ -4,6 +4,7 @@ import {
   verifyEventOwnership,
   verifyMutableEventOwnership,
 } from "../events/ownership";
+import type { EventStatus } from "../events/model";
 
 export async function verifyStandOwnership(
   standId: string,
@@ -19,8 +20,8 @@ export async function verifyStandOwnership(
 export async function verifyMutableStandOwnership(
   standId: string,
   accountId: string
-): Promise<void> {
+): Promise<EventStatus> {
   const stand = await Stand.findOne({ _id: standId, deletedAt: null }).lean();
   if (!stand) throw new StandNotFoundError();
-  await verifyMutableEventOwnership(stand.eventId, accountId);
+  return verifyMutableEventOwnership(stand.eventId, accountId);
 }

@@ -32,11 +32,19 @@
 | Payouts  | `GET /api/payouts/:eventId`                                   | no     | own event | no             | no            |
 | Payouts  | `POST /api/payouts/request`                                   | no     | yes       | no             | no            |
 | Orders   | `POST /api/orders`                                            | no     | no        | cashier stand  | session event |
+| Orders   | `GET /api/orders`                                             | no     | no        | no             | own session   |
+| Orders   | `GET /api/orders/stream`                                      | no     | no        | no             | own session   |
+| Orders   | `GET /api/orders/cashier/stream`                              | no     | no        | cashier stand  | no            |
+| Orders   | `GET /api/orders/cashier/refundable`                          | no     | no        | cashier stand  | no            |
+| Orders   | `GET /api/orders/:orderId`                                    | no     | own event | cashier stand  | own order     |
+| Orders   | `POST /api/orders/:orderId/cash-payment`                      | no     | own event | cashier stand  | no            |
+| Orders   | `POST /api/orders/:orderId/refund`                            | no     | own event | cashier stand  | no            |
 | Orders   | `POST /api/orders/:orderId/cancel`                            | no     | own event | no             | no            |
 | Orders   | `POST /api/orders/:orderId/cancel-pending-authorization`      | no     | no        | no             | own order     |
 | Orders   | `POST /api/orders/:orderId/items/cancel`                      | no     | own event | no             | no            |
 | Stands   | `POST /api/events/:eventId/stands`                            | no     | own event | no             | no            |
 | Stands   | `GET /api/events/:eventId/stands`                             | no     | own event | event link key | session event |
+| Stands   | `GET /api/events/:eventId/stands/cashier-stand`               | no     | own event | event link key | session event |
 | Stands   | `GET /api/stands/:standId`                                    | no     | own event | own stand      | session event |
 | Stands   | `PATCH /api/stands/:standId`                                  | no     | own event | no             | no            |
 | Stands   | `POST /api/stands/:standId/pause`                             | no     | own event | no             | no            |
@@ -50,7 +58,6 @@
 | Products | `DELETE /api/products/:productId`                             | no     | own event | no             | no            |
 | Products | `POST /api/products/:productId/pause`                         | no     | own event | own stand      | no            |
 | Products | `POST /api/products/:productId/resume`                        | no     | own event | own stand      | no            |
-| Products | `POST /api/products/:productId/terminate`                     | no     | own event | own stand      | no            |
 
 ## Credential types
 

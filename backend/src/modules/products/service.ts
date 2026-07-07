@@ -40,6 +40,10 @@ import {
   effectiveStockMode,
   effectiveUnlimitedStockModeFilter,
 } from "./stockMode";
+import {
+  assertEventStillDraft,
+  assertProductUpdateAllowed,
+} from "../events/mutationPolicy";
 
 // The wire shape for a product: hides the raw rating aggregate and exposes the
 // computed average (null until the first review). The frontend Product type
@@ -140,7 +144,8 @@ export async function createProduct(
   accountId: string,
   input: CreateProductInput
 ): Promise<ProductDoc> {
-  await verifyMutableStandOwnership(standId, accountId);
+  const status = await verifyMutableStandOwnership(standId, accountId);
+  assertEventStillDraft(status, "Product creation");
   // The cashier stand carries no products of its own; it serves the event-wide
   // catalog. Reject product creation against it.
   const stand = await Stand.findOne({ _id: standId, deletedAt: null })
@@ -253,15 +258,12 @@ async function findControllableProduct(
 }
 
 // LIVE -> PAUSED. An explicit, validated transition (no going through PATCH):
-// TERMINATED is terminal and an already-paused product is a no-op error.
+// an already-paused product is a no-op error.
 export async function pauseProduct(
   productId: string,
   auth: ProductControlAuth
 ): Promise<ProductDoc> {
   const product = await findControllableProduct(productId, auth);
-  if (product.productStatus === "TERMINATED") {
-    throw new ProductStateError("A terminated product cannot be paused");
-  }
   if (product.productStatus === "PAUSED") {
     throw new ProductStateError("Product is already paused");
   }
@@ -270,16 +272,13 @@ export async function pauseProduct(
   return product.toObject();
 }
 
-// PAUSED -> LIVE. Mirror of pauseProduct: TERMINATED is terminal and an
-// already-live product is a no-op error.
+// PAUSED -> LIVE. Mirror of pauseProduct: an already-live product is a no-op
+// error.
 export async function resumeProduct(
   productId: string,
   auth: ProductControlAuth
 ): Promise<ProductDoc> {
   const product = await findControllableProduct(productId, auth);
-  if (product.productStatus === "TERMINATED") {
-    throw new ProductStateError("A terminated product cannot be resumed");
-  }
   if (product.productStatus === "LIVE") {
     throw new ProductStateError("Product is already live");
   }
@@ -295,7 +294,8 @@ export async function updateProduct(
 ): Promise<ProductDoc> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyMutableStandOwnership(product.standId, accountId);
+  const status = await verifyMutableStandOwnership(product.standId, accountId);
+  assertProductUpdateAllowed(status, patch);
   if (patch.productName !== undefined) product.productName = patch.productName;
   if (patch.productDescription !== undefined) {
     product.productDescription = patch.productDescription;
@@ -428,7 +428,8 @@ export async function softDeleteProduct(
 ): Promise<void> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyMutableStandOwnership(product.standId, accountId);
+  const status = await verifyMutableStandOwnership(product.standId, accountId);
+  assertEventStillDraft(status, "Product deletion");
 
   // Soft-deleting the product and dropping its (heavy) image binary must be
   // atomic — otherwise a crash between the two writes leaves either an orphaned

@@ -21,6 +21,7 @@ import {
 } from "./service";
 import { SseConnection } from "../../lib/sse";
 import { subscribe } from "../../lib/realtimeBus";
+import type { OrderDoc } from "./model";
 import {
   CashierDisabledError,
   CashPaymentNotFoundError,
@@ -205,21 +206,73 @@ ordersRouter.get(
       // Resolve the stand before the SSE headers go out, so a bad/disabled
       // stand still maps to a clean error instead of a half-open stream.
       const stand = await assertActiveCashierStand(standId);
-      const initial = await listUnpaidCashOrdersForEvent(stand.eventId);
-
       const sse = new SseConnection(res);
-      sse.send("snapshot", initial);
 
+      // Serialize the full-list queries the same way the pickup-board stream
+      // does (see createQueuedSnapshotSender-style closed guard there): an
+      // event arriving mid-query only marks the connection queued and re-runs
+      // once the in-flight query settles, and `closed` is set synchronously
+      // the moment we decide to end the connection so no later trigger (an
+      // order.changed event or the recheck timer) can ever call sse.send()
+      // after res.end() — writing to an ended response throws asynchronously,
+      // as an unhandled error that would crash the whole process.
+      let inFlight = false;
+      let queued = false;
+      let closed = false;
+      const pushSnapshot = (): void => {
+        if (closed) return;
+        if (inFlight) {
+          queued = true;
+          return;
+        }
+        inFlight = true;
+        void (async () => {
+          // Re-verify on every push, not just at connect time — the stand/event
+          // can go inactive (e.g. the organizer stops the event) with no
+          // order.changed event to notify us, so this is the only way a
+          // long-lived connection ever notices.
+          await assertActiveCashierStand(standId);
+          const orders = await listUnpaidCashOrdersForEvent(stand.eventId);
+          if (!closed) sse.send("snapshot", orders);
+        })()
+          .catch((err) => {
+            // Any failure — a transient DB error or the stand/event no longer
+            // being active — means the client can no longer trust its current
+            // view. Closing (and never sending again) lets its SSE hook
+            // reconnect with backoff: a fresh connection either gets a correct
+            // snapshot or the same clean 403 a connection attempt against an
+            // inactive stand would get.
+            console.error("Cashier stream snapshot refresh failed:", err);
+            closed = true;
+            queued = false;
+            res.end();
+          })
+          .finally(() => {
+            inFlight = false;
+            if (!closed && queued) {
+              queued = false;
+              pushSnapshot();
+            }
+          });
+      };
+
+      // Register the listener before the first query so an event in the startup
+      // window is not missed — it just coalesces into the next snapshot.
       const unsubscribe = subscribe("order.changed", (order) => {
         if (order.eventId !== stand.eventId || order.tabId !== null) return;
-        listUnpaidCashOrdersForEvent(stand.eventId)
-          .then((orders) => sse.send("snapshot", orders))
-          .catch(() => {
-            // stream errors are non-fatal; the client recovers on reconnect
-          });
+        pushSnapshot();
       });
 
-      sse.onClose(() => unsubscribe());
+      // Catches the event/stand going inactive with no order.changed to notify
+      // us (e.g. the organizer stops the event without touching any cash orders).
+      const recheckTimer = setInterval(pushSnapshot, 20_000);
+
+      pushSnapshot();
+      sse.onClose(() => {
+        closed = true;
+        clearInterval(recheckTimer);
+        unsubscribe();
+      });
     } catch (err) {
       handleError(err, res);
     }
@@ -259,27 +312,79 @@ ordersRouter.get(
   authAttendee,
   async (req: Request, res: Response) => {
     const sessionId = req.attendee!.sessionId;
-    try {
-      const initial = await listOrdersForAttendee(sessionId);
-      const sse = new SseConnection(res);
-      sse.send("snapshot", initial);
+    // Mirrors the event-control-center streams: a plain res-level "close"
+    // listener registered before anything async, so a disconnect during the
+    // snapshot query is caught and cleaned up without needing an SseConnection
+    // (and its headers/heartbeat) yet. requestClosed is checked right after
+    // the await, before touching `res` again — writing to (or ending) a
+    // response the client already closed either throws asynchronously as an
+    // unhandled error (write) or corrupts an in-flight SSE stream (a JSON
+    // error body after text/event-stream headers), so neither branch may run
+    // once the client is gone.
+    let unsubscribe: (() => void) | undefined;
+    let requestClosed = false;
+    const handleEarlyClose = (): void => {
+      requestClosed = true;
+      unsubscribe?.();
+    };
+    res.once("close", handleEarlyClose);
 
-      const unsubscribe = subscribe("order.changed", (order) => {
+    try {
+      let ready = false;
+      const buffered: OrderDoc[] = [];
+
+      // Declared before `sse` exists — only ever invoked once `ready` flips
+      // true, by which point `sse` below has been assigned. requestClosed is
+      // re-checked here (not just before the initial snapshot) because
+      // enrichment is async: the connection can close while a lookup for a
+      // given update is still in flight, and sending after that would write
+      // to an already-ended response.
+      function emit(order: OrderDoc) {
+        void enrichOrderForAttendee(order)
+          .then((enriched) => {
+            if (!requestClosed) sse.send("order", enriched);
+          })
+          .catch(() => {
+            // enrichment errors are non-fatal; the client recovers on reconnect
+          });
+      }
+
+      // Register the listener before reading the snapshot so an event in the
+      // startup window is not lost. Deltas that arrive before the snapshot is
+      // sent are buffered and flushed afterwards, preserving snapshot-first
+      // ordering (the client also de-dupes by updatedAt, so a repeat is safe).
+      unsubscribe = subscribe("order.changed", (order) => {
         if (order.sessionId !== sessionId) return;
         // Cash orders (tabId null) stream regardless of paidAt, so the
         // pending-payment page sees a cashier confirmation or cancellation
         // live. Unpaid card orders (mid-Stripe-authorization) are still
         // dropped — the attendee UI doesn't act on that noise.
         if (!order.paidAt && order.tabId !== null) return;
-        void enrichOrderForAttendee(order)
-          .then((enriched) => sse.send("order", enriched))
-          .catch(() => {
-            // enrichment errors are non-fatal; the client recovers on reconnect
-          });
+        if (!ready) {
+          buffered.push(order);
+          return;
+        }
+        emit(order);
       });
 
-      sse.onClose(() => unsubscribe());
+      const initial = await listOrdersForAttendee(sessionId);
+      if (requestClosed) return;
+
+      const sse = new SseConnection(res);
+      sse.send("snapshot", initial);
+      ready = true;
+      buffered.forEach(emit);
+      buffered.length = 0;
+
+      sse.onClose(() => {
+        requestClosed = true;
+        unsubscribe?.();
+      });
+      res.off("close", handleEarlyClose);
     } catch (err) {
+      res.off("close", handleEarlyClose);
+      unsubscribe?.();
+      if (requestClosed) return;
       handleError(err, res);
     }
   }
