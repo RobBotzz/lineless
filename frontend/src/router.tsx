@@ -27,7 +27,8 @@ import { paymentAction, paymentLoader } from './routes/organizer/Payment.data';
 import OrganizerSettings, { SettingsError } from './routes/organizer/settings/Settings';
 import { settingsAction, settingsLoader } from './routes/organizer/settings/data';
 
-import AttendeeLayout, { AttendeeLayoutError } from './routes/attendee/AttendeeLayout';
+import AttendeeLayout from './routes/attendee/AttendeeLayout';
+import { AttendeeLayoutError } from './routes/attendee/AttendeeLayoutError';
 import { attendeeLayoutLoader } from './routes/attendee/data';
 import AttendeeProductSelection, {
   ProductSelectionError,
