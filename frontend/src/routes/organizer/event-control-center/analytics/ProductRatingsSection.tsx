@@ -216,7 +216,7 @@ function ProductRatingCard({ rating }: { rating: ProductRating }) {
                 {rating.productName}
               </h4>
               <span className="mt-1 inline-flex min-w-0 max-w-full rounded-full border border-border bg-background px-2 py-0.5 text-xs font-medium text-text-muted">
-                <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
+                <span className="min-w-0 whitespace-normal text-center [overflow-wrap:anywhere]">
                   {rating.standName}
                 </span>
               </span>

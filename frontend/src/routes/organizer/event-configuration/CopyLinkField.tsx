@@ -28,7 +28,7 @@ export function CopyLinkField({ link }: { link: string }) {
         title="Click to copy"
         type="button"
       >
-        <span className="truncate">{link}</span>
+        <span className="min-w-0 flex-1 truncate">{link}</span>
         <span className="text-text-muted absolute inset-y-0 right-0 flex w-12 items-center justify-center">
           {copied ? <CheckIcon /> : <CopyIcon />}
         </span>

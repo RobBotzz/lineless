@@ -270,7 +270,7 @@ export default function Payment() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+        <div className="min-w-0 space-y-6 lg:col-span-2">
           <AvailableForPayoutCard
             availableNow={overview.availableCents}
             openTabsReady={openTabsReady}
@@ -280,7 +280,7 @@ export default function Payment() {
           <EventBreakdownCard rows={rows} />
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <BankDetailsCard iban={overview.iban} ibanHolderName={overview.ibanHolderName} />
           <RecentPayoutsCard payouts={overview.payouts} />
         </div>
@@ -447,8 +447,8 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
             You have no events yet. Once guests start ordering, their revenue appears here.
           </p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-lg text-sm">
               <thead className="bg-surface-muted text-text-muted">
                 <tr>
                   <th scope="col" className="px-4 py-3 text-left font-medium">
@@ -671,52 +671,56 @@ function Detail({ label, value }: { label: string; value: string }) {
 function UnitsTable({ items }: { items: ProductUnitsSold[] }) {
   const subtotal = itemsSubtotal(items);
   return (
-    <table className="w-full text-sm">
-      <thead className="text-text-muted">
-        <tr>
-          <th scope="col" className="py-1 text-left font-medium">
-            Item
-          </th>
-          <th scope="col" className="py-1 text-right font-medium">
-            Units
-          </th>
-          <th scope="col" className="py-1 text-right font-medium">
-            Net
-          </th>
-          <th scope="col" className="py-1 text-right font-medium">
-            Tax
-          </th>
-          <th scope="col" className="py-1 text-right font-medium">
-            Gross
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <tr key={item.productId} className="border-t border-border/60">
-            <td className="py-1 pr-2 text-text">{item.productName}</td>
-            <td className="py-1 text-right text-text-muted">{item.unitsSold}</td>
-            <td className="py-1 text-right text-text">{eur(item.netRevenueCents)}</td>
-            <td className="py-1 text-right text-text">
-              {eur(item.taxCents)}
-              {item.taxRateBp != null ? (
-                <span className="text-text-muted"> ({formatTaxRate(item.taxRateBp)})</span>
-              ) : null}
-            </td>
-            <td className="py-1 text-right font-medium text-text">{eur(item.grossRevenueCents)}</td>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[22rem] text-sm">
+        <thead className="text-text-muted">
+          <tr>
+            <th scope="col" className="py-1 text-left font-medium">
+              Item
+            </th>
+            <th scope="col" className="py-1 text-right font-medium">
+              Units
+            </th>
+            <th scope="col" className="py-1 text-right font-medium">
+              Net
+            </th>
+            <th scope="col" className="py-1 text-right font-medium">
+              Tax
+            </th>
+            <th scope="col" className="py-1 text-right font-medium">
+              Gross
+            </th>
           </tr>
-        ))}
-      </tbody>
-      <tfoot className="border-t border-border font-medium text-text">
-        <tr>
-          <td className="py-1 pr-2">Subtotal</td>
-          <td className="py-1 text-right" />
-          <td className="py-1 text-right">{eur(subtotal.net)}</td>
-          <td className="py-1 text-right">{eur(subtotal.tax)}</td>
-          <td className="py-1 text-right">{eur(subtotal.gross)}</td>
-        </tr>
-      </tfoot>
-    </table>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.productId} className="border-t border-border/60">
+              <td className="py-1 pr-2 text-text">{item.productName}</td>
+              <td className="py-1 text-right text-text-muted">{item.unitsSold}</td>
+              <td className="py-1 text-right text-text">{eur(item.netRevenueCents)}</td>
+              <td className="py-1 text-right text-text">
+                {eur(item.taxCents)}
+                {item.taxRateBp != null ? (
+                  <span className="text-text-muted"> ({formatTaxRate(item.taxRateBp)})</span>
+                ) : null}
+              </td>
+              <td className="py-1 text-right font-medium text-text">
+                {eur(item.grossRevenueCents)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="border-t border-border font-medium text-text">
+          <tr>
+            <td className="py-1 pr-2">Subtotal</td>
+            <td className="py-1 text-right" />
+            <td className="py-1 text-right">{eur(subtotal.net)}</td>
+            <td className="py-1 text-right">{eur(subtotal.tax)}</td>
+            <td className="py-1 text-right">{eur(subtotal.gross)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 

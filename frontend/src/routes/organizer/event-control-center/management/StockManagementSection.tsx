@@ -221,7 +221,7 @@ function StockProductRow({
           />
           Track stock
         </label>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <IconButton
             disabled={
               isSaving ||
@@ -235,7 +235,7 @@ function StockProductRow({
           </IconButton>
           <input
             aria-label={`${product.productName} stock`}
-            className="h-10 w-24 rounded-lg border border-border bg-surface px-3 text-center text-sm font-semibold tabular-nums text-text outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted"
+            className="h-10 w-16 rounded-lg border border-border bg-surface px-3 text-center text-sm font-semibold tabular-nums text-text outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted sm:w-24"
             disabled={isSaving || draftStockMode === 'UNLIMITED'}
             min={0}
             onChange={(event) => {
