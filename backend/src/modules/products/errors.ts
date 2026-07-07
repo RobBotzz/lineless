@@ -29,6 +29,13 @@ export class ProductImageNotFoundError extends Error {
   }
 }
 
+export class ProductLimitExceededError extends Error {
+  constructor() {
+    super("A stand can have at most 10 products");
+    this.name = "ProductLimitExceededError";
+  }
+}
+
 // Image upload errors are shared across modules that store binary images.
 export {
   InvalidImageError,

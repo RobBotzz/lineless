@@ -2,13 +2,13 @@ import { z } from "zod";
 import { locationInputSchema } from "../../shared/location";
 
 export const createStandSchema = z.object({
-  standName: z.string().min(1),
+  standName: z.string().min(1).max(100),
   accessPassword: z.string().min(1).optional(),
   location: locationInputSchema.optional(),
 });
 
 export const updateStandSchema = z.object({
-  standName: z.string().min(1).optional(),
+  standName: z.string().min(1).max(100).optional(),
   accessPassword: z.string().min(1).nullable().optional(),
   location: locationInputSchema.optional(),
 });

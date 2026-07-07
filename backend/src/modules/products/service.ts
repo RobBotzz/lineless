@@ -4,6 +4,7 @@ import { ProductImage, type ProductImageDoc } from "./image.model";
 import {
   InvalidImageError,
   ProductImageNotFoundError,
+  ProductLimitExceededError,
   ProductNotFoundError,
   ProductStateError,
   ProductStockChangedError,
@@ -55,6 +56,9 @@ export function toProductResponse(p: ProductDoc) {
     rating: ratingCount > 0 ? ratingSum / ratingCount : null,
   };
 }
+
+// A stand's menu is meant to stay scannable on a phone screen.
+const MAX_PRODUCTS_PER_STAND = 10;
 
 async function productsForStand(standId: string): Promise<ProductDoc[]> {
   return Product.find({ standId, deletedAt: null })
@@ -151,6 +155,13 @@ export async function createProduct(
     throw new CashierStandProtectedError(
       "Products cannot be created for the cashier stand"
     );
+  }
+  const existingProductCount = await Product.countDocuments({
+    standId,
+    deletedAt: null,
+  });
+  if (existingProductCount >= MAX_PRODUCTS_PER_STAND) {
+    throw new ProductLimitExceededError();
   }
   const product = await Product.create({
     standId,
