@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 
 import type { LiveOrder } from '@/api/eventControlCenter';
+import { SearchIcon, XIcon } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Stand } from '@/types/stand';
-import { ChipFilter } from '../components/ChipFilter';
 import { LiveOrdersTable } from './LiveOrdersTable';
 
 export function LiveOrdersSection({
@@ -17,42 +17,56 @@ export function LiveOrdersSection({
   onCancelOrderItems: (orderId: string, itemIds: string[]) => Promise<void>;
   stands: Stand[];
 }) {
-  const [liveOrdersStandId, setLiveOrdersStandId] = useState('all');
-  const selectedLiveOrdersStand =
-    liveOrdersStandId === 'all'
-      ? null
-      : (stands.find((stand) => stand._id === liveOrdersStandId) ?? null);
-  const visibleOrders = useMemo(
-    () =>
-      liveOrdersStandId === 'all'
-        ? liveOrders
-        : liveOrders.filter((order) => order.standIds.includes(liveOrdersStandId)),
-    [liveOrders, liveOrdersStandId],
-  );
+  const [search, setSearch] = useState('');
+  const searchQuery = search.trim().toLowerCase().replace(/^#/, '');
+  const visibleOrders = useMemo(() => {
+    if (!searchQuery) return liveOrders;
+
+    return liveOrders.filter(
+      (order) =>
+        order.orderNumber.toLowerCase().includes(searchQuery) ||
+        order.pickupCode.toLowerCase().includes(searchQuery),
+    );
+  }, [liveOrders, searchQuery]);
 
   return (
     <Card>
       <CardHeader className="gap-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <CardTitle className="min-w-0 flex-1 [overflow-wrap:anywhere]">
-            Live Orders {selectedLiveOrdersStand ? `- ${selectedLiveOrdersStand.standName}` : ''}
-          </CardTitle>
-          <div className="w-full space-y-3 lg:max-w-xl lg:justify-self-end">
-            <ChipFilter
-              ariaLabel="Live orders stand filter"
-              label="Stands"
-              options={stands.map((stand) => ({ label: stand.standName, value: stand._id }))}
-              resetValue={liveOrdersStandId !== 'all' ? 'all' : undefined}
-              selectedValue={liveOrdersStandId}
-              onSelect={setLiveOrdersStandId}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="min-w-0 flex-1 [overflow-wrap:anywhere]">Live Orders</CardTitle>
+          <div className="relative w-full sm:max-w-xs">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+            <input
+              aria-label="Search live orders by order number or pickup code"
+              className="h-10 w-full rounded-md border border-border bg-surface pl-9 pr-9 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-accent [&::-webkit-search-cancel-button]:appearance-none"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search order or pickup code"
+              type="search"
+              value={search}
             />
+            {search ? (
+              <button
+                aria-label="Clear order search"
+                className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                onClick={() => setSearch('')}
+                type="button"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
         </div>
       </CardHeader>
       <CardContent>
         <LiveOrdersTable
+          emptyMessage={
+            searchQuery
+              ? `No live orders match "${search.trim()}".`
+              : 'Paid orders with open items will appear here.'
+          }
+          emptyTitle={searchQuery ? 'No matching orders' : 'No live orders'}
           orders={visibleOrders}
-          pageResetKey={liveOrdersStandId}
+          pageResetKey={searchQuery}
           stands={stands}
           onCancelOrder={onCancelOrder}
           onCancelOrderItems={onCancelOrderItems}

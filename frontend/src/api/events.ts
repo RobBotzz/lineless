@@ -17,6 +17,11 @@ export function getAttendeeEvent(eventId: string): Promise<Event> {
   return apiFetch<Event>(`/events/${eventId}`, { auth: 'attendee', eventId });
 }
 
+// Operator (cashier) reads the event via the event-scoped operator access key.
+export function getOperatorEvent(eventId: string): Promise<Event> {
+  return apiFetch<Event>(`/events/${eventId}`, { auth: 'operator-link' });
+}
+
 // No auth — works for any event status. Used to show gate pages before a session exists.
 export function getEventPublicInfo(eventId: string): Promise<PublicEventInfo> {
   return apiFetch<PublicEventInfo>(`/events/${eventId}/public-info`, { auth: 'public' });

@@ -7,17 +7,22 @@ interface ChoiceCardProps {
   icon: ReactNode;
   title: string;
   description: string;
+  // Render as a dimmed, non-clickable tile even when `to` is set (e.g. the
+  // action is temporarily unavailable because the event is stopped).
+  disabled?: boolean;
 }
 
 const baseClassName =
   'flex flex-col items-center gap-4 rounded-xl border border-border bg-surface px-8 py-12 text-center shadow-sm';
 const interactiveClassName =
   'transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+const disabledClassName = 'cursor-not-allowed opacity-60';
 
 // Large icon + title + description card for the cashier's Manual Order / Cash
-// Payment choice screen. Renders as a Link when `to` is set, otherwise as a
-// plain (non-clickable) tile so it can stand in for a not-yet-built action.
-export function ChoiceCard({ to, icon, title, description }: ChoiceCardProps) {
+// Payment choice screen. Renders as a Link when `to` is set and not disabled,
+// otherwise as a plain (non-clickable) tile so it can stand in for a
+// not-yet-built or temporarily unavailable action.
+export function ChoiceCard({ to, icon, title, description, disabled = false }: ChoiceCardProps) {
   const content = (
     <>
       <span className="flex h-20 w-20 items-center justify-center rounded-full bg-accent-soft text-accent">
@@ -28,8 +33,15 @@ export function ChoiceCard({ to, icon, title, description }: ChoiceCardProps) {
     </>
   );
 
-  if (!to) {
-    return <div className={baseClassName}>{content}</div>;
+  if (!to || disabled) {
+    return (
+      <div
+        className={`${baseClassName}${disabled ? ` ${disabledClassName}` : ''}`}
+        aria-disabled={disabled || undefined}
+      >
+        {content}
+      </div>
+    );
   }
 
   return (

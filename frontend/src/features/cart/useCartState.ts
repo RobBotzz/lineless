@@ -67,9 +67,7 @@ function parseStoredProduct(value: unknown): Product | null {
     !isNonNegativeInteger(value.taxRate) ||
     value.taxRate > 10_000 ||
     !isNonNegativeInteger(value.productStock) ||
-    (value.productStatus !== 'LIVE' &&
-      value.productStatus !== 'PAUSED' &&
-      value.productStatus !== 'TERMINATED')
+    (value.productStatus !== 'LIVE' && value.productStatus !== 'PAUSED')
   ) {
     return null;
   }

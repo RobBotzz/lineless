@@ -35,7 +35,14 @@ import {
 import { resolveBranding } from '@/features/branding/applyBranding';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
-import { eventLogoSrc, type Event, type EventStatus, type UpdateEventInput } from '@/types/event';
+import {
+  eventLogoSrc,
+  EVENT_STATUS_STYLES,
+  eventStatusStyle,
+  type Event,
+  type EventStatus,
+  type UpdateEventInput,
+} from '@/types/event';
 import type { Stand } from '@/types/stand';
 import type { Product } from '@/types/product';
 import { emptyLocation, hasCoordinates, type Location } from '@/types/location';
@@ -74,46 +81,17 @@ export function EventConfigurationError() {
 // The event lifecycle, in order. Drives the vertical stepper in the Status card:
 // its index vs. the event's current status decides which steps are done / current
 // / upcoming. `tint` colors the active node + chip; `chip` is the header pill.
+// Lifecycle-specific bits only (order + step icon); labels and colors come from
+// the shared EVENT_STATUS_STYLES so the stepper stays consistent with the chip
+// and the dashboard badge.
 const LIFECYCLE_STEPS = [
-  {
-    key: 'DRAFT',
-    label: 'Draft',
-    icon: EditIcon,
-    node: 'border-accent bg-accent-soft text-accent',
-    label_: 'text-accent',
-    chip: 'border-accent/30 bg-accent-soft text-accent',
-  },
-  {
-    key: 'ACTIVE',
-    label: 'Active',
-    icon: PlayIcon,
-    node: 'border-success bg-success/10 text-success',
-    label_: 'text-success',
-    chip: 'border-success/30 bg-success/10 text-success',
-  },
-  {
-    key: 'STOPPED',
-    label: 'Stopped',
-    icon: PauseIcon,
-    node: 'border-warning bg-warning/10 text-warning',
-    label_: 'text-warning',
-    chip: 'border-warning/30 bg-warning/10 text-warning',
-  },
-  {
-    key: 'COMPLETED',
-    label: 'Completed',
-    icon: CheckCircleIcon,
-    node: 'border-success bg-success/10 text-success',
-    label_: 'text-success',
-    chip: 'border-success/30 bg-success/10 text-success',
-  },
+  { key: 'DRAFT', icon: EditIcon },
+  { key: 'ACTIVE', icon: PlayIcon },
+  { key: 'STOPPED', icon: PauseIcon },
+  { key: 'COMPLETED', icon: CheckCircleIcon },
 ] as const satisfies ReadonlyArray<{
   key: EventStatus;
-  label: string;
   icon: (props: { className?: string }) => ReactElement;
-  node: string;
-  label_: string;
-  chip: string;
 }>;
 
 const STATUS_HINTS: Record<EventStatus, string[]> = {
@@ -138,16 +116,16 @@ const STATUS_HINTS: Record<EventStatus, string[]> = {
 
 // Header pill echoing the current lifecycle state (tint matches the stepper node).
 function EventStatusChip({ status }: { status: EventStatus }) {
-  const step = LIFECYCLE_STEPS.find((s) => s.key === status) ?? LIFECYCLE_STEPS[0];
+  const style = eventStatusStyle(status);
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold',
-        step.chip,
+        style.chip,
       )}
     >
       {status === 'ACTIVE' && <LiveDot />}
-      {step.label}
+      {style.label}
     </span>
   );
 }
@@ -173,6 +151,7 @@ function EventLifecycle({ status }: { status: EventStatus }) {
       <ol className="flex">
         {LIFECYCLE_STEPS.map((step, i) => {
           const Icon = step.icon;
+          const style = EVENT_STATUS_STYLES[step.key];
           const done = i < currentIndex;
           const current = i === currentIndex;
           return (
@@ -197,7 +176,7 @@ function EventLifecycle({ status }: { status: EventStatus }) {
                   done
                     ? 'border-accent bg-accent text-white'
                     : current
-                      ? step.node
+                      ? style.node
                       : 'border-border bg-surface text-text-muted',
                 )}
               >
@@ -213,10 +192,10 @@ function EventLifecycle({ status }: { status: EventStatus }) {
               <span
                 className={cn(
                   'mt-1.5 text-center text-xs font-semibold',
-                  current ? step.label_ : done ? 'text-text' : 'text-text-muted',
+                  current ? style.text : done ? 'text-text' : 'text-text-muted',
                 )}
               >
-                {step.label}
+                {style.label}
               </span>
             </li>
           );
@@ -260,6 +239,17 @@ function toDateInputValue(iso?: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toISOString().slice(0, 10);
+}
+
+// Today in the user's local timezone as YYYY-MM-DD, for the date field's `min`
+// and the past-date guard. Uses local components (not toISOString, which is UTC)
+// so the boundary matches the calendar day the organizer actually sees.
+function localDateInputValue(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function toForm(event: Event): EventForm {
@@ -336,7 +326,6 @@ export default function EventConfiguration() {
   const [showLogoInfo, setShowLogoInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
-  const [dismissedDateWarning, setDismissedDateWarning] = useState(false);
 
   // Logo upload is a separate multipart call (like the product image), not part
   // of the JSON settings auto-save. The event already exists, so we upload/delete
@@ -347,6 +336,7 @@ export default function EventConfiguration() {
   // Enabling/disabling the cashier saves on its own (not via the settings
   // auto-save), so it never touches the settings "saved" indicator.
   const [cashierEnableError, setCashierEnableError] = useState<string | null>(null);
+  const [cashierEnableBusy, setCashierEnableBusy] = useState(false);
   // Object URL for the in-flight pick, shown for instant feedback until the
   // revalidated loader serves the persisted logo. Revoked on change / unmount.
   const logoFilePreview = useMemo(
@@ -386,8 +376,10 @@ export default function EventConfiguration() {
   }
 
   function handleToggleCashier(value: boolean) {
+    if (cashierEnableBusy) return;
     setForm((prev) => ({ ...prev, cashierEnabled: value }));
     setCashierEnableError(null);
+    setCashierEnableBusy(true);
     updateEvent(event._id, { cashierEnabled: value })
       // Revalidate so the cashier stand loads (enable) / clears (disable).
       .then(() => revalidator.revalidate())
@@ -397,7 +389,8 @@ export default function EventConfiguration() {
         setCashierEnableError(
           err instanceof ApiError ? err.message : 'Could not update the cashier.',
         );
-      });
+      })
+      .finally(() => setCashierEnableBusy(false));
   }
 
   const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
@@ -425,16 +418,25 @@ export default function EventConfiguration() {
     Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1 && baselineHoldEuros <= 10000;
 
   const nameValid = form.name.trim().length > 0;
-  const settingsValid = baselineHoldValid && nameValid;
-
-  const isDateInPast = form.plannedDate
-    ? new Date(form.plannedDate) < new Date(new Date().toISOString().split('T')[0])
-    : false;
-  const showDateWarning = isDateInPast && !dismissedDateWarning;
+  const minimumPlannedDate = localDateInputValue();
+  const persistedPlannedDate = toDateInputValue(event.plannedDate);
+  // Keep legacy events with an already-persisted past date editable, but reject
+  // any newly selected past date before the auto-save can submit it.
+  const plannedDateValid =
+    !form.plannedDate ||
+    form.plannedDate >= minimumPlannedDate ||
+    form.plannedDate === persistedPlannedDate;
+  const settingsValid = baselineHoldValid && nameValid && plannedDateValid;
+  const canStart = event.status === 'DRAFT';
+  const canStop = event.status === 'ACTIVE';
+  const canComplete = event.status === 'STOPPED';
+  const isDraft = event.status === 'DRAFT';
+  const isPostStart = event.status === 'ACTIVE' || event.status === 'STOPPED';
+  const isCompleted = event.status === 'COMPLETED';
+  const canDelete = isDraft;
 
   function updateField<K extends keyof EventForm>(key: K, value: EventForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
-    if (key === 'plannedDate') setDismissedDateWarning(false);
   }
 
   const busy = fetcher.state !== 'idle';
@@ -486,15 +488,16 @@ export default function EventConfiguration() {
     setPendingCompleteEvent(false);
   }
 
-  // Two independent auto-saves — core settings and branding — each with its own
-  // snapshot + fetcher (see useEventAutoSave) so their "saved" indicators stay
-  // separate: editing a color never flips the settings status and vice versa.
-  const settingsSnapshot = JSON.stringify({
+  // Separate auto-saves keep draft-only fields out of post-start PATCH requests
+  // while live-safe settings and branding remain independently editable.
+  const draftSettingsSnapshot = JSON.stringify({
     name: form.name,
     // Send undefined rather than an empty string to leave the date unchanged.
     plannedDate: form.plannedDate || undefined,
-    ratingsEnabled: form.ratingsEnabled,
     baselineHoldCents: Math.round(baselineHoldEuros * 100),
+  });
+  const liveSettingsSnapshot = JSON.stringify({
+    ratingsEnabled: form.ratingsEnabled,
     location: form.location,
   });
   const brandingSnapshot = JSON.stringify({
@@ -504,10 +507,8 @@ export default function EventConfiguration() {
       accentTextColor: form.accentTextColor,
     },
   });
-  const settingsSave = useEventAutoSave(
-    settingsSnapshot,
-    settingsValid && event.status !== 'COMPLETED',
-  );
+  const draftSettingsSave = useEventAutoSave(draftSettingsSnapshot, settingsValid && isDraft);
+  const liveSettingsSave = useEventAutoSave(liveSettingsSnapshot, !isCompleted);
   // Color inputs only ever commit valid hex, so branding is always saveable — unless the event is completed.
   const brandingSave = useEventAutoSave(brandingSnapshot, event.status !== 'COMPLETED');
 
@@ -520,12 +521,17 @@ export default function EventConfiguration() {
     logoUrl: null,
   });
 
-  // Lifecycle rules mirror the backend: start only from DRAFT, stop only from ACTIVE.
-  const canStart = event.status === 'DRAFT';
-  const canStop = event.status === 'ACTIVE';
-  const canComplete = event.status === 'STOPPED';
-  const isCompleted = event.status === 'COMPLETED';
-  const canDelete = event.status === 'DRAFT';
+  const settingsDirty = draftSettingsSave.dirty || liveSettingsSave.dirty;
+  const settingsSaving = draftSettingsSave.saving || liveSettingsSave.saving;
+  const settingsSaveError = draftSettingsSave.saveError || liveSettingsSave.saveError;
+  const startBlocked =
+    !settingsValid ||
+    settingsDirty ||
+    settingsSaving ||
+    brandingSave.dirty ||
+    brandingSave.saving ||
+    logoBusy ||
+    cashierEnableBusy;
 
   // Spread stands over two columns by always appending to the currently shorter
   // column (height ≈ product count). This keeps both columns roughly equal so the
@@ -573,7 +579,7 @@ export default function EventConfiguration() {
             <Button
               size="sm"
               variant="outline"
-              disabled={isCompleted}
+              disabled={!isDraft}
               className="text-danger hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
               onClick={() => handleDeleteStand(stand._id)}
             >
@@ -587,7 +593,8 @@ export default function EventConfiguration() {
           <ProductRow
             key={product._id}
             product={product}
-            disabled={isCompleted}
+            canEdit={!isCompleted}
+            canDelete={isDraft}
             onEdit={() => setProductDialog({ standId: stand._id, product })}
             onDelete={() => setPendingDeleteProduct(product)}
           />
@@ -603,7 +610,7 @@ export default function EventConfiguration() {
             <Button
               size="sm"
               variant="outline"
-              disabled={atProductLimit || isCompleted}
+              disabled={atProductLimit || !isDraft}
               onClick={() => setProductDialog({ standId: stand._id, product: null })}
             >
               + Add Product
@@ -625,6 +632,15 @@ export default function EventConfiguration() {
         Events Dashboard
       </BackButton>
       <div className="space-y-6">
+        {isPostStart && (
+          <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
+            <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Event setup is locked after start. Operational settings, locations, branding,
+              descriptions, images, stock, and availability remain editable.
+            </p>
+          </div>
+        )}
         {/* Event status + links — side by side across the full width */}
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="scroll-mt-24" id="status">
@@ -646,9 +662,14 @@ export default function EventConfiguration() {
                 {canStart && (
                   <Button
                     className="w-full bg-success text-white hover:bg-success/90"
-                    disabled={busy}
+                    disabled={busy || startBlocked}
                     onClick={() => setPendingStartEvent(true)}
                     size="lg"
+                    title={
+                      startBlocked
+                        ? 'Wait until all valid configuration changes are saved.'
+                        : undefined
+                    }
                   >
                     Start Event
                   </Button>
@@ -775,8 +796,9 @@ export default function EventConfiguration() {
           <CardContent className="@container">
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
               <TextField
-                disabled={isCompleted}
+                disabled={!isDraft}
                 error={!nameValid ? 'Event name is required.' : undefined}
+                helperText={!isDraft ? 'Locked after the event starts.' : undefined}
                 id="event-name"
                 label="Event Name"
                 maxLength={100}
@@ -786,33 +808,17 @@ export default function EventConfiguration() {
                 value={form.name}
               />
 
-              <div>
-                <TextField
-                  disabled={isCompleted}
-                  id="event-date"
-                  label="Event Date"
-                  onChange={(e) => updateField('plannedDate', e.target.value)}
-                  type="date"
-                  value={form.plannedDate}
-                />
-                {showDateWarning && (
-                  <div className="mt-2 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2">
-                    <InfoIcon className="h-4 w-4 mt-0.5 flex-shrink-0 text-warning" />
-                    <div className="flex items-center justify-between flex-1 gap-2">
-                      <p className="text-xs text-warning">
-                        The selected event date is in the past.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setDismissedDateWarning(true)}
-                        className="text-xs text-warning hover:text-warning/80 transition font-medium whitespace-nowrap"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <TextField
+                disabled={!isDraft}
+                error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
+                id="event-date"
+                label="Event Date"
+                helperText={!isDraft ? 'Locked after the event starts.' : undefined}
+                min={minimumPlannedDate}
+                onChange={(e) => updateField('plannedDate', e.target.value)}
+                type="date"
+                value={form.plannedDate}
+              />
 
               <EventLocationField
                 disabled={isCompleted}
@@ -863,7 +869,8 @@ export default function EventConfiguration() {
                     </span>
                   </span>
                 }
-                disabled={isCompleted}
+                disabled={!isDraft}
+                helperText={!isDraft ? 'Locked after the event starts.' : undefined}
                 type="number"
                 inputMode="numeric"
                 min="1"
@@ -931,11 +938,11 @@ export default function EventConfiguration() {
 
             {/* No save button — the form auto-saves; this just reflects status. */}
             <div className="mt-6 flex justify-end text-sm" aria-live="polite">
-              {!settingsValid && settingsSave.dirty ? (
+              {!settingsValid && draftSettingsSave.dirty ? (
                 <span className="text-danger">Fix the highlighted field to save.</span>
-              ) : settingsSave.saveError ? (
+              ) : settingsSaveError ? (
                 <span className="text-danger">Couldn’t save changes — edit a field to retry.</span>
-              ) : settingsSave.saving || settingsSave.dirty ? (
+              ) : settingsSaving || settingsDirty ? (
                 <span className="text-text-muted">Saving…</span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 text-success">
@@ -1165,7 +1172,8 @@ export default function EventConfiguration() {
             <CardAction>
               <Button
                 size="sm"
-                disabled={isCompleted}
+                disabled={!isDraft}
+                title={!isDraft ? 'Stands can only be added before the event starts.' : undefined}
                 onClick={() => {
                   setEditingStand(null);
                   setIsStandDialogOpen(true);
@@ -1209,6 +1217,7 @@ export default function EventConfiguration() {
         eventLocation={event.location ?? emptyLocation}
         isOpen={isStandDialogOpen}
         onClose={() => setIsStandDialogOpen(false)}
+        setupLocked={!isDraft}
       />
 
       <AlertDialog
@@ -1216,7 +1225,7 @@ export default function EventConfiguration() {
         cancelLabel="Cancel"
         message={
           pendingStartEvent
-            ? 'Starting the event makes it visible to guests and opens ordering for all stands. You can stop it again at any time.'
+            ? 'Starting makes the event visible to guests and opens ordering. Event identity, financial setup, stand and product structure, names, prices, taxes, and fulfillment types will be permanently locked. Operational controls remain editable.'
             : null
         }
         onAcknowledge={confirmStartEvent}
@@ -1244,6 +1253,7 @@ export default function EventConfiguration() {
           standId={productDialog.standId}
           isOpen={true}
           onClose={() => setProductDialog(null)}
+          setupLocked={!isDraft}
         />
       )}
 
@@ -1505,23 +1515,24 @@ function ButtonTextColorField({
         <div
           className={cn('flex w-full rounded-lg bg-surface-muted p-1', disabled && 'opacity-60')}
         >
-          {BUTTON_TEXT_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              aria-pressed={value === option.value}
-              disabled={disabled}
-              className={cn(
-                'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed',
-                value === option.value
-                  ? 'bg-surface text-text shadow-sm'
-                  : 'text-text-muted hover:text-text',
-              )}
-              onClick={() => onChange(option.value)}
-              type="button"
-            >
-              {option.label}
-            </button>
-          ))}
+          {BUTTON_TEXT_OPTIONS.map((option) => {
+            const selected = value.toLowerCase() === option.value;
+            return (
+              <button
+                key={option.value}
+                aria-pressed={selected}
+                disabled={disabled}
+                className={cn(
+                  'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed',
+                  selected ? 'bg-surface text-text shadow-sm' : 'text-text-muted hover:text-text',
+                )}
+                onClick={() => onChange(option.value)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            );
+          })}
         </div>
       </div>
       <p className="invisible mt-1.5 text-xs">.</p>

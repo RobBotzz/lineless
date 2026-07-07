@@ -7,11 +7,17 @@ interface ProductRowProps {
   product: Product;
   onEdit: () => void;
   onDelete: () => void;
-  // Read-only mode (e.g. a completed, immutable event): hides edit/delete actions.
-  disabled?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-export function ProductRow({ product, onEdit, onDelete, disabled = false }: ProductRowProps) {
+export function ProductRow({
+  product,
+  onEdit,
+  onDelete,
+  canEdit = true,
+  canDelete = true,
+}: ProductRowProps) {
   // Fall back to the placeholder when there is no URL or the image fails to load.
   const [imageOk, setImageOk] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -75,18 +81,21 @@ export function ProductRow({ product, onEdit, onDelete, disabled = false }: Prod
         <p className="text-xs text-text-muted">€{formatMoney(exclTax)} excl. tax</p>
       </div>
 
-      {/* Actions — hidden on a read-only (completed) event. */}
-      {!disabled && (
+      {(canEdit || canDelete) && (
         <div className="flex shrink-0 items-center gap-1">
-          <button
-            aria-label={`Edit ${product.productName}`}
-            className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
-            onClick={onEdit}
-            type="button"
-          >
-            <EditIcon />
-          </button>
-          <DeleteIconButton label={`Delete ${product.productName}`} onClick={onDelete} />
+          {canEdit && (
+            <button
+              aria-label={`Edit ${product.productName}`}
+              className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+              onClick={onEdit}
+              type="button"
+            >
+              <EditIcon />
+            </button>
+          )}
+          {canDelete && (
+            <DeleteIconButton label={`Delete ${product.productName}`} onClick={onDelete} />
+          )}
         </div>
       )}
     </div>

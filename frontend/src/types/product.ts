@@ -1,5 +1,5 @@
 // Mirrors the backend product module (src/modules/products/model.ts).
-export type ProductStatus = 'LIVE' | 'PAUSED' | 'TERMINATED';
+export type ProductStatus = 'LIVE' | 'PAUSED';
 export type StockMode = 'UNLIMITED' | 'TRACKED';
 
 export interface Product {

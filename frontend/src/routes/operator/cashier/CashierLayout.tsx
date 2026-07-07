@@ -1,15 +1,21 @@
 import { Navigate, Outlet, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
+import { getOperatorEvent } from '@/api/events';
 import { getOperatorStandToken } from '@/auth/keychain';
 import { paths } from '@/paths';
-import { operatorCashierStandQueryOptions } from '../operatorQueries';
+import type { EventStatus } from '@/types/event';
+import { operatorCashierStandQueryOptions, operatorQueryKeys } from '../operatorQueries';
 
 // Context handed to every cashier page: the event and the CASHIER stand the
 // cashier acts as.
 export interface CashierContext {
   eventId: string;
   standId: string;
+  ratingsEnabled: boolean;
+  // Undefined until the event query resolves. Order/payment pages gate on this
+  // (a STOPPED event takes no new orders or payments — only refunds).
+  eventStatus: EventStatus | undefined;
 }
 
 export default function CashierLayout() {
@@ -17,6 +23,14 @@ export default function CashierLayout() {
 
   const cashierStandQuery = useQuery(operatorCashierStandQueryOptions(eventId));
   const cashierStand = cashierStandQuery.data;
+
+  // Drives whether product ratings are shown in the cashier catalog. Non-blocking:
+  // if it hasn't resolved (or fails), ratings stay hidden.
+  const eventQuery = useQuery({
+    queryKey: [...operatorQueryKeys.all, 'cashier-event', eventId],
+    queryFn: () => getOperatorEvent(eventId),
+    staleTime: 60_000,
+  });
 
   if (cashierStandQuery.isPending) {
     return <Centered>Opening cashier stand…</Centered>;
@@ -34,7 +48,18 @@ export default function CashierLayout() {
     return <Navigate to={paths.operator.root(eventId)} replace />;
   }
 
-  return <Outlet context={{ eventId, standId: cashierStand._id } satisfies CashierContext} />;
+  return (
+    <Outlet
+      context={
+        {
+          eventId,
+          standId: cashierStand._id,
+          ratingsEnabled: eventQuery.data?.ratingsEnabled ?? false,
+          eventStatus: eventQuery.data?.status,
+        } satisfies CashierContext
+      }
+    />
+  );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

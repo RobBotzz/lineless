@@ -46,7 +46,9 @@ export default function ProductSelection() {
 
   // Second-layer guard for session holders whose event stopped while they were browsing.
   // The layout gate handles the no-session case; this handles the in-session stopped/completed case.
-  if (event.status !== 'ACTIVE') {
+  // The `in` check also narrows `event` to the full `Event` type below — only an ACTIVE
+  // event's loader path returns the full object rather than the public projection.
+  if (event.status !== 'ACTIVE' || !('ratingsEnabled' in event)) {
     const message =
       event.status === 'COMPLETED'
         ? 'This event has ended.'
@@ -83,6 +85,7 @@ export default function ProductSelection() {
               product={product}
               standName={standsById[product.standId] ?? ''}
               cartQuantity={cartQuantityById[product._id] ?? 0}
+              ratingsEnabled={event.ratingsEnabled}
               onAdd={addItem}
               onSetQuantity={setQuantity}
             />

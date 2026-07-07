@@ -38,13 +38,17 @@ export default function OrderHistory() {
                 ? 'In Preparation'
                 : status === 'cancelled'
                   ? 'Cancelled'
-                  : 'Fulfilled';
+                  : status === 'refunded'
+                    ? 'Refunded'
+                    : 'Fulfilled';
           const statusColor =
             status === 'pending-payment' || status === 'in-preparation'
               ? 'bg-warning/10 text-warning border-warning/40'
               : status === 'cancelled'
                 ? 'bg-danger/10 text-danger border-danger/40'
-                : 'bg-success/5 text-success border-success/40';
+                : status === 'refunded'
+                  ? 'bg-surface-muted text-text-muted border-border'
+                  : 'bg-success/5 text-success border-success/40';
 
           // Unpaid cash orders (pending, or cashier-cancelled) have no tracking —
           // their detail lives on the pay page. Paid orders (including ones later

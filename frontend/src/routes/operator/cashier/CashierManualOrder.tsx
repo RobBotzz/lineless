@@ -17,6 +17,7 @@ import { getOperatorEventProducts } from '@/api/products';
 import type { OrderItemView } from '@/types/order';
 import { formatMoney, productImageSrc, tracksStock, type Product } from '@/types/product';
 import { paths } from '@/paths';
+import { CashierEventPausedNotice } from './CashierEventPausedNotice';
 import type { CashierContext } from './CashierLayout';
 
 // The backend reports every non-ACTIVE event with the same code-less 409, so we
@@ -34,7 +35,7 @@ async function classifyInactiveEvent(eventId: string): Promise<'not-started' | '
 
 // Cart is in-memory (no persistKey) so it starts fresh for each customer.
 export default function CashierManualOrder() {
-  const { eventId, standId } = useOutletContext<CashierContext>();
+  const { eventId, standId, ratingsEnabled, eventStatus } = useOutletContext<CashierContext>();
   const navigate = useNavigate();
 
   const {
@@ -153,6 +154,12 @@ export default function CashierManualOrder() {
     }
   }
 
+  // A stopped event takes no new orders (the backend rejects them). Block the
+  // whole surface up front instead of only surfacing it after a checkout attempt.
+  if (eventStatus === 'STOPPED') {
+    return <CashierEventPausedNotice eventId={eventId} action="Manual ordering" />;
+  }
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col px-4 py-6 sm:px-6 lg:h-screen lg:px-8">
       <BackButton to={paths.operator.cashier(eventId)} className="self-start">
@@ -175,6 +182,7 @@ export default function CashierManualOrder() {
                     key={product._id}
                     product={product}
                     standName={standNameFor(product)}
+                    ratingsEnabled={ratingsEnabled}
                     cartQuantity={
                       items.find((item) => item.product._id === product._id)?.quantity ?? 0
                     }
@@ -261,11 +269,13 @@ export default function CashierManualOrder() {
 function ProductTile({
   product,
   standName,
+  ratingsEnabled,
   cartQuantity,
   onAdd,
 }: {
   product: Product;
   standName: string;
+  ratingsEnabled: boolean;
   cartQuantity: number;
   onAdd: () => void;
 }) {
@@ -339,6 +349,7 @@ function ProductTile({
           product={product}
           standName={standName}
           rating={product.rating ?? null}
+          showRating={ratingsEnabled}
           onClose={() => setDetailsOpen(false)}
         />
       )}

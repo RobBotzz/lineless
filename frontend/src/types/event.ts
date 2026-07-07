@@ -8,6 +8,44 @@ import type { Location } from './location';
 // crashing the view when the running backend build predates it.
 export type EventStatus = 'DRAFT' | 'ACTIVE' | 'STOPPED' | 'COMPLETED';
 
+export interface EventStatusStyle {
+  label: string;
+  chip: string;
+  node: string;
+  text: string;
+}
+
+export const EVENT_STATUS_STYLES: Record<EventStatus, EventStatusStyle> = {
+  DRAFT: {
+    label: 'Draft',
+    chip: 'border-accent/30 bg-accent-soft text-accent',
+    node: 'border-accent bg-accent-soft text-accent',
+    text: 'text-accent',
+  },
+  ACTIVE: {
+    label: 'Active',
+    chip: 'border-success/30 bg-success/10 text-success',
+    node: 'border-success bg-success/10 text-success',
+    text: 'text-success',
+  },
+  STOPPED: {
+    label: 'Stopped',
+    chip: 'border-warning/30 bg-warning/10 text-warning',
+    node: 'border-warning bg-warning/10 text-warning',
+    text: 'text-warning',
+  },
+  COMPLETED: {
+    label: 'Completed',
+    chip: 'border-border bg-surface-muted text-text-muted',
+    node: 'border-border bg-surface-muted text-text-muted',
+    text: 'text-text-muted',
+  },
+};
+
+export function eventStatusStyle(status: EventStatus): EventStatusStyle {
+  return EVENT_STATUS_STYLES[status] ?? EVENT_STATUS_STYLES.COMPLETED;
+}
+
 export interface EventBranding {
   primaryColor: string;
   secondaryColor: string;
