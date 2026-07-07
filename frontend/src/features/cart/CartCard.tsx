@@ -139,6 +139,7 @@ export function CartCard({
                     type="text"
                     value={comment}
                     onChange={(e) => onSetComment(product._id, index, e.target.value)}
+                    maxLength={500}
                     placeholder="Add a note (optional)"
                     className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   />

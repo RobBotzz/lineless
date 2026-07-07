@@ -776,9 +776,16 @@ function BankDetailsCard({
   const incomplete = !form.iban.trim() || !form.ibanHolderName.trim();
   // Show the IBAN checksum error only once the field has content.
   const ibanError = form.iban.trim() !== '' && !isValidIban(form.iban) ? 'Invalid IBAN' : null;
+  // Mirror the backend holder-name format check: must start with a letter and
+  // contain only letters, spaces, and the punctuation banks accept.
+  const holderNameError =
+    form.ibanHolderName.trim() !== '' &&
+    !/^[\p{L}\p{M}][\p{L}\p{M}\s'.,&/()-]*$/u.test(form.ibanHolderName.trim())
+      ? 'Invalid account holder name'
+      : null;
 
   function save() {
-    if (ibanError) return;
+    if (ibanError || holderNameError) return;
     const payload: PaymentActionBody = {
       intent: 'save-bank',
       iban: normalizeIban(form.iban),
@@ -805,6 +812,8 @@ function BankDetailsCard({
           value={form.ibanHolderName}
           onChange={(e) => setForm((p) => ({ ...p, ibanHolderName: e.target.value }))}
           placeholder="Emely"
+          maxLength={140}
+          error={holderNameError}
         />
         <TextField
           id="iban"
@@ -834,7 +843,11 @@ function BankDetailsCard({
         {showResult && error ? <p className="text-sm text-danger">{error}</p> : null}
         {showResult && saved ? <p className="text-sm text-success">Bank details saved.</p> : null}
 
-        <Button onClick={save} disabled={busy || Boolean(ibanError)} className="w-full">
+        <Button
+          onClick={save}
+          disabled={busy || Boolean(ibanError) || Boolean(holderNameError)}
+          className="w-full"
+        >
           {busy ? 'Saving…' : 'Save bank details'}
         </Button>
       </CardContent>
