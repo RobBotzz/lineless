@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { formatMoney, productImageSrc, type Product } from '@/types/product';
 
-import { ImageIcon } from '@/components/icons';
+import { ProductThumbnail } from '@/components/shared/ProductThumbnail';
 import { Rating } from './Rating';
 
 interface ProductDetailsDialogProps {
@@ -22,9 +22,7 @@ export function ProductDetailsDialog({
   showRating = true,
   onClose,
 }: ProductDetailsDialogProps) {
-  const [imageOk, setImageOk] = useState(true);
   const imageSrc = productImageSrc(product);
-  const showImage = !!imageSrc && imageOk;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -51,20 +49,12 @@ export function ProductDetailsDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          <div className="h-44 w-full overflow-hidden rounded-lg border border-border bg-surface-muted">
-            {showImage ? (
-              <img
-                alt=""
-                className="h-full w-full object-cover"
-                onError={() => setImageOk(false)}
-                src={imageSrc!}
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-text-muted">
-                <ImageIcon className="h-10 w-10" />
-              </div>
-            )}
-          </div>
+          <ProductThumbnail
+            alt={product.productName}
+            className="h-44 w-full rounded-lg"
+            iconClassName="h-10 w-10"
+            imageSrc={imageSrc}
+          />
 
           <div className="mt-4 flex items-start justify-between gap-3">
             <div className="min-w-0">

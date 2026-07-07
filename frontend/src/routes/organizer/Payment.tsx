@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useFetcher, useLoaderData, useRouteError } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
+import { InfoTooltip } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TextField } from '@/components/ui/text-field';
@@ -12,7 +13,6 @@ import {
   CreditCardIcon,
   DownloadIcon,
   HistoryIcon,
-  InfoIcon,
 } from '@/components/icons';
 import { formatIban, isValidIban, maskIban, normalizeIban } from '@/lib/iban';
 import { formatMoney } from '@/types/product';
@@ -21,6 +21,23 @@ import type { PaymentActionBody, PaymentActionResult, PaymentLoaderData } from '
 
 function eur(cents: number): string {
   return `€${formatMoney(cents)}`;
+}
+
+// formatIban re-spaces the whole string on every keystroke, so a caret placed
+// mid-string (not at the end) needs to be walked forward by the same number of
+// non-space characters in the reformatted value — otherwise the browser resets
+// it to the end whenever the DOM value is replaced with a differently-shaped
+// string, making every edit land as an append.
+function caretPositionAfterIbanFormat(formatted: string, nonSpaceCharsBeforeCaret: number): number {
+  if (nonSpaceCharsBeforeCaret <= 0) return 0;
+  let consumed = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    if (formatted[i] !== ' ') {
+      consumed++;
+      if (consumed === nonSpaceCharsBeforeCaret) return i + 1;
+    }
+  }
+  return formatted.length;
 }
 
 // Keep a settled fetcher banner visible briefly, then dismiss it so a stale
@@ -270,7 +287,7 @@ export default function Payment() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+        <div className="min-w-0 space-y-6 lg:col-span-2">
           <AvailableForPayoutCard
             availableNow={overview.availableCents}
             openTabsReady={openTabsReady}
@@ -280,34 +297,12 @@ export default function Payment() {
           <EventBreakdownCard rows={rows} />
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <BankDetailsCard iban={overview.iban} ibanHolderName={overview.ibanHolderName} />
           <RecentPayoutsCard payouts={overview.payouts} />
         </div>
       </div>
     </div>
-  );
-}
-
-// Info icon that reveals its text on hover and keyboard focus. Uses a real
-// positioned tooltip (not the flaky native `title`), so it actually shows up.
-function InfoTooltip({ text }: { text: string }) {
-  return (
-    <span className="group relative inline-flex">
-      <button
-        type="button"
-        aria-label={text}
-        className="text-text-muted/70 hover:text-text-muted cursor-help rounded-full focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
-      >
-        <InfoIcon className="h-3.5 w-3.5" />
-      </button>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 w-56 -translate-x-1/2 rounded-lg border border-border bg-surface px-3 py-2 text-xs leading-snug font-normal text-text opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
-      >
-        {text}
-      </span>
-    </span>
   );
 }
 
@@ -318,7 +313,11 @@ function Stat({ label, value, info }: { label: string; value: string; info?: str
     <div className="rounded-xl bg-surface-muted px-5 py-4">
       <div className="flex items-center gap-1.5">
         <p className="text-sm text-text-muted">{label}</p>
-        {info ? <InfoTooltip text={info} /> : null}
+        {info ? (
+          <InfoTooltip label={info} side="top" size="sm">
+            {info}
+          </InfoTooltip>
+        ) : null}
       </div>
       <p className="mt-1 text-2xl font-bold text-text">{value}</p>
     </div>
@@ -465,8 +464,8 @@ function EventBreakdownCard({ rows }: { rows: EventRow[] }) {
             You have no events yet. Once guests start ordering, their revenue appears here.
           </p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-lg text-sm">
               <thead className="bg-surface-muted text-text-muted">
                 <tr>
                   <th scope="col" className="px-4 py-3 text-left font-medium">
@@ -689,52 +688,56 @@ function Detail({ label, value }: { label: string; value: string }) {
 function UnitsTable({ items }: { items: ProductUnitsSold[] }) {
   const subtotal = itemsSubtotal(items);
   return (
-    <table className="w-full text-sm">
-      <thead className="text-text-muted">
-        <tr>
-          <th scope="col" className="py-1 text-left font-medium">
-            Item
-          </th>
-          <th scope="col" className="py-1 text-right font-medium">
-            Units
-          </th>
-          <th scope="col" className="py-1 text-right font-medium">
-            Net
-          </th>
-          <th scope="col" className="py-1 text-right font-medium">
-            Tax
-          </th>
-          <th scope="col" className="py-1 text-right font-medium">
-            Gross
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <tr key={item.productId} className="border-t border-border/60">
-            <td className="py-1 pr-2 text-text">{item.productName}</td>
-            <td className="py-1 text-right text-text-muted">{item.unitsSold}</td>
-            <td className="py-1 text-right text-text">{eur(item.netRevenueCents)}</td>
-            <td className="py-1 text-right text-text">
-              {eur(item.taxCents)}
-              {item.taxRateBp != null ? (
-                <span className="text-text-muted"> ({formatTaxRate(item.taxRateBp)})</span>
-              ) : null}
-            </td>
-            <td className="py-1 text-right font-medium text-text">{eur(item.grossRevenueCents)}</td>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[22rem] text-sm">
+        <thead className="text-text-muted">
+          <tr>
+            <th scope="col" className="py-1 text-left font-medium">
+              Item
+            </th>
+            <th scope="col" className="py-1 text-right font-medium">
+              Units
+            </th>
+            <th scope="col" className="py-1 text-right font-medium">
+              Net
+            </th>
+            <th scope="col" className="py-1 text-right font-medium">
+              Tax
+            </th>
+            <th scope="col" className="py-1 text-right font-medium">
+              Gross
+            </th>
           </tr>
-        ))}
-      </tbody>
-      <tfoot className="border-t border-border font-medium text-text">
-        <tr>
-          <td className="py-1 pr-2">Subtotal</td>
-          <td className="py-1 text-right" />
-          <td className="py-1 text-right">{eur(subtotal.net)}</td>
-          <td className="py-1 text-right">{eur(subtotal.tax)}</td>
-          <td className="py-1 text-right">{eur(subtotal.gross)}</td>
-        </tr>
-      </tfoot>
-    </table>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.productId} className="border-t border-border/60">
+              <td className="py-1 pr-2 text-text">{item.productName}</td>
+              <td className="py-1 text-right text-text-muted">{item.unitsSold}</td>
+              <td className="py-1 text-right text-text">{eur(item.netRevenueCents)}</td>
+              <td className="py-1 text-right text-text">
+                {eur(item.taxCents)}
+                {item.taxRateBp != null ? (
+                  <span className="text-text-muted"> ({formatTaxRate(item.taxRateBp)})</span>
+                ) : null}
+              </td>
+              <td className="py-1 text-right font-medium text-text">
+                {eur(item.grossRevenueCents)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="border-t border-border font-medium text-text">
+          <tr>
+            <td className="py-1 pr-2">Subtotal</td>
+            <td className="py-1 text-right" />
+            <td className="py-1 text-right">{eur(subtotal.net)}</td>
+            <td className="py-1 text-right">{eur(subtotal.tax)}</td>
+            <td className="py-1 text-right">{eur(subtotal.gross)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 
@@ -759,9 +762,16 @@ function BankDetailsCard({
   const incomplete = !form.iban.trim() || !form.ibanHolderName.trim();
   // Show the IBAN checksum error only once the field has content.
   const ibanError = form.iban.trim() !== '' && !isValidIban(form.iban) ? 'Invalid IBAN' : null;
+  // Mirror the backend holder-name format check: must start with a letter and
+  // contain only letters, spaces, and the punctuation banks accept.
+  const holderNameError =
+    form.ibanHolderName.trim() !== '' &&
+    !/^[\p{L}\p{M}][\p{L}\p{M}\s'.,&/()-]*$/u.test(form.ibanHolderName.trim())
+      ? 'Invalid account holder name'
+      : null;
 
   function save() {
-    if (ibanError) return;
+    if (ibanError || holderNameError) return;
     const payload: PaymentActionBody = {
       intent: 'save-bank',
       iban: normalizeIban(form.iban),
@@ -788,12 +798,24 @@ function BankDetailsCard({
           value={form.ibanHolderName}
           onChange={(e) => setForm((p) => ({ ...p, ibanHolderName: e.target.value }))}
           placeholder="Emely"
+          maxLength={140}
+          error={holderNameError}
         />
         <TextField
           id="iban"
           label="IBAN"
           value={form.iban}
-          onChange={(e) => setForm((p) => ({ ...p, iban: formatIban(e.target.value) }))}
+          onChange={(e) => {
+            const input = e.target;
+            const caretBefore = input.selectionStart ?? input.value.length;
+            const nonSpaceCharsBeforeCaret = input.value
+              .slice(0, caretBefore)
+              .replace(/\s/g, '').length;
+            const formatted = formatIban(input.value);
+            const caretAfter = caretPositionAfterIbanFormat(formatted, nonSpaceCharsBeforeCaret);
+            setForm((p) => ({ ...p, iban: formatted }));
+            requestAnimationFrame(() => input.setSelectionRange(caretAfter, caretAfter));
+          }}
           placeholder="DE89 3704 0044 0532 0130 00"
           helperText="This IBAN is used for all organizer payouts."
           error={ibanError}
@@ -807,7 +829,11 @@ function BankDetailsCard({
         {showResult && error ? <p className="text-sm text-danger">{error}</p> : null}
         {showResult && saved ? <p className="text-sm text-success">Bank details saved.</p> : null}
 
-        <Button onClick={save} disabled={busy || Boolean(ibanError)} className="w-full">
+        <Button
+          onClick={save}
+          disabled={busy || Boolean(ibanError) || Boolean(holderNameError)}
+          className="w-full"
+        >
           {busy ? 'Saving…' : 'Save bank details'}
         </Button>
       </CardContent>

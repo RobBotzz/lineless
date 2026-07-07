@@ -1,54 +1,46 @@
 import { useEffect, useState } from 'react';
-import { EditIcon, ImageIcon } from '@/components/icons';
-import { DeleteIconButton } from '@/components/shared';
+import { EditIcon } from '@/components/icons';
+import { DeleteIconButton, ProductThumbnail } from '@/components/shared';
 import { formatMoney, priceExclTax, productImageSrc, type Product } from '@/types/product';
 
 interface ProductRowProps {
   product: Product;
   onEdit: () => void;
   onDelete: () => void;
-  // Read-only mode (e.g. a completed, immutable event): hides edit/delete actions.
-  disabled?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-export function ProductRow({ product, onEdit, onDelete, disabled = false }: ProductRowProps) {
-  // Fall back to the placeholder when there is no URL or the image fails to load.
-  const [imageOk, setImageOk] = useState(true);
+export function ProductRow({
+  product,
+  onEdit,
+  onDelete,
+  canEdit = true,
+  canDelete = true,
+}: ProductRowProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const imageSrc = productImageSrc(product);
-  const showImage = !!imageSrc && imageOk;
 
   const exclTax = priceExclTax(product);
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-t border-border px-4 py-3">
       {/* Thumbnail — clickable to enlarge when a valid image is present */}
-      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border bg-surface-muted">
-        {showImage ? (
-          <button
-            aria-label={`Enlarge image of ${product.productName}`}
-            className="h-full w-full cursor-zoom-in"
-            onClick={() => setLightboxOpen(true)}
-            type="button"
-          >
-            <img
-              alt=""
-              className="h-full w-full object-cover"
-              onError={() => setImageOk(false)}
-              src={imageSrc!}
-            />
-          </button>
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-text-muted">
-            <ImageIcon className="h-6 w-6" />
-          </div>
-        )}
-      </div>
+      <ProductThumbnail
+        alt={product.productName}
+        className="h-12 w-12 rounded-md"
+        iconClassName="h-6 w-6"
+        imageSrc={imageSrc}
+        onClick={{
+          handler: () => setLightboxOpen(true),
+          label: `Enlarge image of ${product.productName}`,
+        }}
+      />
 
-      {showImage && lightboxOpen && (
+      {imageSrc && lightboxOpen && (
         <ImageLightbox
           alt={product.productName}
-          src={imageSrc!}
+          src={imageSrc}
           onClose={() => setLightboxOpen(false)}
         />
       )}
@@ -67,28 +59,36 @@ export function ProductRow({ product, onEdit, onDelete, disabled = false }: Prod
         )}
       </div>
 
-      {/* Prices — incl. tax emphasized, excl. tax muted underneath */}
-      <div className="ml-auto shrink-0 text-right">
-        <p className="text-base font-semibold text-text">
-          €{formatMoney(product.priceIncludingTax)}
-        </p>
-        <p className="text-xs text-text-muted">€{formatMoney(exclTax)} excl. tax</p>
-      </div>
-
-      {/* Actions — hidden on a read-only (completed) event. */}
-      {!disabled && (
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            aria-label={`Edit ${product.productName}`}
-            className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
-            onClick={onEdit}
-            type="button"
-          >
-            <EditIcon />
-          </button>
-          <DeleteIconButton label={`Delete ${product.productName}`} onClick={onDelete} />
+      {/* Price + actions stay together as one block, so on a narrow card they
+          wrap onto a second line as a unit (right-aligned) rather than each
+          breaking separately into a ragged layout. */}
+      <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+        {/* Prices — incl. tax emphasized, excl. tax muted underneath */}
+        <div className="text-right">
+          <p className="text-base font-semibold text-text">
+            €{formatMoney(product.priceIncludingTax)}
+          </p>
+          <p className="text-xs text-text-muted">€{formatMoney(exclTax)} excl. tax</p>
         </div>
-      )}
+
+        {(canEdit || canDelete) && (
+          <div className="flex shrink-0 items-center gap-1">
+            {canEdit && (
+              <button
+                aria-label={`Edit ${product.productName}`}
+                className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+                onClick={onEdit}
+                type="button"
+              >
+                <EditIcon />
+              </button>
+            )}
+            {canDelete && (
+              <DeleteIconButton label={`Delete ${product.productName}`} onClick={onDelete} />
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

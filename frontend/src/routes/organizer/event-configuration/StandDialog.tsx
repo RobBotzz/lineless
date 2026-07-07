@@ -18,9 +18,16 @@ interface StandDialogProps {
   eventLocation: Location;
   isOpen: boolean;
   onClose: () => void;
+  setupLocked?: boolean;
 }
 
-export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDialogProps) {
+export function StandDialog({
+  stand,
+  eventLocation,
+  isOpen,
+  onClose,
+  setupLocked = false,
+}: StandDialogProps) {
   const fetcher = useFetcher<EventActionResult>();
 
   const [standName, setStandName] = useState(stand?.standName ?? '');
@@ -63,10 +70,11 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (isHandlingSubmitRef.current || !standName.trim()) return;
+    if (isHandlingSubmitRef.current || (!setupLocked && !standName.trim())) return;
 
     if (isEdit) {
-      const patch: UpdateStandInput = { standName: standName.trim(), location };
+      const patch: UpdateStandInput = { location };
+      if (!setupLocked) patch.standName = standName.trim();
       if (changePassword) patch.accessPassword = accessPassword.trim() || null;
       isHandlingSubmitRef.current = true;
       fetcher.submit(
@@ -113,11 +121,16 @@ export function StandDialog({ stand, eventLocation, isOpen, onClose }: StandDial
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <TextField
+              disabled={setupLocked}
+              helperText={
+                setupLocked ? 'Stand names are locked after the event starts.' : undefined
+              }
               id="stand-name"
               label="Stand Name *"
               value={standName}
               onChange={(e) => setStandName(e.target.value)}
               placeholder="e.g. Main Bar"
+              maxLength={100}
               required
             />
 

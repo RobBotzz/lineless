@@ -24,6 +24,10 @@
 
   /* Brand — overridden at runtime for per-event branding (see features/branding) */
   --color-accent: #020887;
+  /* Static brand blue, deliberately NOT overridden by per-event branding —
+     used where the Lineless mark itself should stay constant (e.g. the site
+     footer) regardless of the current event's custom accent color. */
+  --color-brand-static: #020887;
   --color-button-text: #ffffff;
   /* Accent used as text/icons on light surfaces. Defaults to the accent; branding
      darkens it only when the raw accent fails AA contrast against the background. */
@@ -75,6 +79,7 @@
   --color-text-muted: var(--color-text-muted);
   --color-border: var(--color-border);
   --color-accent: var(--color-accent);
+  --color-brand-static: var(--color-brand-static);
   --color-button-text: var(--color-button-text);
   --color-accent-contrast: var(--color-accent-contrast);
   --color-accent-soft: var(--color-accent-soft);
@@ -122,6 +127,7 @@ html {
   color: var(--color-text);
   font-family: var(--font-sans);
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

@@ -4,7 +4,7 @@ import { Link, useFetcher, useLoaderData, useRevalidator, useRouteError } from '
 import { ApiError } from '@/api/client';
 import { deleteEventLogo, updateEvent, uploadEventLogo } from '@/api/events';
 import { AlertDialog } from '@/components/feedback';
-import { BackButton, ImageDropzone } from '@/components/shared';
+import { BackButton, ImageDropzone, InfoTooltip } from '@/components/shared';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Card,
@@ -241,10 +241,14 @@ function toDateInputValue(iso?: string) {
   return date.toISOString().slice(0, 10);
 }
 
-function localDateInputValue(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+// Today in the user's local timezone as YYYY-MM-DD, for the date field's `min`
+// and the past-date guard. Uses local components (not toISOString, which is UTC)
+// so the boundary matches the calendar day the organizer actually sees.
+function localDateInputValue(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -317,9 +321,6 @@ export default function EventConfiguration() {
   const [form, setForm] = useState<EventForm>(() => toForm(event));
   const [showOperatorLink, setShowOperatorLink] = useState(false);
   const [showCustomerLink, setShowCustomerLink] = useState(false);
-  const [showHoldInfo, setShowHoldInfo] = useState(false);
-  const [showRatingsInfo, setShowRatingsInfo] = useState(false);
-  const [showLogoInfo, setShowLogoInfo] = useState(false);
   // Track the dismissed error so the dialog derives from fetcher.data (no effect).
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
@@ -332,6 +333,7 @@ export default function EventConfiguration() {
   // Enabling/disabling the cashier saves on its own (not via the settings
   // auto-save), so it never touches the settings "saved" indicator.
   const [cashierEnableError, setCashierEnableError] = useState<string | null>(null);
+  const [cashierEnableBusy, setCashierEnableBusy] = useState(false);
   // Object URL for the in-flight pick, shown for instant feedback until the
   // revalidated loader serves the persisted logo. Revoked on change / unmount.
   const logoFilePreview = useMemo(
@@ -371,8 +373,10 @@ export default function EventConfiguration() {
   }
 
   function handleToggleCashier(value: boolean) {
+    if (cashierEnableBusy) return;
     setForm((prev) => ({ ...prev, cashierEnabled: value }));
     setCashierEnableError(null);
+    setCashierEnableBusy(true);
     updateEvent(event._id, { cashierEnabled: value })
       // Revalidate so the cashier stand loads (enable) / clears (disable).
       .then(() => revalidator.revalidate())
@@ -382,7 +386,8 @@ export default function EventConfiguration() {
         setCashierEnableError(
           err instanceof ApiError ? err.message : 'Could not update the cashier.',
         );
-      });
+      })
+      .finally(() => setCashierEnableBusy(false));
   }
 
   const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
@@ -404,9 +409,12 @@ export default function EventConfiguration() {
   const visibleError = actionError && actionError !== dismissedError ? actionError : null;
 
   // Baseline hold is entered in whole euros (multiples of €1); backend requires
-  // at least 100 cents (€1.00).
+  // at least 100 cents (€1.00) and at most 1,000,000 cents (€10,000).
   const baselineHoldEuros = Number(form.baselineHold);
-  const baselineHoldValid = Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1;
+  const baselineHoldValid =
+    Number.isInteger(baselineHoldEuros) && baselineHoldEuros >= 1 && baselineHoldEuros <= 10000;
+
+  const nameValid = form.name.trim().length > 0;
   const minimumPlannedDate = localDateInputValue();
   const persistedPlannedDate = toDateInputValue(event.plannedDate);
   // Keep legacy events with an already-persisted past date editable, but reject
@@ -415,7 +423,14 @@ export default function EventConfiguration() {
     !form.plannedDate ||
     form.plannedDate >= minimumPlannedDate ||
     form.plannedDate === persistedPlannedDate;
-  const settingsValid = baselineHoldValid && plannedDateValid;
+  const settingsValid = baselineHoldValid && nameValid && plannedDateValid;
+  const canStart = event.status === 'DRAFT';
+  const canStop = event.status === 'ACTIVE';
+  const canComplete = event.status === 'STOPPED';
+  const isDraft = event.status === 'DRAFT';
+  const isPostStart = event.status === 'ACTIVE' || event.status === 'STOPPED';
+  const isCompleted = event.status === 'COMPLETED';
+  const canDelete = isDraft;
 
   function updateField<K extends keyof EventForm>(key: K, value: EventForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -470,15 +485,16 @@ export default function EventConfiguration() {
     setPendingCompleteEvent(false);
   }
 
-  // Two independent auto-saves — core settings and branding — each with its own
-  // snapshot + fetcher (see useEventAutoSave) so their "saved" indicators stay
-  // separate: editing a color never flips the settings status and vice versa.
-  const settingsSnapshot = JSON.stringify({
+  // Separate auto-saves keep draft-only fields out of post-start PATCH requests
+  // while live-safe settings and branding remain independently editable.
+  const draftSettingsSnapshot = JSON.stringify({
     name: form.name,
     // Send undefined rather than an empty string to leave the date unchanged.
     plannedDate: form.plannedDate || undefined,
-    ratingsEnabled: form.ratingsEnabled,
     baselineHoldCents: Math.round(baselineHoldEuros * 100),
+  });
+  const liveSettingsSnapshot = JSON.stringify({
+    ratingsEnabled: form.ratingsEnabled,
     location: form.location,
   });
   const brandingSnapshot = JSON.stringify({
@@ -488,10 +504,8 @@ export default function EventConfiguration() {
       accentTextColor: form.accentTextColor,
     },
   });
-  const settingsSave = useEventAutoSave(
-    settingsSnapshot,
-    settingsValid && event.status !== 'COMPLETED',
-  );
+  const draftSettingsSave = useEventAutoSave(draftSettingsSnapshot, settingsValid && isDraft);
+  const liveSettingsSave = useEventAutoSave(liveSettingsSnapshot, !isCompleted);
   // Color inputs only ever commit valid hex, so branding is always saveable — unless the event is completed.
   const brandingSave = useEventAutoSave(brandingSnapshot, event.status !== 'COMPLETED');
 
@@ -504,12 +518,17 @@ export default function EventConfiguration() {
     logoUrl: null,
   });
 
-  // Lifecycle rules mirror the backend: start only from DRAFT, stop only from ACTIVE.
-  const canStart = event.status === 'DRAFT';
-  const canStop = event.status === 'ACTIVE';
-  const canComplete = event.status === 'STOPPED';
-  const isCompleted = event.status === 'COMPLETED';
-  const canDelete = event.status === 'DRAFT';
+  const settingsDirty = draftSettingsSave.dirty || liveSettingsSave.dirty;
+  const settingsSaving = draftSettingsSave.saving || liveSettingsSave.saving;
+  const settingsSaveError = draftSettingsSave.saveError || liveSettingsSave.saveError;
+  const startBlocked =
+    !settingsValid ||
+    settingsDirty ||
+    settingsSaving ||
+    brandingSave.dirty ||
+    brandingSave.saving ||
+    logoBusy ||
+    cashierEnableBusy;
 
   // Spread stands over two columns by always appending to the currently shorter
   // column (height ≈ product count). This keeps both columns roughly equal so the
@@ -557,7 +576,7 @@ export default function EventConfiguration() {
             <Button
               size="sm"
               variant="outline"
-              disabled={isCompleted}
+              disabled={!isDraft}
               className="text-danger hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
               onClick={() => handleDeleteStand(stand._id)}
             >
@@ -571,7 +590,8 @@ export default function EventConfiguration() {
           <ProductRow
             key={product._id}
             product={product}
-            disabled={isCompleted}
+            canEdit={!isCompleted}
+            canDelete={isDraft}
             onEdit={() => setProductDialog({ standId: stand._id, product })}
             onDelete={() => setPendingDeleteProduct(product)}
           />
@@ -587,7 +607,7 @@ export default function EventConfiguration() {
             <Button
               size="sm"
               variant="outline"
-              disabled={atProductLimit || isCompleted}
+              disabled={atProductLimit || !isDraft}
               onClick={() => setProductDialog({ standId: stand._id, product: null })}
             >
               + Add Product
@@ -609,9 +629,18 @@ export default function EventConfiguration() {
         Events Dashboard
       </BackButton>
       <div className="space-y-6">
+        {isPostStart && (
+          <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
+            <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Event setup is locked after start. Operational settings, locations, branding,
+              descriptions, images, stock, and availability remain editable.
+            </p>
+          </div>
+        )}
         {/* Event status + links — side by side across the full width */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <section className="scroll-mt-24" id="status">
+          <section className="min-w-0 scroll-mt-24" id="status">
             <Card className="h-full">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -630,9 +659,14 @@ export default function EventConfiguration() {
                 {canStart && (
                   <Button
                     className="w-full bg-success text-white hover:bg-success/90"
-                    disabled={busy}
+                    disabled={busy || startBlocked}
                     onClick={() => setPendingStartEvent(true)}
                     size="lg"
+                    title={
+                      startBlocked
+                        ? 'Wait until all valid configuration changes are saved.'
+                        : undefined
+                    }
                   >
                     Start Event
                   </Button>
@@ -677,7 +711,7 @@ export default function EventConfiguration() {
             </Card>
           </section>
 
-          <section className="scroll-mt-24" id="links">
+          <section className="min-w-0 scroll-mt-24" id="links">
             {/* Links — share targets for operators and attendees */}
             <Card className="h-full">
               <CardHeader>
@@ -759,9 +793,12 @@ export default function EventConfiguration() {
           <CardContent className="@container">
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
               <TextField
-                disabled={isCompleted}
+                disabled={!isDraft}
+                error={!nameValid ? 'Event name is required.' : undefined}
+                helperText={!isDraft ? 'Locked after the event starts.' : undefined}
                 id="event-name"
                 label="Event Name"
+                maxLength={100}
                 onChange={(e) => updateField('name', e.target.value)}
                 placeholder="Event name"
                 type="text"
@@ -769,10 +806,11 @@ export default function EventConfiguration() {
               />
 
               <TextField
-                disabled={isCompleted}
+                disabled={!isDraft}
                 error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
                 id="event-date"
                 label="Event Date"
+                helperText={!isDraft ? 'Locked after the event starts.' : undefined}
                 min={minimumPlannedDate}
                 onChange={(e) => updateField('plannedDate', e.target.value)}
                 type="date"
@@ -790,45 +828,15 @@ export default function EventConfiguration() {
                 label={
                   <span className="inline-flex items-center gap-1.5">
                     Card pre-authorization hold (€)
-                    <span className="relative inline-flex">
-                      <button
-                        type="button"
-                        aria-label="About the card pre-authorization hold"
-                        aria-expanded={showHoldInfo}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setShowHoldInfo((open) => !open);
-                        }}
-                        className="text-text-muted transition hover:text-text"
-                      >
-                        <InfoIcon />
-                      </button>
-                      {showHoldInfo && (
-                        <>
-                          <button
-                            type="button"
-                            aria-hidden="true"
-                            tabIndex={-1}
-                            className="fixed inset-0 z-40 cursor-default"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setShowHoldInfo(false);
-                            }}
-                          />
-                          <span
-                            role="tooltip"
-                            className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                          >
-                            {
-                              "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
-                            }
-                          </span>
-                        </>
-                      )}
-                    </span>
+                    <InfoTooltip label="About the card pre-authorization hold">
+                      {
+                        "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
+                      }
+                    </InfoTooltip>
                   </span>
                 }
-                disabled={isCompleted}
+                disabled={!isDraft}
+                helperText={!isDraft ? 'Locked after the event starts.' : undefined}
                 type="number"
                 inputMode="numeric"
                 min="1"
@@ -836,7 +844,9 @@ export default function EventConfiguration() {
                 value={form.baselineHold}
                 onChange={(e) => updateField('baselineHold', e.target.value)}
                 error={
-                  baselineHoldValid ? undefined : 'Enter a whole number of euros (at least €1).'
+                  baselineHoldValid
+                    ? undefined
+                    : 'Enter a whole number of euros between 1 and 10,000.'
                 }
               />
 
@@ -846,41 +856,10 @@ export default function EventConfiguration() {
                   htmlFor="ratings-enabled"
                 >
                   Customer Product Ratings
-                  <span className="relative inline-flex">
-                    <button
-                      type="button"
-                      aria-label="About customer product ratings"
-                      aria-expanded={showRatingsInfo}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setShowRatingsInfo((open) => !open);
-                      }}
-                      className="text-text-muted transition hover:text-text"
-                    >
-                      <InfoIcon />
-                    </button>
-                    {showRatingsInfo && (
-                      <>
-                        <button
-                          type="button"
-                          aria-hidden="true"
-                          tabIndex={-1}
-                          className="fixed inset-0 z-40 cursor-default"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowRatingsInfo(false);
-                          }}
-                        />
-                        <span
-                          role="tooltip"
-                          className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                        >
-                          When enabled, guests can rate the products they ordered, and the average
-                          rating is shown on each product.
-                        </span>
-                      </>
-                    )}
-                  </span>
+                  <InfoTooltip label="About customer product ratings">
+                    When enabled, guests can rate the products they ordered, and the average rating
+                    is shown on each product.
+                  </InfoTooltip>
                 </label>
                 <Toggle
                   checked={form.ratingsEnabled}
@@ -894,11 +873,11 @@ export default function EventConfiguration() {
 
             {/* No save button — the form auto-saves; this just reflects status. */}
             <div className="mt-6 flex justify-end text-sm" aria-live="polite">
-              {!settingsValid && settingsSave.dirty ? (
+              {!settingsValid && draftSettingsSave.dirty ? (
                 <span className="text-danger">Fix the highlighted field to save.</span>
-              ) : settingsSave.saveError ? (
+              ) : settingsSaveError ? (
                 <span className="text-danger">Couldn’t save changes — edit a field to retry.</span>
-              ) : settingsSave.saving || settingsSave.dirty ? (
+              ) : settingsSaving || settingsDirty ? (
                 <span className="text-text-muted">Saving…</span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 text-success">
@@ -925,41 +904,10 @@ export default function EventConfiguration() {
                 <p className="mb-2 block text-sm font-medium">
                   <span className="inline-flex items-center gap-1.5">
                     Logo
-                    <span className="relative inline-flex">
-                      <button
-                        type="button"
-                        aria-label="About the event logo"
-                        aria-expanded={showLogoInfo}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setShowLogoInfo((open) => !open);
-                        }}
-                        className="text-text-muted transition hover:text-text"
-                      >
-                        <InfoIcon />
-                      </button>
-                      {showLogoInfo && (
-                        <>
-                          <button
-                            type="button"
-                            aria-hidden="true"
-                            tabIndex={-1}
-                            className="fixed inset-0 z-40 cursor-default"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setShowLogoInfo(false);
-                            }}
-                          />
-                          <span
-                            role="tooltip"
-                            className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                          >
-                            Replaces the Lineless logo for attendees. Shown at the size of the
-                            current logo — smaller images sit left, larger ones scale down to fit.
-                          </span>
-                        </>
-                      )}
-                    </span>
+                    <InfoTooltip label="About the event logo">
+                      Replaces the Lineless logo for attendees. Shown at the size of the current
+                      logo — smaller images sit left, larger ones scale down to fit.
+                    </InfoTooltip>
                   </span>
                 </p>
                 {/* Full-width banner while the layout is stacked (mobile);
@@ -1128,7 +1076,8 @@ export default function EventConfiguration() {
             <CardAction>
               <Button
                 size="sm"
-                disabled={isCompleted}
+                disabled={!isDraft}
+                title={!isDraft ? 'Stands can only be added before the event starts.' : undefined}
                 onClick={() => {
                   setEditingStand(null);
                   setIsStandDialogOpen(true);
@@ -1172,6 +1121,7 @@ export default function EventConfiguration() {
         eventLocation={event.location ?? emptyLocation}
         isOpen={isStandDialogOpen}
         onClose={() => setIsStandDialogOpen(false)}
+        setupLocked={!isDraft}
       />
 
       <AlertDialog
@@ -1179,7 +1129,7 @@ export default function EventConfiguration() {
         cancelLabel="Cancel"
         message={
           pendingStartEvent
-            ? 'Starting the event makes it visible to guests and opens ordering for all stands. You can stop it again at any time.'
+            ? 'Starting makes the event visible to guests and opens ordering. Event identity, financial setup, stand and product structure, names, prices, taxes, and fulfillment types will be permanently locked. Operational controls remain editable.'
             : null
         }
         onAcknowledge={confirmStartEvent}
@@ -1207,6 +1157,7 @@ export default function EventConfiguration() {
           standId={productDialog.standId}
           isOpen={true}
           onClose={() => setProductDialog(null)}
+          setupLocked={!isDraft}
         />
       )}
 
@@ -1317,7 +1268,6 @@ function BrandColorField({
   auto?: { active: boolean; onEnable: () => void };
   disabled?: boolean;
 }) {
-  const [showAutoInfo, setShowAutoInfo] = useState(false);
   const [draft, setDraft] = useState(value);
 
   // Sync draft when an external change (e.g. preset applied) lands.
@@ -1362,42 +1312,11 @@ function BrandColorField({
             >
               Auto
             </button>
-            <span className="relative inline-flex">
-              <button
-                type="button"
-                aria-label="About Auto brand text"
-                aria-expanded={showAutoInfo}
-                onClick={(e) => {
-                  e.preventDefault();
-                  setShowAutoInfo((open) => !open);
-                }}
-                className="text-text-muted transition hover:text-text"
-              >
-                <InfoIcon />
-              </button>
-              {showAutoInfo && (
-                <>
-                  <button
-                    type="button"
-                    aria-hidden="true"
-                    tabIndex={-1}
-                    className="fixed inset-0 z-40 cursor-default"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setShowAutoInfo(false);
-                    }}
-                  />
-                  <span
-                    role="tooltip"
-                    className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
-                  >
-                    Auto picks the text color for you from your Brand color, darkening it only if
-                    needed so it stays easy to read on the page. Click the swatch to choose your own
-                    color instead.
-                  </span>
-                </>
-              )}
-            </span>
+            <InfoTooltip label="About Auto brand text">
+              Auto picks the text color for you from your Brand color, darkening it only if needed
+              so it stays easy to read on the page. Click the swatch to choose your own color
+              instead.
+            </InfoTooltip>
           </>
         )}
       </div>

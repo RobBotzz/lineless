@@ -114,6 +114,10 @@ export default function Settings() {
       setNewPasswordError(pwdError);
       return;
     }
+    if (passwordForm.newPassword === passwordForm.currentPassword) {
+      setNewPasswordError('New password must be different from the current password.');
+      return;
+    }
     submit({
       intent: 'change-password',
       currentPassword: passwordForm.currentPassword,
@@ -148,6 +152,7 @@ export default function Settings() {
                 <TextField
                   id="organizer-first-name"
                   label="First Name"
+                  maxLength={100}
                   onChange={(e) => updateAccountField('firstName', e.target.value)}
                   placeholder="First name"
                   type="text"
@@ -157,6 +162,7 @@ export default function Settings() {
                 <TextField
                   id="organizer-last-name"
                   label="Last Name"
+                  maxLength={100}
                   onChange={(e) => updateAccountField('lastName', e.target.value)}
                   placeholder="Last name"
                   type="text"
@@ -194,6 +200,7 @@ export default function Settings() {
                 helperText="At least 8 characters, including a letter and a number. Spaces not allowed."
                 id="new-password"
                 label="New Password"
+                maxLength={128}
                 onChange={(value) => updatePasswordField('newPassword', value)}
                 placeholder="New password"
                 value={passwordForm.newPassword}
@@ -245,6 +252,7 @@ function VisiblePasswordField({
   helperText,
   id,
   label,
+  maxLength,
   onChange,
   placeholder,
   value,
@@ -254,6 +262,7 @@ function VisiblePasswordField({
   helperText?: string;
   id: string;
   label: string;
+  maxLength?: number;
   onChange: (value: string) => void;
   placeholder: string;
   value: string;
@@ -270,6 +279,7 @@ function VisiblePasswordField({
           autoComplete={autoComplete}
           className="w-full rounded-lg border border-border bg-surface px-4 py-3 pr-12 text-sm text-text outline-none transition placeholder:text-text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent-soft"
           id={id}
+          maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
           type={showPassword ? 'text' : 'password'}

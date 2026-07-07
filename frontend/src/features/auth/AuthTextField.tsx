@@ -3,6 +3,7 @@ interface AuthTextFieldProps {
   error?: string;
   id?: string;
   label: string;
+  maxLength?: number;
   onBlur?: () => void;
   onChange?: (value: string) => void;
   placeholder: string;
@@ -16,6 +17,7 @@ export function AuthTextField({
   error = '',
   id,
   label,
+  maxLength,
   onBlur,
   onChange,
   placeholder,
@@ -36,6 +38,7 @@ export function AuthTextField({
             : 'border-border focus:border-accent focus:ring-accent-soft'
         }`}
         autoComplete={autoComplete}
+        maxLength={maxLength}
         value={value}
         onBlur={onBlur}
         onChange={onChange ? (event) => onChange(event.target.value) : undefined}

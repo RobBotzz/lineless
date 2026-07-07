@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import type { ProductRating } from '@/api/eventControlCenter';
-import { ImageIcon } from '@/components/icons';
+import { ProductThumbnail } from '@/components/shared/ProductThumbnail';
 import { Rating } from '@/features/catalog/Rating';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Product } from '@/types/product';
@@ -200,26 +200,15 @@ function ProductRatingFeed({
 }
 
 function ProductRatingCard({ rating }: { rating: ProductRating }) {
-  const [imageOk, setImageOk] = useState(true);
-  const showImage = !!rating.productImageUrl && imageOk;
-
   return (
     <article className="min-w-0 rounded-lg border border-border bg-surface p-3 shadow-sm">
       <div className="flex gap-3">
-        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-muted">
-          {showImage ? (
-            <img
-              alt=""
-              className="h-full w-full object-cover"
-              onError={() => setImageOk(false)}
-              src={rating.productImageUrl!}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-text-muted">
-              <ImageIcon className="h-5 w-5" />
-            </div>
-          )}
-        </div>
+        <ProductThumbnail
+          alt={rating.productName}
+          className="h-14 w-14 rounded-lg"
+          iconClassName="h-5 w-5"
+          imageSrc={rating.productImageUrl}
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -227,7 +216,7 @@ function ProductRatingCard({ rating }: { rating: ProductRating }) {
                 {rating.productName}
               </h4>
               <span className="mt-1 inline-flex min-w-0 max-w-full rounded-full border border-border bg-background px-2 py-0.5 text-xs font-medium text-text-muted">
-                <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
+                <span className="min-w-0 whitespace-normal text-center [overflow-wrap:anywhere]">
                   {rating.standName}
                 </span>
               </span>

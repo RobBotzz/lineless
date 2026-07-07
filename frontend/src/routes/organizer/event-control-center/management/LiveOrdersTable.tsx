@@ -12,12 +12,16 @@ import { getCancellableOrderItems } from './cancellationUtils';
 const LIVE_ORDERS_PER_PAGE = 5;
 
 export function LiveOrdersTable({
+  emptyMessage = 'Paid orders with open items will appear here.',
+  emptyTitle = 'No live orders',
   orders,
   pageResetKey,
   stands,
   onCancelOrder,
   onCancelOrderItems,
 }: {
+  emptyMessage?: string;
+  emptyTitle?: string;
   orders: LiveOrder[];
   pageResetKey: string;
   stands: Stand[];
@@ -140,9 +144,7 @@ export function LiveOrdersTable({
   }
 
   if (orders.length === 0) {
-    return (
-      <EmptyState title="No live orders" message="Paid orders with open items will appear here." />
-    );
+    return <EmptyState title={emptyTitle} message={emptyMessage} />;
   }
 
   return (
@@ -279,7 +281,7 @@ function LiveOrderRow({
     <div className="border-t border-border first:border-t-0">
       <button
         aria-expanded={expanded}
-        className="grid w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-muted/50 md:grid-cols-[8rem_minmax(0,1fr)_8rem_8rem_2rem] md:items-center md:gap-4"
+        className="grid w-full grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-4 py-3 text-left transition-colors hover:bg-surface-muted/50 md:grid-cols-[8rem_minmax(0,1fr)_8rem_8rem_2rem] md:items-center md:gap-x-4 md:gap-y-0"
         onClick={onToggleExpanded}
         type="button"
       >
@@ -287,7 +289,7 @@ function LiveOrderRow({
           <span className="block font-semibold text-text">#{order.orderNumber}</span>
           <span className="block text-xs text-text-muted">{order.pickupCode}</span>
         </span>
-        <span className="min-w-0">
+        <span className="col-span-2 min-w-0 md:col-span-1">
           <span className="block text-sm text-text [overflow-wrap:anywhere]">{standSummary}</span>
           <span className="mt-1 block text-xs text-text-muted">
             {order.items.length} item{order.items.length === 1 ? '' : 's'} across{' '}
@@ -299,10 +301,10 @@ function LiveOrderRow({
           </span>
         </span>
         <OrderStatusBadge status={order.status} />
-        <span className="text-sm font-medium text-text">
+        <span className="text-right text-sm font-medium text-text md:text-left">
           EUR {formatMoney(order.totalPriceIncludingTax)}
         </span>
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted md:justify-self-end">
+        <span className="col-start-2 row-start-1 inline-flex h-8 w-8 items-center justify-center justify-self-end rounded-md text-text-muted md:col-auto md:row-auto md:justify-self-end">
           <ChevronDownIcon
             className={['transition-transform', expanded ? 'rotate-180' : ''].join(' ')}
           />

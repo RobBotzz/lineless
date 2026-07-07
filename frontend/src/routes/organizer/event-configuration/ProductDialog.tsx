@@ -32,6 +32,7 @@ interface ProductDialogProps {
   standId: string;
   isOpen: boolean;
   onClose: () => void;
+  setupLocked?: boolean;
 }
 
 // Accept both "12.50" and "12,50": normalize the comma, then require a plain
@@ -47,8 +48,11 @@ function parseHundredths(value: string): number | null {
 }
 
 // Parse a user-entered price (e.g. "12.50" or "12,50") to integer cents.
+// Returns null if the price exceeds €9,999.99 (999,999 cents).
 function parseCents(value: string): number | null {
-  return parseHundredths(value);
+  const cents = parseHundredths(value);
+  if (cents === null || cents > 999_999) return null;
+  return cents;
 }
 
 // Parse a user-entered percentage (e.g. "19" or "19,5") to integer basis points.
@@ -60,11 +64,17 @@ function parseTaxRate(value: string): number | null {
 
 function parseStock(value: string): number | null {
   const n = Number.parseInt(value, 10);
-  if (!Number.isInteger(n) || n < 0) return null;
+  if (!Number.isInteger(n) || n < 0 || n > 100_000) return null;
   return n;
 }
 
-export function ProductDialog({ product, standId, isOpen, onClose }: ProductDialogProps) {
+export function ProductDialog({
+  product,
+  standId,
+  isOpen,
+  onClose,
+  setupLocked = false,
+}: ProductDialogProps) {
   const revalidator = useRevalidator();
 
   const [productName, setProductName] = useState(product?.productName ?? '');
@@ -135,26 +145,28 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (saving) return;
+    if (saving || (setupLocked && !product)) return;
 
     const name = productName.trim();
-    if (!name) {
+    if (!setupLocked && !name) {
       setError('Product name is required');
       return;
     }
     const priceIncludingTax = parseCents(price);
-    if (priceIncludingTax === null) {
-      setError('Enter a valid price with at most two decimals (e.g. 12.50 or 12,50)');
+    if (!setupLocked && priceIncludingTax === null) {
+      setError(
+        'Enter a valid price up to €9,999.99 with at most two decimals (e.g. 12.50 or 12,50)',
+      );
       return;
     }
     const taxRateBp = parseTaxRate(taxRate);
-    if (taxRateBp === null) {
+    if (!setupLocked && taxRateBp === null) {
       setError('Enter a valid tax rate between 0 and 100 (e.g. 19 or 19,5)');
       return;
     }
     const parsedProductStock = parseStock(stock);
     if (stockMode === 'TRACKED' && parsedProductStock === null) {
-      setError('Enter a valid initial stock amount');
+      setError('Enter a valid initial stock amount between 0 and 100,000');
       return;
     }
     // UNLIMITED keeps the last persisted count dormant. Do not let a hidden,
@@ -179,12 +191,14 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
     try {
       if (existingProductId) {
         const patch: UpdateProductInput = {
-          productName: name,
           productDescription,
-          priceIncludingTax,
-          taxRate: taxRateBp,
-          instantProduct,
         };
+        if (!setupLocked) {
+          patch.productName = name;
+          patch.priceIncludingTax = priceIncludingTax!;
+          patch.taxRate = taxRateBp!;
+          patch.instantProduct = instantProduct;
+        }
         const expectedProductStock = savedProductStock;
         const expectedStockMode = savedStockMode;
         if (
@@ -215,8 +229,8 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
         const patch: CreateProductInput = {
           productName: name,
           productDescription,
-          priceIncludingTax,
-          taxRate: taxRateBp,
+          priceIncludingTax: priceIncludingTax!,
+          taxRate: taxRateBp!,
           instantProduct,
           stockMode,
           productStock,
@@ -281,8 +295,13 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
               {/* Left column — core product fields */}
               <div className="space-y-4">
                 <TextField
+                  disabled={setupLocked}
+                  helperText={
+                    setupLocked ? 'Product identity is locked after the event starts.' : undefined
+                  }
                   id="product-name"
                   label="Product Name *"
+                  maxLength={100}
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
                   placeholder="e.g. Lager 0.5L"
@@ -290,6 +309,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
 
                 <div className="grid grid-cols-2 gap-4">
                   <TextField
+                    disabled={setupLocked}
                     id="product-price"
                     label="Price incl. tax *"
                     value={price}
@@ -298,6 +318,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                     inputMode="decimal"
                   />
                   <TextField
+                    disabled={setupLocked}
                     id="product-tax"
                     label="Tax rate (%) *"
                     value={taxRate}
@@ -388,13 +409,15 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                         <label
                           key={option.title}
                           className={[
-                            'flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition',
+                            'flex items-center gap-3 rounded-lg border px-4 py-3 transition',
+                            setupLocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
                             selected
                               ? 'border-accent bg-accent-soft'
                               : 'border-border bg-surface hover:bg-surface-muted',
                           ].join(' ')}
                         >
                           <input
+                            disabled={setupLocked}
                             type="radio"
                             name="product-fulfillment"
                             className="h-4 w-4 shrink-0 accent-accent"
@@ -428,6 +451,7 @@ export function ProductDialog({ product, standId, isOpen, onClose }: ProductDial
                   <textarea
                     id="product-description"
                     className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    maxLength={1000}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Short description shown to customers"
