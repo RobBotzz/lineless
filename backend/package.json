@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
+    "test:policy": "node --import tsx --test src/modules/events/mutationPolicy.test.ts",
     "lint": "eslint src",
     "format": "prettier --write .",
     "email:preview": "ts-node src/lib/email/preview.ts",

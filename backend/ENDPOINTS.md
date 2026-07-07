@@ -61,6 +61,22 @@ Admin dashboard, event configuration, event control center, payout management.
 | PUT    | `/events/{eventId}/event-control-center/settings`      | Replace alert thresholds                                    |
 | DELETE | `/events/{eventId}/event-control-center/settings`      | Reset alert thresholds to defaults                          |
 
+### Event lifecycle mutation rules
+
+Once an event leaves `DRAFT`, setup changes are permanently restricted:
+
+- Event name, planned date, and card pre-authorization hold cannot change.
+- Stands and products cannot be created or deleted; their names cannot change.
+- Product price, tax rate, and fulfillment type cannot change.
+- Ratings, cashier availability, branding, locations, descriptions, images,
+  credentials, stock, pause/resume controls, and control-center thresholds remain
+  editable in `ACTIVE` and `STOPPED`.
+- `COMPLETED` events are immutable.
+
+Forbidden mutations return `409` with an action-specific error. A post-start
+`PATCH` must omit locked fields entirely, even when the submitted value matches
+the persisted value.
+
 ### Account / Payments
 
 | Method | URL                               | Description                                                      |
