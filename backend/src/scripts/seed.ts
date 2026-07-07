@@ -434,8 +434,8 @@ function buildItem(
       break;
   }
 
-  // Instant products are handed over immediately, so any delivered instant item
-  // has startedAt === readyAt (mirrors releaseInstantItems).
+  // Instant products skip the preparation column, so any delivered instant item
+  // has startedAt === readyAt (mirrors the "start" branch in advanceOrderItem).
   if (product.instant && startedAt && !readyAt) readyAt = startedAt;
 
   // Stock bookkeeping: RESERVED and CONSUMED both hold a unit; RELEASED and
