@@ -176,7 +176,7 @@ export default function TrackOrder() {
     staleTime: 60_000,
   });
 
-  if (orderQuery.isPending || standsQuery.isPending) {
+  if (orderQuery.isPending) {
     return (
       <div className="space-y-4">
         <BackButton to={backTo}>{backLabel}</BackButton>
@@ -187,7 +187,11 @@ export default function TrackOrder() {
     );
   }
 
-  if (orderQuery.isError || !orderQuery.data || standsQuery.isError) {
+  // Stands are only supplementary enrichment (live stand objects for display) —
+  // the backend already joins productName/standName onto every order item, so the
+  // page renders fully from the order alone. Once the event is COMPLETED the
+  // attendee stand listing 404s by design, so we must not treat that as fatal.
+  if (orderQuery.isError || !orderQuery.data) {
     return (
       <div className="space-y-4">
         <BackButton to={backTo}>{backLabel}</BackButton>
@@ -202,16 +206,16 @@ export default function TrackOrder() {
   const stands = standsById(standsQuery.data ?? []);
   const standsByStandName = standsByName(standsQuery.data ?? []);
 
-  let standGroups: Array<{ key: string; stand: Stand; items: StandItem[] }> = [];
-  if (viewItemsQuery.data) {
-    const viewLookup = new Map(
-      viewItemsQuery.data.map((v) => [
-        v.productId,
-        { productName: v.productName, standId: v.standId, standName: v.standName },
-      ]),
-    );
-    standGroups = buildStandGroups(order.items, viewLookup, stands, standsByStandName);
-  }
+  // buildStandGroups falls back to the backend-enriched productName/standName on
+  // each item when the live catalog lookup is missing, so build it unconditionally
+  // (empty lookup when stands/view items are unavailable, e.g. a COMPLETED event).
+  const viewLookup = new Map(
+    (viewItemsQuery.data ?? []).map((v) => [
+      v.productId,
+      { productName: v.productName, standId: v.standId, standName: v.standName },
+    ]),
+  );
+  const standGroups = buildStandGroups(order.items, viewLookup, stands, standsByStandName);
 
   const createdAt = new Date(order.createdAt).toLocaleString(undefined, {
     dateStyle: 'medium',
