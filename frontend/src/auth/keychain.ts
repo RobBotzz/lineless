@@ -153,6 +153,13 @@ export interface AttendeeTab {
   tabId: string;
 }
 
+export interface AttendeeCheckout {
+  // Fingerprint of the cart the requestId belongs to, so a genuinely different
+  // cart gets a fresh id instead of colliding with the previous order.
+  fingerprint: string;
+  requestId: string;
+}
+
 export interface AttendeeCredential {
   //eventId => attendeeSession
   sessions: Record<string, AttendeeSession>;
@@ -160,6 +167,10 @@ export interface AttendeeCredential {
   // they keep ordering against until checkout). Persisted so repeat orders
   // reuse the same authorization instead of opening a new tab each time.
   tabs: Record<string, AttendeeTab>;
+  // eventId => the in-flight card checkout's idempotency key. Persisted so a
+  // Stripe 3DS redirect (which reloads the page and wipes React state) resumes
+  // the same order on return instead of creating a duplicate with a new id.
+  checkouts: Record<string, AttendeeCheckout>;
 }
 
 function parseAttendee(data: Record<string, unknown>): AttendeeCredential | null {
@@ -183,7 +194,15 @@ function parseAttendee(data: Record<string, unknown>): AttendeeCredential | null
       }
     }
   }
-  return { sessions, tabs };
+  const checkouts: Record<string, AttendeeCheckout> = {};
+  if (isRecord(data.checkouts)) {
+    for (const [eventId, value] of Object.entries(data.checkouts)) {
+      if (isRecord(value) && isString(value.fingerprint) && isString(value.requestId)) {
+        checkouts[eventId] = { fingerprint: value.fingerprint, requestId: value.requestId };
+      }
+    }
+  }
+  return { sessions, tabs, checkouts };
 }
 
 type Listener = () => void;
@@ -205,7 +224,7 @@ export function getAttendeeSession(eventId: string): AttendeeSession | null {
 }
 
 function emptyAttendeeCredential(): AttendeeCredential {
-  return { sessions: {}, tabs: {} };
+  return { sessions: {}, tabs: {}, checkouts: {} };
 }
 
 export function setAttendeeSession(eventId: string, sessionId: string, expiresAt: string): void {
@@ -260,5 +279,22 @@ export function clearAttendeeTab(eventId: string): void {
   const credential = getCredential('attendee');
   if (!credential || !credential.tabs[eventId]) return;
   delete credential.tabs[eventId];
+  write(KEYS.attendee, credential);
+}
+
+export function getAttendeeCheckout(eventId: string): AttendeeCheckout | null {
+  return getCredential('attendee')?.checkouts[eventId] ?? null;
+}
+
+export function setAttendeeCheckout(eventId: string, fingerprint: string, requestId: string): void {
+  const credential = getCredential('attendee') ?? emptyAttendeeCredential();
+  credential.checkouts[eventId] = { fingerprint, requestId };
+  write(KEYS.attendee, credential);
+}
+
+export function clearAttendeeCheckout(eventId: string): void {
+  const credential = getCredential('attendee');
+  if (!credential || !credential.checkouts[eventId]) return;
+  delete credential.checkouts[eventId];
   write(KEYS.attendee, credential);
 }

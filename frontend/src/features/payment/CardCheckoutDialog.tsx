@@ -11,7 +11,14 @@ import {
 } from '@/api/orders';
 import { ApiError } from '@/api/client';
 import { createTab, getTabStatus } from '@/api/tabs';
-import { clearAttendeeTab, getAttendeeTab, setAttendeeTab } from '@/auth/keychain';
+import {
+  clearAttendeeCheckout,
+  clearAttendeeTab,
+  getAttendeeCheckout,
+  getAttendeeTab,
+  setAttendeeCheckout,
+  setAttendeeTab,
+} from '@/auth/keychain';
 import type { Order, OrderItemView } from '@/types/order';
 import type { TabView } from '@/types/tab';
 import { formatMoney } from '@/types/product';
@@ -76,7 +83,38 @@ export function CardCheckoutDialog({
   const cancelled = useRef(false);
   const started = useRef(false);
   const creatingOrder = useRef(false);
-  const requestId = useRef(crypto.randomUUID());
+  // Idempotency key for this checkout, seeded lazily from persisted storage so a
+  // Stripe 3DS redirect (which reloads the page and wipes React refs) resumes the
+  // same order on return instead of creating a duplicate with a fresh key.
+  const requestId = useRef<string | null>(null);
+
+  // Stable signature of the cart, used to tell whether a persisted checkout key
+  // still belongs to the current items. Sorted so array rehydration order after
+  // a 3DS redirect does not produce a different fingerprint for the same cart.
+  function cartFingerprint(): string {
+    return items
+      .map((i) => `${i.productId}:${i.quantity}:${i.comments.join('|')}`)
+      .sort()
+      .join(';');
+  }
+
+  function currentRequestId(): string {
+    if (requestId.current) return requestId.current;
+    const fingerprint = cartFingerprint();
+    const stored = getAttendeeCheckout(eventId);
+    requestId.current =
+      stored && stored.fingerprint === fingerprint ? stored.requestId : crypto.randomUUID();
+    setAttendeeCheckout(eventId, fingerprint, requestId.current);
+    return requestId.current;
+  }
+
+  // A completed checkout must drop its persisted key so the next, different cart
+  // starts a fresh order instead of replaying this one.
+  function finishWithOrder(order: Order): void {
+    clearAttendeeCheckout(eventId);
+    requestId.current = null;
+    onSuccess(order);
+  }
 
   useEffect(() => {
     if (started.current) return;
@@ -135,7 +173,7 @@ export function CardCheckoutDialog({
       const order = await getAttendeeOrder(orderId, eventId);
       if (order.paidAt) {
         pendingOrderId.current = null;
-        onSuccess(order);
+        finishWithOrder(order);
         return 'completed';
       }
     } catch {
@@ -144,7 +182,10 @@ export function CardCheckoutDialog({
     }
 
     await cancelPendingAuthorization();
+    // The previous order is being abandoned; rotate to a fresh key (and persist
+    // it) so the retry creates a new order rather than replaying the cancelled one.
     requestId.current = crypto.randomUUID();
+    setAttendeeCheckout(eventId, cartFingerprint(), requestId.current);
     return 'cancelled';
   }
 
@@ -152,7 +193,7 @@ export function CardCheckoutDialog({
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), ORDER_REQUEST_TIMEOUT_MS);
     try {
-      return await createCardOrder(eventId, items, tabId, requestId.current, controller.signal);
+      return await createCardOrder(eventId, items, tabId, currentRequestId(), controller.signal);
     } catch (error) {
       if (controller.signal.aborted) {
         throw new Error('Placing the order timed out. Please retry.', { cause: error });
@@ -246,7 +287,7 @@ export function CardCheckoutDialog({
 
       if (result.status === 'created') {
         if (cancelled.current) return;
-        onSuccess(result.order);
+        finishWithOrder(result.order);
         return;
       }
 
@@ -260,7 +301,7 @@ export function CardCheckoutDialog({
       const order = await getAttendeeOrder(result.orderId, eventId);
       pendingOrderId.current = null;
       if (cancelled.current) return;
-      onSuccess(order);
+      finishWithOrder(order);
     } catch (err) {
       creatingOrder.current = false;
       setIsCreatingOrder(false);
@@ -307,6 +348,11 @@ export function CardCheckoutDialog({
     cancelled.current = true;
     cardDeferred.current?.reject(new CancelledError());
     cardDeferred.current = null;
+    // Deliberate cancel abandons this checkout: drop the persisted key so a later
+    // same-cart attempt starts a fresh order instead of replaying the cancelled
+    // one. (A 3DS reload unmounts without calling this, so the key survives there.)
+    clearAttendeeCheckout(eventId);
+    requestId.current = null;
     void cancelPendingAuthorization().catch(() => undefined);
     onClose();
   }
