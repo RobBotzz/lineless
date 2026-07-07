@@ -12,8 +12,9 @@ interface ProductThumbnailProps {
   iconClassName?: string;
   // When set, the thumbnail becomes clickable while a real image is showing
   // (e.g. to open a lightbox). Has no effect while the fallback icon shows.
-  onClick?: () => void;
-  clickLabel?: string;
+  // Handler and label are grouped so a clickable thumbnail can never be
+  // rendered without an accessible name for its button.
+  onClick?: { handler: () => void; label: string };
 }
 
 export function ProductThumbnail({
@@ -22,7 +23,6 @@ export function ProductThumbnail({
   className = 'h-20 w-20 rounded-lg',
   iconClassName,
   onClick,
-  clickLabel,
 }: ProductThumbnailProps) {
   const [imageOk, setImageOk] = useState(true);
   const showImage = !!imageSrc && imageOk;
@@ -45,9 +45,9 @@ export function ProductThumbnail({
       {showImage && onClick ? (
         <button
           type="button"
-          aria-label={clickLabel}
+          aria-label={onClick.label}
           className="h-full w-full cursor-zoom-in"
-          onClick={onClick}
+          onClick={onClick.handler}
         >
           {image}
         </button>

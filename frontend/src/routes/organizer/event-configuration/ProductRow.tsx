@@ -23,10 +23,12 @@ export function ProductRow({ product, onEdit, onDelete, disabled = false }: Prod
       <ProductThumbnail
         alt={product.productName}
         className="h-12 w-12 rounded-md"
-        clickLabel={`Enlarge image of ${product.productName}`}
         iconClassName="h-6 w-6"
         imageSrc={imageSrc}
-        onClick={() => setLightboxOpen(true)}
+        onClick={{
+          handler: () => setLightboxOpen(true),
+          label: `Enlarge image of ${product.productName}`,
+        }}
       />
 
       {imageSrc && lightboxOpen && (
