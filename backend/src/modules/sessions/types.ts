@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createSessionSchema = z.object({
-  eventId: z.string().min(1),
+  eventId: z.uuid(),
   email: z.email().optional(),
 });
 

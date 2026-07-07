@@ -8,11 +8,16 @@ const passwordSchema = z
   .max(128)
   .regex(/^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7E]{8,}$/, "Invalid password format");
 
+const optionalStringField = z
+  .string()
+  .optional()
+  .transform((v) => (v === "" ? undefined : v));
+
 export const signupSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
+  firstName: optionalStringField.pipe(z.string().max(100).optional()),
+  lastName: optionalStringField.pipe(z.string().max(100).optional()),
 });
 
 export const loginSchema = z.object({
@@ -36,12 +41,16 @@ export const changePasswordSchema = z
     currentPassword: z.string().min(1),
     newPassword: passwordSchema,
   })
-  .strict();
+  .strict()
+  .refine((data) => data.newPassword !== data.currentPassword, {
+    message: "New password must be different from the current password.",
+    path: ["newPassword"],
+  });
 
 export const updateAccountSchema = z
   .object({
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
+    firstName: optionalStringField.pipe(z.string().max(100).optional()),
+    lastName: optionalStringField.pipe(z.string().max(100).optional()),
     // Allow null/empty to clear the IBAN; otherwise enforce the MOD-97 checksum.
     // A blank/whitespace value clears it (null) rather than being stored as an
     // unusable transfer destination; a valid value is canonicalized (no spaces,
@@ -64,12 +73,22 @@ export const updateAccountSchema = z
             : normalizeIban(value)
       ),
     // Trim and bound the holder name; a blank/whitespace value clears it (null)
-    // rather than being stored as an unusable transfer destination.
+    // rather than being stored as an unusable transfer destination. A non-blank
+    // value must read as a name: it has to start with a letter and contain only
+    // letters, spaces, and the punctuation banks accept (- . ' , & / ( )) — this
+    // rejects digit-only or symbol junk that could never be a transfer holder.
     ibanHolderName: z
       .string()
       .max(140, "Account holder name is too long")
       .nullable()
       .optional()
+      .refine(
+        (value) =>
+          value == null ||
+          value.trim() === "" ||
+          /^[\p{L}\p{M}][\p{L}\p{M}\s'.,&/()-]*$/u.test(value.trim()),
+        { message: "Invalid account holder name" }
+      )
       .transform((value) =>
         value == null ? value : value.trim() === "" ? null : value.trim()
       ),

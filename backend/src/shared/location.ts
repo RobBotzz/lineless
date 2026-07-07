@@ -19,7 +19,7 @@ export const locationSchema = new Schema<Location>(
 // Single Zod definition for location input, shared by event and stand.
 // Omitted sub-fields default to null (replace semantics, not partial merge).
 export const locationInputSchema = z.object({
-  locationName: z.string().min(1).nullable().default(null),
+  locationName: z.string().min(1).max(200).nullable().default(null),
   xCoordinate: z.number().nullable().default(null),
   yCoordinate: z.number().nullable().default(null),
 });

@@ -1,4 +1,7 @@
-import { verifyEventOwnership } from "../events/ownership";
+import {
+  verifyEventOwnership,
+  verifyMutableEventOwnership,
+} from "../events/ownership";
 import { Stand } from "../stands/model";
 import { EventControlCenterSettings as EventControlCenterSettingsModel } from "./settings.model";
 import {
@@ -86,7 +89,7 @@ export async function replaceEventControlCenterSettings(
   accountId: string,
   settings: EventControlCenterSettings
 ): Promise<EventControlCenterSettings> {
-  await verifyEventOwnership(eventId, accountId);
+  await verifyMutableEventOwnership(eventId, accountId);
   const standIds = await loadCurrentStandIds(eventId);
   const currentStandIds = new Set(standIds);
 
@@ -132,7 +135,7 @@ export async function resetEventControlCenterSettings(
   eventId: string,
   accountId: string
 ): Promise<EventControlCenterSettings> {
-  await verifyEventOwnership(eventId, accountId);
+  await verifyMutableEventOwnership(eventId, accountId);
   const standIds = await loadCurrentStandIds(eventId);
   await EventControlCenterSettingsModel.findByIdAndDelete(eventId);
   return materializeSettings(standIds);

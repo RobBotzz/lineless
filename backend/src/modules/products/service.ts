@@ -4,6 +4,7 @@ import { ProductImage, type ProductImageDoc } from "./image.model";
 import {
   InvalidImageError,
   ProductImageNotFoundError,
+  ProductLimitExceededError,
   ProductNotFoundError,
   ProductStateError,
   ProductStockChangedError,
@@ -39,6 +40,10 @@ import {
   effectiveStockMode,
   effectiveUnlimitedStockModeFilter,
 } from "./stockMode";
+import {
+  assertEventStillDraft,
+  assertProductUpdateAllowed,
+} from "../events/mutationPolicy";
 
 // The wire shape for a product: hides the raw rating aggregate and exposes the
 // computed average (null until the first review). The frontend Product type
@@ -51,6 +56,9 @@ export function toProductResponse(p: ProductDoc) {
     rating: ratingCount > 0 ? ratingSum / ratingCount : null,
   };
 }
+
+// A stand's menu is meant to stay scannable on a phone screen.
+const MAX_PRODUCTS_PER_STAND = 10;
 
 async function productsForStand(standId: string): Promise<ProductDoc[]> {
   return Product.find({ standId, deletedAt: null })
@@ -136,7 +144,8 @@ export async function createProduct(
   accountId: string,
   input: CreateProductInput
 ): Promise<ProductDoc> {
-  await verifyMutableStandOwnership(standId, accountId);
+  const status = await verifyMutableStandOwnership(standId, accountId);
+  assertEventStillDraft(status, "Product creation");
   // The cashier stand carries no products of its own; it serves the event-wide
   // catalog. Reject product creation against it.
   const stand = await Stand.findOne({ _id: standId, deletedAt: null })
@@ -146,6 +155,13 @@ export async function createProduct(
     throw new CashierStandProtectedError(
       "Products cannot be created for the cashier stand"
     );
+  }
+  const existingProductCount = await Product.countDocuments({
+    standId,
+    deletedAt: null,
+  });
+  if (existingProductCount >= MAX_PRODUCTS_PER_STAND) {
+    throw new ProductLimitExceededError();
   }
   const product = await Product.create({
     standId,
@@ -278,7 +294,8 @@ export async function updateProduct(
 ): Promise<ProductDoc> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyMutableStandOwnership(product.standId, accountId);
+  const status = await verifyMutableStandOwnership(product.standId, accountId);
+  assertProductUpdateAllowed(status, patch);
   if (patch.productName !== undefined) product.productName = patch.productName;
   if (patch.productDescription !== undefined) {
     product.productDescription = patch.productDescription;
@@ -411,7 +428,8 @@ export async function softDeleteProduct(
 ): Promise<void> {
   const product = await Product.findOne({ _id: productId, deletedAt: null });
   if (!product) throw new ProductNotFoundError();
-  await verifyMutableStandOwnership(product.standId, accountId);
+  const status = await verifyMutableStandOwnership(product.standId, accountId);
+  assertEventStillDraft(status, "Product deletion");
 
   // Soft-deleting the product and dropping its (heavy) image binary must be
   // atomic — otherwise a crash between the two writes leaves either an orphaned
