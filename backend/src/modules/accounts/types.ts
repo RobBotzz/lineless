@@ -73,12 +73,22 @@ export const updateAccountSchema = z
             : normalizeIban(value)
       ),
     // Trim and bound the holder name; a blank/whitespace value clears it (null)
-    // rather than being stored as an unusable transfer destination.
+    // rather than being stored as an unusable transfer destination. A non-blank
+    // value must read as a name: it has to start with a letter and contain only
+    // letters, spaces, and the punctuation banks accept (- . ' , & / ( )) — this
+    // rejects digit-only or symbol junk that could never be a transfer holder.
     ibanHolderName: z
       .string()
       .max(140, "Account holder name is too long")
       .nullable()
       .optional()
+      .refine(
+        (value) =>
+          value == null ||
+          value.trim() === "" ||
+          /^[\p{L}\p{M}][\p{L}\p{M}\s'.,&/()-]*$/u.test(value.trim()),
+        { message: "Invalid account holder name" }
+      )
       .transform((value) =>
         value == null ? value : value.trim() === "" ? null : value.trim()
       ),
