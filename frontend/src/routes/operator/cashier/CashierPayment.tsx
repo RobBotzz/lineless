@@ -12,10 +12,11 @@ import { computeTotal } from '../../../types/order';
 import { formatMoney } from '../../../types/product';
 import { paths } from '../../../paths';
 import { formatOrderTime } from './orderFormat';
+import { CashierEventPausedNotice } from './CashierEventPausedNotice';
 import type { CashierContext } from './CashierLayout';
 
 export default function CashierPayment() {
-  const { eventId, standId } = useOutletContext<CashierContext>();
+  const { eventId, standId, eventStatus } = useOutletContext<CashierContext>();
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -85,6 +86,12 @@ export default function CashierPayment() {
   }
 
   const pendingDeleteOrder = orders?.find((o) => o._id === pendingDeleteId) ?? null;
+
+  // A stopped event can no longer collect cash payments (the order stream 403s).
+  // Block the surface up front rather than showing an empty/loading order list.
+  if (eventStatus === 'STOPPED') {
+    return <CashierEventPausedNotice eventId={eventId} action="Cash payment collection" />;
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">

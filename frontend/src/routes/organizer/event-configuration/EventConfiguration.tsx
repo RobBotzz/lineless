@@ -332,6 +332,7 @@ export default function EventConfiguration() {
   // Enabling/disabling the cashier saves on its own (not via the settings
   // auto-save), so it never touches the settings "saved" indicator.
   const [cashierEnableError, setCashierEnableError] = useState<string | null>(null);
+  const [cashierEnableBusy, setCashierEnableBusy] = useState(false);
   // Object URL for the in-flight pick, shown for instant feedback until the
   // revalidated loader serves the persisted logo. Revoked on change / unmount.
   const logoFilePreview = useMemo(
@@ -371,8 +372,10 @@ export default function EventConfiguration() {
   }
 
   function handleToggleCashier(value: boolean) {
+    if (cashierEnableBusy) return;
     setForm((prev) => ({ ...prev, cashierEnabled: value }));
     setCashierEnableError(null);
+    setCashierEnableBusy(true);
     updateEvent(event._id, { cashierEnabled: value })
       // Revalidate so the cashier stand loads (enable) / clears (disable).
       .then(() => revalidator.revalidate())
@@ -382,7 +385,8 @@ export default function EventConfiguration() {
         setCashierEnableError(
           err instanceof ApiError ? err.message : 'Could not update the cashier.',
         );
-      });
+      })
+      .finally(() => setCashierEnableBusy(false));
   }
 
   const [isStandDialogOpen, setIsStandDialogOpen] = useState(false);
@@ -416,6 +420,13 @@ export default function EventConfiguration() {
     form.plannedDate >= minimumPlannedDate ||
     form.plannedDate === persistedPlannedDate;
   const settingsValid = baselineHoldValid && plannedDateValid;
+  const canStart = event.status === 'DRAFT';
+  const canStop = event.status === 'ACTIVE';
+  const canComplete = event.status === 'STOPPED';
+  const isDraft = event.status === 'DRAFT';
+  const isPostStart = event.status === 'ACTIVE' || event.status === 'STOPPED';
+  const isCompleted = event.status === 'COMPLETED';
+  const canDelete = isDraft;
 
   function updateField<K extends keyof EventForm>(key: K, value: EventForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -470,15 +481,16 @@ export default function EventConfiguration() {
     setPendingCompleteEvent(false);
   }
 
-  // Two independent auto-saves — core settings and branding — each with its own
-  // snapshot + fetcher (see useEventAutoSave) so their "saved" indicators stay
-  // separate: editing a color never flips the settings status and vice versa.
-  const settingsSnapshot = JSON.stringify({
+  // Separate auto-saves keep draft-only fields out of post-start PATCH requests
+  // while live-safe settings and branding remain independently editable.
+  const draftSettingsSnapshot = JSON.stringify({
     name: form.name,
     // Send undefined rather than an empty string to leave the date unchanged.
     plannedDate: form.plannedDate || undefined,
-    ratingsEnabled: form.ratingsEnabled,
     baselineHoldCents: Math.round(baselineHoldEuros * 100),
+  });
+  const liveSettingsSnapshot = JSON.stringify({
+    ratingsEnabled: form.ratingsEnabled,
     location: form.location,
   });
   const brandingSnapshot = JSON.stringify({
@@ -488,10 +500,8 @@ export default function EventConfiguration() {
       accentTextColor: form.accentTextColor,
     },
   });
-  const settingsSave = useEventAutoSave(
-    settingsSnapshot,
-    settingsValid && event.status !== 'COMPLETED',
-  );
+  const draftSettingsSave = useEventAutoSave(draftSettingsSnapshot, settingsValid && isDraft);
+  const liveSettingsSave = useEventAutoSave(liveSettingsSnapshot, !isCompleted);
   // Color inputs only ever commit valid hex, so branding is always saveable — unless the event is completed.
   const brandingSave = useEventAutoSave(brandingSnapshot, event.status !== 'COMPLETED');
 
@@ -504,12 +514,17 @@ export default function EventConfiguration() {
     logoUrl: null,
   });
 
-  // Lifecycle rules mirror the backend: start only from DRAFT, stop only from ACTIVE.
-  const canStart = event.status === 'DRAFT';
-  const canStop = event.status === 'ACTIVE';
-  const canComplete = event.status === 'STOPPED';
-  const isCompleted = event.status === 'COMPLETED';
-  const canDelete = event.status === 'DRAFT';
+  const settingsDirty = draftSettingsSave.dirty || liveSettingsSave.dirty;
+  const settingsSaving = draftSettingsSave.saving || liveSettingsSave.saving;
+  const settingsSaveError = draftSettingsSave.saveError || liveSettingsSave.saveError;
+  const startBlocked =
+    !settingsValid ||
+    settingsDirty ||
+    settingsSaving ||
+    brandingSave.dirty ||
+    brandingSave.saving ||
+    logoBusy ||
+    cashierEnableBusy;
 
   // Spread stands over two columns by always appending to the currently shorter
   // column (height ≈ product count). This keeps both columns roughly equal so the
@@ -557,7 +572,7 @@ export default function EventConfiguration() {
             <Button
               size="sm"
               variant="outline"
-              disabled={isCompleted}
+              disabled={!isDraft}
               className="text-danger hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
               onClick={() => handleDeleteStand(stand._id)}
             >
@@ -571,7 +586,8 @@ export default function EventConfiguration() {
           <ProductRow
             key={product._id}
             product={product}
-            disabled={isCompleted}
+            canEdit={!isCompleted}
+            canDelete={isDraft}
             onEdit={() => setProductDialog({ standId: stand._id, product })}
             onDelete={() => setPendingDeleteProduct(product)}
           />
@@ -587,7 +603,7 @@ export default function EventConfiguration() {
             <Button
               size="sm"
               variant="outline"
-              disabled={atProductLimit || isCompleted}
+              disabled={atProductLimit || !isDraft}
               onClick={() => setProductDialog({ standId: stand._id, product: null })}
             >
               + Add Product
@@ -609,6 +625,15 @@ export default function EventConfiguration() {
         Events Dashboard
       </BackButton>
       <div className="space-y-6">
+        {isPostStart && (
+          <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
+            <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Event setup is locked after start. Operational settings, locations, branding,
+              descriptions, images, stock, and availability remain editable.
+            </p>
+          </div>
+        )}
         {/* Event status + links — side by side across the full width */}
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="min-w-0 scroll-mt-24" id="status">
@@ -630,9 +655,14 @@ export default function EventConfiguration() {
                 {canStart && (
                   <Button
                     className="w-full bg-success text-white hover:bg-success/90"
-                    disabled={busy}
+                    disabled={busy || startBlocked}
                     onClick={() => setPendingStartEvent(true)}
                     size="lg"
+                    title={
+                      startBlocked
+                        ? 'Wait until all valid configuration changes are saved.'
+                        : undefined
+                    }
                   >
                     Start Event
                   </Button>
@@ -759,7 +789,8 @@ export default function EventConfiguration() {
           <CardContent className="@container">
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 @2xl:grid-cols-2">
               <TextField
-                disabled={isCompleted}
+                disabled={!isDraft}
+                helperText={!isDraft ? 'Locked after the event starts.' : undefined}
                 id="event-name"
                 label="Event Name"
                 onChange={(e) => updateField('name', e.target.value)}
@@ -769,10 +800,11 @@ export default function EventConfiguration() {
               />
 
               <TextField
-                disabled={isCompleted}
+                disabled={!isDraft}
                 error={plannedDateValid ? undefined : 'Event date cannot be in the past.'}
                 id="event-date"
                 label="Event Date"
+                helperText={!isDraft ? 'Locked after the event starts.' : undefined}
                 min={minimumPlannedDate}
                 onChange={(e) => updateField('plannedDate', e.target.value)}
                 type="date"
@@ -828,7 +860,8 @@ export default function EventConfiguration() {
                     </span>
                   </span>
                 }
-                disabled={isCompleted}
+                disabled={!isDraft}
+                helperText={!isDraft ? 'Locked after the event starts.' : undefined}
                 type="number"
                 inputMode="numeric"
                 min="1"
@@ -894,11 +927,11 @@ export default function EventConfiguration() {
 
             {/* No save button — the form auto-saves; this just reflects status. */}
             <div className="mt-6 flex justify-end text-sm" aria-live="polite">
-              {!settingsValid && settingsSave.dirty ? (
+              {!settingsValid && draftSettingsSave.dirty ? (
                 <span className="text-danger">Fix the highlighted field to save.</span>
-              ) : settingsSave.saveError ? (
+              ) : settingsSaveError ? (
                 <span className="text-danger">Couldn’t save changes — edit a field to retry.</span>
-              ) : settingsSave.saving || settingsSave.dirty ? (
+              ) : settingsSaving || settingsDirty ? (
                 <span className="text-text-muted">Saving…</span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 text-success">
@@ -1128,7 +1161,8 @@ export default function EventConfiguration() {
             <CardAction>
               <Button
                 size="sm"
-                disabled={isCompleted}
+                disabled={!isDraft}
+                title={!isDraft ? 'Stands can only be added before the event starts.' : undefined}
                 onClick={() => {
                   setEditingStand(null);
                   setIsStandDialogOpen(true);
@@ -1172,6 +1206,7 @@ export default function EventConfiguration() {
         eventLocation={event.location ?? emptyLocation}
         isOpen={isStandDialogOpen}
         onClose={() => setIsStandDialogOpen(false)}
+        setupLocked={!isDraft}
       />
 
       <AlertDialog
@@ -1179,7 +1214,7 @@ export default function EventConfiguration() {
         cancelLabel="Cancel"
         message={
           pendingStartEvent
-            ? 'Starting the event makes it visible to guests and opens ordering for all stands. You can stop it again at any time.'
+            ? 'Starting makes the event visible to guests and opens ordering. Event identity, financial setup, stand and product structure, names, prices, taxes, and fulfillment types will be permanently locked. Operational controls remain editable.'
             : null
         }
         onAcknowledge={confirmStartEvent}
@@ -1207,6 +1242,7 @@ export default function EventConfiguration() {
           standId={productDialog.standId}
           isOpen={true}
           onClose={() => setProductDialog(null)}
+          setupLocked={!isDraft}
         />
       )}
 

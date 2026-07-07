@@ -12,12 +12,16 @@ import { getCancellableOrderItems } from './cancellationUtils';
 const LIVE_ORDERS_PER_PAGE = 5;
 
 export function LiveOrdersTable({
+  emptyMessage = 'Paid orders with open items will appear here.',
+  emptyTitle = 'No live orders',
   orders,
   pageResetKey,
   stands,
   onCancelOrder,
   onCancelOrderItems,
 }: {
+  emptyMessage?: string;
+  emptyTitle?: string;
   orders: LiveOrder[];
   pageResetKey: string;
   stands: Stand[];
@@ -140,9 +144,7 @@ export function LiveOrdersTable({
   }
 
   if (orders.length === 0) {
-    return (
-      <EmptyState title="No live orders" message="Paid orders with open items will appear here." />
-    );
+    return <EmptyState title={emptyTitle} message={emptyMessage} />;
   }
 
   return (

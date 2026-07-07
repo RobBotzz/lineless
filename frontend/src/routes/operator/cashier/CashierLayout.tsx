@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getOperatorEvent } from '@/api/events';
 import { getOperatorStandToken } from '@/auth/keychain';
 import { paths } from '@/paths';
+import type { EventStatus } from '@/types/event';
 import { operatorCashierStandQueryOptions, operatorQueryKeys } from '../operatorQueries';
 
 // Context handed to every cashier page: the event and the CASHIER stand the
@@ -12,6 +13,9 @@ export interface CashierContext {
   eventId: string;
   standId: string;
   ratingsEnabled: boolean;
+  // Undefined until the event query resolves. Order/payment pages gate on this
+  // (a STOPPED event takes no new orders or payments — only refunds).
+  eventStatus: EventStatus | undefined;
 }
 
 export default function CashierLayout() {
@@ -51,6 +55,7 @@ export default function CashierLayout() {
           eventId,
           standId: cashierStand._id,
           ratingsEnabled: eventQuery.data?.ratingsEnabled ?? false,
+          eventStatus: eventQuery.data?.status,
         } satisfies CashierContext
       }
     />
