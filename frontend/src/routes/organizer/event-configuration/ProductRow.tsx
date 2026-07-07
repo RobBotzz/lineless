@@ -67,28 +67,33 @@ export function ProductRow({ product, onEdit, onDelete, disabled = false }: Prod
         )}
       </div>
 
-      {/* Prices — incl. tax emphasized, excl. tax muted underneath */}
-      <div className="ml-auto shrink-0 text-right">
-        <p className="text-base font-semibold text-text">
-          €{formatMoney(product.priceIncludingTax)}
-        </p>
-        <p className="text-xs text-text-muted">€{formatMoney(exclTax)} excl. tax</p>
-      </div>
-
-      {/* Actions — hidden on a read-only (completed) event. */}
-      {!disabled && (
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            aria-label={`Edit ${product.productName}`}
-            className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
-            onClick={onEdit}
-            type="button"
-          >
-            <EditIcon />
-          </button>
-          <DeleteIconButton label={`Delete ${product.productName}`} onClick={onDelete} />
+      {/* Price + actions stay together as one block, so on a narrow card they
+          wrap onto a second line as a unit (right-aligned) rather than each
+          breaking separately into a ragged layout. */}
+      <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+        {/* Prices — incl. tax emphasized, excl. tax muted underneath */}
+        <div className="text-right">
+          <p className="text-base font-semibold text-text">
+            €{formatMoney(product.priceIncludingTax)}
+          </p>
+          <p className="text-xs text-text-muted">€{formatMoney(exclTax)} excl. tax</p>
         </div>
-      )}
+
+        {/* Actions — hidden on a read-only (completed) event. */}
+        {!disabled && (
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              aria-label={`Edit ${product.productName}`}
+              className="rounded-md p-2 text-text-muted transition-colors hover:bg-surface-muted hover:text-text"
+              onClick={onEdit}
+              type="button"
+            >
+              <EditIcon />
+            </button>
+            <DeleteIconButton label={`Delete ${product.productName}`} onClick={onDelete} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

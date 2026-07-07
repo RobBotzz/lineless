@@ -817,7 +817,7 @@ export default function EventConfiguration() {
                           />
                           <span
                             role="tooltip"
-                            className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                            className="absolute left-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)] sm:left-1/2 sm:-translate-x-1/2"
                           >
                             {
                               "Reserved on each guest's card when they open a tab. They're only charged for what they order, and the remainder is released. A higher hold settles more orders in a single charge, which lowers transaction fees, but reserving a large amount upfront can discourage guests from paying by card. Applies to tabs opened after saving."
@@ -873,7 +873,7 @@ export default function EventConfiguration() {
                         />
                         <span
                           role="tooltip"
-                          className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                          className="absolute left-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)] sm:left-1/2 sm:-translate-x-1/2"
                         >
                           When enabled, guests can rate the products they ordered, and the average
                           rating is shown on each product.
@@ -952,7 +952,7 @@ export default function EventConfiguration() {
                           />
                           <span
                             role="tooltip"
-                            className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                            className="absolute left-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)] sm:left-1/2 sm:-translate-x-1/2"
                           >
                             Replaces the Lineless logo for attendees. Shown at the size of the
                             current logo — smaller images sit left, larger ones scale down to fit.
@@ -1389,7 +1389,7 @@ function BrandColorField({
                   />
                   <span
                     role="tooltip"
-                    className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)]"
+                    className="absolute left-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 text-xs font-normal leading-relaxed text-text-muted shadow-[0_12px_40px_rgba(31,41,55,0.18)] sm:left-1/2 sm:-translate-x-1/2"
                   >
                     Auto picks the text color for you from your Brand color, darkening it only if
                     needed so it stays easy to read on the page. Click the swatch to choose your own
