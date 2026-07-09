@@ -52,7 +52,10 @@ export default function CashierRefund() {
       return;
     }
 
-    if (filteredOrders.length > 1) return;
+    if (filteredOrders.length > 1) {
+      setSearchError(`Multiple orders match "${query.trim()}". Please refine your search.`);
+      return;
+    }
 
     setSearchError(`No refundable order found for "${query.trim()}".`);
   }
