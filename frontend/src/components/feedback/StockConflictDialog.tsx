@@ -1,7 +1,6 @@
-import { useEffect } from 'react';
-
 import { WarningTriangleIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 export interface StockConflictItem {
   productId: string;
@@ -16,16 +15,7 @@ interface StockConflictDialogProps {
 }
 
 export function StockConflictDialog({ items, onAcknowledge }: StockConflictDialogProps) {
-  useEffect(() => {
-    if (!items) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onAcknowledge();
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [items, onAcknowledge]);
+  useEscapeKey(onAcknowledge, Boolean(items));
 
   if (!items) return null;
 

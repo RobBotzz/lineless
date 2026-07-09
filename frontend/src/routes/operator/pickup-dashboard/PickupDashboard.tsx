@@ -5,6 +5,7 @@ import { PICKUP_BOARD_EVENT, pickupBoardStreamPath } from '@/api/pickupBoard';
 import { CheckCircleIcon, HourglassCircleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useSSE } from '@/hooks/useSSE';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
@@ -258,14 +259,7 @@ function AutoScrollDialog({
   onStart: () => void;
   onCancel: () => void;
 }) {
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onCancel();
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel]);
+  useEscapeKey(onCancel);
 
   return (
     <div

@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { ImageDropzone } from '@/components/shared';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import {
   formatMoney,
   productImageSrc,
@@ -114,14 +115,7 @@ export function ProductDialog({
     return () => URL.revokeObjectURL(filePreview);
   }, [filePreview]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !saving) onClose();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, saving]);
+  useEscapeKey(onClose, isOpen && !saving);
 
   if (!isOpen) return null;
 

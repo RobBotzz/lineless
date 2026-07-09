@@ -5,6 +5,7 @@ import { PasswordTextField } from '@/components/ui/password-text-field';
 import { TextField } from '@/components/ui/text-field';
 import { Toggle } from '@/components/ui/toggle';
 import { ChevronDownIcon, PinIcon, WarningTriangleIcon } from '@/components/icons';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { hasCoordinates, toLatLng, type Location } from '@/types/location';
 import type { Stand, CreateStandInput, UpdateStandInput } from '@/types/stand';
 import type { EventActionResult } from './data';
@@ -38,14 +39,7 @@ export function StandDialog({
   );
   const [locationOpen, setLocationOpen] = useState(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  useEscapeKey(onClose, isOpen);
 
   const wasSubmittingRef = useRef(false);
   const isHandlingSubmitRef = useRef(false);

@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
-
 import { Button } from '@/components/ui/button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { formatMoney, productImageSrc, type Product } from '@/types/product';
 
 import { ProductThumbnail } from '@/components/shared/ProductThumbnail';
@@ -24,13 +23,7 @@ export function ProductDetailsDialog({
 }: ProductDetailsDialogProps) {
   const imageSrc = productImageSrc(product);
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   return (
     // z-[1100] sits above the navbar (z-[1001]); click the backdrop to dismiss.
