@@ -30,24 +30,69 @@ const stripe = new Stripe(config.stripe.secretKey);
 type CapturedIntent = Awaited<ReturnType<typeof stripe.paymentIntents.capture>>;
 
 function extractCaptureSettlement(intent: CapturedIntent): {
+  capturedCents: number;
   feeCents: number;
   balanceTxnId: string | null;
   availableOn: Date | null;
 } {
+  // Trust the amount Stripe actually collected, not the locally-computed one:
+  // on the reconcile path (see captureHold) the recovered intent may have been
+  // captured for a different amount than this attempt recomputed.
+  const capturedCents = intent.amount_received;
   const charge = intent.latest_charge;
   if (!charge || typeof charge === "string") {
-    return { feeCents: 0, balanceTxnId: null, availableOn: null };
+    return {
+      capturedCents,
+      feeCents: 0,
+      balanceTxnId: null,
+      availableOn: null,
+    };
   }
   const balanceTxn = charge.balance_transaction;
   if (!balanceTxn || typeof balanceTxn === "string") {
-    return { feeCents: 0, balanceTxnId: null, availableOn: null };
+    return {
+      capturedCents,
+      feeCents: 0,
+      balanceTxnId: null,
+      availableOn: null,
+    };
   }
   return {
+    capturedCents,
     feeCents: balanceTxn.fee,
     balanceTxnId: balanceTxn.id,
     // Stripe sends available_on as a unix timestamp in seconds.
     availableOn: new Date(balanceTxn.available_on * 1000),
   };
+}
+
+// Captures a hold with a deterministic idempotency key, so a settlement retried
+// after a crash or dropped response replays the original capture instead of
+// erroring on an already-captured intent (which would strand the tab in
+// CHECKOUT_PENDING with the money already taken). If Stripe still rejects the
+// call, reconcile: a PaymentIntent that already reads as captured is returned as
+// success rather than failing the whole settlement — and never double-captured.
+async function captureHold(
+  paymentId: string,
+  intentId: string,
+  amountToCapture: number
+): Promise<CapturedIntent> {
+  try {
+    return await stripe.paymentIntents.capture(
+      intentId,
+      {
+        amount_to_capture: amountToCapture,
+        expand: ["latest_charge.balance_transaction"],
+      },
+      { idempotencyKey: `capture:${paymentId}` }
+    );
+  } catch (err) {
+    const intent = await stripe.paymentIntents.retrieve(intentId, {
+      expand: ["latest_charge.balance_transaction"],
+    });
+    if (intent.status === "succeeded") return intent;
+    throw err;
+  }
 }
 
 export interface TabCheckoutResult {
@@ -240,27 +285,34 @@ async function settleTab(tabId: string, filters: { eventId?: string }) {
     for (const payment of paymentsToCapture) {
       const captureAmount = Math.min(remaining, payment.authorizedCentsAmount);
       if (captureAmount > 0) {
-        const intent = await stripe.paymentIntents.capture(
+        const intent = await captureHold(
+          payment._id,
           payment.stripePaymentIntentId,
-          {
-            amount_to_capture: captureAmount,
-            expand: ["latest_charge.balance_transaction"],
-          }
+          captureAmount
         );
-        const { feeCents, balanceTxnId, availableOn } =
+        const { capturedCents, feeCents, balanceTxnId, availableOn } =
           extractCaptureSettlement(intent);
+        // Record what Stripe actually captured. On the reconcile path this can
+        // differ from captureAmount; driving the ledger and the remaining-owed
+        // spread off the real figure keeps both consistent with the charge.
         await TabPayment.updateOne(
           { _id: payment._id },
           {
             tabPaymentStatus: "CAPTURED",
-            capturedCentsAmount: captureAmount,
+            capturedCentsAmount: capturedCents,
             processingFeeCents: feeCents,
             stripeBalanceTxnId: balanceTxnId,
             availableOn,
           }
         );
-        totalCaptured += captureAmount;
-        remaining -= captureAmount;
+        if (capturedCents > captureAmount) {
+          console.warn(
+            `Tab ${tabId}: over-capture on payment ${String(payment._id)} — ` +
+              `expected ${captureAmount}¢, Stripe returned ${capturedCents}¢`
+          );
+        }
+        totalCaptured += capturedCents;
+        remaining -= capturedCents;
       } else {
         // Nothing left to charge against this hold — release it.
         try {

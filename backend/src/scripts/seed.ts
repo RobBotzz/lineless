@@ -489,6 +489,11 @@ function buildItem(
 }
 
 function buildOrder(spec: OrderSpec): void {
+  // 0-based so seeded order numbers line up with how the app assigns them at
+  // runtime (submitOrder derives the number from Order.countDocuments → A000,
+  // A001, …). Starting at 1 would leave A000 unused and make the first real
+  // order reuse the last seeded number.
+  const orderIndex = orderSeq;
   orderSeq += 1;
   const orderId = id(`order:${spec.key}`);
   const createdAt = minsAgo(spec.createdMinsAgo);
@@ -535,8 +540,8 @@ function buildOrder(spec: OrderSpec): void {
     tabId,
     sessionId,
     requestId: id(`req:${spec.key}`),
-    orderNumber: `A${String(orderSeq).padStart(3, "0")}`,
-    pickupCode: pickupCode(orderSeq),
+    orderNumber: `A${String(orderIndex).padStart(3, "0")}`,
+    pickupCode: pickupCode(orderIndex),
     customerEmail,
     paidAt,
     deletedAt: null,

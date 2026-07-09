@@ -2,6 +2,7 @@ import { publish } from "../../lib/realtimeBus";
 import { EventControlCenterSettings } from "./settings.model";
 
 let stream: ReturnType<typeof EventControlCenterSettings.watch> | null = null;
+let restartTimeout: ReturnType<typeof setTimeout> | null = null;
 
 type SettingsChange = {
   documentKey?: { _id?: unknown };
@@ -28,11 +29,18 @@ export function watchEventControlCenterSettingsChanges(): void {
       err
     );
     void s.close().catch(() => undefined);
-    setTimeout(() => watchEventControlCenterSettingsChanges(), 1000);
+    restartTimeout = setTimeout(() => {
+      restartTimeout = null;
+      watchEventControlCenterSettingsChanges();
+    }, 1000);
   });
 }
 
 export async function stopWatchingEventControlCenterSettingsChanges(): Promise<void> {
+  if (restartTimeout) {
+    clearTimeout(restartTimeout);
+    restartTimeout = null;
+  }
   await stream?.close();
   stream = null;
 }

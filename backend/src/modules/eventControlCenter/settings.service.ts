@@ -61,7 +61,11 @@ function materializeSettings(
 }
 
 async function loadCurrentStandIds(eventId: string): Promise<string[]> {
-  const stands = await Stand.find({ eventId, deletedAt: null })
+  const stands = await Stand.find({
+    eventId,
+    deletedAt: null,
+    standType: { $ne: "CASHIER" },
+  })
     .select("_id")
     .lean<Array<{ _id: string }>>();
   return stands.map((stand) => stand._id);
