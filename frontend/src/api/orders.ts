@@ -277,18 +277,34 @@ function flattenOrderItems(items: OrderItemView[]) {
   );
 }
 
+type OrderResponse =
+  | { order?: Order; clientSecret?: string; orderId?: string }
+  | InsufficientStockResponse;
+
+// Shared POST /orders call: sends the request, surfaces an insufficient-stock
+// 409 as InsufficientStockError, and returns the raw status/data envelope for
+// the caller to unwrap (the response body shape differs slightly per caller).
+async function postOrder(
+  options: Omit<Parameters<typeof apiFetchAllowing>[1], 'method'>,
+  allowStatuses: number[],
+): Promise<{ status: number; data: OrderResponse }> {
+  const { status, data } = await apiFetchAllowing<OrderResponse>(
+    '/orders',
+    { ...options, method: 'POST' },
+    allowStatuses,
+  );
+  throwIfStockConflict(status, data);
+  return { status, data };
+}
+
 // POST /api/orders — creates a cashier order (operator auth, no attendee session).
 export async function createManualOrder(
   input: { eventId: string; items: OrderItemView[] },
   standId: string,
   requestId: string,
 ): Promise<Order> {
-  // POST /orders wraps the created order as { order }, so unwrap it here rather
-  // than treating the body as the order itself.
-  const { status, data } = await apiFetchAllowing<{ order?: Order } | InsufficientStockResponse>(
-    '/orders',
+  const { status, data } = await postOrder(
     {
-      method: 'POST',
       auth: 'operator',
       standId,
       body: JSON.stringify({
@@ -299,7 +315,6 @@ export async function createManualOrder(
     },
     [409],
   );
-  throwIfStockConflict(status, data);
   return createdOrderFromResponse(status, data);
 }
 
@@ -309,19 +324,14 @@ export async function createOrder(
   items: OrderItemView[],
   requestId: string,
 ): Promise<Order> {
-  // POST /orders wraps the created order as { order } (same shape createCardOrder
-  // reads), so unwrap it here rather than treating the body as the order itself.
-  const { status, data } = await apiFetchAllowing<{ order?: Order } | InsufficientStockResponse>(
-    '/orders',
+  const { status, data } = await postOrder(
     {
-      method: 'POST',
       auth: 'attendee',
       eventId,
       body: JSON.stringify({ eventId, requestId, items: flattenOrderItems(items) }),
     },
     [409],
   );
-  throwIfStockConflict(status, data);
   return createdOrderFromResponse(status, data);
 }
 
@@ -343,12 +353,8 @@ export async function createCardOrder(
   requestId: string,
   signal?: AbortSignal,
 ): Promise<CardOrderResult> {
-  const { status, data } = await apiFetchAllowing<
-    { order?: Order; clientSecret?: string; orderId?: string } | InsufficientStockResponse
-  >(
-    '/orders',
+  const { status, data } = await postOrder(
     {
-      method: 'POST',
       auth: 'attendee',
       eventId,
       signal,
@@ -356,8 +362,6 @@ export async function createCardOrder(
     },
     [402, 409],
   );
-
-  throwIfStockConflict(status, data);
 
   if (status === 402) {
     const payment = data as { clientSecret?: string; orderId?: string };
