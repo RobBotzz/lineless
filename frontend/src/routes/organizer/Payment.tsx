@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useFetcher, useLoaderData, useRouteError } from 'react-router';
+import { useFetcher, useLoaderData, useRouteError, type FetcherWithComponents } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
 import { InfoTooltip } from '@/components/shared';
@@ -65,26 +65,52 @@ function useDismissAfter(token: unknown, ms = 6000): boolean {
 
 type ChargeResult = Extract<PaymentActionResult, { intent: 'charge-all' }>;
 
-// Charging open tabs is the same action whether it targets every event or one:
-// a single fetcher posting `charge-all` with the event ids to settle. Shared by
-// the global payout card and the per-event breakdown rows so they behave alike.
-function useChargeTabs() {
+// react-router types its JSON submit target with an index signature a
+// discriminated-union body isn't assignable to, so the one necessary cast lives
+// here instead of being repeated at every call site.
+function submitJson(fetcher: FetcherWithComponents<PaymentActionResult>, body: PaymentActionBody) {
+  void fetcher.submit(body as Parameters<typeof fetcher.submit>[0], {
+    method: 'post',
+    encType: 'application/json',
+  });
+}
+
+// One fetcher lifecycle for every Payment action: post the intent's body, expose
+// busy/error, narrow the success payload to that intent, and auto-dismiss the
+// settled banner. Replaces the near-identical fetcher blocks each card hand-rolled.
+type PaymentSuccess<I extends PaymentActionBody['intent']> = Extract<
+  PaymentActionResult,
+  { ok: true; intent: I }
+>;
+
+function usePaymentAction<I extends PaymentActionBody['intent']>(intent: I) {
   const fetcher = useFetcher<PaymentActionResult>();
-  const charging = fetcher.state !== 'idle';
+  const busy = fetcher.state !== 'idle';
   const settled = fetcher.state === 'idle' ? fetcher.data : undefined;
-  const result = settled?.ok && settled.intent === 'charge-all' ? settled : null;
+  // The literal `intent` narrows at each call site; the generic comparison here
+  // doesn't, so assert the matched success shape once.
+  const result: PaymentSuccess<I> | null =
+    settled?.ok && settled.intent === intent ? (settled as PaymentSuccess<I>) : null;
   const error = settled && !settled.ok ? settled.error : null;
   const show = useDismissAfter(settled);
 
-  function charge(eventIds: string[]) {
-    const payload: PaymentActionBody = { intent: 'charge-all', eventIds };
-    void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
-      method: 'post',
-      encType: 'application/json',
-    });
-  }
+  const submit = (body: Extract<PaymentActionBody, { intent: I }>) => submitJson(fetcher, body);
 
-  return { charge, charging, show, result, error };
+  return { submit, busy, result, error, show };
+}
+
+// Charging open tabs is the same action whether it targets every event or one:
+// a single `charge-all` post with the event ids to settle. Shared by the global
+// payout card and the per-event breakdown rows so they behave alike.
+function useChargeTabs() {
+  const { submit, busy, result, error, show } = usePaymentAction('charge-all');
+  return {
+    charge: (eventIds: string[]) => submit({ intent: 'charge-all', eventIds }),
+    charging: busy,
+    result,
+    error,
+    show,
+  };
 }
 
 function ChargeResultMessage({
@@ -177,23 +203,18 @@ function AvailableForPayoutCard({
   inTransit: number;
   bankReady: boolean;
 }) {
-  const payoutFetcher = useFetcher<PaymentActionResult>();
+  const {
+    submit: submitPayout,
+    busy: payingOut,
+    result: payoutDone,
+    error: payoutError,
+    show: showPayout,
+  } = usePaymentAction('request-payout');
   const [confirmPayout, setConfirmPayout] = useState(false);
   const canPayout = bankReady && availableNow > 0;
 
-  const payingOut = payoutFetcher.state !== 'idle';
-  const payoutSettled = payoutFetcher.state === 'idle' ? payoutFetcher.data : undefined;
-  const payoutDone =
-    payoutSettled?.ok && payoutSettled.intent === 'request-payout' ? payoutSettled : null;
-  const payoutError = payoutSettled && !payoutSettled.ok ? payoutSettled.error : null;
-  const showPayout = useDismissAfter(payoutSettled);
-
   function requestPayout() {
-    const payload: PaymentActionBody = { intent: 'request-payout' };
-    void payoutFetcher.submit(payload as unknown as Parameters<typeof payoutFetcher.submit>[0], {
-      method: 'post',
-      encType: 'application/json',
-    });
+    submitPayout({ intent: 'request-payout' });
     setConfirmPayout(false);
   }
 
@@ -590,17 +611,18 @@ function BankDetailsCard({
   iban: string | null;
   ibanHolderName: string | null;
 }) {
-  const fetcher = useFetcher<PaymentActionResult>();
+  const {
+    submit: submitBank,
+    busy,
+    result: saved,
+    error,
+    show: showResult,
+  } = usePaymentAction('save-bank');
   const [form, setForm] = useState({
     iban: formatIban(iban ?? ''),
     ibanHolderName: ibanHolderName ?? '',
   });
 
-  const busy = fetcher.state !== 'idle';
-  const settled = fetcher.state === 'idle' ? fetcher.data : undefined;
-  const saved = settled?.ok === true && settled.intent === 'save-bank';
-  const error = settled && !settled.ok ? settled.error : null;
-  const showResult = useDismissAfter(settled);
   const incomplete = !form.iban.trim() || !form.ibanHolderName.trim();
   // Show the IBAN checksum error only once the field has content.
   const ibanError = form.iban.trim() !== '' && !isValidIban(form.iban) ? 'Invalid IBAN' : null;
@@ -614,14 +636,10 @@ function BankDetailsCard({
 
   function save() {
     if (ibanError || holderNameError) return;
-    const payload: PaymentActionBody = {
+    submitBank({
       intent: 'save-bank',
       iban: normalizeIban(form.iban),
       ibanHolderName: form.ibanHolderName,
-    };
-    void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
-      method: 'post',
-      encType: 'application/json',
     });
   }
 
