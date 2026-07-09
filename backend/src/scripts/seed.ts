@@ -371,9 +371,8 @@ interface ItemSpec {
 
 interface OrderSpec {
   key: string;
-  channel: "cash" | "card";
+  channel: "cash"; // all seeded orders are cash — no Stripe dependency
   attendee: string | null; // slug; null = cashier-created cash order
-  tab?: string; // tab slug for card orders
   createdMinsAgo: number;
   items: ItemSpec[];
   unpaid?: boolean; // cash order still awaiting the cashier to confirm payment
@@ -508,12 +507,10 @@ function buildOrder(spec: OrderSpec): void {
     buildItem(it, orderId, createdAt, sessionId, EVENT_ID)
   );
 
-  const isCard = spec.channel === "card";
-  const tabId = isCard && spec.tab ? id(`tab:${spec.tab}`) : null;
-
-  // Cash orders are paid on confirmation; authorized tab orders are marked paid
-  // so they show on the operator board. Orders awaiting cash confirmation stay
-  // unpaid (paidAt null, no cashPayment) — their stock is still reserved.
+  // Every seeded order is a cash order (no Stripe dependency): paid on
+  // confirmation, except the few left unpaid (paidAt null, no cashPayment) to
+  // demo the cashier still having to confirm payment — their stock stays
+  // reserved. tabId is always null since there are no card/tab orders.
   const paidAt = spec.unpaid ? null : createdAt;
 
   // Item-level cash refund: the refunded (cancelled) items carry refundedAt, and
@@ -537,7 +534,7 @@ function buildOrder(spec: OrderSpec): void {
   orderDocs.push({
     _id: orderId,
     eventId: EVENT_ID,
-    tabId,
+    tabId: null,
     sessionId,
     requestId: id(`req:${spec.key}`),
     orderNumber: `A${String(orderIndex).padStart(3, "0")}`,
@@ -546,8 +543,9 @@ function buildOrder(spec: OrderSpec): void {
     paidAt,
     deletedAt: null,
     items,
-    cashPayment:
-      isCard || spec.unpaid ? null : { _id: id(`cash:${spec.key}`), createdAt },
+    cashPayment: spec.unpaid
+      ? null
+      : { _id: id(`cash:${spec.key}`), createdAt },
     cashRefunds,
     createdAt,
     updatedAt: createdAt,
@@ -555,49 +553,8 @@ function buildOrder(spec: OrderSpec): void {
 }
 
 // ---------------------------------------------------------------------------
-// Order + tab data
+// Order data
 // ---------------------------------------------------------------------------
-
-// Card tabs: each an OPEN tab with an authorized baseline hold, plus one PAID
-// (checked-out) tab whose hold was captured.
-interface TabSpec {
-  slug: string;
-  attendee: string;
-  status: "OPEN" | "PAID";
-  authorizedCents: number;
-  capturedCents: number; // > 0 only for a checked-out tab
-}
-
-const TABS: TabSpec[] = [
-  {
-    slug: "andi",
-    attendee: "andi",
-    status: "OPEN",
-    authorizedCents: 2000,
-    capturedCents: 0,
-  },
-  {
-    slug: "julia",
-    attendee: "julia",
-    status: "OPEN",
-    authorizedCents: 1000,
-    capturedCents: 0,
-  },
-  {
-    slug: "gabriel",
-    attendee: "gabriel",
-    status: "OPEN",
-    authorizedCents: 3000,
-    capturedCents: 0,
-  },
-  {
-    slug: "lena",
-    attendee: "lena",
-    status: "PAID",
-    authorizedCents: 2000,
-    capturedCents: 1330,
-  },
-];
 
 const ORDERS: OrderSpec[] = [
   // --- Cash orders, attendee-placed, various states ---
@@ -841,12 +798,11 @@ const ORDERS: OrderSpec[] = [
     ],
   },
 
-  // --- Card (tab) orders ---
+  // --- Attendee orders (paid, formerly card/tab — now cash, no Stripe) ---
   {
     key: "t01",
-    channel: "card",
+    channel: "cash",
     attendee: "andi",
-    tab: "andi",
     createdMinsAgo: 105,
     items: [
       {
@@ -859,17 +815,15 @@ const ORDERS: OrderSpec[] = [
   },
   {
     key: "t02",
-    channel: "card",
+    channel: "cash",
     attendee: "andi",
-    tab: "andi",
     createdMinsAgo: 40,
     items: [{ product: "augustiner-helles", state: "ready" }],
   },
   {
     key: "t03",
-    channel: "card",
+    channel: "cash",
     attendee: "julia",
-    tab: "julia",
     createdMinsAgo: 85,
     items: [
       {
@@ -882,9 +836,8 @@ const ORDERS: OrderSpec[] = [
   },
   {
     key: "t04",
-    channel: "card",
+    channel: "cash",
     attendee: "gabriel",
-    tab: "gabriel",
     createdMinsAgo: 75,
     items: [
       { product: "steak-sandwich", state: "ready" },
@@ -894,9 +847,8 @@ const ORDERS: OrderSpec[] = [
   },
   {
     key: "t05",
-    channel: "card",
+    channel: "cash",
     attendee: "lena",
-    tab: "lena",
     createdMinsAgo: 150,
     items: [
       {
@@ -1181,42 +1133,11 @@ async function main(): Promise<void> {
     });
   }
 
-  // --- Tabs + baseline holds ---
-  for (const tab of TABS) {
-    const tabId = id(`tab:${tab.slug}`);
-    await Tab.create({
-      _id: tabId,
-      sessionId: id(`session:${tab.attendee}`),
-      eventId: EVENT_ID,
-      status: tab.status,
-    });
-
-    const captured = tab.capturedCents > 0;
-    // Stripe processing fee ~ 1.4% + 25c, only meaningful once captured.
-    const fee = captured ? Math.round(tab.capturedCents * 0.014) + 25 : 0;
-    await TabPayment.create({
-      _id: id(`tabpayment:${tab.slug}`),
-      tabId,
-      orderId: null, // baseline hold, not tied to a single order
-      stripePaymentIntentId: `pi_seed_${tab.slug}`,
-      stripeEventId: `evt_seed_${tab.slug}`,
-      tabPaymentStatus: captured ? "CAPTURED" : "AUTHORIZED",
-      authorizedCentsAmount: tab.authorizedCents,
-      capturedCentsAmount: tab.capturedCents,
-      processingFeeCents: fee,
-      stripeBalanceTxnId: captured ? `txn_seed_${tab.slug}` : null,
-      availableOn: captured ? daysFromNow(5) : null,
-      expiresAt: captured ? null : daysFromNow(1),
-    });
-  }
-
   // --- Insert orders + ratings ---
   await Order.insertMany(orderDocs);
   if (ratingDocs.length > 0) await Rating.insertMany(ratingDocs);
 
   // --- Summary ---
-  const cashOrders = ORDERS.filter((o) => o.channel === "cash").length;
-  const cardOrders = ORDERS.filter((o) => o.channel === "card").length;
   const isCashOrder = (o: Record<string, unknown>): boolean =>
     o["tabId"] == null;
   const refundReady = orderDocs.filter(
@@ -1259,7 +1180,7 @@ async function main(): Promise<void> {
     `  Stands: ${STANDS.length} product + 1 cashier | Products: ${productBySlug.size}`
   );
   console.log(
-    `  Orders: ${orderDocs.length} (${cashOrders} cash, ${cardOrders} card) | Ratings: ${ratingDocs.length}`
+    `  Orders: ${orderDocs.length} (all cash) | Ratings: ${ratingDocs.length}`
   );
   console.log(`  Cash orders already refunded: ${refunded}`);
   console.log(
