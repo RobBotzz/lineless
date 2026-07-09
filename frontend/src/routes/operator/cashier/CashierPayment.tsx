@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
-import { AlertDialog } from '../../../components/feedback/AlertDialog';
-import { SearchIcon } from '../../../components/icons';
-import { BackButton, DeleteIconButton } from '../../../components/shared';
-import { ApiError } from '../../../api/client';
-import { deleteUnpaidOrder } from '../../../api/orders';
-import { useSSE } from '../../../hooks/useSSE';
-import type { Order } from '../../../types/order';
-import { computeTotal } from '../../../types/order';
-import { formatMoney } from '../../../types/product';
-import { paths } from '../../../paths';
+import { AlertDialog } from '@/components/feedback/AlertDialog';
+import { SearchIcon } from '@/components/icons';
+import { BackButton, DeleteIconButton } from '@/components/shared';
+import { ApiError } from '@/api/client';
+import { deleteUnpaidOrder } from '@/api/orders';
+import { useSSE } from '@/hooks/useSSE';
+import type { Order } from '@/types/order';
+import { computeTotal } from '@/types/order';
+import { formatMoney } from '@/types/product';
+import { paths } from '@/paths';
 import { formatOrderTime } from './orderFormat';
 import { CashierEventPausedNotice } from './CashierEventPausedNotice';
 import type { CashierContext } from './CashierLayout';

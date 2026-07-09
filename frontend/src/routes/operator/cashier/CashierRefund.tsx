@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 
-import { SearchIcon } from '../../../components/icons';
-import { BackButton } from '../../../components/shared';
-import { getRefundableOrders } from '../../../api/orders';
-import type { Order } from '../../../types/order';
-import { computeRefundableTotal } from '../../../types/order';
-import { formatMoney } from '../../../types/product';
-import { paths } from '../../../paths';
+import { SearchIcon } from '@/components/icons';
+import { BackButton } from '@/components/shared';
+import { getRefundableOrders } from '@/api/orders';
+import type { Order } from '@/types/order';
+import { computeRefundableTotal } from '@/types/order';
+import { formatMoney } from '@/types/product';
+import { paths } from '@/paths';
 import { formatOrderTime } from './orderFormat';
 import type { CashierContext } from './CashierLayout';
 
