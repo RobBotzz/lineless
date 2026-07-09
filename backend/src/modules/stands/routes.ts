@@ -111,7 +111,9 @@ eventStandsRouter.get(
       const stands = req.organizer
         ? await listStands(eventId(req), req.organizer.accountId)
         : req.attendee
-          ? await listStandsForAttendee(eventId(req), req.attendee.eventId)
+          ? await listStandsForAttendee(eventId(req), req.attendee.eventId, {
+              includePaused: req.query["includePaused"] === "true",
+            })
           : await listStandsForEventLink(eventId(req));
       res.status(200).json(stands);
     } catch (err) {

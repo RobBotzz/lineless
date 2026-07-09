@@ -929,13 +929,16 @@ export async function resolveCashierEventId(
 export async function getOrderForCashier(
   orderId: string,
   operatorStandId: string
-): Promise<OrderDoc> {
+): Promise<AttendeeOrder> {
   const stand = await assertCashierStand(operatorStandId, {
     requireActiveEvent: false,
   });
   const order = await Order.findById(orderId).lean();
   if (!order || stand.eventId !== order.eventId) throw new OrderNotFoundError();
-  return order;
+  // Reuse the generic name-join: the cashier catalog only lists LIVE products,
+  // so paused/deleted products must be resolved here rather than left as raw ids
+  // for the frontend to display.
+  return enrichOrderForAttendee(order);
 }
 
 // Unpaid cash orders for an event (tabId: null = no digital payment tab).
