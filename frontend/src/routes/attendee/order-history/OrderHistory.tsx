@@ -2,10 +2,31 @@ import { useParams, useLoaderData, Link } from 'react-router';
 
 import { BackButton } from '@/components/shared';
 import { paths } from '@/paths';
-import { computeTotal, deriveOrderListStatus, type Order } from '@/types/order';
+import {
+  computeTotal,
+  deriveOrderListStatus,
+  type Order,
+  type OrderListStatus,
+} from '@/types/order';
 import { formatMoney } from '@/types/product';
 import { ChevronRightIcon } from '@/components/icons';
 import { cn } from '@/lib/utils';
+
+const STATUS_LABEL: Record<OrderListStatus, string> = {
+  'pending-payment': 'Pending Payment',
+  'in-preparation': 'In Preparation',
+  cancelled: 'Cancelled',
+  refunded: 'Refunded',
+  fulfilled: 'Fulfilled',
+};
+
+const STATUS_CLASS: Record<OrderListStatus, string> = {
+  'pending-payment': 'bg-warning/10 text-warning border-warning/40',
+  'in-preparation': 'bg-warning/10 text-warning border-warning/40',
+  cancelled: 'bg-danger/10 text-danger border-danger/40',
+  refunded: 'bg-surface-muted text-text-muted border-border',
+  fulfilled: 'bg-success/5 text-success border-success/40',
+};
 
 export default function OrderHistory() {
   const { eventId } = useParams() as { eventId: string };
@@ -31,24 +52,8 @@ export default function OrderHistory() {
       <div className="space-y-3">
         {orders.map((order) => {
           const status = deriveOrderListStatus(order);
-          const statusLabel =
-            status === 'pending-payment'
-              ? 'Pending Payment'
-              : status === 'in-preparation'
-                ? 'In Preparation'
-                : status === 'cancelled'
-                  ? 'Cancelled'
-                  : status === 'refunded'
-                    ? 'Refunded'
-                    : 'Fulfilled';
-          const statusColor =
-            status === 'pending-payment' || status === 'in-preparation'
-              ? 'bg-warning/10 text-warning border-warning/40'
-              : status === 'cancelled'
-                ? 'bg-danger/10 text-danger border-danger/40'
-                : status === 'refunded'
-                  ? 'bg-surface-muted text-text-muted border-border'
-                  : 'bg-success/5 text-success border-success/40';
+          const statusLabel = STATUS_LABEL[status];
+          const statusColor = STATUS_CLASS[status];
 
           // Unpaid cash orders (pending, or cashier-cancelled) have no tracking —
           // their detail lives on the pay page. Paid orders (including ones later
