@@ -106,18 +106,27 @@ function readStored(persistKey: string | undefined): CartItem[] {
     if (!raw) return [];
     const stored: unknown = JSON.parse(raw);
     if (!Array.isArray(stored)) return [];
-    return stored.flatMap((value) => {
-      if (!isRecord(value) || !isPositiveInteger(value.quantity)) return [];
+    // Clamp the whole cart to MAX_CART_ITEMS at the hydration boundary so an old
+    // (or hand-edited) persisted blob can never exceed the cap the rest of the
+    // reducer assumes — otherwise checkout would flatten to a payload the backend
+    // rejects. Lines fill up to the remaining headroom; once it's gone they drop.
+    const items: CartItem[] = [];
+    let headroom = MAX_CART_ITEMS;
+    for (const value of stored) {
+      if (headroom <= 0) break;
+      if (!isRecord(value) || !isPositiveInteger(value.quantity)) continue;
       const product = parseStoredProduct(value.product);
-      if (!product) return [];
-      const quantity = value.quantity;
+      if (!product) continue;
+      const quantity = Math.min(value.quantity, headroom);
       const comments =
         Array.isArray(value.comments) &&
         value.comments.every((comment) => typeof comment === 'string')
           ? value.comments
           : [];
-      return [{ product, quantity, comments: resizeComments(comments, quantity) }];
-    });
+      items.push({ product, quantity, comments: resizeComments(comments, quantity) });
+      headroom -= quantity;
+    }
+    return items;
   } catch {
     return [];
   }
