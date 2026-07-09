@@ -53,9 +53,10 @@ function buildStandGroups(
     const standName = info?.standName ?? item.standName;
 
     const stand = info ? standsById.get(info.standId) : fallbackStand;
-    // info.standId is either a real stand UUID or a synthetic "__paused__:<name>"
-    // key, so it is always unique per stand and safe to use as the group key.
-    const groupKey = info ? info.standId || UNAVAILABLE_STAND._id : (stand?._id ?? standName);
+    // info.standId is '' when the product is no longer resolvable (e.g. a
+    // paused stand), so fall back to the stand name to still group that
+    // stand's items together under one card.
+    const groupKey = info ? info.standId || info.standName : (stand?._id ?? standName);
     const resolvedStand: Stand = stand ?? { ...UNAVAILABLE_STAND, standName };
 
     const existing = groups.get(groupKey);

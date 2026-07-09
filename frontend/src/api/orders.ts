@@ -242,7 +242,7 @@ export function groupOrderItemsForView(
     groups.set(item.productId, {
       productId: item.productId,
       productName: product?.productName ?? item.productName,
-      standId: product?.standId ?? `__paused__:${item.standName}:${item.productId}`,
+      standId: product?.standId ?? '',
       standName: product ? (standNameById?.get(product.standId) ?? item.standName) : item.standName,
       unitPrice: item.priceIncludingTaxAtPurchase,
       quantity: 1,
