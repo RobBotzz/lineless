@@ -3,6 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { tracksStock, type Product } from '@/types/product';
 import type { StockShortage } from '@/types/order';
 
+// The order payload flattens one entry per unit (see flattenOrderItems), so the
+// whole cart is bounded by the backend's MAX_ITEMS_PER_REQUEST in
+// orders/types.ts. Clamp here so a guest can never build an order the backend
+// rejects at checkout. Keep the two values in sync.
+export const MAX_CART_ITEMS = 100;
+
 // A line in the cart: the product snapshot plus how many were added. We keep a
 // snapshot (not just an id) so the cart page can render without re-fetching.
 export interface CartItem {
@@ -15,6 +21,8 @@ export interface CartState {
   items: CartItem[];
   totalCount: number;
   totalCents: number;
+  // True once the cart holds MAX_CART_ITEMS units; further adds are ignored.
+  atItemLimit: boolean;
   addItem: (product: Product) => void;
   setQuantity: (productId: string, quantity: number, currentProduct?: Product) => void;
   setComment: (productId: string, index: number, comment: string) => void;
@@ -131,6 +139,9 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
   const addItem = useCallback((product: Product) => {
     setItems((prev) => {
       if (tracksStock(product) && product.productStock <= 0) return prev;
+      // Each add is one more unit; refuse it once the whole cart is at the cap.
+      const total = prev.reduce((sum, i) => sum + i.quantity, 0);
+      if (total >= MAX_CART_ITEMS) return prev;
       const existing = prev.find((i) => i.product._id === product._id);
       if (existing) {
         if (tracksStock(product) && existing.quantity >= product.productStock) {
@@ -161,9 +172,17 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
         ) {
           return prev.filter((candidate) => candidate.product._id !== productId);
         }
-        const nextQuantity = tracksStock(product)
+        const stockClamped = tracksStock(product)
           ? Math.min(quantity, product.productStock)
           : quantity;
+        // Cap this line so the whole cart still fits MAX_CART_ITEMS. Other lines
+        // sum to at most 99 here (this line holds >= 1), so the headroom is >= 1.
+        const otherLinesTotal = prev.reduce(
+          (sum, candidate) =>
+            candidate.product._id === productId ? sum : sum + candidate.quantity,
+          0,
+        );
+        const nextQuantity = Math.min(stockClamped, MAX_CART_ITEMS - otherLinesTotal);
         return prev.map((candidate) =>
           candidate.product._id === productId
             ? {
@@ -246,6 +265,7 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
       items,
       totalCount,
       totalCents,
+      atItemLimit: totalCount >= MAX_CART_ITEMS,
       addItem,
       setQuantity,
       setComment,
