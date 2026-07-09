@@ -5,7 +5,7 @@ import { AlertDialog } from '@/components/feedback';
 import { WarningTriangleIcon } from '@/components/icons';
 import { BackButton } from '@/components/shared';
 import { ApiError } from '@/api/client';
-import { confirmCashPayment } from '@/api/orders';
+import { confirmCashPayment, orderAlreadyPaid } from '@/api/orders';
 import { computeTotal } from '@/types/order';
 import { formatMoney } from '@/types/product';
 import { paths } from '@/paths';
@@ -13,15 +13,6 @@ import { OrderSummary } from '@/features/orders/OrderSummary';
 import { formatOrderDateTime } from './orderFormat';
 import type { CashierContext } from './CashierLayout';
 import { useCashierOrder } from './useCashierOrder';
-
-// A double-confirm race resolves the order as already paid, which the cash-
-// payment endpoint reports as a 409 with no discriminating code — so we key off
-// its error message. (Inactive event / cashier disabled come back as 403.)
-function isAlreadyPaid(err: ApiError): boolean {
-  return (
-    err.message.toLowerCase().includes('already') && err.message.toLowerCase().includes('paid')
-  );
-}
 
 export default function CashierPaymentDetails() {
   const { orderId } = useParams() as { orderId: string };
@@ -47,7 +38,7 @@ export default function CashierPaymentDetails() {
       navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
     } catch (err) {
       // Double-confirm race: the order is already paid (409) — treat as success.
-      if (err instanceof ApiError && err.status === 409 && isAlreadyPaid(err)) {
+      if (orderAlreadyPaid(err)) {
         navigate(paths.operator.cashierPaymentConfirmed(eventId, order._id));
         return;
       }

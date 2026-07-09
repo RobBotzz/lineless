@@ -142,6 +142,15 @@ export function orderRequestConflict(err: unknown): OrderRequestConflict | null 
   return null;
 }
 
+// A double-confirm race resolves the order as already paid; the cash-payment
+// endpoint reports this as a 409 carrying this code.
+export function orderAlreadyPaid(err: unknown): boolean {
+  if (!(err instanceof ApiError) || err.status !== 409) return false;
+  const data = err.data;
+  if (!data || typeof data !== 'object') return false;
+  return (data as Record<string, unknown>).code === 'ORDER_ALREADY_PAID';
+}
+
 function unexpectedOrderResponse(status: number, data: unknown): ApiError {
   let message = `Unexpected order response (${status})`;
   if (data && typeof data === 'object') {
