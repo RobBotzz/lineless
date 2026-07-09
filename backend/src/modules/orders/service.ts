@@ -929,13 +929,16 @@ export async function resolveCashierEventId(
 export async function getOrderForCashier(
   orderId: string,
   operatorStandId: string
-): Promise<OrderDoc> {
+): Promise<AttendeeOrder> {
   const stand = await assertCashierStand(operatorStandId, {
     requireActiveEvent: false,
   });
   const order = await Order.findById(orderId).lean();
   if (!order || stand.eventId !== order.eventId) throw new OrderNotFoundError();
-  return order;
+  // Reuse the generic name-join: the cashier catalog only lists LIVE products,
+  // so paused/deleted products must be resolved here rather than left as raw ids
+  // for the frontend to display.
+  return enrichOrderForAttendee(order);
 }
 
 // Unpaid cash orders for an event (tabId: null = no digital payment tab).
@@ -1139,33 +1142,4 @@ export async function advanceOrderItem(
   const updated = await Order.findById(orderId).lean();
   if (!updated) throw new OrderNotFoundError();
   return updated;
-}
-
-// Called by the payments module after confirming payment (cash or Stripe).
-// Advances all instantProduct items to READY so they bypass the operator queue
-// and wait only for customer pickup (fulfilledAt is set via the normal fulfill endpoint).
-export async function releaseInstantItems(orderId: string): Promise<void> {
-  const order = await Order.findById(orderId);
-  if (!order) throw new OrderNotFoundError();
-
-  const productIds = order.items.map((i) => i.productId);
-  const products = await Product.find({ _id: { $in: productIds } }).lean();
-  const productById = new Map(products.map((p) => [p._id, p]));
-
-  const now = new Date();
-  let changed = false;
-
-  for (const item of order.items) {
-    const product = productById.get(item.productId);
-    if (product?.instantProduct && !item.startedAt) {
-      item.startedAt = now;
-      item.readyAt = now;
-      if (item.inventoryState === "RESERVED") {
-        item.inventoryState = "CONSUMED";
-      }
-      changed = true;
-    }
-  }
-
-  if (changed) await order.save();
 }

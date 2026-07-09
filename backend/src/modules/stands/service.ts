@@ -161,7 +161,8 @@ export async function listStands(
 
 export async function listStandsForAttendee(
   eventId: string,
-  sessionEventId: string
+  sessionEventId: string,
+  options?: { includePaused?: boolean }
 ): Promise<SafeStand[]> {
   assertSessionOwnsEvent(eventId, sessionEventId);
   // COMPLETED is intentionally excluded: once an event is completed, no new
@@ -173,8 +174,13 @@ export async function listStandsForAttendee(
     deletedAt: null,
   }).lean();
   if (!event) throw new EventNotFoundError();
+  // Ordering pages hide paused stands (can't order from them); the order-history
+  // / tracking pages pass includePaused so a paused stand still renders normally
+  // for an order already placed against it.
   const stands = await Stand.find(
-    listableStandFilter(eventId, { hidePausedProductStands: true })
+    listableStandFilter(eventId, {
+      hidePausedProductStands: !options?.includePaused,
+    })
   )
     .sort({ createdAt: 1 })
     .lean();
