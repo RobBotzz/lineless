@@ -178,6 +178,41 @@ export function getOrder(orderId: string, standId: string): Promise<Order> {
   return apiFetch<Order>(`/orders/${orderId}`, { auth: 'operator', standId });
 }
 
+// Shared by buildOrderViewItems and buildRefundRows: both are operator-scoped
+// and need the same event-wide product/stand catalog maps.
+async function fetchOperatorCatalogMaps(eventId: string, standId: string) {
+  const [products, stands] = await Promise.all([
+    getOperatorEventProducts(eventId, standId),
+    getOperatorStands(eventId),
+  ]);
+  return {
+    productById: new Map(products.map((p) => [p._id, p])),
+    standNameById: new Map(stands.map((s) => [s._id, s.standName])),
+  };
+}
+
+// Shared grouping skeleton for buildOrderViewItems and groupOrderItemsForView:
+// one OrderItemView per productId, skipping cancelled items and tallying
+// quantity/comments for repeats. buildView supplies the per-caller field
+// resolution (catalog-only fallbacks vs. order-item-enriched fallbacks), since
+// the two callers operate on different item shapes (OrderItem vs. AttendeeOrderItem).
+function groupItemsByProductId<
+  T extends { productId: string; cancelledAt: string | null; customerComment: string | null },
+>(items: T[], buildView: (item: T) => OrderItemView): OrderItemView[] {
+  const groups = new Map<string, OrderItemView>();
+  for (const item of items) {
+    if (item.cancelledAt) continue;
+    const existing = groups.get(item.productId);
+    if (existing) {
+      existing.quantity += 1;
+      existing.comments.push(item.customerComment ?? '');
+      continue;
+    }
+    groups.set(item.productId, buildView(item));
+  }
+  return [...groups.values()];
+}
+
 // Builds enriched view items for display. The cashier spans the whole event, so
 // names are resolved from the event-wide catalog and stand list rather than a
 // single stand (an order's items may come from several stands).
@@ -186,24 +221,11 @@ export async function buildOrderViewItems(
   eventId: string,
   standId: string,
 ): Promise<OrderItemView[]> {
-  const [products, stands] = await Promise.all([
-    getOperatorEventProducts(eventId, standId),
-    getOperatorStands(eventId),
-  ]);
-  const productById = new Map(products.map((p) => [p._id, p]));
-  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+  const { productById, standNameById } = await fetchOperatorCatalogMaps(eventId, standId);
 
-  const groups = new Map<string, OrderItemView>();
-  for (const item of order.items) {
-    if (item.cancelledAt) continue;
-    const existing = groups.get(item.productId);
-    if (existing) {
-      existing.quantity += 1;
-      existing.comments.push(item.customerComment ?? '');
-      continue;
-    }
+  return groupItemsByProductId(order.items, (item) => {
     const product = productById.get(item.productId);
-    groups.set(item.productId, {
+    return {
       productId: item.productId,
       productName: product?.productName ?? item.productId,
       standId: product?.standId ?? '',
@@ -211,9 +233,8 @@ export async function buildOrderViewItems(
       unitPrice: item.priceIncludingTaxAtPurchase,
       quantity: 1,
       comments: [item.customerComment ?? ''],
-    });
-  }
-  return [...groups.values()];
+    };
+  });
 }
 
 // Builds enriched view items for an attendee. Accepts the already-fetched stands
@@ -229,17 +250,9 @@ export function groupOrderItemsForView(
   productById?: Map<string, Product>,
   standNameById?: Map<string, string>,
 ): OrderItemView[] {
-  const groups = new Map<string, OrderItemView>();
-  for (const item of order.items) {
-    if (item.cancelledAt) continue;
-    const existing = groups.get(item.productId);
-    if (existing) {
-      existing.quantity += 1;
-      existing.comments.push(item.customerComment ?? '');
-      continue;
-    }
+  return groupItemsByProductId(order.items, (item) => {
     const product = productById?.get(item.productId);
-    groups.set(item.productId, {
+    return {
       productId: item.productId,
       productName: product?.productName ?? item.productName,
       standId: product?.standId ?? '',
@@ -247,9 +260,8 @@ export function groupOrderItemsForView(
       unitPrice: item.priceIncludingTaxAtPurchase,
       quantity: 1,
       comments: [item.customerComment ?? ''],
-    });
-  }
-  return [...groups.values()];
+    };
+  });
 }
 
 export async function buildAttendeeOrderViewItems(
@@ -449,12 +461,7 @@ export async function buildRefundRows(
   eventId: string,
   standId: string,
 ): Promise<RefundItemRow[]> {
-  const [products, stands] = await Promise.all([
-    getOperatorEventProducts(eventId, standId),
-    getOperatorStands(eventId),
-  ]);
-  const productById = new Map(products.map((p) => [p._id, p]));
-  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+  const { productById, standNameById } = await fetchOperatorCatalogMaps(eventId, standId);
 
   return order.items.map((item) => {
     const product = productById.get(item.productId);
