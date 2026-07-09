@@ -2,7 +2,7 @@ import { useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { getEventPublicInfo } from '../../../api/events';
-import { CartIcon, CreditCardIcon, InfoIcon, RefundIcon } from '../../../components/icons';
+import { BanknoteIcon, CartIcon, InfoIcon, RefundIcon } from '../../../components/icons';
 import { BackButton } from '../../../components/shared';
 import { paths } from '../../../paths';
 import { ChoiceCard } from './ChoiceCard';
@@ -59,7 +59,7 @@ export default function CashierHome() {
         <ChoiceCard
           to={paths.operator.cashierPayment(eventId)}
           disabled={eventStopped}
-          icon={<CreditCardIcon className="h-8 w-8" />}
+          icon={<BanknoteIcon className="h-8 w-8" />}
           title="Cash Payment"
           description={
             eventStopped
