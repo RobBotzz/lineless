@@ -124,14 +124,20 @@ function ChargeResultMessage({
 }) {
   if (!show) return null;
   if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (result)
+  if (result) {
+    // Green only when nothing failed; red when the whole batch failed (0 settled),
+    // amber for a partial failure. A skipped tab (items not ready) is informational,
+    // not a failure, so it doesn't downgrade an otherwise-clean result.
+    const tone =
+      result.failed === 0 ? 'text-success' : result.settled === 0 ? 'text-danger' : 'text-warning';
     return (
-      <p className="text-sm text-success">
+      <p className={`text-sm ${tone}`}>
         Charged {result.settled} {result.settled === 1 ? 'tab' : 'tabs'}
         {result.skipped > 0 ? `, skipped ${result.skipped} (items not ready)` : ''}
         {result.failed > 0 ? `, ${result.failed} failed` : ''}.
       </p>
     );
+  }
   return null;
 }
 
