@@ -7,7 +7,7 @@ import { Tab } from "../tabs/model";
 import { TabPayment } from "../payments/model";
 import { Product } from "../products/model";
 import { Account } from "../accounts/model";
-import { EventPayout, Payout } from "./model";
+import { Payout } from "./model";
 import { MissingBankDetailsError, NoPayoutAvailableError } from "./errors";
 import type {
   EventPayoutBreakdown,
@@ -29,8 +29,9 @@ import {
   summarizeCapturedCard,
 } from "./payoutMath";
 
-// Recomputes an event's payout figures from orders, tabs and payments, persists
-// the snapshot, and returns the full breakdown.
+// Recomputes an event's payout figures from orders, tabs and payments and
+// returns the full breakdown. Pure read: the orders, tabs and payments are the
+// source of truth, so nothing is persisted here.
 //
 // Two clocks are kept deliberately separate. SALES are recognized on delivery
 // (READY/FULFILLED, non-cancelled) and are method-agnostic, so grossSalesCents
@@ -121,30 +122,6 @@ export async function computeEventPayout(
   });
 
   const computedAt = new Date();
-  await EventPayout.findOneAndUpdate(
-    { eventId },
-    {
-      $set: {
-        accountId,
-        grossSalesCents,
-        cashSalesCents,
-        pendingSalesCents,
-        cashRefundCents,
-        taxCents,
-        capturedCardCents,
-        stripeFeeCents,
-        platformFeeCents,
-        netPayoutCents,
-        onHoldReadyCents,
-        onHoldAuthorizedCents,
-        inTransitCents,
-        paidOrderCount,
-        soldOrderCount,
-        computedAt,
-      },
-    },
-    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-  );
 
   return {
     eventId,
