@@ -18,6 +18,10 @@ export function CardPaymentForm({ onConfirmed, onError, submitLabel }: CardPayme
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
+  // stripe/elements turn non-null a moment before the PaymentElement iframe
+  // finishes mounting; gate the button on onReady too so it can't be pressed
+  // over a still-blank card field.
+  const [ready, setReady] = useState(false);
 
   async function confirm() {
     if (!stripe || !elements) return;
@@ -47,8 +51,15 @@ export function CardPaymentForm({ onConfirmed, onError, submitLabel }: CardPayme
       }}
       className="space-y-4"
     >
-      <PaymentElement options={{ wallets: { applePay: 'auto', googlePay: 'auto' } }} />
-      <Button type="submit" className="h-12 w-full rounded-xl" disabled={!stripe || submitting}>
+      <PaymentElement
+        onReady={() => setReady(true)}
+        options={{ wallets: { applePay: 'auto', googlePay: 'auto' } }}
+      />
+      <Button
+        type="submit"
+        className="h-12 w-full rounded-xl"
+        disabled={!stripe || !elements || !ready || submitting}
+      >
         {submitting ? 'Authorizing…' : submitLabel}
       </Button>
     </form>
