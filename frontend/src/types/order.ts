@@ -46,8 +46,13 @@ export function computeTotal(order: Order): number {
     .reduce((sum, item) => sum + item.priceIncludingTaxAtPurchase, 0);
 }
 
-// An item is refundable when it was cancelled but not yet refunded.
-export function isRefundableItem(item: OrderItem): boolean {
+// An item is refundable when it was cancelled but not yet refunded. Accepts
+// any shape with these two fields so it also works for the cashier's
+// RefundItemRow (see api/orders.ts), not just OrderItem.
+export function isRefundableItem(item: {
+  cancelledAt: string | null;
+  refundedAt: string | null;
+}): boolean {
   return item.cancelledAt != null && item.refundedAt == null;
 }
 

@@ -3,16 +3,13 @@ import { useNavigate, useOutletContext, useParams } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
 import { BackButton } from '@/components/shared';
-import { refundOrderItems, type RefundItemRow } from '@/api/orders';
+import { refundOrderItems } from '@/api/orders';
 import { formatMoney } from '@/types/product';
+import { isRefundableItem } from '@/types/order';
 import { paths } from '@/paths';
 import { OrderDetailsSection } from './OrderDetailsSection';
 import type { CashierContext } from './CashierLayout';
 import { useCashierRefundOrder } from './useCashierRefundOrder';
-
-function isRefundable(row: RefundItemRow): boolean {
-  return row.cancelledAt != null && row.refundedAt == null;
-}
 
 export default function CashierRefundDetails() {
   const { orderId } = useParams() as { orderId: string };
@@ -24,7 +21,7 @@ export default function CashierRefundDetails() {
   const [isRefunding, setIsRefunding] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
 
-  const refundableRows = rows.filter(isRefundable);
+  const refundableRows = rows.filter(isRefundableItem);
 
   // All cancelled items are refunded together, or none — no partial refunds.
   const selectedIds = refundableRows.map((r) => r._id);
