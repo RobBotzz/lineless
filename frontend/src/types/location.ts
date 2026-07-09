@@ -35,3 +35,13 @@ export function fromLatLng(lat: number, lng: number, name: string | null = null)
     yCoordinate: lat,
   };
 }
+
+// Falls back for any falsy locationName (null, undefined, or '') so an empty
+// string never renders as a blank line — callers must not use `??` here, since
+// that would let '' through unfallen-back.
+export function resolveLocationName(
+  locationName: string | null | undefined,
+  fallback: string,
+): string {
+  return locationName ? locationName : fallback;
+}

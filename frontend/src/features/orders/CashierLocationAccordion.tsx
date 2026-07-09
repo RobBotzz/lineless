@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { ChevronDownIcon, PinIcon } from '@/components/icons';
 import { StaticLocationMap } from '@/components/location/StaticLocationMap';
+import { resolveLocationName } from '@/types/location';
 
 import { useCashierStandLocation } from './useCashierStandLocation';
 
@@ -38,7 +39,7 @@ export function CashierLocationAccordion({ eventId }: CashierLocationAccordionPr
       {open ? (
         <div className="mt-4 space-y-3">
           <p className="text-sm font-medium text-text [overflow-wrap:anywhere]">
-            {cashierStand.location.locationName ?? cashierStand.standName}
+            {resolveLocationName(cashierStand.location.locationName, cashierStand.standName)}
           </p>
           <StaticLocationMap lat={position[0]} lng={position[1]} />
         </div>

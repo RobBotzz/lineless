@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { ChevronDownIcon, RefundIcon } from '@/components/icons';
 import { StaticLocationMap } from '@/components/location/StaticLocationMap';
+import { resolveLocationName } from '@/types/location';
 
 import { useCashierStandLocation } from './useCashierStandLocation';
 
@@ -44,7 +45,7 @@ export function CashRefundNotice({ eventId }: CashRefundNoticeProps) {
           {open ? (
             <div className="mt-4 space-y-3">
               <p className="text-sm font-medium text-text">
-                {cashierStand.location.locationName ?? cashierStand.standName}
+                {resolveLocationName(cashierStand.location.locationName, cashierStand.standName)}
               </p>
               <StaticLocationMap lat={position[0]} lng={position[1]} />
             </div>

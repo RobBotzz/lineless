@@ -4,7 +4,7 @@ import { ChevronDownIcon, CommentIcon, PinIcon, StandIcon } from '@/components/i
 import { StaticLocationMap } from '@/components/location/StaticLocationMap';
 import { cn } from '@/lib/utils';
 import { getItemStatus, type ItemStatus } from '@/lib/order-utils';
-import { toLatLng } from '@/types/location';
+import { resolveLocationName, toLatLng } from '@/types/location';
 import type { OrderItem } from '@/types/order';
 import type { Stand } from '@/types/stand';
 
@@ -153,7 +153,9 @@ export function StandTrackGroup({ stand, items }: StandTrackGroupProps) {
           >
             <span className="flex min-w-0 items-center gap-1.5">
               <PinIcon className="h-4 w-4 shrink-0 text-accent-contrast" />
-              <span className="truncate">{stand.location.locationName || 'View location'}</span>
+              <span className="truncate">
+                {resolveLocationName(stand.location.locationName, 'View location')}
+              </span>
             </span>
             <ChevronDownIcon
               className={cn('shrink-0 transition-transform duration-200', mapOpen && 'rotate-180')}
