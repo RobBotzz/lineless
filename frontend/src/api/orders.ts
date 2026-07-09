@@ -227,9 +227,12 @@ export async function buildOrderViewItems(
     const product = productById.get(item.productId);
     return {
       productId: item.productId,
-      productName: product?.productName ?? item.productId,
+      // The cashier catalog only lists LIVE products, so a paused/deleted
+      // product misses here; fall back to the name the backend enriched onto
+      // the order item rather than showing the raw id.
+      productName: product?.productName ?? item.productName ?? item.productId,
       standId: product?.standId ?? '',
-      standName: product ? (standNameById.get(product.standId) ?? '') : '',
+      standName: product ? (standNameById.get(product.standId) ?? item.standName) : item.standName,
       unitPrice: item.priceIncludingTaxAtPurchase,
       quantity: 1,
       comments: [item.customerComment ?? ''],

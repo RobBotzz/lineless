@@ -48,15 +48,17 @@ function buildStandGroups(
     // standName the backend already enriched directly onto the order item, and
     // resolve the stand by name so cancelled items still merge into the same
     // card as that stand's active items.
-    const fallbackStand = !info ? standsByName.get(item.standName) : undefined;
     const productName = info?.productName ?? item.productName;
     const standName = info?.standName ?? item.standName;
 
-    const stand = info ? standsById.get(info.standId) : fallbackStand;
-    // info.standId is '' when the product is no longer resolvable (e.g. a
-    // paused stand), so fall back to the stand name to still group that
-    // stand's items together under one card.
-    const groupKey = info ? info.standId || info.standName : (stand?._id ?? standName);
+    // Resolve the stand by id when the live catalog knows it, otherwise by name.
+    // info.standId is '' for a paused stand's items (it drops out of the
+    // attendee catalog), so the name lookup — which now includes paused stands —
+    // still finds the full stand (with its location) rather than falling back to
+    // the "unavailable" placeholder.
+    const stand =
+      (info?.standId ? standsById.get(info.standId) : undefined) ?? standsByName.get(standName);
+    const groupKey = stand?._id ?? standName;
     const resolvedStand: Stand = stand ?? { ...UNAVAILABLE_STAND, standName };
 
     const existing = groups.get(groupKey);
@@ -64,9 +66,9 @@ function buildStandGroups(
       existing.items.push({ orderItem: item, productName });
     } else {
       groups.set(groupKey, {
-        // groupKey (not stand._id) is the React key: unresolvable stands all
-        // share the '__unavailable__' sentinel _id, so keying on it would
-        // collide when an order has items from two unresolvable stands.
+        // groupKey is the resolved stand id, or the stand name when the stand is
+        // unresolvable — never the shared '__unavailable__' sentinel _id, which
+        // would collide across two different unresolvable stands.
         key: groupKey,
         stand: resolvedStand,
         items: [{ orderItem: item, productName }],
@@ -166,7 +168,9 @@ export default function TrackOrder() {
 
   const standsQuery = useQuery({
     queryKey: ['attendee-stands', eventId],
-    queryFn: () => getAttendeeStands(eventId),
+    // Include paused stands so an order placed against a since-paused stand still
+    // shows its name and location map normally.
+    queryFn: () => getAttendeeStands(eventId, { includePaused: true }),
     staleTime: 60_000,
   });
 

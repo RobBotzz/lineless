@@ -15,10 +15,13 @@ interface StandGroup {
 function groupByStand(items: OrderItemView[]): StandGroup[] {
   const groups = new Map<string, StandGroup>();
   for (const item of items) {
-    const existing = groups.get(item.standId);
+    // standId is '' when the product is no longer resolvable (e.g. a paused
+    // stand), so fall back to the stand name — otherwise items from two
+    // different unresolvable stands would collapse under one heading.
+    const key = item.standId || item.standName;
+    const existing = groups.get(key);
     if (existing) existing.items.push(item);
-    else
-      groups.set(item.standId, { standId: item.standId, standName: item.standName, items: [item] });
+    else groups.set(key, { standId: item.standId, standName: item.standName, items: [item] });
   }
   return [...groups.values()];
 }
