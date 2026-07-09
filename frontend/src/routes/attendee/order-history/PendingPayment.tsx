@@ -50,7 +50,8 @@ export default function PendingPayment() {
 
   const standsQuery = useQuery({
     queryKey: ['attendee-stands', eventId],
-    queryFn: () => getAttendeeStands(eventId),
+    // Include paused stands so a since-paused stand still resolves normally here.
+    queryFn: () => getAttendeeStands(eventId, { includePaused: true }),
     staleTime: 60_000,
   });
 

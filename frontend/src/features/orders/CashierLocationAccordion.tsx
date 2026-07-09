@@ -1,11 +1,10 @@
 import { useState } from 'react';
 
-import { useQuery } from '@tanstack/react-query';
-
-import { getCashierStandForAttendee } from '@/api/stands';
 import { ChevronDownIcon, PinIcon } from '@/components/icons';
 import { StaticLocationMap } from '@/components/location/StaticLocationMap';
-import { hasCoordinates, toLatLng } from '@/types/location';
+import { resolveLocationName } from '@/types/location';
+
+import { useCashierStandLocation } from './useCashierStandLocation';
 
 interface CashierLocationAccordionProps {
   eventId: string;
@@ -18,15 +17,7 @@ interface CashierLocationAccordionProps {
 export function CashierLocationAccordion({ eventId }: CashierLocationAccordionProps) {
   const [open, setOpen] = useState(false);
 
-  const cashierStandQuery = useQuery({
-    queryKey: ['attendee-cashier-stand', eventId],
-    queryFn: () => getCashierStandForAttendee(eventId),
-    retry: false,
-  });
-
-  const cashierStand = cashierStandQuery.data ?? null;
-  const position =
-    cashierStand && hasCoordinates(cashierStand.location) ? toLatLng(cashierStand.location) : null;
+  const { cashierStand, position } = useCashierStandLocation(eventId);
 
   if (!cashierStand || !position) return null;
 
@@ -48,7 +39,7 @@ export function CashierLocationAccordion({ eventId }: CashierLocationAccordionPr
       {open ? (
         <div className="mt-4 space-y-3">
           <p className="text-sm font-medium text-text [overflow-wrap:anywhere]">
-            {cashierStand.location.locationName ?? cashierStand.standName}
+            {resolveLocationName(cashierStand.location.locationName, cashierStand.standName)}
           </p>
           <StaticLocationMap lat={position[0]} lng={position[1]} />
         </div>

@@ -439,16 +439,7 @@ export function ExternalLinkIcon({ className = 'h-4 w-4' }: IconProps) {
 
 export function ArrowRightIcon({ className = 'h-4 w-4' }: IconProps) {
   return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-    >
+    <svg className={className} {...strokeProps}>
       <path d="M5 12h14M12 5l7 7-7 7" />
     </svg>
   );
@@ -460,13 +451,11 @@ export function StarIcon({
 }: IconProps & { filled?: boolean }) {
   return (
     <svg
-      aria-hidden="true"
       className={className}
+      {...strokeProps}
       fill={filled ? 'currentColor' : 'none'}
       stroke={filled ? 'none' : 'currentColor'}
       strokeWidth={filled ? undefined : 2}
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
     >
       <path d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9L12 2.5z" />
     </svg>

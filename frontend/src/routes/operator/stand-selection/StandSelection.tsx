@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router';
@@ -8,6 +8,7 @@ import { loginOperator } from '@/api/stands';
 import { clearOperatorCredential, getCredential } from '@/auth/keychain';
 import { Button } from '@/components/ui/button';
 import { PasswordTextField } from '@/components/ui/password-text-field';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import {
   ArrowRightIcon,
   CashierIcon,
@@ -519,16 +520,7 @@ function PasswordDialog({
   password: string;
   stand: Stand | null;
 }) {
-  useEffect(() => {
-    if (!stand) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, stand]);
+  useEscapeKey(onClose, Boolean(stand));
 
   if (!stand) return null;
 

@@ -9,12 +9,17 @@ import { CartCard } from '@/features/cart/CartCard';
 import { useCartState } from '@/features/cart/useCartState';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { useAddGuard } from '@/lib/useAddGuard';
+import { orderItemsFingerprint } from '@/lib/order-utils';
 import { ApiError } from '@/api/client';
 import { getEventPublicInfo } from '@/api/events';
-import { createManualOrder, InsufficientStockError, orderRequestConflict } from '@/api/orders';
+import {
+  buildManualOrderItems,
+  createManualOrder,
+  InsufficientStockError,
+  orderRequestConflict,
+} from '@/api/orders';
 import { getOperatorStands } from '@/api/stands';
 import { getOperatorEventProducts } from '@/api/products';
-import type { OrderItemView } from '@/types/order';
 import { formatMoney, productImageSrc, tracksStock, type Product } from '@/types/product';
 import { paths } from '@/paths';
 import { CashierEventPausedNotice } from './CashierEventPausedNotice';
@@ -81,16 +86,8 @@ export default function CashierManualOrder() {
     setIsCheckingOut(true);
     setEventBlock(null); // revalidate on every attempt, don't stay blocked
     try {
-      const orderItems: OrderItemView[] = items.map((item) => ({
-        productId: item.product._id,
-        productName: item.product.productName,
-        standId: item.product.standId,
-        standName: standNameFor(item.product),
-        unitPrice: item.product.priceIncludingTax,
-        quantity: item.quantity,
-        comments: [],
-      }));
-      const fingerprint = JSON.stringify(orderItems);
+      const orderItems = buildManualOrderItems(items, standNameFor);
+      const fingerprint = orderItemsFingerprint(orderItems);
       if (checkoutAttempt.current?.fingerprint !== fingerprint) {
         checkoutAttempt.current = { fingerprint, requestId: crypto.randomUUID() };
       }

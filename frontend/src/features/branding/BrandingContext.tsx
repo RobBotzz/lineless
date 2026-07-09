@@ -1,8 +1,6 @@
-import { createContext, useLayoutEffect, type ReactNode } from 'react';
+import { useLayoutEffect, type ReactNode } from 'react';
 
 import { applyBranding, resetBranding, type Branding } from './applyBranding';
-
-const BrandingContext = createContext<Branding | null>(null);
 
 export function BrandingProvider({
   branding,
@@ -21,5 +19,5 @@ export function BrandingProvider({
     return () => resetBranding(root);
   }, [branding]);
 
-  return <BrandingContext.Provider value={branding}>{children}</BrandingContext.Provider>;
+  return <>{children}</>;
 }

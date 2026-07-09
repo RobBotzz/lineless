@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { EditIcon } from '@/components/icons';
 import { DeleteIconButton, ProductThumbnail } from '@/components/shared';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { formatMoney, priceExclTax, productImageSrc, type Product } from '@/types/product';
 
 interface ProductRowProps {
@@ -107,13 +108,7 @@ function ProductTypeBadge({ instant }: { instant: boolean }) {
 }
 
 function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   return (
     // z-[1100] sits above the navbar (z-[1001]); click anywhere to dismiss.

@@ -1,13 +1,9 @@
 import type { RefundItemRow } from '@/api/orders';
-import type { Order } from '@/types/order';
+import { isRefundableItem, type Order } from '@/types/order';
 import { formatMoney } from '@/types/product';
 import { cn } from '@/lib/utils';
 
 import { formatOrderDateTime } from './orderFormat';
-
-function isRefundable(row: RefundItemRow): boolean {
-  return row.cancelledAt != null && row.refundedAt == null;
-}
 
 interface OrderDetailsSectionProps {
   order: Pick<Order, 'orderNumber' | 'createdAt'>;
@@ -19,7 +15,7 @@ interface OrderDetailsSectionProps {
 // refund confirmation page, so both show the same item breakdown.
 export function OrderDetailsSection({ order, rows }: OrderDetailsSectionProps) {
   const activeRows = rows.filter((r) => r.cancelledAt == null);
-  const refundableRows = rows.filter(isRefundable);
+  const refundableRows = rows.filter(isRefundableItem);
   const refundedRows = rows.filter((r) => r.refundedAt != null);
 
   return (

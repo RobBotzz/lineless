@@ -18,8 +18,17 @@ export function getOrganizerCashierStand(eventId: string): Promise<Stand> {
   return apiFetch<Stand>(`/events/${eventId}/stands/cashier-stand`, { auth: 'organizer' });
 }
 
-export function getAttendeeStands(eventId: string): Promise<Stand[]> {
-  return apiFetch<Stand[]>(`/events/${eventId}/stands`, { auth: 'attendee', eventId });
+// Ordering pages leave includePaused off (a paused stand can't take new orders);
+// the order-history / tracking pages pass includePaused so a paused stand still
+// resolves fully (name + location) for an order already placed against it.
+export function getAttendeeStands(
+  eventId: string,
+  options?: { includePaused?: boolean },
+): Promise<Stand[]> {
+  const path = options?.includePaused
+    ? `/events/${eventId}/stands?includePaused=true`
+    : `/events/${eventId}/stands`;
+  return apiFetch<Stand[]>(path, { auth: 'attendee', eventId });
 }
 
 // The cashier stand is hidden from the attendee stand list (system-managed,

@@ -1,9 +1,27 @@
 import { ApiError, apiFetch, apiFetchAllowing } from './client';
 import { getAttendeeStandProducts, getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
+import type { CartItem } from '../features/cart/useCartState';
 import type { AttendeeOrder, Order, OrderItemView, StockShortage } from '../types/order';
 import type { Product } from '../types/product';
 import type { Stand } from '../types/stand';
+
+// Maps cart items into the order-item shape the create-order endpoints expect,
+// resolving each product's stand display name via the caller-supplied lookup.
+export function buildManualOrderItems(
+  items: CartItem[],
+  standNameFor: (product: Product) => string,
+): OrderItemView[] {
+  return items.map((item) => ({
+    productId: item.product._id,
+    productName: item.product.productName,
+    standId: item.product.standId,
+    standName: standNameFor(item.product),
+    unitPrice: item.product.priceIncludingTax,
+    quantity: item.quantity,
+    comments: [],
+  }));
+}
 
 // Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED.
 // These transitions are operator-only (authOperator on the backend) and each
@@ -124,6 +142,15 @@ export function orderRequestConflict(err: unknown): OrderRequestConflict | null 
   return null;
 }
 
+// A double-confirm race resolves the order as already paid; the cash-payment
+// endpoint reports this as a 409 carrying this code.
+export function orderAlreadyPaid(err: unknown): boolean {
+  if (!(err instanceof ApiError) || err.status !== 409) return false;
+  const data = err.data;
+  if (!data || typeof data !== 'object') return false;
+  return (data as Record<string, unknown>).code === 'ORDER_ALREADY_PAID';
+}
+
 function unexpectedOrderResponse(status: number, data: unknown): ApiError {
   let message = `Unexpected order response (${status})`;
   if (data && typeof data === 'object') {
@@ -151,6 +178,41 @@ export function getOrder(orderId: string, standId: string): Promise<Order> {
   return apiFetch<Order>(`/orders/${orderId}`, { auth: 'operator', standId });
 }
 
+// Shared by buildOrderViewItems and buildRefundRows: both are operator-scoped
+// and need the same event-wide product/stand catalog maps.
+async function fetchOperatorCatalogMaps(eventId: string, standId: string) {
+  const [products, stands] = await Promise.all([
+    getOperatorEventProducts(eventId, standId),
+    getOperatorStands(eventId),
+  ]);
+  return {
+    productById: new Map(products.map((p) => [p._id, p])),
+    standNameById: new Map(stands.map((s) => [s._id, s.standName])),
+  };
+}
+
+// Shared grouping skeleton for buildOrderViewItems and groupOrderItemsForView:
+// one OrderItemView per productId, skipping cancelled items and tallying
+// quantity/comments for repeats. buildView supplies the per-caller field
+// resolution (catalog-only fallbacks vs. order-item-enriched fallbacks), since
+// the two callers operate on different item shapes (OrderItem vs. AttendeeOrderItem).
+function groupItemsByProductId<
+  T extends { productId: string; cancelledAt: string | null; customerComment: string | null },
+>(items: T[], buildView: (item: T) => OrderItemView): OrderItemView[] {
+  const groups = new Map<string, OrderItemView>();
+  for (const item of items) {
+    if (item.cancelledAt) continue;
+    const existing = groups.get(item.productId);
+    if (existing) {
+      existing.quantity += 1;
+      existing.comments.push(item.customerComment ?? '');
+      continue;
+    }
+    groups.set(item.productId, buildView(item));
+  }
+  return [...groups.values()];
+}
+
 // Builds enriched view items for display. The cashier spans the whole event, so
 // names are resolved from the event-wide catalog and stand list rather than a
 // single stand (an order's items may come from several stands).
@@ -159,34 +221,23 @@ export async function buildOrderViewItems(
   eventId: string,
   standId: string,
 ): Promise<OrderItemView[]> {
-  const [products, stands] = await Promise.all([
-    getOperatorEventProducts(eventId, standId),
-    getOperatorStands(eventId),
-  ]);
-  const productById = new Map(products.map((p) => [p._id, p]));
-  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+  const { productById, standNameById } = await fetchOperatorCatalogMaps(eventId, standId);
 
-  const groups = new Map<string, OrderItemView>();
-  for (const item of order.items) {
-    if (item.cancelledAt) continue;
-    const existing = groups.get(item.productId);
-    if (existing) {
-      existing.quantity += 1;
-      existing.comments.push(item.customerComment ?? '');
-      continue;
-    }
+  return groupItemsByProductId(order.items, (item) => {
     const product = productById.get(item.productId);
-    groups.set(item.productId, {
+    return {
       productId: item.productId,
-      productName: product?.productName ?? item.productId,
+      // The cashier catalog only lists LIVE products, so a paused/deleted
+      // product misses here; fall back to the name the backend enriched onto
+      // the order item rather than showing the raw id.
+      productName: product?.productName ?? item.productName ?? item.productId,
       standId: product?.standId ?? '',
-      standName: product ? (standNameById.get(product.standId) ?? '') : '',
+      standName: product ? (standNameById.get(product.standId) ?? item.standName) : item.standName,
       unitPrice: item.priceIncludingTaxAtPurchase,
       quantity: 1,
       comments: [item.customerComment ?? ''],
-    });
-  }
-  return [...groups.values()];
+    };
+  });
 }
 
 // Builds enriched view items for an attendee. Accepts the already-fetched stands
@@ -202,27 +253,18 @@ export function groupOrderItemsForView(
   productById?: Map<string, Product>,
   standNameById?: Map<string, string>,
 ): OrderItemView[] {
-  const groups = new Map<string, OrderItemView>();
-  for (const item of order.items) {
-    if (item.cancelledAt) continue;
-    const existing = groups.get(item.productId);
-    if (existing) {
-      existing.quantity += 1;
-      existing.comments.push(item.customerComment ?? '');
-      continue;
-    }
+  return groupItemsByProductId(order.items, (item) => {
     const product = productById?.get(item.productId);
-    groups.set(item.productId, {
+    return {
       productId: item.productId,
       productName: product?.productName ?? item.productName,
-      standId: product?.standId ?? `__paused__:${item.standName}:${item.productId}`,
+      standId: product?.standId ?? '',
       standName: product ? (standNameById?.get(product.standId) ?? item.standName) : item.standName,
       unitPrice: item.priceIncludingTaxAtPurchase,
       quantity: 1,
       comments: [item.customerComment ?? ''],
-    });
-  }
-  return [...groups.values()];
+    };
+  });
 }
 
 export async function buildAttendeeOrderViewItems(
@@ -250,18 +292,34 @@ function flattenOrderItems(items: OrderItemView[]) {
   );
 }
 
+type OrderResponse =
+  | { order?: Order; clientSecret?: string; orderId?: string }
+  | InsufficientStockResponse;
+
+// Shared POST /orders call: sends the request, surfaces an insufficient-stock
+// 409 as InsufficientStockError, and returns the raw status/data envelope for
+// the caller to unwrap (the response body shape differs slightly per caller).
+async function postOrder(
+  options: Omit<Parameters<typeof apiFetchAllowing>[1], 'method'>,
+  allowStatuses: number[],
+): Promise<{ status: number; data: OrderResponse }> {
+  const { status, data } = await apiFetchAllowing<OrderResponse>(
+    '/orders',
+    { ...options, method: 'POST' },
+    allowStatuses,
+  );
+  throwIfStockConflict(status, data);
+  return { status, data };
+}
+
 // POST /api/orders — creates a cashier order (operator auth, no attendee session).
 export async function createManualOrder(
   input: { eventId: string; items: OrderItemView[] },
   standId: string,
   requestId: string,
 ): Promise<Order> {
-  // POST /orders wraps the created order as { order }, so unwrap it here rather
-  // than treating the body as the order itself.
-  const { status, data } = await apiFetchAllowing<{ order?: Order } | InsufficientStockResponse>(
-    '/orders',
+  const { status, data } = await postOrder(
     {
-      method: 'POST',
       auth: 'operator',
       standId,
       body: JSON.stringify({
@@ -272,7 +330,6 @@ export async function createManualOrder(
     },
     [409],
   );
-  throwIfStockConflict(status, data);
   return createdOrderFromResponse(status, data);
 }
 
@@ -282,19 +339,14 @@ export async function createOrder(
   items: OrderItemView[],
   requestId: string,
 ): Promise<Order> {
-  // POST /orders wraps the created order as { order } (same shape createCardOrder
-  // reads), so unwrap it here rather than treating the body as the order itself.
-  const { status, data } = await apiFetchAllowing<{ order?: Order } | InsufficientStockResponse>(
-    '/orders',
+  const { status, data } = await postOrder(
     {
-      method: 'POST',
       auth: 'attendee',
       eventId,
       body: JSON.stringify({ eventId, requestId, items: flattenOrderItems(items) }),
     },
     [409],
   );
-  throwIfStockConflict(status, data);
   return createdOrderFromResponse(status, data);
 }
 
@@ -316,12 +368,8 @@ export async function createCardOrder(
   requestId: string,
   signal?: AbortSignal,
 ): Promise<CardOrderResult> {
-  const { status, data } = await apiFetchAllowing<
-    { order?: Order; clientSecret?: string; orderId?: string } | InsufficientStockResponse
-  >(
-    '/orders',
+  const { status, data } = await postOrder(
     {
-      method: 'POST',
       auth: 'attendee',
       eventId,
       signal,
@@ -329,8 +377,6 @@ export async function createCardOrder(
     },
     [402, 409],
   );
-
-  throwIfStockConflict(status, data);
 
   if (status === 402) {
     const payment = data as { clientSecret?: string; orderId?: string };
@@ -418,12 +464,7 @@ export async function buildRefundRows(
   eventId: string,
   standId: string,
 ): Promise<RefundItemRow[]> {
-  const [products, stands] = await Promise.all([
-    getOperatorEventProducts(eventId, standId),
-    getOperatorStands(eventId),
-  ]);
-  const productById = new Map(products.map((p) => [p._id, p]));
-  const standNameById = new Map(stands.map((s) => [s._id, s.standName]));
+  const { productById, standNameById } = await fetchOperatorCatalogMaps(eventId, standId);
 
   return order.items.map((item) => {
     const product = productById.get(item.productId);

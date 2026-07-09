@@ -105,17 +105,22 @@ export default function ReviewOrder() {
     setSubmitError(null);
     try {
       const toSubmit = reviewableProducts.filter((p) => p.existingRating === null);
-      await Promise.all(
-        toSubmit.map((p) => {
+      const outcomes = await Promise.all(
+        toSubmit.map(async (p): Promise<'created' | 'conflict'> => {
           const state = ratings[p.productId];
-          return submitRating(orderId, p.productId, eventId, {
-            stars: state.stars,
-            comment: state.comment.trim() || null,
-          }).catch((err) => {
-            // 409 = already reviewed — treat as success for this product
-            if (err instanceof ApiError && err.status === 409) return;
+          try {
+            await submitRating(orderId, p.productId, eventId, {
+              stars: state.stars,
+              comment: state.comment.trim() || null,
+            });
+            return 'created';
+          } catch (err) {
+            // 409 = already reviewed concurrently (e.g. another tab) — not a
+            // failure, but not a new rating either, so it must not inflate
+            // the success count below.
+            if (err instanceof ApiError && err.status === 409) return 'conflict';
             throw err;
-          });
+          }
         }),
       );
       // Refresh the cached ratings so the Track Order button flips from
@@ -123,7 +128,7 @@ export default function ReviewOrder() {
       await queryClient.invalidateQueries({
         queryKey: ['attendee', 'order', orderId, 'ratings'],
       });
-      setSubmittedCount(toSubmit.length);
+      setSubmittedCount(outcomes.filter((o) => o === 'created').length);
       setSubmitted(true);
     } catch {
       setSubmitError('Something went wrong. Please try again.');

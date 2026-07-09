@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
 import { Button } from '../ui/button';
 import { CheckIcon, WarningTriangleIcon } from '../icons';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface AlertDialogProps {
   message: string | null;
@@ -25,19 +25,10 @@ export function AlertDialog({
   cancelLabel = 'Cancel',
   cancelDisabled = false,
 }: AlertDialogProps) {
-  useEffect(() => {
-    if (!message) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        if (onCancel) onCancel();
-        else onAcknowledge();
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [message, onAcknowledge, onCancel]);
+  useEscapeKey(() => {
+    if (onCancel) onCancel();
+    else onAcknowledge();
+  }, Boolean(message));
 
   if (!message) return null;
 

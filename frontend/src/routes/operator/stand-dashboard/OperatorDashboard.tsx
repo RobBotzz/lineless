@@ -7,6 +7,7 @@ import { ApiError } from '@/api/client';
 import { OPERATOR_BOARD_EVENT, OPERATOR_BOARD_STREAM_PATH } from '@/api/operatorBoard';
 import { fulfillOrderItem, readyOrderItem, startOrderItem } from '@/api/orders';
 import { pauseProductAsOperator, resumeProductAsOperator } from '@/api/products';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useSSE, type SseStatus } from '@/hooks/useSSE';
 import { cn } from '@/lib/utils';
 import { paths } from '@/paths';
@@ -583,13 +584,7 @@ function ModalOverlay({
   className?: string;
   children: ReactNode;
 }) {
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   return createPortal(
     <div

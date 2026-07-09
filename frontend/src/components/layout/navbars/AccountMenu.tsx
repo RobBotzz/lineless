@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 
 import { CreditCardIcon, DashboardIcon, LogOutIcon, UserIcon } from '../../icons';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 import { paths } from '../../../paths';
 
 type AccountMenuProps = {
@@ -13,6 +14,8 @@ export function AccountMenu({ isAuthenticated, onSignOut }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  useEscapeKey(() => setOpen(false), open);
+
   useEffect(() => {
     if (!open) return;
 
@@ -22,16 +25,10 @@ export function AccountMenu({ isAuthenticated, onSignOut }: AccountMenuProps) {
       }
     }
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
-
     document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
 
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [open]);
 
