@@ -1,9 +1,27 @@
 import { ApiError, apiFetch, apiFetchAllowing } from './client';
 import { getAttendeeStandProducts, getOperatorEventProducts } from './products';
 import { getOperatorStands } from './stands';
+import type { CartItem } from '../features/cart/useCartState';
 import type { AttendeeOrder, Order, OrderItemView, StockShortage } from '../types/order';
 import type { Product } from '../types/product';
 import type { Stand } from '../types/stand';
+
+// Maps cart items into the order-item shape the create-order endpoints expect,
+// resolving each product's stand display name via the caller-supplied lookup.
+export function buildManualOrderItems(
+  items: CartItem[],
+  standNameFor: (product: Product) => string,
+): OrderItemView[] {
+  return items.map((item) => ({
+    productId: item.product._id,
+    productName: item.product.productName,
+    standId: item.product.standId,
+    standName: standNameFor(item.product),
+    unitPrice: item.product.priceIncludingTax,
+    quantity: item.quantity,
+    comments: [],
+  }));
+}
 
 // Order item state machine: PENDING -> PREPARING -> READY -> FULFILLED.
 // These transitions are operator-only (authOperator on the backend) and each
