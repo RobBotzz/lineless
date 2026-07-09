@@ -175,14 +175,20 @@ export function useCartState({ persistKey }: UseCartStateOptions = {}): CartStat
         const stockClamped = tracksStock(product)
           ? Math.min(quantity, product.productStock)
           : quantity;
-        // Cap this line so the whole cart still fits MAX_CART_ITEMS. Other lines
-        // sum to at most 99 here (this line holds >= 1), so the headroom is >= 1.
+        // Cap this line so the whole cart still fits MAX_CART_ITEMS. A cart
+        // hydrated from an older persisted blob can already exceed the cap, so
+        // drop the line when the other lines leave no headroom rather than
+        // writing a zero/negative quantity.
         const otherLinesTotal = prev.reduce(
           (sum, candidate) =>
             candidate.product._id === productId ? sum : sum + candidate.quantity,
           0,
         );
-        const nextQuantity = Math.min(stockClamped, MAX_CART_ITEMS - otherLinesTotal);
+        const headroom = MAX_CART_ITEMS - otherLinesTotal;
+        if (headroom <= 0) {
+          return prev.filter((candidate) => candidate.product._id !== productId);
+        }
+        const nextQuantity = Math.min(stockClamped, headroom);
         return prev.map((candidate) =>
           candidate.product._id === productId
             ? {
