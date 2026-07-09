@@ -96,7 +96,10 @@ function handleError(err: unknown, res: Response): unknown {
   if (err instanceof CashierDisabledError)
     return res.status(403).json({ error: err.message });
   if (err instanceof OrderAlreadyPaidError)
-    return res.status(409).json({ error: err.message });
+    return res.status(409).json({
+      code: "ORDER_ALREADY_PAID",
+      error: err.message,
+    });
   if (err instanceof OrderConflictRetryError)
     return res.status(409).json({
       code: "ORDER_CONFLICT_RETRY",
