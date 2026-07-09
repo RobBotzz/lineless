@@ -6,7 +6,7 @@ import { CartIcon, ImageIcon, InfoIcon, PlusIcon, WarningTriangleIcon } from '@/
 import { BackButton } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { CartCard } from '@/features/cart/CartCard';
-import { useCartState } from '@/features/cart/useCartState';
+import { MAX_CART_ITEMS, useCartState } from '@/features/cart/useCartState';
 import { ProductDetailsDialog } from '@/features/catalog/ProductDetailsDialog';
 import { useAddGuard } from '@/lib/useAddGuard';
 import { orderItemsFingerprint } from '@/lib/order-utils';
@@ -46,6 +46,7 @@ export default function CashierManualOrder() {
   const {
     items,
     totalCents,
+    atItemLimit,
     addItem,
     setQuantity,
     removeItem,
@@ -238,6 +239,11 @@ export default function CashierManualOrder() {
                   €{formatMoney(totalCents)}
                 </span>
               </div>
+              {atItemLimit && (
+                <p className="mt-2 text-center text-xs text-text-muted">
+                  Maximum of {MAX_CART_ITEMS} items per order reached.
+                </p>
+              )}
               <Button
                 className="mt-3 w-full"
                 disabled={items.length === 0 || isCheckingOut}
