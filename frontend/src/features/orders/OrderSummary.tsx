@@ -6,14 +6,21 @@ import { formatMoney } from '@/types/product';
 
 import { ItemComments } from './ItemComments';
 
-function groupByStand(items: OrderItemView[]): [string, OrderItemView[]][] {
-  const groups = new Map<string, OrderItemView[]>();
+interface StandGroup {
+  standId: string;
+  standName: string;
+  items: OrderItemView[];
+}
+
+function groupByStand(items: OrderItemView[]): StandGroup[] {
+  const groups = new Map<string, StandGroup>();
   for (const item of items) {
-    const existing = groups.get(item.standName);
-    if (existing) existing.push(item);
-    else groups.set(item.standName, [item]);
+    const existing = groups.get(item.standId);
+    if (existing) existing.items.push(item);
+    else
+      groups.set(item.standId, { standId: item.standId, standName: item.standName, items: [item] });
   }
-  return [...groups.entries()];
+  return [...groups.values()];
 }
 
 // Product thumbnail served straight from the public image endpoint (the order
@@ -50,8 +57,8 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
   return (
     <div>
       <div className="space-y-5">
-        {groupByStand(items).map(([standName, standItems]) => (
-          <div key={standName} className="border-l-2 border-accent pl-4">
+        {groupByStand(items).map(({ standId, standName, items: standItems }) => (
+          <div key={standId} className="border-l-2 border-accent pl-4">
             <p className="text-sm font-semibold text-text [overflow-wrap:anywhere]">{standName}</p>
             <ul className="mt-2 space-y-2">
               {standItems.map((item) => (
