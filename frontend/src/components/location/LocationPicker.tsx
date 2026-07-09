@@ -82,10 +82,13 @@ export function LocationPicker({ value, onChange, defaultCenter }: LocationPicke
         return;
       }
       setSearching(true);
-      const found = await searchAddress(q, ctrl.signal);
-      if (!ctrl.signal.aborted) {
-        setResults(found);
-        setSearching(false);
+      try {
+        const found = await searchAddress(q, ctrl.signal);
+        if (!ctrl.signal.aborted) setResults(found);
+      } catch {
+        if (!ctrl.signal.aborted) setResults([]);
+      } finally {
+        if (!ctrl.signal.aborted) setSearching(false);
       }
     }, 400);
     return () => {
@@ -100,9 +103,13 @@ export function LocationPicker({ value, onChange, defaultCenter }: LocationPicke
     reverseAbort.current?.abort();
     const ctrl = new AbortController();
     reverseAbort.current = ctrl;
-    void reverseGeocode(lat, lng, ctrl.signal).then((name) => {
-      if (!ctrl.signal.aborted && name) onChange(fromLatLng(lat, lng, name));
-    });
+    void reverseGeocode(lat, lng, ctrl.signal)
+      .then((name) => {
+        if (!ctrl.signal.aborted && name) onChange(fromLatLng(lat, lng, name));
+      })
+      .catch(() => {
+        // Reverse geocoding only fills the name; the point is already set from the click.
+      });
   }
 
   function selectResult(result: GeocodeResult) {
