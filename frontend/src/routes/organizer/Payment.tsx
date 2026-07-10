@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useFetcher, useLoaderData, useRouteError } from 'react-router';
+import { useFetcher, useLoaderData, useRouteError, type FetcherWithComponents } from 'react-router';
 
 import { AlertDialog } from '@/components/feedback';
 import { InfoTooltip } from '@/components/shared';
@@ -16,8 +16,17 @@ import {
 } from '@/components/icons';
 import { formatIban, isValidIban, maskIban, normalizeIban } from '@/lib/iban';
 import { formatMoney } from '@/types/product';
-import type { EventPayoutBreakdown, PayoutRecord, ProductUnitsSold } from '@/types/payout';
+import type { PayoutRecord, ProductUnitsSold } from '@/types/payout';
 import type { PaymentActionBody, PaymentActionResult, PaymentLoaderData } from './Payment.data';
+import {
+  downloadEventCsv,
+  eventStatement,
+  formatTaxRate,
+  itemsSubtotal,
+  toRow,
+  type EventRow,
+  type StatementLine,
+} from './Payment.statement';
 
 function eur(cents: number): string {
   return `€${formatMoney(cents)}`;
@@ -56,26 +65,52 @@ function useDismissAfter(token: unknown, ms = 6000): boolean {
 
 type ChargeResult = Extract<PaymentActionResult, { intent: 'charge-all' }>;
 
-// Charging open tabs is the same action whether it targets every event or one:
-// a single fetcher posting `charge-all` with the event ids to settle. Shared by
-// the global payout card and the per-event breakdown rows so they behave alike.
-function useChargeTabs() {
+// react-router types its JSON submit target with an index signature a
+// discriminated-union body isn't assignable to, so the one necessary cast lives
+// here instead of being repeated at every call site.
+function submitJson(fetcher: FetcherWithComponents<PaymentActionResult>, body: PaymentActionBody) {
+  void fetcher.submit(body as Parameters<typeof fetcher.submit>[0], {
+    method: 'post',
+    encType: 'application/json',
+  });
+}
+
+// One fetcher lifecycle for every Payment action: post the intent's body, expose
+// busy/error, narrow the success payload to that intent, and auto-dismiss the
+// settled banner. Replaces the near-identical fetcher blocks each card hand-rolled.
+type PaymentSuccess<I extends PaymentActionBody['intent']> = Extract<
+  PaymentActionResult,
+  { ok: true; intent: I }
+>;
+
+function usePaymentAction<I extends PaymentActionBody['intent']>(intent: I) {
   const fetcher = useFetcher<PaymentActionResult>();
-  const charging = fetcher.state !== 'idle';
+  const busy = fetcher.state !== 'idle';
   const settled = fetcher.state === 'idle' ? fetcher.data : undefined;
-  const result = settled?.ok && settled.intent === 'charge-all' ? settled : null;
+  // The literal `intent` narrows at each call site; the generic comparison here
+  // doesn't, so assert the matched success shape once.
+  const result: PaymentSuccess<I> | null =
+    settled?.ok && settled.intent === intent ? (settled as PaymentSuccess<I>) : null;
   const error = settled && !settled.ok ? settled.error : null;
   const show = useDismissAfter(settled);
 
-  function charge(eventIds: string[]) {
-    const payload: PaymentActionBody = { intent: 'charge-all', eventIds };
-    void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
-      method: 'post',
-      encType: 'application/json',
-    });
-  }
+  const submit = (body: Extract<PaymentActionBody, { intent: I }>) => submitJson(fetcher, body);
 
-  return { charge, charging, show, result, error };
+  return { submit, busy, result, error, show };
+}
+
+// Charging open tabs is the same action whether it targets every event or one:
+// a single `charge-all` post with the event ids to settle. Shared by the global
+// payout card and the per-event breakdown rows so they behave alike.
+function useChargeTabs() {
+  const { submit, busy, result, error, show } = usePaymentAction('charge-all');
+  return {
+    charge: (eventIds: string[]) => submit({ intent: 'charge-all', eventIds }),
+    charging: busy,
+    result,
+    error,
+    show,
+  };
 }
 
 function ChargeResultMessage({
@@ -89,182 +124,21 @@ function ChargeResultMessage({
 }) {
   if (!show) return null;
   if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (result)
+  if (result) {
+    // Green only when nothing failed; red when the whole batch failed (0 settled),
+    // amber for a partial failure. A skipped tab (items not ready) is informational,
+    // not a failure, so it doesn't downgrade an otherwise-clean result.
+    const tone =
+      result.failed === 0 ? 'text-success' : result.settled === 0 ? 'text-danger' : 'text-warning';
     return (
-      <p className="text-sm text-success">
+      <p className={`text-sm ${tone}`}>
         Charged {result.settled} {result.settled === 1 ? 'tab' : 'tabs'}
         {result.skipped > 0 ? `, skipped ${result.skipped} (items not ready)` : ''}
         {result.failed > 0 ? `, ${result.failed} failed` : ''}.
       </p>
     );
+  }
   return null;
-}
-
-// Derived per-event figures for the breakdown table. Sales and payout are kept
-// separate on purpose: totalSales is delivered revenue (card + cash, = the
-// items-sold table), while netPayout is the card money wired to the bank. They
-// are not the same number — cash is already in the organizer's hands — so the
-// row never pretends one subtracts down to the other.
-type EventRow = {
-  event: EventPayoutBreakdown;
-  totalSalesCents: number; // delivered gross (card + cash)
-  cashSalesCents: number; // of which paid in cash (already collected)
-  cardSalesCents: number; // card portion of sales (captured + still on open tabs)
-};
-
-function toRow(event: EventPayoutBreakdown): EventRow {
-  return {
-    event,
-    totalSalesCents: event.grossSalesCents,
-    cashSalesCents: event.cashSalesCents,
-    cardSalesCents: event.grossSalesCents - event.cashSalesCents,
-  };
-}
-
-// Tax rate basis points (1900) -> "19%". Trims any trailing zeros (1950 -> 19.5%).
-function formatTaxRate(bp: number): string {
-  return `${Number((bp / 100).toFixed(2))}%`;
-}
-
-// Sum of the per-item lines — the items table and CSV both show this as a
-// subtotal so the line items visibly add up to total sales.
-function itemsSubtotal(items: ProductUnitsSold[]): { net: number; tax: number; gross: number } {
-  return items.reduce(
-    (acc, i) => ({
-      net: acc.net + i.netRevenueCents,
-      tax: acc.tax + i.taxCents,
-      gross: acc.gross + i.grossRevenueCents,
-    }),
-    { net: 0, tax: 0, gross: 0 },
-  );
-}
-
-// Total sales is the headline; the deductions that bridge it down to the bank
-// payout are indented (↳) beneath the bold milestone subtotals. It reads as a
-// running calculation top to bottom:
-//   Total sales − Cashier payments        = Gross online sales
-//   Gross online sales − Uncaptured auths = Captured online sales
-//   Captured online sales − fees          = Net payout
-// Built once and shared by the UI and the CSV export so the two can never drift.
-type StatementKind = 'line' | 'sub' | 'subtotal' | 'info' | 'total';
-type StatementLine = { label: string; cents: number; kind: StatementKind };
-
-function eventStatement(row: EventRow): StatementLine[] {
-  const { event, totalSalesCents, cashSalesCents, cardSalesCents } = row;
-  // Online (card) value still on open/expired auths that never reached the card —
-  // the gap between gross online sales and what was captured. Captured is a
-  // subset, so this is >= 0.
-  const uncapturedCardCents = cardSalesCents - event.capturedCardCents;
-
-  // Tax is reported as a single event total; split it across the cash/card
-  // channels in proportion to their gross sales so each "of which tax" sub-line
-  // reconciles back to event.taxCents. Exact when all products share one tax
-  // rate, a proportional estimate only if rates are mixed across the channels.
-  const cashTaxCents =
-    totalSalesCents > 0 ? Math.round((event.taxCents * cashSalesCents) / totalSalesCents) : 0;
-  const cardTaxCents = event.taxCents - cashTaxCents;
-
-  const lines: StatementLine[] = [
-    { label: 'Total sales (incl. tax)', cents: totalSalesCents, kind: 'line' },
-  ];
-  if (cashSalesCents > 0) {
-    lines.push({ label: 'Cashier payments', cents: cashSalesCents, kind: 'sub' });
-    if (cashTaxCents > 0) {
-      lines.push({ label: 'of which tax (included)', cents: cashTaxCents, kind: 'info' });
-    }
-  }
-  if (cardSalesCents > 0) {
-    lines.push({ label: 'Gross online sales', cents: cardSalesCents, kind: 'subtotal' });
-    if (cardTaxCents > 0) {
-      lines.push({ label: 'of which tax (included)', cents: cardTaxCents, kind: 'info' });
-    }
-    // Hidden at €0 per the mockup: only surfaces when some auth never captured.
-    if (uncapturedCardCents > 0) {
-      lines.push({ label: 'Uncaptured / expired auths', cents: uncapturedCardCents, kind: 'sub' });
-    }
-    lines.push(
-      { label: 'Captured online sales', cents: event.capturedCardCents, kind: 'subtotal' },
-      { label: 'Online payment processing fees', cents: event.stripeFeeCents, kind: 'sub' },
-    );
-  }
-  lines.push(
-    { label: 'Platform fee (20¢/order)', cents: event.platformFeeCents, kind: 'sub' },
-    { label: 'Net payout (to your bank)', cents: event.netPayoutCents, kind: 'total' },
-  );
-  return lines;
-}
-
-// Quote a CSV cell only when it contains a delimiter, quote, or newline.
-function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-}
-
-// Build a CSV from a 2-D grid (empty rows render as blank separator lines) and
-// trigger a browser download. Shared by both the summary and per-event exports.
-function downloadCsv(filename: string, grid: (string | number)[][]) {
-  const csv = grid.map((row) => row.map((cell) => csvCell(String(cell))).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-const today = () => new Date().toISOString().slice(0, 10);
-
-function slug(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'event'
-  );
-}
-
-// Export a single event as an invoice-style statement: header, per-item lines
-// (net / tax / gross) with a subtotal, the top-to-bottom payout statement, then
-// the same cash-flow context the UI shows (incl. cash refunds) so the export is
-// fully reconcilable against the cash drawer.
-function downloadEventCsv(row: EventRow) {
-  const { event } = row;
-  const subtotal = itemsSubtotal(event.unitsSold);
-  const grid: (string | number)[][] = [
-    ['Event', event.eventName],
-    ['Status', event.eventStatus],
-    ['Paid orders', event.paidOrderCount],
-    [],
-    ['Item', 'Units', 'Net', 'Tax', 'Tax rate', 'Gross'],
-    ...event.unitsSold.map((item) => [
-      item.productName,
-      item.unitsSold,
-      formatMoney(item.netRevenueCents),
-      formatMoney(item.taxCents),
-      item.taxRateBp == null ? 'mixed' : formatTaxRate(item.taxRateBp),
-      formatMoney(item.grossRevenueCents),
-    ]),
-    [
-      'Subtotal',
-      '',
-      formatMoney(subtotal.net),
-      formatMoney(subtotal.tax),
-      '',
-      formatMoney(subtotal.gross),
-    ],
-    [],
-    ...eventStatement(row).map((line) => [
-      line.label,
-      `${line.kind === 'sub' ? '-' : ''}${formatMoney(line.cents)}`,
-    ]),
-    [],
-    // Cash-flow context — mirrors the UI; not part of the payout total above.
-    ['Cash-flow context', ''],
-    ['On open tabs (ready to charge)', formatMoney(event.onHoldReadyCents)],
-    ['Settling on Stripe', formatMoney(event.inTransitCents)],
-    ['Cash refunds', `-${formatMoney(event.cashRefundCents)}`],
-  ];
-  downloadCsv(`lineless-${slug(event.eventName)}-payout-${today()}.csv`, grid);
 }
 
 export default function Payment() {
@@ -335,23 +209,18 @@ function AvailableForPayoutCard({
   inTransit: number;
   bankReady: boolean;
 }) {
-  const payoutFetcher = useFetcher<PaymentActionResult>();
+  const {
+    submit: submitPayout,
+    busy: payingOut,
+    result: payoutDone,
+    error: payoutError,
+    show: showPayout,
+  } = usePaymentAction('request-payout');
   const [confirmPayout, setConfirmPayout] = useState(false);
   const canPayout = bankReady && availableNow > 0;
 
-  const payingOut = payoutFetcher.state !== 'idle';
-  const payoutSettled = payoutFetcher.state === 'idle' ? payoutFetcher.data : undefined;
-  const payoutDone =
-    payoutSettled?.ok && payoutSettled.intent === 'request-payout' ? payoutSettled : null;
-  const payoutError = payoutSettled && !payoutSettled.ok ? payoutSettled.error : null;
-  const showPayout = useDismissAfter(payoutSettled);
-
   function requestPayout() {
-    const payload: PaymentActionBody = { intent: 'request-payout' };
-    void payoutFetcher.submit(payload as unknown as Parameters<typeof payoutFetcher.submit>[0], {
-      method: 'post',
-      encType: 'application/json',
-    });
+    submitPayout({ intent: 'request-payout' });
     setConfirmPayout(false);
   }
 
@@ -748,17 +617,18 @@ function BankDetailsCard({
   iban: string | null;
   ibanHolderName: string | null;
 }) {
-  const fetcher = useFetcher<PaymentActionResult>();
+  const {
+    submit: submitBank,
+    busy,
+    result: saved,
+    error,
+    show: showResult,
+  } = usePaymentAction('save-bank');
   const [form, setForm] = useState({
     iban: formatIban(iban ?? ''),
     ibanHolderName: ibanHolderName ?? '',
   });
 
-  const busy = fetcher.state !== 'idle';
-  const settled = fetcher.state === 'idle' ? fetcher.data : undefined;
-  const saved = settled?.ok === true && settled.intent === 'save-bank';
-  const error = settled && !settled.ok ? settled.error : null;
-  const showResult = useDismissAfter(settled);
   const incomplete = !form.iban.trim() || !form.ibanHolderName.trim();
   // Show the IBAN checksum error only once the field has content.
   const ibanError = form.iban.trim() !== '' && !isValidIban(form.iban) ? 'Invalid IBAN' : null;
@@ -772,14 +642,10 @@ function BankDetailsCard({
 
   function save() {
     if (ibanError || holderNameError) return;
-    const payload: PaymentActionBody = {
+    submitBank({
       intent: 'save-bank',
       iban: normalizeIban(form.iban),
       ibanHolderName: form.ibanHolderName,
-    };
-    void fetcher.submit(payload as unknown as Parameters<typeof fetcher.submit>[0], {
-      method: 'post',
-      encType: 'application/json',
     });
   }
 

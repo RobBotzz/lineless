@@ -16,6 +16,7 @@ import { formatMoney } from '@/types/product';
 import { CartIcon } from '@/components/icons';
 import { CartCard } from '@/features/cart/CartCard';
 import { PaymentMethodToggle } from '@/features/cart/PaymentMethodToggle';
+import { MAX_CART_ITEMS } from '@/features/cart/useCartState';
 import { CardCheckoutDialog, type PaymentMethod } from '@/features/payment';
 import type { Order } from '@/types/order';
 import { useCart } from './cart-context';
@@ -32,6 +33,7 @@ export default function Cart() {
     items,
     totalCount,
     totalCents,
+    atItemLimit,
     setQuantity,
     setComment,
     removeItem,
@@ -266,6 +268,11 @@ export default function Cart() {
                     cashEnabled={cashierEnabled}
                   />
                 </div>
+              )}
+              {atItemLimit && (
+                <p className="mb-2 text-center text-xs text-text-muted">
+                  You&apos;ve reached the maximum of {MAX_CART_ITEMS} items per order.
+                </p>
               )}
               <PrimaryButton className="gap-2" disabled={isCheckingOut} onClick={handleCheckout}>
                 {isCheckingOut ? (
