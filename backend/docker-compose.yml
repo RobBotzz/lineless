@@ -28,10 +28,10 @@ services:
         "--api-key",
         "sk_test_REPLACE_WITH_YOUR_STRIPE_TEST_SECRET_KEY",
         "--forward-to",
-        "backend:8000/webhooks/stripe",
+        "host.docker.internal:8000/webhooks/stripe",
       ]
-    depends_on:
-      - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   frontend:
