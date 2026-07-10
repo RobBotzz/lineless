@@ -47,7 +47,17 @@ stripeWebhookRouter.post("/", async (req: Request, res: Response) => {
       await handlePaymentFailed(event.data.object.id, event.id);
     }
     return res.status(200).json({ received: true });
-  } catch {
+  } catch (err) {
+    // Log enough to trace the failure (Stripe retries the event, so we want a
+    // record of which one and why); keep the HTTP response generic. Not every
+    // Stripe object in the union carries an id, so guard the access.
+    const object = event.data.object;
+    const objectId = "id" in object ? object.id : undefined;
+    console.error(
+      "Stripe webhook handler failed",
+      { eventId: event.id, eventType: event.type, objectId },
+      err
+    );
     return res.status(500).json({ error: "Webhook handler failed" });
   }
 });
