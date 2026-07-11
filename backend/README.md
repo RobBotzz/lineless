@@ -40,7 +40,9 @@ Once it is up:
 | API docs (Swagger) | http://localhost:8000/docs |
 
 Card payments work out of the box — the bundled `stripe-cli` service forwards
-Stripe webhooks to the backend automatically.
+Stripe webhooks to the backend automatically. Inspect test payments, events and
+webhooks in the [Stripe sandbox dashboard](https://dashboard.stripe.com/acct_REDACTED/test/dashboard)
+(login: `REDACTED@example.com` / `REDACTED`).
 
 ## Demo data (seeding)
 
