@@ -13,11 +13,11 @@ four over roughly three months.
 Lineless has three distinct kinds of user, and the whole architecture follows from
 keeping them separate:
 
-| Role          | Identity                     | What they do                                              |
-| ------------- | ---------------------------- | --------------------------------------------------------- |
-| **Organizer** | Email + password → JWT       | Creates events, stands, products; sees analytics & payouts |
-| **Attendee**  | Anonymous session id, no login | Browses stands, orders, pays by card or cash, rates products |
-| **Operator**  | Per-stand password → scoped token | Works the stand dashboard: preparing → ready → handed out |
+| Role          | Identity                          | What they do                                                 |
+| ------------- | --------------------------------- | ------------------------------------------------------------ |
+| **Organizer** | Email + password → JWT            | Creates events, stands, products; sees analytics & payouts   |
+| **Attendee**  | Anonymous session id, no login    | Browses stands, orders, pays by card or cash, rates products |
+| **Operator**  | Per-stand password → scoped token | Works the stand dashboard: preparing → ready → handed out    |
 
 ## Stack
 
@@ -72,13 +72,13 @@ didactic trade-off — see `backend/CLAUDE.md`), so that it cloned and ran with 
 setup. Before publishing the code those credentials were revoked and stripped from
 the entire git history, and replaced with self-describing placeholders:
 
-| Placeholder                                              | Where                                      |
-| -------------------------------------------------------- | ------------------------------------------ |
-| `sk_test_REPLACE_WITH_YOUR_STRIPE_TEST_SECRET_KEY`        | `backend/src/config/config.ts`, `docker-compose.yml` |
-| `whsec_REPLACE_WITH_YOUR_STRIPE_WEBHOOK_SECRET`           | `backend/src/config/config.ts`             |
-| `pk_test_REPLACE_WITH_YOUR_STRIPE_TEST_PUBLISHABLE_KEY`   | `frontend/src/config.ts`                   |
-| `re_REPLACE_WITH_YOUR_RESEND_API_KEY`                     | `backend/src/config/config.ts`, `docker-compose.yml` |
-| `REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET`            | `backend/src/config/config.ts`, `docker-compose.yml` |
+| Placeholder                                             | Where                                                |
+| ------------------------------------------------------- | ---------------------------------------------------- |
+| `sk_test_REPLACE_WITH_YOUR_STRIPE_TEST_SECRET_KEY`      | `backend/src/config/config.ts`, `docker-compose.yml` |
+| `whsec_REPLACE_WITH_YOUR_STRIPE_WEBHOOK_SECRET`         | `backend/src/config/config.ts`                       |
+| `pk_test_REPLACE_WITH_YOUR_STRIPE_TEST_PUBLISHABLE_KEY` | `frontend/src/config.ts`                             |
+| `re_REPLACE_WITH_YOUR_RESEND_API_KEY`                   | `backend/src/config/config.ts`, `docker-compose.yml` |
+| `REPLACE_WITH_A_RANDOM_64_CHAR_HEX_JWT_SECRET`          | `backend/src/config/config.ts`, `docker-compose.yml` |
 
 Drop in your own Stripe test keys and a Resend key (or set the corresponding
 environment variables, which all take precedence) and the stack works end to end.
