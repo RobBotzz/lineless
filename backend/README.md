@@ -9,27 +9,12 @@ realtime · Stripe (authorize-then-capture) · bcrypt + JWT auth.
 
 ## Getting started (Docker)
 
-The whole stack (backend, frontend, MongoDB, Stripe webhook forwarding) runs
-with Docker Compose. Config is **committed** — no `.env` or Stripe login needed.
+The whole stack (backend, frontend, MongoDB, Stripe webhook forwarding) runs with
+Docker Compose from the repository root:
 
-1. Put the **backend** and **frontend** repos side by side in one parent folder,
-   each in its own subfolder named `Backend` and `Frontend`:
-
-   ```
-   my-lineless/
-   ├── Backend/
-   ├── Frontend/
-   └── docker-compose.yml   ← step 2
-   ```
-
-2. Copy `Backend/docker-compose.yml` up into that parent folder (it references
-   `./Backend` and `./Frontend` as build contexts).
-
-3. From the parent folder, build and start everything:
-
-   ```bash
-   docker compose up --build
-   ```
+```bash
+docker compose up --build
+```
 
 Once it is up:
 
@@ -39,10 +24,10 @@ Once it is up:
 | Backend API        | http://localhost:8000      |
 | API docs (Swagger) | http://localhost:8000/docs |
 
-Card payments work out of the box — the bundled `stripe-cli` service forwards
-Stripe webhooks to the backend automatically. Inspect test payments, events and
-webhooks in the [Stripe sandbox dashboard](https://dashboard.stripe.com/acct_REDACTED/test/dashboard)
-(login: `REDACTED@example.com` / `REDACTED`).
+Card payments need your own Stripe test keys — see
+[the note on placeholders](../README.md#you-need-to-supply-your-own-keys) in the
+root README. With them in place the bundled `stripe-cli` service forwards Stripe
+webhooks to the backend automatically, so authorize-then-capture works end to end.
 
 ## Demo data (seeding)
 
@@ -57,7 +42,7 @@ docker compose exec backend npm run db:seed
 
 The seed is **idempotent**: it purges the demo event/account and rebuilds it, so
 just re-run it if anything gets into a bad state. Product/logo images live in
-`Backend/seed-assets/` (see `seed-assets/README.md`); they are baked into the
+`backend/seed-assets/` (see `seed-assets/README.md`); they are baked into the
 image at build time, so `docker compose up --build` after changing them. The full
 list of ids and credentials is printed at the end of each run.
 

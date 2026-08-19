@@ -1,6 +1,6 @@
 services:
   backend:
-    build: ./Backend
+    build: ./backend
     ports:
       - "8000:8000"
     environment:
@@ -35,7 +35,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./Frontend
+    build: ./frontend
     ports:
       - "3000:3000"
     depends_on:
