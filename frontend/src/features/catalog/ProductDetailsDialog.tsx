@@ -1,0 +1,88 @@
+import { Button } from '@/components/ui/button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { formatMoney, productImageSrc, type Product } from '@/types/product';
+
+import { ProductThumbnail } from '@/components/shared/ProductThumbnail';
+import { Rating } from './Rating';
+
+interface ProductDetailsDialogProps {
+  product: Product;
+  standName: string;
+  rating: number | null;
+  // Hidden when the event has ratings disabled.
+  showRating?: boolean;
+  onClose: () => void;
+}
+
+export function ProductDetailsDialog({
+  product,
+  standName,
+  rating,
+  showRating = true,
+  onClose,
+}: ProductDetailsDialogProps) {
+  const imageSrc = productImageSrc(product);
+
+  useEscapeKey(onClose);
+
+  return (
+    // z-[1100] sits above the navbar (z-[1001]); click the backdrop to dismiss.
+    <div
+      className="fixed inset-0 z-[1100] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+      onClick={onClose}
+      role="presentation"
+    >
+      {/* Capped to the viewport (dvh handles mobile browser chrome); the content
+          scrolls while the price + close footer stays pinned. */}
+      <section
+        aria-labelledby="product-details-title"
+        aria-modal="true"
+        role="dialog"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-[0_24px_80px_rgba(31,41,55,0.2)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <ProductThumbnail
+            alt={product.productName}
+            className="h-44 w-full rounded-lg"
+            iconClassName="h-10 w-10"
+            imageSrc={imageSrc}
+          />
+
+          <div className="mt-4 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2
+                id="product-details-title"
+                className="text-lg font-semibold text-text [overflow-wrap:anywhere]"
+              >
+                {product.productName}
+              </h2>
+              {standName && (
+                <p className="mt-0.5 text-sm text-text-muted [overflow-wrap:anywhere]">
+                  {standName}
+                </p>
+              )}
+            </div>
+            {showRating && <Rating value={rating} className="shrink-0" />}
+          </div>
+
+          {product.productDescription && (
+            <p className="mt-2 whitespace-pre-line text-sm text-text-muted">
+              {product.productDescription}
+            </p>
+          )}
+        </div>
+
+        {/* Pinned footer — always reachable even with a long description. */}
+        <div className="border-t border-border p-4">
+          <span className="text-base font-semibold text-text">
+            €{formatMoney(product.priceIncludingTax)}
+          </span>
+          <Button className="mt-3 w-full" variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+}

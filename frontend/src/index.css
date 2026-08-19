@@ -1,0 +1,501 @@
+@import 'tailwindcss';
+
+/* StackSansNotch — used for the lineless text logo */
+@font-face {
+  font-family: 'StackSansNotch';
+  src: url('./assets/fonts/StackSansNotch-Regular.ttf') format('truetype');
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+
+  /* Backgrounds */
+  --color-bg: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef0f6;
+
+  /* Text */
+  --color-text: #1f2937;
+  --color-text-muted: #6b7280;
+
+  /* Border */
+  --color-border: #d8dbe6;
+
+  /* Brand — overridden at runtime for per-event branding (see features/branding) */
+  --color-accent: #020887;
+  /* Static brand blue, deliberately NOT overridden by per-event branding —
+     used where the Lineless mark itself should stay constant (e.g. the site
+     footer) regardless of the current event's custom accent color. */
+  --color-brand-static: #020887;
+  --color-button-text: #ffffff;
+  /* Accent used as text/icons on light surfaces. Defaults to the accent; branding
+     darkens it only when the raw accent fails AA contrast against the background. */
+  --color-accent-contrast: var(--color-accent);
+  --color-accent-soft: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --color-accent-raised: color-mix(in srgb, var(--color-accent) 75%, #ffffff 25%);
+
+  /* Shadows — derived from accent, update automatically when accent changes */
+  --shadow-navbar: 0 4px 20px color-mix(in srgb, var(--color-accent) 18%, transparent);
+
+  /* Semantic */
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #ef4444;
+
+  /* Typography */
+  --font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-logo: 'StackSansNotch', sans-serif;
+
+  /* shadcn semantic tokens — aliased onto the palette above so shadcn
+     components inherit our brand colors. Note: `accent` keeps its existing
+     brand meaning here, not shadcn's subtle-hover default. */
+  --radius: 0.625rem;
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-button-text);
+  --secondary: var(--color-surface-muted);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--color-surface-muted);
+  --muted-foreground: var(--color-text-muted);
+  --accent-foreground: var(--color-accent);
+  --destructive: var(--color-danger);
+  --destructive-foreground: #ffffff;
+  --input: var(--color-border);
+  --ring: var(--color-accent);
+}
+
+@theme {
+  --color-background: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-muted: var(--color-surface-muted);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-border: var(--color-border);
+  --color-accent: var(--color-accent);
+  --color-brand-static: var(--color-brand-static);
+  --color-button-text: var(--color-button-text);
+  --color-accent-contrast: var(--color-accent-contrast);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-accent-raised: var(--color-accent-raised);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --font-sans: var(--font-sans);
+  --font-logo: var(--font-logo);
+
+  /* shadcn semantic utilities (bg-card, text-muted-foreground, etc.) */
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* shadcn base layer — Tailwind v4 defaults `border`/`outline` to currentColor,
+   so map them to our tokens. Existing components already use border-border,
+   so this is a no-op for them. */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@keyframes account-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes account-menu-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.account-menu-popover {
+  animation: account-menu-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top right;
+}
+
+.account-menu-panel-item {
+  animation: account-menu-item-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Brief glow when an operator board item moves between columns: lights up once,
+   then gently fades out (no blinking). Uses outline (not box-shadow) so it never
+   clobbers the card's own shadow. Replays on each move because the card remounts
+   when it changes column. */
+@keyframes board-card-glow {
+  0% {
+    outline-color: color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+
+  6% {
+    outline-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+
+  65% {
+    outline-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+
+  100% {
+    outline-color: color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+}
+
+.board-card-moved {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  /* Lights up fast, holds, then fades over the last ~1.7s (~5s total). */
+  animation: board-card-glow 5s ease-out;
+}
+
+/* Public landing page — editorial event-day art direction. */
+.landing-page {
+  --landing-ink: var(--color-accent);
+}
+
+.landing-display {
+  font-family: var(--font-sans);
+  font-weight: 950;
+  letter-spacing: -0.075em;
+  text-wrap: balance;
+}
+
+.landing-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-accent) 7%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black 15%, transparent 92%);
+}
+
+.landing-cta {
+  border-radius: 999px;
+  padding-inline: 1.4rem;
+  box-shadow: 0 14px 35px color-mix(in srgb, var(--color-accent) 24%, transparent);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.landing-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--color-accent) 32%, transparent);
+}
+
+.landing-float-slow {
+  animation: landing-float-slow 8s ease-in-out infinite;
+}
+
+.landing-float-fast {
+  animation: landing-float-fast 6s ease-in-out infinite;
+}
+
+.landing-tear {
+  position: relative;
+  z-index: 2;
+  height: 38px;
+  margin-block: -18px;
+  clip-path: polygon(
+    0 35%,
+    4% 51%,
+    9% 31%,
+    15% 60%,
+    22% 38%,
+    29% 55%,
+    36% 28%,
+    45% 59%,
+    53% 33%,
+    62% 63%,
+    70% 39%,
+    79% 58%,
+    87% 30%,
+    94% 53%,
+    100% 37%,
+    100% 100%,
+    0 100%
+  );
+}
+
+.landing-tear-dark {
+  background: var(--landing-ink);
+}
+
+.landing-tear-light {
+  background: var(--color-bg);
+}
+
+.landing-problem-card {
+  min-height: 20rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 1.25rem;
+  background: var(--color-accent-raised);
+  padding: 1.75rem;
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--color-accent) 38%, transparent);
+  transition:
+    transform 240ms ease,
+    border-color 240ms ease;
+}
+
+.landing-problem-card:hover {
+  border-color: rgb(142 148 255 / 60%);
+  transform: translateY(-6px) rotate(0deg);
+}
+
+.landing-payment-grid {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-accent) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-accent) 4%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 40px 40px;
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+
+.landing-payment-routes {
+  color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+}
+
+.landing-payment-path {
+  stroke-dasharray: 0.035 0.035;
+  animation: landing-payment-dashes 1.4s linear infinite;
+}
+
+.landing-payment-packet {
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-accent) 70%, transparent));
+}
+
+.landing-payment-router {
+  animation: landing-router-pulse 4s ease-in-out infinite;
+}
+
+.landing-payment-order {
+  animation: landing-order-received 4s 1.8s ease-in-out infinite;
+}
+
+.landing-journey-line {
+  filter: drop-shadow(0 0 18px rgb(255 255 255 / 18%));
+  opacity: 0.86;
+}
+
+.landing-journey-copy,
+.landing-journey-visual {
+  will-change: transform, opacity;
+}
+
+.landing-step-card {
+  min-height: 20rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 1.5rem;
+  background: color-mix(in srgb, var(--color-accent) 84%, var(--color-surface) 16%);
+  padding: 1.75rem;
+  box-shadow: 0 28px 65px rgb(0 0 0 / 22%);
+}
+
+.landing-icon-badge {
+  display: inline-flex;
+  width: 3rem;
+  height: 3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.landing-price-digit {
+  position: relative;
+  isolation: isolate;
+  display: inline-block;
+  width: 0.72em;
+  height: 1em;
+  overflow: clip;
+  letter-spacing: 0;
+  line-height: 1;
+  contain: paint;
+}
+
+.landing-price-reel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  transition: transform 1.35s cubic-bezier(0.2, 0.75, 0.25, 1);
+  will-change: transform;
+}
+
+.landing-price-reel > span {
+  display: block;
+  height: 1em;
+  flex: 0 0 1em;
+  text-align: center;
+}
+
+.landing-price-reel-zero {
+  transition-delay: 90ms;
+}
+
+.landing-rolling-price.is-rolling .landing-price-reel-two {
+  transform: translateY(-7em);
+}
+
+.landing-rolling-price.is-rolling .landing-price-reel-zero {
+  transform: translateY(-9em);
+}
+
+@keyframes landing-float-slow {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(-1deg);
+  }
+}
+
+@keyframes landing-float-fast {
+  0%,
+  100% {
+    transform: translateY(0) rotate(3deg);
+  }
+
+  50% {
+    transform: translateY(-14px) rotate(1.5deg);
+  }
+}
+
+@keyframes landing-payment-dashes {
+  to {
+    stroke-dashoffset: -0.14;
+  }
+}
+
+@keyframes landing-router-pulse {
+  0%,
+  100% {
+    box-shadow: 0 14px 35px rgb(2 8 135 / 30%);
+  }
+
+  50% {
+    box-shadow:
+      0 14px 35px rgb(2 8 135 / 30%),
+      0 0 0 12px rgb(2 8 135 / 8%);
+  }
+}
+
+@keyframes landing-order-received {
+  0%,
+  40%,
+  100% {
+    transform: translateY(0);
+    border-color: var(--color-border);
+  }
+
+  50% {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-menu-popover,
+  .account-menu-panel-item,
+  .board-card-moved,
+  .landing-float-slow,
+  .landing-float-fast,
+  .landing-payment-path,
+  .landing-payment-router,
+  .landing-payment-order {
+    animation: none;
+  }
+
+  .landing-payment-packet {
+    display: none;
+  }
+
+  .landing-journey-scroll-dot {
+    display: none;
+  }
+
+  .landing-price-reel {
+    transition: none;
+  }
+
+  .landing-cta,
+  .landing-journey-copy,
+  .landing-journey-visual,
+  .landing-problem-card {
+    transition: none;
+  }
+}
